@@ -1,0 +1,727 @@
+@namespace LiPi.Web.Pages.PatientPages
+@page "/patients/{Id}/edit"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using System.Security.Claims
+@using System.Text.RegularExpressions
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Edit Patient – LiPi</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Edit Patient</div>
+    <div class="tn-pt-sub">@(string.IsNullOrEmpty(_originalName) ? "Loading…" : _originalName)</div>
+</SectionContent>
+
+<div class="pr-body">
+
+  <div class="pr-kpi-strip">
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#0B2545"></div><div class="pr-kpi-lbl">Today's Registrations</div><div class="pr-kpi-val">@_kpiReg</div><div class="pr-kpi-sub">↑ 6 vs yesterday</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#F59E0B"></div><div class="pr-kpi-lbl">OPD Queue</div><div class="pr-kpi-val">@_kpiQueue</div><div class="pr-kpi-sub">avg wait 18 min</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#1B4DA0"></div><div class="pr-kpi-lbl">Appointments Today</div><div class="pr-kpi-val">@_kpiAppts</div><div class="pr-kpi-sub">3 unconfirmed</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#4A9BD4"></div><div class="pr-kpi-lbl">Active Patients</div><div class="pr-kpi-val">@_kpiActive</div><div class="pr-kpi-sub">↑ 5.1% MoM</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#EF4444"></div><div class="pr-kpi-lbl">Pending Consents</div><div class="pr-kpi-val">@_kpiConsents</div><div class="pr-kpi-sub">action required</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#10B981"></div><div class="pr-kpi-lbl">Empty Slots Today</div><div class="pr-kpi-val">@_kpiSlots</div><div class="pr-kpi-sub">across all doctors</div></div>
+  </div>
+
+  @if (_showConfirm)
+  {
+    <div class="pe-confirm-backdrop">
+      <div class="pe-confirm-box">
+        <div class="pe-confirm-title">@_confirmTitle</div>
+        <div class="pe-confirm-msg">@_confirmMsg</div>
+        <div class="pe-confirm-btns">
+          <button type="button" class="pe-confirm-cancel" @onclick="CancelConfirm">Cancel</button>
+          <button type="button" class="pe-confirm-ok" @onclick="ExecuteConfirm">@_confirmAction</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (_notFound)
+  {
+    <div class="pr-panel" style="text-align:center;padding:48px">
+      <div style="font-size:32px;margin-bottom:12px">&#9888;</div>
+      <div style="font-size:16px;font-weight:500;color:#0B2545;margin-bottom:8px">Patient not found</div>
+      <div style="font-size:13px;color:#475569;margin-bottom:20px">No record found for ID: @Id</div>
+      <button type="button" class="pr-btn-primary" @onclick="GoBackSearch">Back to Search</button>
+    </div>
+  }
+  else
+  {
+    <div class="pr-panel">
+
+      <div class="pr-header">
+        <div>
+          <div class="pr-kicker">&#9711; PATIENT MANAGEMENT &middot; EDIT</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div class="pr-title">@m.DisplayName</div>
+            <span class="pr-uhid-pill">@_mrn</span>
+            <span class="@_statusCss">@_status</span>
+          </div>
+          <div class="pr-sub">Last updated: @_lastUpdated</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <button type="button" class="pr-btn-ghost" @onclick="GoToQueue">Add to queue</button>
+          @if (_step < 3)
+          {
+            <button type="button" class="pr-btn-primary" @onclick="HandleNext">Next →</button>
+          }
+          else if (!_saved)
+          {
+            <button type="button" class="pr-btn-save" disabled="@_saving" @onclick="HandleSubmit">
+              @(_saving ? "Saving…" : "✓ Save Changes")
+            </button>
+          }
+          else
+          {
+            <button type="button" class="pr-btn-ghost" @onclick="GoBackSearch">Close</button>
+          }
+        </div>
+      </div>
+
+      <div class="pr-tabs">
+        @for (var i = 0; i < 4; i++)
+        {
+          var idx = i;
+          var css = _step == idx ? "pr-tab pr-tab-active" : (idx < _step ? "pr-tab pr-tab-done" : "pr-tab");
+          var num = idx < _step ? "✓" : (idx + 1).ToString();
+          <div class="@css" @onclick="() => GoStep(idx)">
+            <div class="pr-tab-num">@num</div>
+            <div><div class="pr-tab-step">STEP @(idx + 1)</div><div class="pr-tab-lbl">@_tabLabels[idx]</div></div>
+          </div>
+        }
+      </div>
+
+      <div class="pr-main">
+        <div>
+
+          @if (_step == 0)
+          {
+            <fieldset disabled="@_saved" style="border:none;padding:0">
+              <div class="pr-form">
+                <div class="pr-sh"><span class="pr-sh-num">01</span><span class="pr-sh-title">Personal Identity</span><div class="pr-sh-line"></div></div>
+                <div class="pr-g4">
+                  <label class="pr-float"><div class="pr-flabel">Title</div>
+                    <select id="pe-title" name="title" autocomplete="honorific-prefix" class="pr-sel"
+                            value="@m.Title" @onchange="OnTitleChange">
+                      <option value=""></option>
+                      <option value="Mr">Mr</option>
+                      <option value="Mrs">Mrs</option>
+                      <option value="Miss">Miss</option>
+                      <option value="Ms">Ms</option>
+                      <option value="Dr">Dr</option>
+                      <option value="Prof">Prof</option>
+                      <option value="Baby">Baby</option>
+                      <option value="Master">Master</option>
+                      <option value="Rev">Rev</option>
+                    </select></label>
+                  <label class="pr-float pr-s2"><div class="pr-flabel">First Name *</div>
+                    <input id="pe-fname" name="firstName" autocomplete="given-name"
+                           class="pr-inp @ErrCss(_fnameKey)" value="@m.FirstName"
+                           @oninput="OnFnameInput" @onblur="OnFnameBlur" />
+                    @ErrFrag(_fnameKey)</label>
+                  <label class="pr-float"><div class="pr-flabel">Middle Name</div>
+                    <input id="pe-mname" name="middleName" autocomplete="additional-name"
+                           class="pr-inp" value="@m.MiddleName" @oninput="OnMnameInput" /></label>
+                </div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Last Name *</div>
+                    <input id="pe-lname" name="lastName" autocomplete="family-name"
+                           class="pr-inp @ErrCss(_lnameKey)" value="@m.LastName"
+                           @oninput="OnLnameInput" @onblur="OnLnameBlur" />
+                    @ErrFrag(_lnameKey)</label>
+                  <label class="pr-float"><div class="pr-flabel">Display Name</div>
+                    <input id="pe-dname" name="displayName" autocomplete="name"
+                           class="pr-inp" value="@m.DisplayName" @oninput="OnDnameInput" /></label>
+                </div>
+                <div class="pr-g3">
+                  <label class="pr-float"><div class="pr-flabel">Date of Birth *</div>
+                    <input id="pe-dob" name="dob" type="date" autocomplete="bday"
+                           class="pr-inp @ErrCss(_dobKey)" value="@m.DateOfBirth"
+                           max="@DateTime.Today.ToString("yyyy-MM-dd")"
+                           @onchange="OnDobChange" />
+                    @ErrFrag(_dobKey)</label>
+                  <div>
+                    <div class="pr-seg-lbl">Sex *</div>
+                    <div class="pr-seg-wrap">
+                      <button type="button" class="pr-seg-btn @(_gender==_male?_segOn:_empty)" @onclick="SetGenderMale">Male</button>
+                      <button type="button" class="pr-seg-btn @(_gender==_female?_segOn:_empty)" @onclick="SetGenderFemale">Female</button>
+                      <button type="button" class="pr-seg-btn @(_gender==_other?_segOn:_empty)" @onclick="SetGenderOther">Other</button>
+                    </div>
+                    @ErrFrag(_genderKey)</div>
+                  <label class="pr-float"><div class="pr-flabel">Blood Group</div>
+                    <select id="pe-blood" name="bloodGroup" autocomplete="off" class="pr-sel"
+                            value="@m.BloodGroup" @onchange="OnBloodChange">
+                      <option value="">Unknown</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select></label>
+                </div>
+                <div class="pr-g3">
+                  <label class="pr-float"><div class="pr-flabel">Marital Status</div>
+                    <select id="pe-marital" name="maritalStatus" autocomplete="off" class="pr-sel"
+                            value="@m.MaritalStatus" @onchange="OnMaritalChange">
+                      <option value="">Select…</option>
+                      <option value="single">Single</option>
+                      <option value="married">Married</option>
+                      <option value="divorced">Divorced</option>
+                      <option value="widowed">Widowed</option>
+                    </select></label>
+                  <label class="pr-float"><div class="pr-flabel">Nationality</div>
+                    <select id="pe-nationality" name="nationality" autocomplete="country" class="pr-sel"
+                            value="@m.Nationality" @onchange="OnNationalityChange">
+                      <option value="IN">Indian</option><option value="XX">Other</option>
+                    </select></label>
+                  <label class="pr-float"><div class="pr-flabel">Preferred Language</div>
+                    <select id="pe-lang" name="preferredLanguage" autocomplete="language" class="pr-sel"
+                            value="@m.Language" @onchange="OnLanguageChange">
+                      <option value="hi">Hindi</option>
+                      <option value="en">English</option>
+                      <option value="ta">Tamil</option>
+                      <option value="te">Telugu</option>
+                      <option value="mr">Marathi</option>
+                      <option value="bn">Bengali</option>
+                    </select></label>
+                </div>
+                <div class="pr-nav">
+                  <button type="button" class="pr-btn-ghost" @onclick="GoBackSearch">← Back to Search</button>
+                  <button type="button" class="pr-btn-primary" @onclick="HandleNext">Next →</button>
+                </div>
+              </div>
+            </fieldset>
+          }
+
+          @if (_step == 1)
+          {
+            <fieldset disabled="@_saved" style="border:none;padding:0">
+              <div class="pr-form">
+                <div class="pr-sh"><span class="pr-sh-num">03</span><span class="pr-sh-title">Contact</span><div class="pr-sh-line"></div></div>
+                <div class="pr-g3">
+                  <div>
+                    <div class="pr-seg-lbl">Mobile *</div>
+                    <div style="display:flex;gap:0">
+                      <select id="pe-mob-cc" name="mobileCC" autocomplete="tel-country-code" class="pr-sel"
+                              style="width:120px;flex-shrink:0;border-radius:8px 0 0 8px;border-right:none"
+                              value="@m.MobileCC" @onchange="OnMobCcChange">
+                        <option value="+91">+91 India</option>
+                        <option value="+1">+1 USA/CA</option>
+                        <option value="+44">+44 UK</option>
+                        <option value="+971">+971 UAE</option>
+                        <option value="+966">+966 KSA</option>
+                      </select>
+                      <input id="pe-mob" name="mobile" autocomplete="tel-national"
+                             class="pr-inp @ErrCss(_mobKey)" style="border-radius:0 8px 8px 0;flex:1"
+                             value="@m.Mobile" inputmode="numeric"
+                             @oninput="OnMobInputEdit" @onblur="OnMobBlur" />
+                    </div>
+                    @ErrFrag(_mobKey)</div>
+                  <label class="pr-float"><div class="pr-flabel">WhatsApp</div>
+                    <input id="pe-wa" name="whatsapp" autocomplete="off" class="pr-inp"
+                           value="@m.WhatsApp" inputmode="numeric" @oninput="OnWaInput" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Email</div>
+                    <input id="pe-email" name="email" type="email" autocomplete="email"
+                           class="pr-inp @ErrCss(_emailKey)" value="@m.Email"
+                           @oninput="OnEmailInput" @onblur="OnEmailBlur" />
+                    @ErrFrag(_emailKey)</label>
+                </div>
+                <div class="pr-sh" style="margin-top:4px"><span class="pr-sh-num">04</span><span class="pr-sh-title">Address</span><div class="pr-sh-line"></div></div>
+                <LiPi.Web.Components.AddressBlock
+                    AddressLine="@m.AddressLine" AddressLineChanged="v => m.AddressLine = v"
+                    City="@m.City"              CityChanged="v => m.City = v"
+                    State="@m.State"            StateChanged="v => m.State = v"
+                    PinCode="@m.PinCode"        PinCodeChanged="v => m.PinCode = v" />
+                <div class="pr-sh" style="margin-top:8px">
+                  <span class="pr-sh-num">05</span><span class="pr-sh-title">Next of Kin &amp; Guardian</span>
+                  <div class="pr-sh-line"></div>
+                  <span class="pr-note" style="font-size:10px;white-space:nowrap">max 5</span>
+                </div>
+                @for (var k = 0; k < _kin.Count; k++)
+                {
+                  var ki = k; var kin = _kin[ki];
+                  <div class="pr-kin-card">
+                    <div class="pr-kin-head">
+                      <span class="pr-kin-title">Contact @(ki + 1)</span>
+                      @if (kin.IsGuardian)  { <span class="pr-kin-badge">Guardian</span> }
+                      @if (kin.IsEmergency) { <span class="pr-kin-flag">Emergency</span> }
+                      @if (_kin.Count > 1)  { <button type="button" class="pr-kin-remove" @onclick="() => _kin.RemoveAt(ki)">✕ Remove</button> }
+                    </div>
+                    <div class="pr-g3">
+                      <label class="pr-float"><div class="pr-flabel">Full Name</div>
+                        <input id="pe-kin-@(ki)-n" name="kinName" autocomplete="name" class="pr-inp"
+                               value="@kin.Name" @oninput="e => OnKinName(ki, e)" /></label>
+                      <label class="pr-float"><div class="pr-flabel">Relationship</div>
+                        <select id="pe-kin-@(ki)-r" name="kinRel" autocomplete="off" class="pr-sel"
+                                value="@kin.Relationship" @onchange="e => OnKinRel(ki, e)">
+                          <option value="">Select…</option>
+                          <option value="spouse">Spouse</option>
+                          <option value="parent">Parent</option>
+                          <option value="child">Child</option>
+                          <option value="sibling">Sibling</option>
+                          <option value="guardian">Guardian</option>
+                          <option value="other">Other</option>
+                        </select></label>
+                      <label class="pr-float"><div class="pr-flabel">Phone</div>
+                        <input id="pe-kin-@(ki)-p" name="kinPhone" autocomplete="tel" class="pr-inp mono"
+                               value="@kin.Phone" inputmode="numeric"
+                               @oninput="e => OnKinPhone(ki, e)" /></label>
+                    </div>
+                    <div class="pr-kin-checks">
+                      <label class="pr-kin-check"><input type="checkbox" checked="@kin.IsGuardian"  @onchange="e => OnKinGuardian(ki, e)" /> Guardian</label>
+                      <label class="pr-kin-check"><input type="checkbox" checked="@kin.IsEmergency" @onchange="e => OnKinEmergency(ki, e)" /> Emergency</label>
+                    </div>
+                  </div>
+                }
+                @if (_kin.Count < 5) { <button type="button" class="pr-add-kin" @onclick="AddKin">+ Add another contact (@_kin.Count / 5)</button> }
+                <div class="pr-nav">
+                  <button type="button" class="pr-btn-ghost" @onclick="HandleBack">← Back</button>
+                  <button type="button" class="pr-btn-primary" @onclick="HandleNext">Next →</button>
+                </div>
+              </div>
+            </fieldset>
+          }
+
+          @if (_step == 2)
+          {
+            <fieldset disabled="@_saved" style="border:none;padding:0">
+              <div class="pr-form">
+                <div class="pr-sh"><span class="pr-sh-num">06</span><span class="pr-sh-title">Socioeconomic Profile</span><div class="pr-sh-line"></div></div>
+                <div class="pr-g3">
+                  <label class="pr-float"><div class="pr-flabel">Occupation</div>
+                    <input id="pe-occ" name="occupation" autocomplete="off" class="pr-inp"
+                           value="@m.Occupation" @oninput="OnOccInput" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Education Level</div>
+                    <select id="pe-edu" name="educationLevel" autocomplete="off" class="pr-sel"
+                            value="@m.EducationLevel" @onchange="OnEduChange">
+                      <option value="">Select…</option>
+                      <option value="illiterate">Illiterate</option>
+                      <option value="primary">Primary</option>
+                      <option value="secondary">Secondary</option>
+                      <option value="graduate">Graduate</option>
+                      <option value="post_graduate">Post-Graduate</option>
+                      <option value="professional">Professional</option>
+                    </select></label>
+                  <label class="pr-float"><div class="pr-flabel">Income Group</div>
+                    <select id="pe-income" name="incomeGroup" autocomplete="off" class="pr-sel"
+                            value="@m.IncomeGroup" @onchange="OnIncomeChange">
+                      <option value="">Select…</option>
+                      <option value="bpl">BPL</option>
+                      <option value="lower">Lower</option>
+                      <option value="lower_middle">Lower Middle</option>
+                      <option value="middle">Middle</option>
+                      <option value="upper_middle">Upper Middle</option>
+                      <option value="upper">Upper</option>
+                    </select></label>
+                </div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Height (cm)</div>
+                    <input id="pe-ht" name="heightCm" autocomplete="off" class="pr-inp"
+                           value="@m.HeightCm" inputmode="numeric" @oninput="OnHeightInput" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Weight (kg)</div>
+                    <input id="pe-wt" name="weightKg" autocomplete="off" class="pr-inp"
+                           value="@m.WeightKg" inputmode="numeric" @oninput="OnWeightInput" /></label>
+                </div>
+                @if (!string.IsNullOrEmpty(_bmi)) { <div class="pr-note ok" style="margin-top:-6px;margin-bottom:10px">BMI: @_bmi @BmiCat(_bmi)</div> }
+                <div class="pr-sh" style="margin-top:2px"><span class="pr-sh-num">08</span><span class="pr-sh-title">Registration Details</span><div class="pr-sh-line"></div></div>
+                <div class="pr-g3">
+                  <label class="pr-float"><div class="pr-flabel">Patient Type</div>
+                    <select id="pe-pt-type" name="patientType" autocomplete="off" class="pr-sel"
+                            value="@m.PatientType" @onchange="OnPatientTypeChange">
+                      <option value="general">General</option>
+                      <option value="vip">VIP</option>
+                      <option value="international">International</option>
+                      <option value="staff">Staff Patient</option>
+                      <option value="charity">Charity / CGS</option>
+                      <option value="research">Research / Trial</option>
+                    </select></label>
+                  <label class="pr-float"><div class="pr-flabel">Attending Doctor *</div>
+                    <input id="pe-doctor" name="attendingDoctor" autocomplete="off"
+                           class="pr-inp @ErrCss(_doctorKey)" value="@m.AttendingDoctor"
+                           list="pe-doc-list" @oninput="OnDoctorInput" @onblur="OnDoctorBlur" />
+                    <datalist id="pe-doc-list"><option value="Dr. Sharma" /><option value="Dr. Patel" /><option value="Dr. Rao" /></datalist>
+                    @ErrFrag(_doctorKey)</label>
+                  <label class="pr-float"><div class="pr-flabel">Priority</div>
+                    <select id="pe-priority" name="priority" autocomplete="off" class="pr-sel"
+                            value="@m.Priority" @onchange="OnPriorityChange">
+                      <option value="normal">Normal</option>
+                      <option value="urgent">Urgent</option>
+                      <option value="emergency">Emergency</option>
+                    </select></label>
+                </div>
+                <span class="pr-section-lbl">Alert Flags</span>
+                <div class="pr-flag-strip">
+                  <button type="button" class="pr-flag-chip @(m.VipFlag      ? _flagVip     : _empty)" @onclick="ToggleVip">&#9733; VIP Patient</button>
+                  <button type="button" class="pr-flag-chip @(m.AllergyAlert ? _flagAllergy : _empty)" @onclick="ToggleAllergy">&#9888; Known Allergies</button>
+                  <button type="button" class="pr-flag-chip @(m.OrganDonor   ? _flagOrgan   : _empty)" @onclick="ToggleOrgan">&#9829; Organ Donor</button>
+                  <button type="button" class="pr-flag-chip @(m.ResearchFlag ? _flagActive  : _empty)" @onclick="ToggleResearch">&#128300; Research</button>
+                </div>
+                <div class="pe-danger-strip">
+                  <div class="pe-danger-title">Patient Status Actions</div>
+                  <div class="pe-danger-actions">
+                    @if (_status == _statusActive)
+                    {
+                      <button type="button" class="pe-danger-btn" @onclick="AskSuspend">Suspend Patient</button>
+                      <button type="button" class="pe-danger-btn" @onclick="AskTerminate">Terminate Record</button>
+                    }
+                    @if (_status == _statusSuspended)
+                    {
+                      <button type="button" class="pe-danger-btn" style="color:#065F46;border-color:#6EE7B7" @onclick="AskReactivate">Reactivate Patient</button>
+                      <button type="button" class="pe-danger-btn" @onclick="AskTerminate">Terminate Record</button>
+                    }
+                  </div>
+                </div>
+                <div class="pr-nav">
+                  <button type="button" class="pr-btn-ghost" @onclick="HandleBack">← Back</button>
+                  <button type="button" class="pr-btn-primary" @onclick="HandleNext">Next →</button>
+                </div>
+              </div>
+            </fieldset>
+          }
+
+          @if (_step == 3)
+          {
+            <div class="pr-form">
+              <div class="pr-sh"><span class="pr-sh-num">09</span><span class="pr-sh-title">Review Changes</span><div class="pr-sh-line"></div></div>
+              <div style="font-size:12px;color:#475569;margin-bottom:12px;line-height:1.6">
+                Saving changes for <strong>@m.DisplayName</strong> &middot; <span class="pr-review-mono" style="font-size:12px">@_mrn</span>
+              </div>
+              <div class="pr-review-row"><span class="pr-review-key">Name</span><span class="pr-review-val">@m.DisplayName</span></div>
+              <div class="pr-review-row"><span class="pr-review-key">DOB / Sex</span><span class="pr-review-val">@m.DateOfBirth &middot; @m.Gender</span></div>
+              <div class="pr-review-row"><span class="pr-review-key">Mobile</span><span class="pr-review-val">@($"{m.MobileCC} {m.Mobile}")</span></div>
+              <div class="pr-review-row"><span class="pr-review-key">Address</span><span class="pr-review-val">@($"{m.City}{(string.IsNullOrEmpty(m.City)?string.Empty:", ")}{m.State} {m.PinCode}")</span></div>
+              <div class="pr-review-row"><span class="pr-review-key">Doctor</span><span class="pr-review-val">@(string.IsNullOrEmpty(m.AttendingDoctor) ? "—" : m.AttendingDoctor)</span></div>
+              <div class="pr-review-row"><span class="pr-review-key">Patient Type</span><span class="pr-review-val">@m.PatientType</span></div>
+              <div class="pr-review-row"><span class="pr-review-key">Status</span><span class="pr-review-val">@_status</span></div>
+              @if (!string.IsNullOrEmpty(_saveSuccess)) { <div class="pr-success-bar" style="margin-top:10px">&#10003; @_saveSuccess</div> }
+              @if (!string.IsNullOrEmpty(_saveError))   { <div class="pr-error-bar"   style="margin-top:10px">&#9888; @_saveError</div>   }
+              <div class="pr-nav">
+                <button type="button" class="pr-btn-ghost" @onclick="BackOrClose">
+                  @(_saved ? "Close" : "← Back")
+                </button>
+                @if (!_saved)
+                {
+                  <button type="button" class="pr-btn-save" disabled="@_saving" @onclick="HandleSubmit">
+                    @(_saving ? "Saving…" : "✓ Save Changes")
+                  </button>
+                }
+                else
+                {
+                  <button type="button" class="pr-btn-primary" disabled>✓ Saved</button>
+                }
+              </div>
+            </div>
+          }
+
+        </div>
+
+        <div>
+          <div class="pr-patient-card">
+            <div class="pr-card-kicker">&#9711; patient on file</div>
+            <div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start">
+              <div class="pr-card-avatar">@_avatarText</div>
+              <div style="min-width:0;flex:1">
+                <div class="pr-card-name">@(string.IsNullOrWhiteSpace(_originalName) ? "Loading…" : _originalName)</div>
+                <div class="pr-card-uhid">@_mrn</div>
+              </div>
+            </div>
+            <div class="pr-card-divider"></div>
+            <div class="pr-card-row"><span class="pr-card-lbl">Sex / DOB</span><span class="pr-card-val">@_originalGender &middot; @m.DateOfBirth</span></div>
+            <div class="pr-card-row"><span class="pr-card-lbl">Mobile</span><span class="pr-card-val mono">@m.MobileCC @m.Mobile</span></div>
+            <div class="pr-card-row"><span class="pr-card-lbl">Blood</span><span class="pr-card-val">@(string.IsNullOrEmpty(m.BloodGroup) ? "Unknown" : m.BloodGroup)</span></div>
+            <div class="pr-card-row"><span class="pr-card-lbl">Doctor</span><span class="pr-card-val">@(string.IsNullOrEmpty(m.AttendingDoctor) ? "—" : m.AttendingDoctor)</span></div>
+            <div class="pr-card-row"><span class="pr-card-lbl">Type</span><span class="pr-card-val">@m.PatientType</span></div>
+            <div class="pr-card-divider"></div>
+            <div class="pr-card-consent">Status:&nbsp;<span style="color:@(_status==_statusActive?_colorBlue:_colorRed)">@_status</span></div>
+          </div>
+          <div class="pr-card-hint">Step @(_step + 1) of 4 &middot; @_stepHints[_step]</div>
+        </div>
+
+      </div>
+    </div>
+  }
+</div>
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private readonly string _kpiReg = "38", _kpiQueue = "12", _kpiAppts = "47",
+                            _kpiActive = "1,284", _kpiConsents = "3", _kpiSlots = "9";
+
+    // String constants — avoids string literals inside Razor attributes
+    private const string _male   = "male",   _female  = "female", _other    = "other";
+    private const string _segOn  = "pr-seg-on", _empty = "";
+    private const string _flagVip = "pr-flag-vip", _flagAllergy = "pr-flag-allergy";
+    private const string _flagOrgan = "pr-flag-organ", _flagActive = "pr-flag-active";
+    private const string _statusActive = "active", _statusSuspended = "suspended";
+    private const string _colorBlue = "#4A9BD4", _colorRed = "#EF4444";
+    // Validation field-key constants
+    private const string _fnameKey = "fname", _lnameKey = "lname", _dobKey = "dob";
+    private const string _genderKey = "gender", _mobKey = "mob", _emailKey = "email";
+    private const string _doctorKey = "doctor";
+
+    private int    _step         = 0;
+    private bool   _saving       = false;
+    private bool   _saved        = false;
+    private bool   _notFound     = false;
+    private string _saveSuccess  = string.Empty;
+    private string _saveError    = string.Empty;
+    private string _mrn          = string.Empty;
+    private string _status       = string.Empty;
+    private string _statusCss    = string.Empty;
+    private string _lastUpdated  = string.Empty;
+    private string _originalName = string.Empty;
+    private string _originalGender = string.Empty;
+    private string _gender       = string.Empty;
+    private bool   _dispEdited   = false;
+    private string _bmi          = string.Empty;
+    private string _avatarText   = string.Empty;
+    private bool   _showConfirm  = false;
+    private string _confirmTitle = string.Empty;
+    private string _confirmMsg   = string.Empty;
+    private string _confirmAction= string.Empty;
+    private string _confirmKey   = string.Empty;
+
+    private static readonly string[] _tabLabels = ["Identity", "Contact & Address", "Clinical Profile", "Review & Save"];
+    private static readonly string[] _stepHints =
+    [
+        "Edit identity details. Fields pre-populated from the existing record.",
+        "Update contact, address and next of kin.",
+        "Clinical profile, risk factors and patient status actions.",
+        "Review all changes before saving."
+    ];
+
+    private sealed class PatientEditModel
+    {
+        public string Title = string.Empty, FirstName = string.Empty, MiddleName = string.Empty;
+        public string LastName = string.Empty, DisplayName = string.Empty;
+        public string Gender = string.Empty, DateOfBirth = string.Empty;
+        public string BloodGroup = string.Empty, MaritalStatus = string.Empty;
+        public string Nationality = "IN", Language = "hi";
+        public string MobileCC = "+91", Mobile = string.Empty, WhatsApp = string.Empty, Email = string.Empty;
+        public string AddressLine = string.Empty, City = string.Empty, State = string.Empty, PinCode = string.Empty;
+        public string Occupation = string.Empty, EducationLevel = string.Empty, IncomeGroup = string.Empty;
+        public string HeightCm = string.Empty, WeightKg = string.Empty;
+        public string PatientType = "general", AttendingDoctor = string.Empty, Priority = "normal";
+        public bool VipFlag, AllergyAlert, OrganDonor, ResearchFlag;
+    }
+    private PatientEditModel m = new();
+
+    private sealed class KinContact
+    {
+        public string Name = string.Empty, Relationship = string.Empty, Phone = string.Empty, Email = string.Empty;
+        public bool IsGuardian = false, IsEmergency = true;
+    }
+    private List<KinContact> _kin = [new KinContact()];
+
+    private readonly Dictionary<string, string> _errors  = new();
+    private readonly Dictionary<string, bool>   _touched = new();
+
+    protected override async Task OnInitializedAsync() => await LoadPatient();
+
+    private async Task LoadPatient()
+    {
+        if (string.IsNullOrWhiteSpace(Id)) { _notFound = true; return; }
+        await Task.Delay(10); // TODO: replace with ClinicCoreDbContext.Patients.FindAsync(Guid.Parse(Id))
+        m.Title = "Mr"; m.FirstName = "Rajesh"; m.MiddleName = "Kumar"; m.LastName = "Sharma";
+        m.DisplayName = "Mr Rajesh Kumar Sharma"; m.Gender = _male; _gender = _male;
+        m.DateOfBirth = "1978-04-15"; m.BloodGroup = "B+"; m.MaritalStatus = "married";
+        m.Nationality = "IN"; m.Language = "hi"; m.MobileCC = "+91"; m.Mobile = "9876543210";
+        m.Email = "rajesh.sharma@email.com"; m.AddressLine = "42 MG Road, Bandra West";
+        m.City = "Mumbai"; m.State = "Maharashtra"; m.PinCode = "400050";
+        m.Occupation = "Engineer"; m.EducationLevel = "graduate";
+        m.AttendingDoctor = "Dr. Sharma"; m.PatientType = "general"; m.VipFlag = true;
+        _kin = [new KinContact { Name = "Priya Kumar", Relationship = "spouse", Phone = "9876511111", IsGuardian = true, IsEmergency = true }];
+        _mrn = "PT-2026-003421"; _lastUpdated = "26 Apr 2026, 14:32";
+        _originalName = m.DisplayName; _originalGender = "Male";
+        SetStatus(_statusActive);
+        UpdateAvatar();
+    }
+
+    private void SetStatus(string s)
+    {
+        _status = s;
+        _statusCss = s switch { "active" => "pe-status-active", "suspended" => "pe-status-suspended", _ => "pe-status-terminated" };
+    }
+
+    private void UpdateAvatar()
+    {
+        var f = m.FirstName.Length > 0 ? m.FirstName[0].ToString().ToUpperInvariant() : string.Empty;
+        var l = m.LastName.Length  > 0 ? m.LastName[0].ToString().ToUpperInvariant()  : string.Empty;
+        _avatarText = f + l;
+        if (string.IsNullOrEmpty(_avatarText)) _avatarText = "?";
+    }
+
+    // Navigation helpers
+    private void GoStep(int s)   => _step = Math.Clamp(s, 0, 3);
+    private void HandleBack()   => GoStep(_step - 1);
+    private void GoBackSearch() => Nav.NavigateTo("/patients/search");
+    private void GoToQueue()    => Nav.NavigateTo($"/patients/{Id}/queue");
+    private void BackOrClose()  { if (_saved) GoBackSearch(); else HandleBack(); }
+    private void AddKin()       { if (_kin.Count < 5) _kin.Add(new KinContact()); }
+
+    private async Task HandleNext()
+    {
+        if (!ValidateStep(_step))
+        {
+            await JS.InvokeVoidAsync("eval",
+                "setTimeout(()=>{var el=document.querySelector('.pr-inp.err,.pr-sel.err');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();}},50)");
+            return;
+        }
+        GoStep(_step + 1);
+    }
+
+    private bool ValidateStep(int step)
+    {
+        if (step == 0) { foreach (var f in new[]{_fnameKey,_lnameKey,_genderKey,_dobKey}) Touch(f); return _errors.All(kv => string.IsNullOrEmpty(kv.Value)); }
+        if (step == 1) { Touch(_mobKey); return string.IsNullOrEmpty(_errors.GetValueOrDefault(_mobKey, string.Empty)); }
+        if (step == 2) { Touch(_doctorKey); return string.IsNullOrEmpty(_errors.GetValueOrDefault(_doctorKey, string.Empty)); }
+        return true;
+    }
+
+    private async Task HandleSubmit()
+    {
+        _saving = true; _saveError = string.Empty; StateHasChanged();
+        try
+        {
+            await Task.Delay(700); // TODO: wire to ClinicCoreDbContext SaveChangesAsync
+            _saved = true;
+            _saveSuccess = $"Changes saved for {m.DisplayName} · {_mrn}";
+            _lastUpdated = $"{DateTime.Now:dd MMM yyyy, HH:mm}";
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // Confirm dialog
+    private void AskSuspend()    => AskConfirm("Suspend Patient", "This will prevent the patient from being scheduled. You can reactivate later.", "Suspend", "suspend");
+    private void AskTerminate()  => AskConfirm("Terminate Patient Record", "Termination is irreversible. The patient record will be hidden from all lists.", "Terminate", "terminate");
+    private void AskReactivate() => AskConfirm("Reactivate Patient", "This will restore full access for this patient. Continue?", "Reactivate", "reactivate");
+
+    private void AskConfirm(string title, string msg, string btn, string key)
+    { _confirmTitle = title; _confirmMsg = msg; _confirmAction = btn; _confirmKey = key; _showConfirm = true; }
+    private void CancelConfirm() => _showConfirm = false;
+    private async Task ExecuteConfirm()
+    {
+        _showConfirm = false;
+        SetStatus(_confirmKey switch { "suspend" => "suspended", "reactivate" => "active", _ => "terminated" });
+        await Task.CompletedTask; // TODO: persist to DB
+    }
+
+    // ── Step 0 handlers ──────────────────────────────────────────────────────
+    private void OnTitleChange(ChangeEventArgs e)      { m.Title = e.Value?.ToString() ?? string.Empty; RebuildDisplay(); }
+    private void OnFnameInput(ChangeEventArgs e)       { m.FirstName = OnlyLetters(e.Value?.ToString()); RebuildDisplay(); if (_touched.GetValueOrDefault(_fnameKey)) Validate(_fnameKey); UpdateAvatar(); StateHasChanged(); }
+    private void OnFnameBlur()                         => Touch(_fnameKey);
+    private void OnMnameInput(ChangeEventArgs e)       => m.MiddleName = OnlyLetters(e.Value?.ToString());
+    private void OnLnameInput(ChangeEventArgs e)       { m.LastName = OnlyLetters(e.Value?.ToString()); RebuildDisplay(); if (_touched.GetValueOrDefault(_lnameKey)) Validate(_lnameKey); UpdateAvatar(); StateHasChanged(); }
+    private void OnLnameBlur()                         => Touch(_lnameKey);
+    private void OnDnameInput(ChangeEventArgs e)       { m.DisplayName = e.Value?.ToString() ?? string.Empty; _dispEdited = true; }
+    private void SetGenderMale()                       { _gender = _male;   m.Gender = _male;   if (_touched.GetValueOrDefault(_genderKey)) Validate(_genderKey); }
+    private void SetGenderFemale()                     { _gender = _female; m.Gender = _female; if (_touched.GetValueOrDefault(_genderKey)) Validate(_genderKey); }
+    private void SetGenderOther()                      { _gender = _other;  m.Gender = _other;  if (_touched.GetValueOrDefault(_genderKey)) Validate(_genderKey); }
+    private void OnDobChange(ChangeEventArgs e)        { m.DateOfBirth = e.Value?.ToString() ?? string.Empty; Touch(_dobKey); }
+    private void OnBloodChange(ChangeEventArgs e)      => m.BloodGroup    = e.Value?.ToString() ?? string.Empty;
+    private void OnMaritalChange(ChangeEventArgs e)    => m.MaritalStatus = e.Value?.ToString() ?? string.Empty;
+    private void OnNationalityChange(ChangeEventArgs e)=> m.Nationality   = e.Value?.ToString() ?? string.Empty;
+    private void OnLanguageChange(ChangeEventArgs e)   => m.Language      = e.Value?.ToString() ?? string.Empty;
+
+    // ── Step 1 handlers ──────────────────────────────────────────────────────
+    private void OnMobCcChange(ChangeEventArgs e)      => m.MobileCC = e.Value?.ToString() ?? string.Empty;
+    private void OnMobInputEdit(ChangeEventArgs e)
+    {
+        m.Mobile = StripDigits(e.Value?.ToString());
+        if (m.MobileCC == "+91" && m.Mobile.Length > 10) m.Mobile = m.Mobile[..10];
+        if (_touched.GetValueOrDefault(_mobKey)) Validate(_mobKey);
+    }
+    private void OnMobBlur()                           => Touch(_mobKey);
+    private void OnWaInput(ChangeEventArgs e)          => m.WhatsApp = StripDigits(e.Value?.ToString());
+    private void OnEmailInput(ChangeEventArgs e)       => m.Email    = e.Value?.ToString() ?? string.Empty;
+    private void OnEmailBlur()                         => Touch(_emailKey);
+    private void OnKinName(int i, ChangeEventArgs e)   => _kin[i].Name         = OnlyLetters(e.Value?.ToString(), true);
+    private void OnKinRel(int i, ChangeEventArgs e)    => _kin[i].Relationship = e.Value?.ToString() ?? string.Empty;
+    private void OnKinPhone(int i, ChangeEventArgs e)  => _kin[i].Phone        = StripDigits(e.Value?.ToString());
+    private void OnKinGuardian(int i, ChangeEventArgs e) => _kin[i].IsGuardian  = e.Value is true;
+    private void OnKinEmergency(int i, ChangeEventArgs e)=> _kin[i].IsEmergency = e.Value is true;
+
+    // ── Step 2 handlers ──────────────────────────────────────────────────────
+    private void OnOccInput(ChangeEventArgs e)         => m.Occupation       = e.Value?.ToString() ?? string.Empty;
+    private void OnEduChange(ChangeEventArgs e)        => m.EducationLevel   = e.Value?.ToString() ?? string.Empty;
+    private void OnIncomeChange(ChangeEventArgs e)     => m.IncomeGroup      = e.Value?.ToString() ?? string.Empty;
+    private void OnHeightInput(ChangeEventArgs e)      { m.HeightCm = e.Value?.ToString() ?? string.Empty; RecalcBmi(); }
+    private void OnWeightInput(ChangeEventArgs e)      { m.WeightKg = e.Value?.ToString() ?? string.Empty; RecalcBmi(); }
+    private void OnPatientTypeChange(ChangeEventArgs e)=> m.PatientType      = e.Value?.ToString() ?? string.Empty;
+    private void OnDoctorInput(ChangeEventArgs e)      { m.AttendingDoctor = e.Value?.ToString() ?? string.Empty; if (_touched.GetValueOrDefault(_doctorKey)) Validate(_doctorKey); }
+    private void OnDoctorBlur()                        => Touch(_doctorKey);
+    private void OnPriorityChange(ChangeEventArgs e)   => m.Priority         = e.Value?.ToString() ?? string.Empty;
+    private void ToggleVip()      => m.VipFlag       = !m.VipFlag;
+    private void ToggleAllergy()  => m.AllergyAlert  = !m.AllergyAlert;
+    private void ToggleOrgan()    => m.OrganDonor    = !m.OrganDonor;
+    private void ToggleResearch() => m.ResearchFlag  = !m.ResearchFlag;
+
+    // ── Validation ────────────────────────────────────────────────────────────
+    private void Touch(string f) { _touched[f] = true; Validate(f); StateHasChanged(); }
+
+    private void Validate(string f)
+    {
+        _errors[f] = f switch
+        {
+            var k when k == _fnameKey  => string.IsNullOrWhiteSpace(m.FirstName)   ? "First name is required" : string.Empty,
+            var k when k == _lnameKey  => string.IsNullOrWhiteSpace(m.LastName)    ? "Last name is required"  : string.Empty,
+            var k when k == _genderKey => string.IsNullOrEmpty(_gender)            ? "Sex is required"        : string.Empty,
+            var k when k == _dobKey    => string.IsNullOrWhiteSpace(m.DateOfBirth) ? "Date of birth required" :
+                                          (!DateTime.TryParse(m.DateOfBirth, out var d) || d > DateTime.Today) ? "Must be a past date" : string.Empty,
+            var k when k == _mobKey    => string.IsNullOrEmpty(m.Mobile) ? "Mobile is required" :
+                                          m.MobileCC == "+91" && !Regex.IsMatch(m.Mobile, "^[6-9]\\d{9}$") ? "10 digits starting 6-9" : string.Empty,
+            var k when k == _emailKey  => string.IsNullOrEmpty(m.Email) ? string.Empty :
+                                          Regex.IsMatch(m.Email, "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$") ? string.Empty : "Invalid email",
+            var k when k == _doctorKey => string.IsNullOrWhiteSpace(m.AttendingDoctor) ? "Doctor is required" : string.Empty,
+            _                          => string.Empty,
+        };
+    }
+
+    private string ErrCss(string f) =>
+        _touched.GetValueOrDefault(f) && !string.IsNullOrEmpty(_errors.GetValueOrDefault(f, string.Empty)) ? "err" : string.Empty;
+
+    private RenderFragment ErrFrag(string f) => b =>
+    {
+        if (_touched.GetValueOrDefault(f) && !string.IsNullOrEmpty(_errors.GetValueOrDefault(f, string.Empty)))
+        { b.OpenElement(0,"span"); b.AddAttribute(1,"class","pr-err-msg"); b.AddContent(2,_errors[f]); b.CloseElement(); }
+    };
+
+    private void RebuildDisplay()
+    {
+        if (_dispEdited) return;
+        m.DisplayName = string.Join(" ", new[]{m.Title,m.FirstName,m.LastName}.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private void RecalcBmi()
+    {
+        _bmi = string.Empty;
+        if (float.TryParse(m.HeightCm, out var h) && float.TryParse(m.WeightKg, out var wt) && h > 0)
+            _bmi = (wt / (h / 100f * (h / 100f))).ToString("F1");
+    }
+
+    private static string BmiCat(string bmi) =>
+        float.TryParse(bmi, out var v) ? v switch { < 18.5f => "· Underweight", < 25f => "· Normal", < 30f => "· Overweight", _ => "· Obese" } : string.Empty;
+
+    private static string StripDigits(string? s) =>
+        string.IsNullOrEmpty(s) ? string.Empty : Regex.Replace(s, "\\D", string.Empty);
+
+    private static string OnlyLetters(string? s, bool allowSpaces = false)
+    {
+        if (string.IsNullOrEmpty(s)) return string.Empty;
+        return Regex.Replace(s, allowSpaces ? "[^a-zA-Z\\s\\-\\.]" : "[^a-zA-Z\\-\\.]", string.Empty);
+    }
+}

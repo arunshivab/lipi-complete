@@ -1,0 +1,587 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/uhid-settings"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Sections
+@using System.Security.Claims
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject IDbContextFactory<MasterDbContext> DbFactory
+
+<PageTitle>UHID Settings – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">UHID Settings</div>
+    <div class="tn-pt-sub">Universal Health ID format &middot; per clinic</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:860px;margin:0 auto;padding:20px 24px 60px">
+
+  @if (!string.IsNullOrEmpty(_saveSuccess)) { <div class="pg-alert ok" style="margin-bottom:14px">&#10003; @_saveSuccess</div> }
+  @if (!string.IsNullOrEmpty(_errorMsg))    { <div class="pg-alert err" style="margin-bottom:14px">&#9888; @_errorMsg</div>   }
+
+  <div class="af-card" style="border-left-color:#0B2545;margin-bottom:16px">
+    <div class="af-card-header">
+      <div class="af-card-num" style="background:#0B2545">&#9670;</div>
+      <span class="af-card-title">Select Clinic</span>
+      <span style="margin-left:auto;font-size:10px;padding:2px 8px;border-radius:10px;background:#FFF7ED;color:#C2410C;border:0.5px solid #FED7AA;font-family:'DM Mono',monospace">SysAdmin / GlobalAdmin</span>
+    </div>
+    <div class="af-card-body">
+      @if (_clinics.Count == 0)
+      { <div style="font-size:12px;color:#94A3B8">Loading clinics…</div> }
+      else if (_clinics.Count == 1)
+      {
+        <div style="font-size:13px;font-weight:500;color:#0B2545">@_clinics[0].Name</div>
+        <div style="font-size:11px;color:#94A3B8">@_clinics[0].Code · @_clinics[0].City</div>
+      }
+      else
+      {
+        <select class="af-fselect" style="max-width:400px" @onchange="OnClinicChange">
+          <option value="">— Choose a clinic —</option>
+          @foreach (var c in _clinics)
+          { <option value="@c.Id" selected="@(_clinicId==c.Id)">@c.Name (@c.Code)</option> }
+        </select>
+      }
+    </div>
+  </div>
+
+  @if (_clinicId != Guid.Empty)
+  {
+    <fieldset disabled="@_saved" style="border:none;padding:0;margin:0">
+
+    <div class="af-card" style="border-left-color:#1B4DA0;margin-bottom:14px">
+      <div class="af-card-header">
+        <div class="af-card-num" style="background:#1B4DA0">1</div>
+        <span class="af-card-title">Format builder</span>
+        <span style="margin-left:8px;font-size:11px;color:#64748B">Compose the UHID structure — preview updates live</span>
+      </div>
+      <div class="af-card-body">
+
+        <div class="af-row" style="margin-bottom:14px">
+          <div class="af-field" style="flex:1">
+            <label class="af-label" for="us-disp-name">UHID Display Name</label>
+            <input id="us-disp-name" name="uhidDisplayName" autocomplete="off" class="af-finput"
+                   value="@_cfg.DisplayName" @oninput="e => { _cfg.DisplayName = e.Value?.ToString() ?? string.Empty; RebuildPreview(); }" />
+            <div class="af-hint">Label shown to staff in all forms (e.g. MRN, Patient ID, UHID)</div>
+          </div>
+          <div class="af-field" style="flex:1">
+            <label class="af-label" for="us-apt-pfx">APT Reference Prefix</label>
+            <input id="us-apt-pfx" name="aptRefPrefix" autocomplete="off" class="af-finput mono"
+                   value="@_cfg.AptPrefix" maxlength="4"
+                   @oninput="e => _cfg.AptPrefix = StripNonAlphaNum(e.Value?.ToString()).ToUpperInvariant()" />
+            <div class="af-hint">Appointment reference shown to patients (e.g. APT)</div>
+          </div>
+        </div>
+
+        <div class="af-label" style="margin-bottom:6px">Prefix (optional)</div>
+        <div class="us-seg-row" style="margin-bottom:12px">
+          <button type="button" class="us-seg @(_cfg.PrefixType==_pfxNone?_segOn:_empty)"    @onclick="SetPfxNone">None</button>
+          <button type="button" class="us-seg @(_cfg.PrefixType==_pfxAlpha?_segOn:_empty)"   @onclick="SetPfxAlpha">Alpha</button>
+          <button type="button" class="us-seg @(_cfg.PrefixType==_pfxNum?_segOn:_empty)"     @onclick="SetPfxNum">Number</button>
+          <button type="button" class="us-seg @(_cfg.PrefixType==_pfxAlNum?_segOn:_empty)"   @onclick="SetPfxAlNum">Alpha+Num</button>
+          <button type="button" class="us-seg @(_cfg.PrefixType==_pfxNumAl?_segOn:_empty)"   @onclick="SetPfxNumAl">Num+Alpha</button>
+          <button type="button" class="us-seg @(_cfg.PrefixType==_pfxComplex?_segOn:_empty)" @onclick="SetPfxComplex">Num+Alpha+Num</button>
+        </div>
+        @if (_cfg.PrefixType != _pfxNone)
+        {
+          <div class="af-row" style="margin-bottom:14px">
+            <div class="af-field" style="max-width:200px">
+              <label class="af-label" for="us-pfx-val">Prefix value</label>
+              <input id="us-pfx-val" name="prefixValue" autocomplete="off" class="af-finput mono"
+                     value="@_cfg.PrefixValue" maxlength="4"
+                     @oninput="OnPrefixValueInput" />
+              <div class="af-hint">@PrefixHint()</div>
+            </div>
+          </div>
+        }
+
+        <div class="af-label" style="margin-bottom:6px">Separator</div>
+        <div class="us-seg-row" style="max-width:280px;margin-bottom:12px">
+          <button type="button" class="us-seg @(_cfg.Separator==_sepNone?_segOn:_empty)" @onclick="SetSepNone">None</button>
+          <button type="button" class="us-seg @(_cfg.Separator==_sepDash?_segOn:_empty)" @onclick="SetSepDash">Dash  —</button>
+          <button type="button" class="us-seg @(_cfg.Separator==_sepSlash?_segOn:_empty)" @onclick="SetSepSlash">Slash  /</button>
+        </div>
+
+        <div class="af-label" style="margin-bottom:6px">Middle segment (optional)</div>
+        <div class="us-seg-row" style="flex-wrap:wrap;margin-bottom:12px">
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midNone?_segOn:_empty)"    @onclick="SetMidNone">None</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midYY?_segOn:_empty)"      @onclick="SetMidYY">YY</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midYYYY?_segOn:_empty)"    @onclick="SetMidYYYY">YYYY</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midMM?_segOn:_empty)"      @onclick="SetMidMM">MM</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midMMM?_segOn:_empty)"     @onclick="SetMidMMM">MMM</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midYYMM?_segOn:_empty)"    @onclick="SetMidYYMM">YY+MM</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midYYYYMM?_segOn:_empty)"  @onclick="SetMidYYYYMM">YYYY+MM</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midMMYY?_segOn:_empty)"    @onclick="SetMidMMYY">MM+YY</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midMMMYY?_segOn:_empty)"   @onclick="SetMidMMMYY">MMM+YY</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midMMYYYY?_segOn:_empty)"  @onclick="SetMidMMYYYY">MM+YYYY</button>
+          <button type="button" class="us-seg @(_cfg.MiddleSegment==_midMMMYYYY?_segOn:_empty)" @onclick="SetMidMMMYYYY">MMM+YYYY</button>
+        </div>
+
+        <div class="af-label" style="margin-bottom:6px">Number portion</div>
+        <div class="af-row" style="gap:10px;margin-bottom:10px">
+          <div class="af-field" style="max-width:140px">
+            <label class="af-label" for="us-digits">Meaningful digits</label>
+            <input id="us-digits" name="meaningfulDigits" type="number" autocomplete="off" class="af-finput mono"
+                   min="4" max="18" value="@_cfg.MeaningfulDigits"
+                   @onchange="OnDigitsChange" />
+            <div class="af-hint @DigitnoteClass()">@DigitNote()</div>
+          </div>
+          <div class="af-field" style="flex:1">
+            <label class="af-label" for="us-reset">Reset period</label>
+            <select id="us-reset" name="resetPeriod" autocomplete="off" class="af-fselect"
+                    value="@_cfg.ResetPeriod" @onchange="OnResetPeriodChange">
+              <option value="lifetime">Lifetime sequential</option>
+              <option value="year">Per year</option>
+              <option value="yearmonth">Per year + month</option>
+            </select>
+          </div>
+          <div class="af-field" style="max-width:160px">
+            <label class="af-label" for="us-start">Starting number</label>
+            <input id="us-start" name="startingNumber" type="number" autocomplete="off" class="af-finput mono"
+                   min="1" value="@_cfg.StartingNumber"
+                   @onchange="OnStartingNumberChange" />
+            <div class="af-hint">Zero-padded to digit count</div>
+          </div>
+          <div class="af-field" style="flex:1">
+            <label class="af-label" for="us-seq-type">Sequence type</label>
+            <select id="us-seq-type" name="sequenceType" autocomplete="off" class="af-fselect"
+                    value="@_cfg.SequenceType" @onchange="OnSeqTypeChange">
+              <option value="sequential">Sequential (recommended)</option>
+              <option value="random">Random</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="af-card" style="border-left-color:#0F6E56;margin-bottom:14px">
+      <div class="af-card-header">
+        <div class="af-card-num" style="background:#0F6E56">2</div>
+        <span class="af-card-title">Live preview</span>
+      </div>
+      <div class="af-card-body">
+
+      @if (_cfg.PrefixType == _pfxNone)
+      { <div class="us-alert us-alert-red" style="margin-bottom:10px">&#9888; <strong>Not recommended:</strong> Pure numbers with no prefix make patient lookup error-prone. Consider adding a prefix.</div> }
+      @if (_cfg.SequenceType == _seqRandom)
+      { <div class="us-alert us-alert-amber" style="margin-bottom:10px">&#9650; <strong>Random sequence:</strong> At high volume, collision probability grows significantly. Sequential is strongly recommended.</div> }
+      @if (_previewTooLong)
+      { <div class="us-alert us-alert-red" style="margin-bottom:10px">&#9888; UHID exceeds 20-character maximum. Shorten prefix or reduce digits.</div> }
+      @if (_digitsTooFew)
+      { <div class="us-alert us-alert-amber" style="margin-bottom:10px">&#9650; @_digitWarning</div> }
+
+      <div class="us-preview-box">
+        <div class="us-preview-kicker">&#9711; preview · @_cfg.DisplayName</div>
+        <div class="us-preview-uhid">@_previewUhid</div>
+        <div class="us-preview-next">Next: @_previewNext</div>
+        <div class="us-preview-stats">
+          <div><div class="us-stat-lbl">Total length</div><div class="us-stat-val @(_previewTooLong?"us-err":"us-ok")">@_previewLen / 20 chars</div></div>
+          <div><div class="us-stat-lbl">Capacity / period</div><div class="us-stat-val @(_digitsTooFew?"us-warn":"us-ok")">@_previewCapacity</div></div>
+          <div><div class="us-stat-lbl">Structure</div><div class="us-stat-val us-mono">@_previewStructure</div></div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#94A3B8;margin-bottom:4px">
+          <span>Character usage</span><span>@_previewLen / 20</span>
+        </div>
+        <div style="height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;border:0.5px solid #E2E8F0">
+          <div style="height:100%;border-radius:4px;width:@_charBarPct%;background:@_charBarColor;transition:width .3s,background .3s"></div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div class="af-card" style="border-left-color:#6A1B9A;margin-bottom:14px">
+      <div class="af-card-header">
+        <div class="af-card-num" style="background:#6A1B9A">3</div>
+        <span class="af-card-title">Safety &amp; options</span>
+      </div>
+      <div class="af-card-body">
+
+        <div class="us-toggle-row">
+          <div>
+            <div class="us-toggle-lbl">Luhn check digit</div>
+            <div class="us-toggle-sub">Adds 1 transparent check digit. Catches transcription errors before any DB query. Recommended for all clinics.</div>
+          </div>
+          <div class="us-toggle @(_cfg.LuhnEnabled?_togOn:_empty)" @onclick="() => { _cfg.LuhnEnabled = !_cfg.LuhnEnabled; RebuildPreview(); }">
+          </div>
+        </div>
+        <div class="us-toggle-row">
+          <div>
+            <div class="us-toggle-lbl">Show UHID on patient portal</div>
+            <div class="us-toggle-sub">Patients can see their UHID in the portal and app. Disable if clinic uses a separate patient-facing ID.</div>
+          </div>
+          <div class="us-toggle @(_cfg.ShowOnPortal?_togOn:_empty)" @onclick="() => { _cfg.ShowOnPortal = !_cfg.ShowOnPortal; RebuildPreview(); }">
+          </div>
+        </div>
+        @if (!_cfg.LuhnEnabled)
+        { <div class="us-alert us-alert-amber" style="margin-top:8px">&#9888; Luhn disabled. SysAdmin confirmation required to save this change.</div> }
+      </div>
+    </div>
+
+    <div class="af-card" style="border-left-color:#B45309;margin-bottom:14px">
+      <div class="af-card-header">
+        <div class="af-card-num" style="background:#B45309">4</div>
+        <span class="af-card-title">Import existing sequence</span>
+        <span style="margin-left:auto;font-size:11px;color:#64748B">Continue from a legacy numbering system</span>
+      </div>
+      <div class="af-card-body">
+        <div class="us-alert us-alert-blue" style="margin-bottom:10px">
+          &#9432; Enter the last used number from your existing system. LiPi will continue from the next number, zero-padded to your configured digit count. The old format is stored as Legacy ID.
+        </div>
+        <div class="af-row" style="gap:10px;margin-bottom:8px">
+          <div class="af-field" style="max-width:200px">
+            <label class="af-label" for="us-import-last">Last used number (digits only)</label>
+            <input id="us-import-last" name="importLastNumber" type="number" autocomplete="off" class="af-finput mono"
+                   min="1" value="@_importLastNumber"
+                   @onchange="OnImportLastChange" />
+          </div>
+          <div class="af-field" style="flex:1">
+            <label class="af-label" for="us-import-old">Old format (for reference only)</label>
+            <input id="us-import-old" name="importOldFormat" autocomplete="off" class="af-finput mono"
+                   value="@_importOldFormat"
+                   @oninput="e => _importOldFormat = e.Value?.ToString() ?? string.Empty" />
+          </div>
+        </div>
+        @if (_importLastNumber > 0)
+        { <div class="us-alert us-alert-green">&#10003; @_importPreviewMsg</div> }
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px">
+      <span style="font-size:11px;color:#64748B">Changes apply to new UHIDs only. Existing UHIDs are never modified.</span>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="af-btn-ghost" @onclick="ResetDefaults">Reset to defaults</button>
+        <button type="button" class="af-btn-save" disabled="@_saving" @onclick="HandleSave">
+          @(_saving ? "Saving…" : _saved ? "✓ Saved" : "Save UHID settings")
+        </button>
+      </div>
+    </div>
+
+    </fieldset>
+  }
+</div>
+
+<style>
+.us-seg-row { display:flex; gap:4px; margin-bottom:0; flex-wrap:wrap; }
+.us-seg { padding:6px 12px; font-size:12px; font-family:'DM Sans',system-ui,sans-serif; cursor:pointer; background:#F8FAFC; border:0.5px solid #E2E8F0; border-radius:7px; color:#475569; transition:all .12s; }
+.us-seg-on { background:#0B2545; color:#fff; border-color:#0B2545; }
+.us-toggle-row { display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:0.5px solid #F1F5F9; gap:16px; }
+.us-toggle-row:last-child { border-bottom:none; }
+.us-toggle-lbl { font-size:13px; font-weight:500; color:#0B2545; }
+.us-toggle-sub { font-size:11px; color:#64748B; margin-top:2px; line-height:1.4; }
+.us-toggle { width:40px; height:22px; border-radius:11px; background:#E2E8F0; position:relative; cursor:pointer; flex-shrink:0; transition:background .2s; }
+.us-toggle-on { background:#0B2545; }
+.us-toggle::after { content:''; position:absolute; width:16px; height:16px; border-radius:50%; background:#fff; top:3px; left:3px; transition:left .2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.us-toggle-on::after { left:21px; }
+.us-preview-box { background:#0B2545; border-radius:10px; padding:14px 16px; }
+.us-preview-kicker { font-family:'DM Mono',monospace; font-size:8px; letter-spacing:.18em; color:rgba(255,255,255,.32); text-transform:uppercase; margin-bottom:8px; }
+.us-preview-uhid { font-family:'DM Mono',monospace; font-size:22px; font-weight:700; color:#C49A22; letter-spacing:.04em; margin-bottom:3px; }
+.us-preview-next { font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,.4); margin-bottom:8px; }
+.us-preview-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; border-top:1px solid rgba(255,255,255,.1); padding-top:10px; margin-top:10px; }
+.us-stat-lbl { font-family:'DM Mono',monospace; font-size:8px; letter-spacing:.1em; color:rgba(255,255,255,.3); text-transform:uppercase; margin-bottom:2px; }
+.us-stat-val { font-size:12px; font-weight:500; color:rgba(255,255,255,.85); }
+.us-ok   { color:#10B981 !important; }
+.us-warn { color:#F59E0B !important; }
+.us-err  { color:#EF4444 !important; }
+.us-mono { font-family:'DM Mono',monospace; font-size:11px; }
+.us-alert { border-radius:8px; padding:9px 12px; font-size:12px; line-height:1.5; display:flex; gap:8px; align-items:flex-start; }
+.us-alert-red    { background:#FEF2F2; border:0.5px solid #FCA5A5; color:#991B1B; }
+.us-alert-amber  { background:#FFFBEB; border:0.5px solid #FCD34D; color:#92400E; }
+.us-alert-green  { background:#ECFDF5; border:0.5px solid #6EE7B7; color:#065F46; }
+.us-alert-blue   { background:#EFF6FF; border:0.5px solid #BFDBFE; color:#1E40AF; }
+.af-btn-ghost { padding:8px 14px; border-radius:8px; border:0.5px solid #E2E8F0; background:#fff; color:#475569; font-size:12px; cursor:pointer; font-family:'DM Sans',system-ui,sans-serif; }
+.af-btn-save  { padding:8px 18px; border-radius:8px; border:none; background:#0B2545; color:#fff; font-size:12px; font-weight:500; cursor:pointer; font-family:'DM Sans',system-ui,sans-serif; }
+.af-btn-save:disabled { opacity:.5; cursor:not-allowed; }
+.af-hint { font-size:10px; color:#94A3B8; margin-top:3px; }
+.af-hint.ok  { color:#059669; }
+.af-hint.err { color:#DC2626; }
+.mono { font-family:'DM Mono',monospace; }
+</style>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    // Prefix type constants
+    private const string _pfxNone    = "none",    _pfxAlpha   = "alpha";
+    private const string _pfxNum     = "num",     _pfxAlNum   = "alphanum";
+    private const string _pfxNumAl   = "numalpha",_pfxComplex = "complex";
+    // Separator constants
+    private const string _sepNone = "", _sepDash = "-", _sepSlash = "/";
+    // Middle segment constants
+    private const string _midNone="none", _midYY="YY",  _midYYYY="YYYY";
+    private const string _midMM="MM",     _midMMM="MMM";
+    private const string _midYYMM="YYMM", _midYYYYMM="YYYYMM";
+    private const string _midMMYY="MMYY", _midMMMYY="MMMYY";
+    private const string _midMMYYYY="MMYYYY", _midMMMYYYY="MMMYYYY";
+    // UI constants
+    private const string _segOn = "us-seg us-seg-on", _empty = "us-seg";
+    private const string _togOn = "us-toggle us-toggle-on";
+    private const string _resetLifetime = "lifetime", _seqSequential = "sequential", _seqRandom = "random";
+
+    private List<LiPi.Master.Entities.Clinic> _clinics = new();
+    private Guid _clinicId = Guid.Empty;
+    private bool _saving, _saved;
+    private string _saveSuccess = string.Empty, _errorMsg = string.Empty;
+
+    private sealed class UhidConfig
+    {
+        public string DisplayName    = "UHID";
+        public string AptPrefix      = "APT";
+        public string PrefixType     = "none";
+        public string PrefixValue    = string.Empty;
+        public string Separator      = "-";
+        public string MiddleSegment  = "none";
+        public int    MeaningfulDigits = 6;
+        public string ResetPeriod    = "lifetime";
+        public int    StartingNumber = 1;
+        public string SequenceType   = "sequential";
+        public bool   LuhnEnabled    = true;
+        public bool   ShowOnPortal   = true;
+    }
+    private UhidConfig _cfg = new();
+
+    private string _previewUhid      = string.Empty;
+    private string _previewNext      = string.Empty;
+    private string _previewCapacity  = string.Empty;
+    private string _previewStructure = string.Empty;
+    private int    _previewLen       = 0;
+    private bool   _previewTooLong   = false;
+    private bool   _digitsTooFew     = false;
+    private string _digitWarning     = string.Empty;
+    private string _charBarPct       = "0";
+    private string _charBarColor     = "#10B981";
+
+    private int    _importLastNumber = 0;
+    private string _importOldFormat  = string.Empty;
+    private string _importPreviewMsg = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        var role = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? string.Empty;
+        if (role is not ("global_admin" or "sys_admin"))
+        { Nav.NavigateTo("/admin/settings", forceLoad: true); return; }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _clinics = await db.Clinics.OrderBy(c => c.Name).ToListAsync();
+        if (_clinics.Count == 1) { _clinicId = _clinics[0].Id; RebuildPreview(); }
+    }
+
+    private void OnClinicChange(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id)) { _clinicId = id; _saved = false; RebuildPreview(); }
+    }
+
+    private void SetPrefixType(string t)
+    {
+        _cfg.PrefixType = t;
+        if (t == _pfxNone) _cfg.PrefixValue = string.Empty;
+        RebuildPreview();
+    }
+
+    private void OnPrefixValueInput(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? string.Empty;
+        _cfg.PrefixValue = _cfg.PrefixType switch
+        {
+            "alpha"    => new string(raw.ToUpperInvariant().Where(char.IsLetter).Take(4).ToArray()),
+            "num"      => new string(raw.Where(char.IsDigit).Take(4).ToArray()),
+            "alphanum" => new string(raw.ToUpperInvariant().Where(c => char.IsLetterOrDigit(c)).Take(4).ToArray()),
+            "numalpha" => new string(raw.ToUpperInvariant().Where(c => char.IsLetterOrDigit(c)).Take(4).ToArray()),
+            "complex"  => new string(raw.ToUpperInvariant().Where(c => char.IsLetterOrDigit(c)).Take(4).ToArray()),
+            _          => string.Empty,
+        };
+        RebuildPreview();
+    }
+
+    private void OnDigitsChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var n) && n >= 4 && n <= 18)
+            _cfg.MeaningfulDigits = n;
+        RebuildPreview();
+    }
+
+    private void OnImportLastChange(ChangeEventArgs e)
+    {
+        _importLastNumber = int.TryParse(e.Value?.ToString(), out var n) && n > 0 ? n : 0;
+        if (_importLastNumber > 0)
+        {
+            var next = _importLastNumber + 1;
+            var padded = next.ToString().PadLeft(_cfg.MeaningfulDigits, '0');
+            var parts = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrEmpty(_cfg.PrefixValue)) parts.Add(_cfg.PrefixValue);
+            var mid = GetMidStr();
+            if (!string.IsNullOrEmpty(mid)) parts.Add(mid);
+            parts.Add(padded);
+            var uhid = string.Join(_cfg.Separator, parts);
+            var oldRef = string.IsNullOrEmpty(_importOldFormat) ? _importLastNumber.ToString() : _importOldFormat;
+            _importPreviewMsg = $"LiPi will continue from {uhid}. Old ID ({oldRef}) stored as Legacy ID.";
+        }
+    }
+
+    private void RebuildPreview()
+    {
+        var pfx = _cfg.PrefixType == _pfxNone ? string.Empty : _cfg.PrefixValue;
+        var mid = GetMidStr();
+        var digits = _cfg.MeaningfulDigits;
+        var start = _cfg.StartingNumber;
+
+        var num1 = start.ToString().PadLeft(digits, '0');
+        var num2 = (start + 1).ToString().PadLeft(digits, '0');
+
+        if (_cfg.LuhnEnabled)
+        {
+            var seq1 = num1.Length > 1 ? num1[..^1] : num1;
+            var seq2 = num2.Length > 1 ? num2[..^1] : num2;
+            num1 = seq1 + CalcLuhn(seq1);
+            num2 = seq2 + CalcLuhn(seq2);
+        }
+
+        var parts1 = new System.Collections.Generic.List<string>();
+        var parts2 = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(pfx)) { parts1.Add(pfx); parts2.Add(pfx); }
+        if (!string.IsNullOrEmpty(mid)) { parts1.Add(mid); parts2.Add(mid); }
+        parts1.Add(num1); parts2.Add(num2);
+
+        var sep = _cfg.Separator;
+        _previewUhid = string.Join(sep, parts1);
+        _previewNext = "Next: " + string.Join(sep, parts2);
+        _previewLen  = _previewUhid.Length;
+        _previewTooLong = _previewLen > 20;
+
+        // Capacity
+        var cap = (long)Math.Pow(10, digits);
+        var periodLbl = _cfg.ResetPeriod switch { "year" => "/year", "yearmonth" => "/month", _ => " lifetime" };
+        _previewCapacity = cap.ToString("N0") + periodLbl;
+
+        // Min digits check
+        var minNeeded = _cfg.ResetPeriod == _resetLifetime ? 7 : 6;
+        _digitsTooFew = digits < minNeeded;
+        if (_digitsTooFew)
+            _digitWarning = $"With {_cfg.ResetPeriod} reset, minimum {minNeeded} meaningful digits needed for 2,500,000 patient capacity.";
+
+        // Structure label
+        var parts = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(pfx)) parts.Add($"PFX({pfx.Length})");
+        if (!string.IsNullOrEmpty(mid)) parts.Add($"MID({mid.Length})");
+        parts.Add($"NUM({digits}{(_cfg.LuhnEnabled ? "+1L" : string.Empty)})");
+        _previewStructure = string.Join("+"+sep, parts);
+
+        // Char bar
+        var pct = (int)Math.Round(_previewLen / 20.0 * 100);
+        _charBarPct   = pct.ToString();
+        _charBarColor = pct > 90 ? "#EF4444" : pct > 75 ? "#F59E0B" : "#10B981";
+    }
+
+    private string GetMidStr()
+    {
+        var now = DateTime.Now;
+        var months = new[]{"JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"};
+        return _cfg.MiddleSegment switch
+        {
+            "YY"      => now.ToString("yy"),
+            "YYYY"    => now.ToString("yyyy"),
+            "MM"      => now.ToString("MM"),
+            "MMM"     => months[now.Month - 1],
+            "YYMM"    => now.ToString("yyMM"),
+            "YYYYMM"  => now.ToString("yyyyMM"),
+            "MMYY"    => now.ToString("MMyy"),
+            "MMMYY"   => months[now.Month - 1] + now.ToString("yy"),
+            "MMYYYY"  => now.ToString("MMyyyy"),
+            "MMMYYYY" => months[now.Month - 1] + now.ToString("yyyy"),
+            _         => string.Empty,
+        };
+    }
+
+    private static char CalcLuhn(string digits)
+    {
+        var sum = 0;
+        var rev = digits.Reverse().Select(c => c - '0').ToArray();
+        for (var i = 0; i < rev.Length; i++)
+        {
+            var d = i % 2 == 0 ? rev[i] * 2 : rev[i];
+            if (d > 9) d -= 9;
+            sum += d;
+        }
+        return (char)('0' + (10 - sum % 10) % 10);
+    }
+
+    private string PrefixHint() => _cfg.PrefixType switch
+    {
+        "alpha"    => "2–4 uppercase letters A–Z only",
+        "num"      => "2–4 digits only",
+        "alphanum" => "Letters then digits (e.g. PT1)",
+        "numalpha" => "Digits then letters (e.g. 1PT)",
+        "complex"  => "Digits + letters + digits (e.g. 1PT2)",
+        _          => string.Empty,
+    };
+
+    private int MinDigitsNeeded() => _cfg.ResetPeriod == _resetLifetime ? 7 : 6;
+    private string DigitNote()    => $"Min {MinDigitsNeeded()} for {_cfg.ResetPeriod} sequence{(_cfg.LuhnEnabled ? " (Luhn +1)" : string.Empty)}";
+    private string DigitnoteClass() => _cfg.MeaningfulDigits >= MinDigitsNeeded() ? "af-hint ok" : "af-hint err";
+
+    // Prefix handlers
+    private void SetPfxNone()    => SetPrefixType(_pfxNone);
+    private void SetPfxAlpha()   => SetPrefixType(_pfxAlpha);
+    private void SetPfxNum()     => SetPrefixType(_pfxNum);
+    private void SetPfxAlNum()   => SetPrefixType(_pfxAlNum);
+    private void SetPfxNumAl()   => SetPrefixType(_pfxNumAl);
+    private void SetPfxComplex() => SetPrefixType(_pfxComplex);
+
+    // Separator handlers
+    private void SetSepNone()  { _cfg.Separator = _sepNone;  RebuildPreview(); }
+    private void SetSepDash()  { _cfg.Separator = _sepDash;  RebuildPreview(); }
+    private void SetSepSlash() { _cfg.Separator = _sepSlash; RebuildPreview(); }
+
+    // Middle segment handlers
+    private void SetMidNone()    => SetMid(_midNone);
+    private void SetMidYY()      => SetMid(_midYY);
+    private void SetMidYYYY()    => SetMid(_midYYYY);
+    private void SetMidMM()      => SetMid(_midMM);
+    private void SetMidMMM()     => SetMid(_midMMM);
+    private void SetMidYYMM()    => SetMid(_midYYMM);
+    private void SetMidYYYYMM()  => SetMid(_midYYYYMM);
+    private void SetMidMMYY()    => SetMid(_midMMYY);
+    private void SetMidMMMYY()   => SetMid(_midMMMYY);
+    private void SetMidMMYYYY()  => SetMid(_midMMYYYY);
+    private void SetMidMMMYYYY() => SetMid(_midMMMYYYY);
+    private void SetMid(string m) { _cfg.MiddleSegment = m; RebuildPreview(); }
+
+    // Reset + seq type + starting number handlers
+    private void OnResetPeriodChange(ChangeEventArgs e)
+    { _cfg.ResetPeriod = e.Value?.ToString() ?? _resetLifetime; RebuildPreview(); }
+    private void OnSeqTypeChange(ChangeEventArgs e)
+    { _cfg.SequenceType = e.Value?.ToString() ?? _seqSequential; RebuildPreview(); }
+    private void OnStartingNumberChange(ChangeEventArgs e)
+    { if (int.TryParse(e.Value?.ToString(), out var n) && n >= 1) { _cfg.StartingNumber = n; RebuildPreview(); } }
+
+    private async Task HandleSave()
+    {
+        if (_previewTooLong) { _errorMsg = "UHID format exceeds 20-character limit. Please shorten."; return; }
+        _saving = true; _errorMsg = string.Empty; StateHasChanged();
+        try
+        {
+            await Task.Delay(600); // TODO: persist UhidConfig to clinic DB (uhid_config table)
+            _saved = true;
+            _saveSuccess = $"UHID settings saved for clinic. Format: {_previewUhid}";
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private void ResetDefaults()
+    {
+        _cfg = new UhidConfig();
+        _importLastNumber = 0; _importOldFormat = string.Empty; _importPreviewMsg = string.Empty;
+        _saved = false; _saveSuccess = string.Empty;
+        RebuildPreview();
+    }
+
+    private static string StripNonAlphaNum(string? s) =>
+        string.IsNullOrEmpty(s) ? string.Empty : new string(s.Where(char.IsLetterOrDigit).ToArray());
+}

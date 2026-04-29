@@ -1,0 +1,464 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/clinics/new"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Text.RegularExpressions
+@using Microsoft.JSInterop
+@using System.Security.Claims
+@using System.Text.Json
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject IDbContextFactory<MasterDbContext> DbFactory
+@inject IJSRuntime JS
+@inject ILogger<ClinicsNew> Log
+
+<PageTitle>Register Clinic – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Register Clinic</div>
+    <div class="tn-pt-sub">Onboard a new facility</div>
+</SectionContent>
+
+<div class="pg-body">
+
+  <!-- Breadcrumb -->
+  <div class="pg-bc">
+    <a href="/admin">Administration</a>
+    <span>›</span>
+    <a href="/admin/clinics">Clinics</a>
+    <span>›</span>
+    <span>Register Clinic</span>
+    <a href="/admin/clinics" class="pg-bc-back">← All Clinics</a>
+  </div>
+
+  <!-- Alerts -->
+  <fieldset disabled="@saved" style="border:none;padding:0;margin:0">
+  @if (!string.IsNullOrEmpty(errorMsg))   { <div class="pg-alert err">⚠ @errorMsg</div> }
+
+  <!-- ① Identity -->
+  <div class="pg-card" style="border-left-color:#1565C0">
+    <div class="pg-ch"><div class="pg-num" style="background:#1565C0">1</div><span class="pg-ct">Clinic Identity</span></div>
+    <div class="pg-cb">
+      <div class="pg-g3" style="margin-bottom:8px">
+        <div class="pg-fg pg-s2">
+          <label class="pg-lbl" for="cn-name">Clinic / Facility Name <span class="pg-req">*</span></label>
+          <input id="cn-name" name="clinicName" autocomplete="organization" class="pg-inp @eCss("name")"
+                 value="@m.Name" placeholder="e.g. Armoki Cancer Centre"
+                 @oninput="OnNameInput" @onblur="OnBlurName" />
+          @Err("name")
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-code">
+            Short Code <span class="pg-req">*</span>
+            @if (!string.IsNullOrEmpty(m.Code)) { <span class="pg-mono-badge">@m.Code</span> }
+          </label>
+          <input id="cn-code" name="clinicCode" autocomplete="off" class="pg-inp @eCss("code")"
+                 value="@m.Code" placeholder="2–8 chars: armoki"
+                 maxlength="8" @oninput="OnCodeInput" @onblur="OnBlurCode" />
+          @Err("code")
+          <span class="pg-note">Used in DB names, URLs and email domains</span>
+        </div>
+      </div>
+      <div class="pg-g3">
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-type">Clinic Type <span class="pg-req">*</span></label>
+          <select id="cn-type" autocomplete="off" name="clinicType" class="pg-sel @eCss("type")" @onchange="OnTypeChange">
+            <option value="">Select type…</option>
+            <option value="cancer_centre">Cancer Centre</option>
+            <option value="hospital">Hospital (Multi-Specialty)</option>
+            <option value="day_care">Day Care Centre</option>
+            <option value="diagnostic">Diagnostic Centre</option>
+            <option value="polyclinic">Polyclinic</option>
+            <option value="clinic">Single Specialty Clinic</option>
+          </select>
+          @Err("type")
+        </div>
+        <div class="pg-fg pg-s2">
+          <label class="pg-lbl" for="cn-org">Organisation <span class="pg-req">*</span></label>
+          @if (orgsLoading)
+          { <span class="pg-note">Loading organisations…</span> }
+          else if (!orgs.Any())
+          { <div class="pg-alert err" style="margin:0;padding:6px;font-size:11px">No organisations — <a href="/admin/orgs/new">create one first</a></div> }
+          else
+          {
+            <select id="cn-org" autocomplete="off" name="orgId" class="pg-sel @eCss("org")" @onchange="OnOrgChange">
+              <option value="">Select organisation…</option>
+              @foreach (var o in orgs)
+              { <option value="@o.Id">@o.LegalName@(o.TradingName != null ? $" ({o.TradingName})" : "")</option> }
+            </select>
+            @Err("org")
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② Location & Contact -->
+  <div class="pg-card" style="border-left-color:#00695C">
+    <div class="pg-ch"><div class="pg-num" style="background:#00695C">2</div><span class="pg-ct">Location &amp; Contact</span></div>
+    <div class="pg-cb">
+      <AddressBlock
+          AddressLine="@m.Street"     AddressLineChanged="OnStreetChanged"
+          City="@m.City"             CityChanged="OnCityChanged"
+          State="@m.State"           StateChanged="OnStateChanged"
+          PinCode="@m.PinCode"       PinCodeChanged="OnPinChanged"
+          PinCodeBlurred="OnPinBlurred"
+          Required="true"
+          AddressLineError="@(_t.GetValueOrDefault("street") && !string.IsNullOrEmpty(_e.GetValueOrDefault("street")))"
+          AddressLineErrorMsg="@_e.GetValueOrDefault("street")"
+          PinError="@(_t.GetValueOrDefault("pin") && !string.IsNullOrEmpty(_e.GetValueOrDefault("pin")))"
+          PinErrorMsg="@_e.GetValueOrDefault("pin")"
+          CityError="@(_t.GetValueOrDefault("city") && !string.IsNullOrEmpty(_e.GetValueOrDefault("city")))"
+          CityErrorMsg="@_e.GetValueOrDefault("city")"
+          StateError="@(_t.GetValueOrDefault("state") && !string.IsNullOrEmpty(_e.GetValueOrDefault("state")))"
+          StateErrorMsg="@_e.GetValueOrDefault("state")" />
+      <div class="pg-g3" style="margin-top:10px">
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-phone">Mobile Phone <span class="af-req">*</span></label>
+          <div style="display:flex;gap:4px">
+            <select id="cn-phone-cc" name="phoneCC" autocomplete="tel-country-code" aria-label="Country code" class="pg-sel" style="width:120px;flex-shrink:0"
+                    @onchange="OnPhoneCcChange">
+              <option value="+91">+91 India</option>
+              <option value="+1">+1 US/CA</option>
+              <option value="+44">+44 UK</option>
+              <option value="+971">+971 UAE</option>
+              <option value="+65">+65 SG</option>
+            </select>
+            <input id="cn-phone" name="phone" autocomplete="tel-national" class="pg-inp @eCss("phone")" value="@m.Phone"
+                   inputmode="numeric" placeholder="@(m.PhoneCC=="+91"?"10 digits":"Mobile")"
+                   @oninput="OnPhoneInput" @onblur="OnBlurPhone" />
+          @Err("phone")
+          </div>
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-email">Email <span class="af-req">*</span></label>
+          <input id="cn-email" name="email" autocomplete="email" type="email" class="pg-inp @eCss("email")"
+                 value="@m.Email" placeholder="info@clinic.com"
+                 @oninput="OnEmailInput" @onblur="OnBlurEmail" />
+          @Err("email")
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-web">Website</label>
+          <input id="cn-web" name="website" autocomplete="url" class="pg-inp" value="@m.Website"
+                 placeholder="https://…" @oninput="OnWebInput" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ Accreditation & Modules -->
+  <div class="pg-card" style="border-left-color:#6A1B9A">
+    <div class="pg-ch"><div class="pg-num" style="background:#6A1B9A">3</div><span class="pg-ct">Accreditation &amp; Clinical Modules</span></div>
+    <div class="pg-cb">
+      <div class="pg-g4" style="margin-bottom:12px">
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-beds">Bed Count</label>
+          <input id="cn-beds" name="bedCount" autocomplete="off" type="number" class="pg-inp"
+                 value="@m.BedCount" min="0" max="9999" @oninput="OnBedsInput" />
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-tz">Timezone</label>
+          <select id="cn-tz" autocomplete="off" name="timezone" class="pg-sel" @onchange="OnTzChange">
+            <option value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</option>
+            <option value="Asia/Dubai">Asia/Dubai (GST +4)</option>
+            <option value="America/New_York">America/New_York (EST)</option>
+            <option value="Europe/London">Europe/London (GMT)</option>
+          </select>
+        </div>
+      </div>
+      <span class="pg-lbl" style="display:block;margin-bottom:6px">Accreditation</span>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <button type="button" class="pg-accr-btn @(m.Nabh ? "on" : "")" @onclick="ToggleNabh">
+          <span style="font-size:18px">🏅</span>
+          <span><strong style="font-size:12px;display:block">NABH</strong>
+          <span style="font-size:10px;opacity:.75">National Accreditation Board</span></span>
+          <input type="checkbox" id="cn-nabh" name="nabh" aria-hidden="true" checked="@m.Nabh" style="pointer-events:none;accent-color:#1B4DA0" />
+        </button>
+        <button type="button" class="pg-accr-btn @(m.Nabl ? "on" : "")" @onclick="ToggleNabl">
+          <span style="font-size:18px">🔬</span>
+          <span><strong style="font-size:12px;display:block">NABL</strong>
+          <span style="font-size:10px;opacity:.75">Lab Accreditation</span></span>
+          <input type="checkbox" id="cn-nabl" name="nabl" aria-hidden="true" checked="@m.Nabl" style="pointer-events:none;accent-color:#1B4DA0" />
+        </button>
+        <button type="button" class="pg-accr-btn @(m.Jci ? "on" : "")" @onclick="ToggleJci">
+          <span style="font-size:18px">🌐</span>
+          <span><strong style="font-size:12px;display:block">JCI</strong>
+          <span style="font-size:10px;opacity:.75">Joint Commission International</span></span>
+          <input type="checkbox" id="cn-jci" name="jci" aria-hidden="true" checked="@m.Jci" style="pointer-events:none;accent-color:#1B4DA0" />
+        </button>
+      </div>
+      <span class="pg-lbl" style="display:block;margin-bottom:6px">Clinical Modules to Enable</span>
+      <div style="display:flex;flex-wrap:wrap;gap:7px">
+        @foreach (var mod in Modules)
+        {
+          bool on = m.EnabledModules.Contains(mod.Key);
+          var k   = mod.Key;
+          <button type="button" class="pg-mod-btn @(on ? "on" : "")" @onclick="() => ToggleMod(k)">
+            <input type="checkbox" checked="@on" tabindex="-1" style="pointer-events:none;width:12px;height:12px;accent-color:#1B4DA0" />
+            @mod.Label
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ System & Go-Live -->
+  <div class="pg-card" style="border-left-color:#E65100">
+    <div class="pg-ch"><div class="pg-num" style="background:#E65100">4</div><span class="pg-ct">System &amp; Go-Live</span></div>
+    <div class="pg-cb">
+      <div class="pg-g3">
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-status">Initial Status</label>
+          <select id="cn-status" autocomplete="off" name="status" class="pg-sel" @onchange="OnStatusChange">
+            <option value="provisioning">Provisioning — admin only</option>
+            <option value="active">Active — staff can log in</option>
+          </select>
+          <span class="pg-note">Active = login enabled immediately</span>
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-golive">Planned Go-Live Date</label>
+          <input id="cn-golive" autocomplete="off" name="goLiveDate" type="date" class="pg-inp"
+                 value="@m.GoLiveDate" @onchange="OnGoLiveChange" />
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="cn-dbhost">PostgreSQL Host</label>
+          <input id="cn-dbhost" name="dbHost" autocomplete="off" class="pg-inp" value="@m.DbHost"
+                 placeholder="localhost" @oninput="OnDbHostInput" />
+          <span class="pg-note">Server for this clinic's isolated database</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </fieldset>
+
+  @if (!string.IsNullOrEmpty(formError))
+  { <div class="pg-form-err">⚠ @formError</div> }
+
+  <div class="pg-actions">
+    @if (!saved)
+    { <button type="button" class="btn-primary" disabled="@saving" @onclick="HandleSubmit">
+        @(saving ? "Creating Clinic…" : "Register Clinic")
+      </button> }
+    <a href="/admin/clinics" class="btn-secondary">@(saved ? "Close" : "Cancel")</a>
+    @if (saved) { <span class="pg-success-msg">✓ @successMsg</span> }
+  </div>
+</div>
+
+@code {
+  [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  // ── Form model ────────────────────────────────────────────────────────────
+  private sealed class ClinicForm
+  {
+    public string Name = string.Empty, Code = string.Empty, ClinicType = string.Empty;
+    public string OrgId = string.Empty;
+    public string Street = string.Empty, PinCode = string.Empty;
+    public string City = string.Empty, State = string.Empty, CountryCode = "IN";
+    public string PhoneCC = "+91", Phone = string.Empty, Email = string.Empty, Website = string.Empty;
+    public string Timezone = "Asia/Kolkata";
+    public int    BedCount;
+    public bool   Nabh, Nabl, Jci;
+    public string Status = "provisioning", GoLiveDate = string.Empty, DbHost = "localhost";
+    public HashSet<string> EnabledModules { get; } = new();
+  }
+
+  private ClinicForm m = new();
+  private string successMsg = string.Empty, errorMsg = string.Empty, formError = string.Empty;
+  private bool saving, saved, orgsLoading = true;
+  private List<Organization> orgs = new();
+
+  private readonly Dictionary<string, bool>   _t = new();
+  private readonly Dictionary<string, string> _e = new();
+
+  private static readonly (string Key, string Label)[] Modules =
+  [
+    ("op","Outpatient"), ("ip","Inpatient"), ("ro","Radiation Oncology"),
+    ("mo","Medical Oncology"), ("sx","Surgery"), ("cv","Cardiovascular"),
+    ("ot","Operation Theatre"), ("ph","Pharmacy"), ("lab","Laboratory"),
+    ("rad","Radiology"), ("nm","Nuclear Medicine"), ("dia","Dialysis"),
+    ("den","Dental"), ("pt","Physiotherapy"),
+  ];
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  protected override async Task OnInitializedAsync()
+  {
+    var user = (await AuthState).User;
+    var role = user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).FirstOrDefault();
+    if (role is not ("global_admin" or "sys_admin"))
+    { Nav.NavigateTo("/dashboard", forceLoad: true); return; }
+
+    foreach (var k in new[] { "name","code","type","org","street","phone","email","pin","city","state" })
+    { _t[k] = false; _e[k] = string.Empty; }
+
+    foreach (var (key, _) in Modules) m.EnabledModules.Add(key);
+
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      orgs = await db.Organizations.OrderBy(o => o.LegalName).ToListAsync();
+    }
+    catch (Exception ex) { Log.LogWarning(ex, "Could not load orgs"); }
+    finally { orgsLoading = false; }
+  }
+
+  // ── Named input handlers (Rule 1 — no string literals in @onX) ──────────
+  private void OnNameInput(ChangeEventArgs e)
+  {
+    m.Name = e.Value?.ToString() ?? string.Empty;
+    if (!_t.GetValueOrDefault("code"))
+    {
+      var raw = System.Text.RegularExpressions.Regex.Replace(m.Name.ToLowerInvariant(), @"[^a-z0-9]", "");
+      m.Code  = raw.Length > 8 ? raw[..8] : raw;
+    }
+    if (_t.GetValueOrDefault("name")) Validate("name");
+  }
+  private void OnCodeInput(ChangeEventArgs e)
+  {
+    m.Code = System.Text.RegularExpressions.Regex.Replace(
+        (e.Value?.ToString() ?? string.Empty).ToLowerInvariant(), @"[^a-z0-9]", "");
+    if (_t.GetValueOrDefault("code")) Validate("code");
+  }
+  private void OnTypeChange(ChangeEventArgs e)  { m.ClinicType = e.Value?.ToString() ?? string.Empty; Touch("type"); }
+  private void OnOrgChange(ChangeEventArgs e)   { m.OrgId      = e.Value?.ToString() ?? string.Empty; Touch("org");  }
+
+  private void OnPinBlurred() { Touch("pin"); }
+  private void OnStreetChanged(string v)        { m.Street     = v; if (_t.GetValueOrDefault("street")) Validate("street"); }
+  private void OnCityChanged(string v)  { m.City    = v; Touch("city"); }
+  private void OnStateChanged(string v) { m.State   = v; Touch("state"); }
+  private void OnPinChanged(string v)   { m.PinCode = v; if (v.Length == 6) Touch("pin"); else if (_t.GetValueOrDefault("pin")) Validate("pin"); }
+  private void OnPhoneCcChange(ChangeEventArgs e)=> m.PhoneCC  = e.Value?.ToString() ?? "+91";
+  private void OnPhoneInput(ChangeEventArgs e)
+  {
+    m.Phone = Regex.Replace(e.Value?.ToString() ?? string.Empty, @"\D", string.Empty);
+    if (m.PhoneCC == "+91" && m.Phone.Length > 10) m.Phone = m.Phone[..10];
+    if (_t.GetValueOrDefault("phone")) Validate("phone");
+  }
+  private void OnBlurPhone() { Touch("phone"); }
+  private void OnEmailInput(ChangeEventArgs e)  { m.Email     = e.Value?.ToString() ?? string.Empty; if (_t.GetValueOrDefault("email")) Validate("email"); }
+  private void OnWebInput(ChangeEventArgs e)    => m.Website  = e.Value?.ToString() ?? string.Empty;
+  private void OnBedsInput(ChangeEventArgs e)   { if (int.TryParse(e.Value?.ToString(), out var n)) m.BedCount = n; }
+  private void OnTzChange(ChangeEventArgs e)    => m.Timezone  = e.Value?.ToString() ?? "Asia/Kolkata";
+  private void OnStatusChange(ChangeEventArgs e)=> m.Status    = e.Value?.ToString() ?? "provisioning";
+  private void OnGoLiveChange(ChangeEventArgs e)=> m.GoLiveDate= e.Value?.ToString() ?? string.Empty;
+  private void OnDbHostInput(ChangeEventArgs e) => m.DbHost    = e.Value?.ToString() ?? string.Empty;
+
+  // Toggles
+  private void ToggleNabh()      => m.Nabh = !m.Nabh;
+  private void ToggleNabl()      => m.Nabl = !m.Nabl;
+  private void ToggleJci()       => m.Jci  = !m.Jci;
+  private void ToggleMod(string k) { if (!m.EnabledModules.Remove(k)) m.EnabledModules.Add(k); }
+
+  // Blur handlers
+  private void OnBlurName()  => Touch("name");
+  private void OnBlurCode()  => Touch("code");
+  private void OnBlurEmail() { Touch("email"); }
+
+  // ── Validation ────────────────────────────────────────────────────────────
+  private void Touch(string f) { _t[f] = true; Validate(f); }
+  private string eCss(string f) => _t.GetValueOrDefault(f) && !string.IsNullOrEmpty(_e.GetValueOrDefault(f)) ? "err" : string.Empty;
+  private RenderFragment Err(string f) => b =>
+  {
+    if (_t.GetValueOrDefault(f) && !string.IsNullOrEmpty(_e.GetValueOrDefault(f)))
+    { b.OpenElement(0, "span"); b.AddAttribute(1, "class", "pg-err"); b.AddContent(2, _e[f]); b.CloseElement(); }
+  };
+
+  private void Validate(string f)
+  {
+    _e[f] = f switch
+    {
+      "name"   => string.IsNullOrWhiteSpace(m.Name)      ? "Clinic name required"                    : string.Empty,
+      "code"   => string.IsNullOrWhiteSpace(m.Code)      ? "Short code required"                     :
+                  m.Code.Length < 2                       ? "Minimum 2 characters"                   :
+                  !System.Text.RegularExpressions.Regex.IsMatch(m.Code, @"^[a-z0-9]+$")
+                                                          ? "Lowercase letters and digits only"      : string.Empty,
+      "type"   => string.IsNullOrWhiteSpace(m.ClinicType)? "Clinic type required"                   : string.Empty,
+      "org"    => string.IsNullOrWhiteSpace(m.OrgId)     ? "Organisation required"                  : string.Empty,
+      "street" => string.IsNullOrWhiteSpace(m.Street)    ? "Street address required"                : string.Empty,
+      "pin"    => string.IsNullOrWhiteSpace(m.PinCode)  ? "PIN code required" :
+                  !System.Text.RegularExpressions.Regex.IsMatch(m.PinCode, @"^\d{6}$")
+                                                          ? "Enter a valid 6-digit PIN" : string.Empty,
+      "city"   => string.IsNullOrWhiteSpace(m.City)     ? "City / District required"                 : string.Empty,
+      "state"  => string.IsNullOrWhiteSpace(m.State)    ? "State required"                           : string.Empty,
+      "phone"  => string.IsNullOrEmpty(m.Phone)  ? "Mobile phone is required" :
+                  m.PhoneCC == "+91" && !Regex.IsMatch(m.Phone, @"^[6-9]\d{9}$")
+                                                        ? "India: 10 digits starting 6–9" : string.Empty,
+      "email"  => string.IsNullOrEmpty(m.Email)  ? "Email is required" :
+                  !Regex.IsMatch(m.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
+                                                        ? "Enter a valid email address" : string.Empty,
+      _        => string.Empty,
+    };
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  private async Task HandleSubmit()
+  {
+    foreach (var k in new[] { "name","code","type","org","street","phone","email","pin","city","state" }) Touch(k);
+
+    if (_e.Values.Any(e => e != string.Empty))
+    {
+      formError = "Please fix the highlighted errors.";
+      await JS.InvokeVoidAsync("eval",
+        "setTimeout(()=>{var el=document.querySelector('.pg-inp.err,.pg-sel.err,.ab-inp.err');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();}},50)");
+      return;
+    }
+
+    if (string.IsNullOrWhiteSpace(m.PinCode) || string.IsNullOrWhiteSpace(m.City) || string.IsNullOrWhiteSpace(m.State))
+    { formError = "PIN Code, City and State are required."; return; }
+    formError = string.Empty; saving = true; errorMsg = string.Empty; StateHasChanged();
+    try
+    {
+      if (!Guid.TryParse(m.OrgId, out var orgId)) { errorMsg = "Invalid organisation."; return; }
+      var actor   = (await AuthState).User;
+      var actorId = Guid.TryParse(actor.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var aid) ? aid : (Guid?)null;
+
+      await using var db = await DbFactory.CreateDbContextAsync();
+
+      if (await db.Clinics.AnyAsync(c => c.Code == m.Code))
+      { _e["code"] = "Code already taken"; _t["code"] = true; formError = "Short code is already in use."; return; }
+
+      var clinic = new Clinic
+      {
+        Id             = Guid.NewGuid(),
+        OrganizationId = orgId,
+        Code           = m.Code,
+        Name           = m.Name,
+        ClinicType     = m.ClinicType,
+        City           = m.City,
+        State          = m.State,
+        CountryCode    = m.CountryCode,
+        Timezone       = m.Timezone,
+        BedCount       = m.BedCount > 0 ? m.BedCount : null,
+        NabhAccredited = m.Nabh,
+        NablAccredited = m.Nabl,
+        HasOncology    = m.EnabledModules.Contains("ro") || m.EnabledModules.Contains("mo"),
+        HasRt          = m.EnabledModules.Contains("ro"),
+        HasNuclearMed  = m.EnabledModules.Contains("nm"),
+        Status         = m.Status,
+        GoLiveAt       = !string.IsNullOrEmpty(m.GoLiveDate) && DateTimeOffset.TryParse(m.GoLiveDate, out var gl) ? gl.ToUniversalTime() : null,
+        Address        = JsonSerializer.Serialize(new { street=m.Street, city=m.City, state=m.State, pinCode=m.PinCode, phone=m.Phone, email=m.Email, website=m.Website }),
+        ExtensionData  = JsonSerializer.Serialize(new { jciAccredited=m.Jci, modules=m.EnabledModules.ToArray(), dbHost=m.DbHost }),
+        CreatedAt      = DateTimeOffset.UtcNow,   // always UTC — Npgsql requires offset=0 for timestamptz
+        UpdatedAt      = DateTimeOffset.UtcNow,
+        CreatedBy      = actorId,
+      };
+
+      db.Clinics.Add(clinic);
+      await db.SaveChangesAsync();
+      saved      = true;
+      successMsg = $"Clinic '{clinic.Name}' registered · Code: {clinic.Code}";
+    }
+    catch (Exception ex)
+    {
+      errorMsg = ex.InnerException?.Message ?? ex.Message;
+      Log.LogError(ex, "Clinic registration failed");
+    }
+    finally { saving = false; }
+  }
+}

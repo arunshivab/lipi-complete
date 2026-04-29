@@ -1,0 +1,430 @@
+@page "/admin/users/{UserId:guid}/assign"
+@namespace LiPi.Web.Pages.AdminPages
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Sections
+@using System.Security.Claims
+@using System.Text.Json
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using LiPi.Web.Services
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject IDbContextFactory<MasterDbContext> _masterFactory
+@inject NavigationManager Nav
+
+<PageTitle>Clinic Assignments – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Clinic Assignments</div>
+    <div class="tn-pt-sub">Manage clinic access per user</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:720px;margin:0 auto;padding:20px 24px 60px">
+
+    <nav style="font-size:12px;color:#64748B;margin-bottom:16px">
+        <a href="/admin/users" style="color:#1565C0;text-decoration:none">Users</a>
+        <span style="margin:0 6px">›</span>
+        <span>Clinic Assignments</span>
+    </nav>
+
+    @if (_loading)
+    { <div style="padding:40px;text-align:center;color:#94A3B8">Loading…</div> }
+    else if (_user == null)
+    { <div class="pg-alert err">User not found.</div> }
+    else
+    {
+        @* User card *@
+        <div class="af-card" style="border-left-color:#0B2545;margin-bottom:18px">
+            <div class="af-card-body" style="display:flex;align-items:center;gap:14px">
+                <div class="ul-avatar ul-avatar-navy" style="width:44px;height:44px;font-size:15px;border-radius:50%;flex-shrink:0">
+                    @Initials(_user.DisplayName ?? _user.Username)
+                </div>
+                <div>
+                    <div style="font-size:14px;font-weight:600;color:#0F2D5E">@(_user.DisplayName ?? _user.Username)</div>
+                    <div style="font-size:11px;color:#94A3B8;font-family:var(--mono)">@_user.Username</div>
+                    @if (!string.IsNullOrEmpty(_user.Email))
+                    { <div style="font-size:11px;color:#64748B">@_user.Email</div> }
+                </div>
+                <div style="margin-left:auto;text-align:right">
+                    <div style="font-size:11px;color:#64748B">@_memberships.Count(m=>m.Status=="active") active · @_memberships.Count(m=>m.Status=="suspended") suspended</div>
+                    <div style="font-size:11px;color:#94A3B8">@_memberships.Count(m=>m.Status=="terminated") terminated</div>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_successMsg))
+        { <div class="pg-alert ok" style="margin-bottom:14px">✓ @_successMsg</div> }
+        @if (!string.IsNullOrEmpty(_errorMsg))
+        { <div class="pg-alert err" style="margin-bottom:14px">⚠ @_errorMsg</div> }
+
+        @* ── Confirm dialog ── *@
+        @if (_confirmMembershipId != Guid.Empty)
+        {
+            <div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:10px;padding:16px;margin-bottom:14px">
+                <div style="font-size:13px;font-weight:600;color:#92400E;margin-bottom:6px">@_confirmTitle</div>
+                <div style="font-size:12px;color:#78350F;margin-bottom:14px">@_confirmBody</div>
+                <div style="display:flex;gap:8px">
+                    <button class="@_confirmBtnClass" disabled="@_actionBusy" @onclick="ExecuteConfirm">
+                        @(_actionBusy ? "Please wait…" : _confirmBtnLabel)
+                    </button>
+                    <button class="btn-secondary" @onclick="ClearConfirm">Cancel</button>
+                </div>
+            </div>
+        }
+
+        @* ── Current memberships ── *@
+        <div class="af-card" style="border-left-color:#1565C0;margin-bottom:14px">
+            <div class="af-card-header">
+                <div class="af-card-num" style="background:#1565C0">📋</div>
+                <span class="af-card-title">Clinic Memberships (@_memberships.Count)</span>
+                <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
+                    <input type="checkbox" @bind="_showTerminated" /> Show terminated
+                </label>
+            </div>
+            <div class="af-card-body" style="padding:0">
+                @if (!DisplayedMemberships.Any())
+                { <div style="padding:16px;font-size:12px;color:#94A3B8">No memberships found.</div> }
+                @foreach (var m in DisplayedMemberships)
+                {
+                    var mid = m.Id;
+                    var isTerminated = m.Status == "terminated";
+                    var isSuspended  = m.Status == "suspended";
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:0.5px solid #E2E8F0;@(isTerminated?"opacity:.55":"")">
+                        <div style="width:32px;height:32px;border-radius:6px;background:#0B2545;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">
+                            @Initials(m.ClinicName)
+                        </div>
+                        <div style="flex:1;min-width:0">
+                            <div style="font-size:12px;font-weight:600;color:#0F2D5E">@m.ClinicName</div>
+                            <div style="font-size:10px;color:#94A3B8">@m.ClinicCode · @m.ClinicCity
+                                @if (m.SuspendedAt.HasValue && isSuspended)
+                                { <span> · Suspended @m.SuspendedAt.Value.ToString("dd MMM yyyy")</span> }
+                                @if (m.TerminatedAt.HasValue && isTerminated)
+                                { <span> · Terminated @m.TerminatedAt.Value.ToString("dd MMM yyyy")</span> }
+                            </div>
+                        </div>
+                        <span class="@MembershipPill(m.Status)">@m.Status</span>
+                        <div style="display:flex;gap:4px">
+                            @if (!IsProtected(m.ClinicId))
+                            {
+                                @if (m.Status == "active")
+                                {
+                                    <button class="ul-act ul-act-susp" title="Suspend from this clinic"
+                                            @onclick="@(()=>PromptAction(mid,m.ClinicName,"suspend"))">⏸</button>
+                                    <button class="ul-act ul-act-del" title="Terminate from this clinic"
+                                            @onclick="@(()=>PromptAction(mid,m.ClinicName,"terminate"))">⏻</button>
+                                }
+                                else if (m.Status == "suspended")
+                                {
+                                    <button class="ul-act ul-act-ok" title="Reactivate in this clinic"
+                                            @onclick="@(()=>PromptAction(mid,m.ClinicName,"reactivate"))">▶</button>
+                                    <button class="ul-act ul-act-del" title="Terminate from this clinic"
+                                            @onclick="@(()=>PromptAction(mid,m.ClinicName,"terminate"))">⏻</button>
+                                }
+                                else if (m.Status == "terminated")
+                                {
+                                    <button class="ul-act ul-act-ok" title="Reactivate in this clinic"
+                                            @onclick="@(()=>PromptAction(mid,m.ClinicName,"reactivate"))">▶ Reactivate</button>
+                                }
+                            }
+                            else
+                            { <span style="font-size:10px;color:#94A3B8">current</span> }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ── Add to new clinics ── *@
+        <div class="af-card" style="border-left-color:#00695C">
+            <div class="af-card-header">
+                <div class="af-card-num" style="background:#00695C">+</div>
+                <span class="af-card-title">Add to Clinics</span>
+            </div>
+            <div class="af-card-body">
+                @if (!_available.Any())
+                {
+                    @if (_adminRole == "site_admin" && !_adminClinicIds.Any())
+                    { <div style="font-size:12px;color:#EF4444;padding:8px">⚠ Could not load your clinic memberships. Please re-login.</div> }
+                    else
+                    { <div style="font-size:12px;color:#94A3B8;text-align:center;padding:8px">No more clinics to assign.</div> }
+                }
+                else
+                {
+                    @if (_toAdd.Any())
+                    {
+                        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;padding:6px 10px;background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px">
+                            @foreach (var id in _toAdd.ToList())
+                            {
+                                var cname = _available.FirstOrDefault(c => c.Id == id)?.Name ?? string.Empty;
+                                var rid = id;
+                                <span style="display:flex;align-items:center;gap:4px;background:#DCFCE7;color:#166534;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:500">
+                                    @cname
+                                    <button type="button" style="background:none;border:none;color:#166534;cursor:pointer;padding:0;font-size:12px;line-height:1"
+                                            @onclick="() => _toAdd.Remove(rid)">×</button>
+                                </span>
+                            }
+                        </div>
+                    }
+                    <input class="af-finput" placeholder="Search clinics…" style="margin-bottom:8px;width:100%"
+                           value="@_search" @oninput="e => _search = e.Value?.ToString() ?? string.Empty" />
+                    <div style="font-size:10px;color:#94A3B8;margin-bottom:6px">
+                        @Filtered.Count of @_available.Count available
+                        @if (_toAdd.Any()) { <span> · <strong style="color:#166534">@_toAdd.Count selected</strong></span> }
+                    </div>
+                    <div style="max-height:200px;overflow-y:auto;border:1px solid #E2E8F0;border-radius:8px;padding:4px">
+                        @if (!Filtered.Any())
+                        { <div style="padding:16px;text-align:center;font-size:12px;color:#94A3B8">No clinics match</div> }
+                        @foreach (var c in Filtered)
+                        {
+                            var cid = c.Id; var sel = _toAdd.Contains(cid);
+                            <button type="button" @onclick="() => ToggleAdd(cid)"
+                                    style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:none;border-radius:6px;background:@(sel?"#F0FDF4":"transparent");cursor:pointer;text-align:left;width:100%;margin-bottom:2px">
+                                <input type="checkbox" checked="@sel" style="pointer-events:none;flex-shrink:0" />
+                                <div style="flex:1;min-width:0">
+                                    <div style="font-size:12px;font-weight:@(sel?"600":"400");color:#0F2D5E">@c.Name</div>
+                                    <div style="font-size:10px;color:#94A3B8">@c.City</div>
+                                </div>
+                                <span style="font-size:9px;background:#EEF2FF;color:#3730A3;border-radius:3px;padding:1px 5px;font-family:monospace">@c.Code</span>
+                            </button>
+                        }
+                    </div>
+                    @if (_toAdd.Any())
+                    {
+                        <div style="margin-top:12px;display:flex;gap:10px">
+                            <button class="btn-primary" disabled="@_saving" @onclick="AddSelected">
+                                @(_saving ? "Saving…" : $"Add to {_toAdd.Count} Clinic{(_toAdd.Count!=1?"s":"")}")
+                            </button>
+                            <button class="btn-secondary" @onclick="() => _toAdd.Clear()">Clear</button>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <div style="margin-top:20px">
+            <a href="/admin/users" class="btn-secondary">← Back to Users</a>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid UserId { get; set; }
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+    private string _adminRole = string.Empty;
+    private HashSet<Guid> _adminClinicIds = new();
+
+    private PlatformUser?       _user;
+    private List<MembershipRow> _memberships = new();
+    private List<ClinicRow>     _available   = new();
+    private HashSet<Guid>       _toAdd       = new();
+    private string  _search = string.Empty;
+    private bool    _loading=true, _saving, _showTerminated;
+    private string  _successMsg=string.Empty, _errorMsg=string.Empty;
+    private Guid    _ownClinicId;
+
+    // Confirm state
+    private Guid   _confirmMembershipId = Guid.Empty;
+    private string _confirmAction=string.Empty, _confirmTitle=string.Empty;
+    private string _confirmBody=string.Empty,   _confirmBtnLabel=string.Empty;
+    private string _confirmBtnClass=string.Empty;
+    private bool   _actionBusy;
+
+    private record MembershipRow(Guid Id, Guid ClinicId, string ClinicName, string ClinicCode,
+        string ClinicCity, string Status, DateTime? SuspendedAt, DateTime? TerminatedAt);
+    private record ClinicRow(Guid Id, string Code, string Name, string City);
+
+    private List<MembershipRow> DisplayedMemberships =>
+        _memberships.Where(m => _showTerminated || m.Status != "terminated").ToList();
+
+    private List<ClinicRow> Filtered => _available.Where(c =>
+        string.IsNullOrEmpty(_search) ||
+        c.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+        c.City.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+        c.Code.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var me = (await AuthState).User;
+        _adminRole = me.FindFirst("adminLevel")?.Value ?? string.Empty;
+        Guid.TryParse(me.FindFirst("clinicId")?.Value, out _ownClinicId);
+        if (_adminRole == "site_admin")
+        {
+            Guid.TryParse(me.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var adminUid);
+            if (adminUid != Guid.Empty)
+            {
+                await using var tempDb = await _masterFactory.CreateDbContextAsync();
+                var ids = await tempDb.ClinicMemberships
+                    .Where(cm => cm.PlatformUserId == adminUid && cm.Status == "active")
+                    .Select(cm => cm.ClinicId).ToListAsync();
+                _adminClinicIds = ids.ToHashSet();
+            }
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading=true; _errorMsg=string.Empty;
+        try
+        {
+            await using var db = await _masterFactory.CreateDbContextAsync();
+            _user = await db.PlatformUsers.FindAsync(UserId);
+            if (_user == null) { _loading=false; return; }
+
+            var allClinics = await db.Clinics
+                .Where(c => c.DeletedAt==null && (c.Status=="active"||c.Status=="provisioning"))
+                .OrderBy(c => c.Name).ToListAsync();
+
+            var existingCms = await db.ClinicMemberships
+                .Where(cm => cm.PlatformUserId==UserId)
+                .ToListAsync();
+
+            var existingClinicIds = existingCms.Select(cm => cm.ClinicId).ToHashSet();
+
+            _memberships = existingCms
+                .Where(cm => _adminRole != "site_admin" || _adminClinicIds.Contains(cm.ClinicId))
+                .Select(cm => {
+                    var c = allClinics.FirstOrDefault(x => x.Id==cm.ClinicId);
+                    return new MembershipRow(cm.Id, cm.ClinicId,
+                        c?.Name??"Unknown", c?.Code??string.Empty, c?.City??string.Empty,
+                        cm.Status, cm.SuspendedAt, cm.TerminatedAt);
+                }).OrderBy(m => m.Status=="terminated").ThenBy(m => m.ClinicName).ToList();
+
+            _available = allClinics
+                .Where(c => !existingClinicIds.Contains(c.Id) &&
+                            (_adminRole != "site_admin" || _adminClinicIds.Contains(c.Id)))
+                .Select(c => new ClinicRow(c.Id, c.Code, c.Name, c.City)).ToList();
+        }
+        catch (Exception ex) { _errorMsg=$"Load error: {ex.Message}"; }
+        finally { _loading=false; }
+    }
+
+    private bool IsProtected(Guid clinicId) => clinicId == _ownClinicId;
+    private void ToggleAdd(Guid id) { if (!_toAdd.Remove(id)) _toAdd.Add(id); }
+
+    private void PromptAction(Guid membershipId, string clinicName, string action)
+    {
+        _confirmMembershipId = membershipId; _confirmAction = action; _errorMsg = string.Empty;
+        (_confirmTitle, _confirmBody, _confirmBtnLabel, _confirmBtnClass) = action switch
+        {
+            "suspend"    => ($"Suspend from {clinicName}?",
+                             "The user will lose access to this clinic until reactivated. Access to other clinics is unaffected.",
+                             "Suspend", "ue-dz-btn ue-dz-warn"),
+            "reactivate" => ($"Reactivate in {clinicName}?",
+                             "The user will regain access to this clinic.",
+                             "Reactivate", "ue-dz-btn ue-dz-ok"),
+            "terminate"  => ($"Terminate from {clinicName}?",
+                             "The user will lose access to this clinic. The membership record is kept for audit. You can reactivate it later.",
+                             "Terminate", "ue-dz-btn ue-dz-danger"),
+            _ => (string.Empty, string.Empty, string.Empty, string.Empty)
+        };
+    }
+
+    private void ClearConfirm() { _confirmMembershipId=Guid.Empty; _confirmAction=string.Empty; }
+
+    private async Task ExecuteConfirm()
+    {
+        _actionBusy=true; StateHasChanged();
+        try
+        {
+            await using var db = await _masterFactory.CreateDbContextAsync();
+            var cm = await db.ClinicMemberships.FindAsync(_confirmMembershipId);
+            if (cm==null) { _errorMsg="Membership not found."; return; }
+
+            var newStatus = _confirmAction switch
+            {
+                "suspend"    => "suspended",
+                "reactivate" => "active",
+                "terminate"  => "terminated",
+                _            => cm.Status
+            };
+
+            cm.Status    = newStatus;
+            cm.UpdatedAt = DateTime.UtcNow;
+            if (newStatus=="suspended")  { cm.SuspendedAt=DateTime.UtcNow; }
+            if (newStatus=="terminated") { cm.TerminatedAt=DateTime.UtcNow; }
+            if (newStatus=="active")     { cm.SuspendedAt=null; cm.TerminatedAt=null; }
+            await db.SaveChangesAsync();
+
+            // If all memberships terminated → terminate platform user
+            if (newStatus=="terminated")
+            {
+                var anyActive = await db.ClinicMemberships
+                    .AnyAsync(m => m.PlatformUserId==UserId && m.Status!="terminated");
+                if (!anyActive)
+                {
+                    var pu = await db.PlatformUsers.FindAsync(UserId);
+                    if (pu!=null) { pu.Status="terminated"; pu.UpdatedAt=DateTime.UtcNow; }
+                    await db.SaveChangesAsync();
+                }
+            }
+            // If reactivating and platform user was terminated → reactivate
+            if (newStatus=="active")
+            {
+                var pu = await db.PlatformUsers.FindAsync(UserId);
+                if (pu?.Status=="terminated") { pu.Status="active"; pu.UpdatedAt=DateTime.UtcNow; await db.SaveChangesAsync(); }
+            }
+
+            ClearConfirm();
+            _successMsg = $"{_confirmBtnLabel}d successfully.";
+            await LoadData();
+        }
+        catch (Exception ex) { _errorMsg=$"Error: {ex.Message}"; }
+        finally { _actionBusy=false; }
+    }
+
+    private async Task AddSelected()
+    {
+        if (!_toAdd.Any()) return;
+        _saving=true; _successMsg=string.Empty; _errorMsg=string.Empty;
+        try
+        {
+            await using var db = await _masterFactory.CreateDbContextAsync();
+            foreach (var cid in _toAdd)
+            {
+                // Check for existing terminated membership — reactivate instead of duplicate
+                var existing = await db.ClinicMemberships
+                    .FirstOrDefaultAsync(cm => cm.PlatformUserId==UserId && cm.ClinicId==cid);
+                if (existing!=null)
+                {
+                    existing.Status=  "active";
+                    existing.UpdatedAt=DateTime.UtcNow;
+                    existing.TerminatedAt=null; existing.SuspendedAt=null;
+                }
+                else
+                {
+                    db.ClinicMemberships.Add(new ClinicMembership
+                    { Id=Guid.NewGuid(), PlatformUserId=UserId, ClinicId=cid,
+                      Status="active", CreatedAt=DateTime.UtcNow, UpdatedAt=DateTime.UtcNow });
+                }
+            }
+            // Reactivate platform user if it was terminated
+            var pu = await db.PlatformUsers.FindAsync(UserId);
+            if (pu?.Status=="terminated") { pu.Status="active"; pu.UpdatedAt=DateTime.UtcNow; }
+            await db.SaveChangesAsync();
+            _successMsg=$"Added to {_toAdd.Count} clinic{(_toAdd.Count!=1?"s":"")}.";
+            _toAdd.Clear(); _search=string.Empty;
+            await LoadData();
+        }
+        catch (Exception ex) { _errorMsg=$"Error: {ex.Message}"; }
+        finally { _saving=false; }
+    }
+
+    private static string MembershipPill(string s) => s switch
+    {
+        "active"     => "ul-role-pill ul-role-green",
+        "suspended"  => "ul-role-pill ul-role-amber",
+        "terminated" => "ul-role-pill ul-role-red",
+        _            => "ul-role-pill"
+    };
+
+    private static string Initials(string name)
+    {
+        var p = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length>=2 ? $"{p[0][0]}{p[1][0]}".ToUpper()
+             : name.Length>=2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+}

@@ -1,0 +1,128 @@
+@namespace LiPi.Web.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using System.Security.Claims
+
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+@implements IDisposable
+
+@* Floating Action Button — bottom-right, always visible, never clipped *@
+
+<div class="ufab-wrap">
+    @if (open)
+    {
+        @* Backdrop *@
+        <div class="ufab-backdrop" @onclick="Close"></div>
+
+        @* Menu card — opens above the button *@
+        <div class="ufab-menu">
+            <div class="ufab-menu-head">
+                <div class="ufab-head-av av-@AvatarCss">@Initials</div>
+                <div>
+                    <div class="ufab-head-name">@(string.IsNullOrEmpty(DisplayName) ? Username : DisplayName)</div>
+                    @if (!string.IsNullOrEmpty(DisplayName) && DisplayName != Username)
+                    { <div class="ufab-head-user">@Username</div> }
+                    <div class="ufab-head-role">@RoleDisplay.ToUpperInvariant()</div>
+                    <div class="ufab-head-clinic">@ClinicName</div>
+                </div>
+            </div>
+
+            <div class="ufab-sep"></div>
+
+            <button class="ufab-item" @onclick="GoProfile">
+                <span class="ufab-ico" style="background:#DBEAFE">👤</span>
+                <span>
+                    <span class="ufab-ilabel">Edit My Profile</span>
+                    <span class="ufab-ihint">@(IsAdmin ? "Full edit — all fields" : "Email + phone only")</span>
+                </span>
+            </button>
+            <button class="ufab-item" @onclick="GoPassword">
+                <span class="ufab-ico" style="background:#EDE7F6">🔑</span>
+                <span>
+                    <span class="ufab-ilabel">Change Password</span>
+                    <span class="ufab-ihint">Sessions revoked on change</span>
+                </span>
+            </button>
+            <button class="ufab-item" @onclick="GoPrefs">
+                <span class="ufab-ico" style="background:#DCFCE7">🎨</span>
+                <span>
+                    <span class="ufab-ilabel">Preferences</span>
+                    <span class="ufab-ihint">Theme, language</span>
+                </span>
+            </button>
+
+            <div class="ufab-sep"></div>
+
+            <form method="post" action="/logout" style="margin:0">
+                <button type="submit" class="ufab-item ufab-signout">
+                    <span class="ufab-ico" style="background:#FEE2E2">↪</span>
+                    <span class="ufab-ilabel" style="color:#DC2626">Sign Out</span>
+                </button>
+            </form>
+        </div>
+    }
+
+    @* The FAB button itself *@
+    <button class="ufab-btn av-@AvatarCss @(open ? "ufab-open" : "")"
+            @onclick="Toggle" title="@(DisplayName ?? Username)">
+        @Initials
+    </button>
+</div>
+
+@code {
+    [Parameter] public string  Username       { get; set; } = string.Empty;
+    [Parameter] public string? DisplayName    { get; set; }
+    [Parameter] public string  StaffType      { get; set; } = string.Empty;
+    [Parameter] public string  ClinicName     { get; set; } = string.Empty;
+    [Parameter] public string  RoleDisplay    { get; set; } = string.Empty;
+    [Parameter] public string  RoleBadgeClass { get; set; } = "staff";
+    [Parameter] public bool    IsAdmin        { get; set; }
+    [Parameter] public string  OwnUserId      { get; set; } = string.Empty;
+
+    private bool open;
+
+    protected override void OnInitialized()
+        => Nav.LocationChanged += OnNav;
+
+    public void Dispose()
+        => Nav.LocationChanged -= OnNav;
+
+    private void OnNav(object? _, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs __)
+    { open = false; InvokeAsync(StateHasChanged); }
+
+    private void Toggle() => open = !open;
+    private void Close()  => open = false;
+
+    private void GoProfile()  => Go(IsAdmin && !string.IsNullOrEmpty(OwnUserId)
+                                    ? $"/admin/users/{OwnUserId}/edit" : "/profile");
+    private void GoPassword() => Go("/profile?tab=password");
+    private void GoPrefs()    => Go("/profile?tab=prefs");
+    private void Go(string url) { open = false; Nav.NavigateTo(url); }
+
+    private string Initials
+    {
+        get {
+            var name = string.IsNullOrEmpty(DisplayName) ? Username : DisplayName;
+            var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 2
+                ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+                : name.Length >= 1 ? name[..1].ToUpperInvariant() : "?";
+        }
+    }
+
+    private string AvatarCss => RoleBadgeClass switch
+    {
+        "global-admin" or "sys-admin" or "site-admin" => "admin",
+        _ => StaffType switch
+        {
+            "doctor" or "radiation_oncologist" or "medical_oncologist" or
+            "radiologist" or "surgeon"                                => "doctor",
+            "nurse"                                                   => "nurse",
+            "medical_physicist" or "dosimetrist" or "nuclear_med"    => "physicist",
+            "lab_tech" or "radiographer" or "radiation_therapist"    => "tech",
+            "pharmacist" or "support"                                => "support",
+            _                                                         => "other",
+        }
+    };
+}

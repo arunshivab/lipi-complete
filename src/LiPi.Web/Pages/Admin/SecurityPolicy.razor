@@ -1,0 +1,403 @@
+@page "/admin/security-policy"
+@namespace LiPi.Web.Pages.AdminPages
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Sections
+@using System.Security.Claims
+@using LiPi.Master
+@using LiPi.Clinic.Identity
+@using LiPi.Clinic.Identity.Entities
+@using LiPi.Web.Services
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject IDbContextFactory<MasterDbContext> MasterFactory
+@inject ClinicDbFactory ClinicDbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Security Policy – LiPi</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Security Policy</div>
+    <div class="tn-pt-sub">Password · Session · MFA — per clinic</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:860px;margin:0 auto;padding:20px 24px 60px">
+
+    @* ── Clinic Picker ── *@
+    <div class="af-card" style="border-left-color:#0B2545;margin-bottom:20px">
+        <div class="af-card-header">
+            <div class="af-card-num" style="background:#0B2545">🏥</div>
+            <span class="af-card-title">Select Clinic</span>
+        </div>
+        <div class="af-card-body">
+            <div style="display:flex;gap:12px;align-items:center">
+                <select class="af-fselect" style="max-width:360px" @onchange="OnClinicChange">
+                    <option value="">— Choose a clinic —</option>
+                    @foreach (var c in clinics)
+                    {
+                        <option value="@c.Id" selected="@(selectedClinicId == c.Id)">@c.Name (@c.Code)</option>
+                    }
+                </select>
+                @if (loading) { <span style="font-size:11px;color:#94A3B8">Loading…</span> }
+                @if (selectedClinicId != Guid.Empty && !loading)
+                {
+                    <span style="font-size:11px;color:#10B981;font-weight:600">✓ Policy loaded</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (selectedClinicId != Guid.Empty && !loading && policy != null)
+    {
+        @if (!string.IsNullOrEmpty(errorMsg))
+        { <div class="pg-alert err" style="margin-bottom:14px">⚠ @errorMsg</div> }
+
+        <fieldset disabled="@saved" style="border:none;padding:0;margin:0">
+
+        @* ── ① Password Policy ── *@
+        <div class="af-card" style="border-left-color:#1565C0;margin-bottom:14px">
+            <div class="af-card-header">
+                <div class="af-card-num" style="background:#1565C0">1</div>
+                <span class="af-card-title">Password Policy</span>
+            </div>
+            <div class="af-card-body">
+                <div class="af-grid" style="grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Minimum Length</label>
+                        <input type="number" class="af-finput" min="6" max="32"
+                               value="@policy.MinLength"
+                               @onchange="e => policy.MinLength = int.TryParse(e.Value?.ToString(), out var v) ? v : 8" />
+                        <span style="font-size:10px;color:#94A3B8">Characters (6–32)</span>
+                    </div>
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Password Expiry</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="number" class="af-finput" style="width:80px" min="0" max="365"
+                                   value="@policy.ExpiryDays"
+                                   @onchange="e => policy.ExpiryDays = int.TryParse(e.Value?.ToString(), out var v) ? v : 30" />
+                            <span style="font-size:12px;color:#475569">days</span>
+                        </div>
+                        <span style="font-size:10px;color:#94A3B8">0 = never expires</span>
+                    </div>
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Password History</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="number" class="af-finput" style="width:80px" min="0" max="24"
+                                   value="@policy.HistoryCount"
+                                   @onchange="e => policy.HistoryCount = int.TryParse(e.Value?.ToString(), out var v) ? v : 0" />
+                            <span style="font-size:12px;color:#475569">passwords</span>
+                        </div>
+                        <span style="font-size:10px;color:#94A3B8">0 = allow reuse</span>
+                    </div>
+                </div>
+
+                <div class="af-fgroup" style="margin-bottom:14px">
+                    <div class="af-flabel" style="margin-bottom:8px">Complexity Requirements</div>
+                    <div style="display:flex;gap:16px;flex-wrap:wrap">
+                        @foreach (var (label, get, set) in ComplexityRules())
+                        {
+                            var lbl = label; var getter = get; var setter = set;
+                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+                                <input type="checkbox" checked="@getter()" @onchange="e => setter((bool)(e.Value ?? false))" />
+                                @lbl
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="af-grid" style="grid-template-columns:1fr 1fr;gap:14px">
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Max Failed Attempts</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="number" class="af-finput" style="width:80px" min="1" max="20"
+                                   value="@policy.MaxFailedAttempts"
+                                   @onchange="e => policy.MaxFailedAttempts = int.TryParse(e.Value?.ToString(), out var v) ? v : 5" />
+                            <span style="font-size:12px;color:#475569">attempts before lockout</span>
+                        </div>
+                    </div>
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Lockout Duration</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="number" class="af-finput" style="width:80px" min="1" max="1440"
+                                   value="@policy.LockoutMinutes"
+                                   @onchange="e => policy.LockoutMinutes = int.TryParse(e.Value?.ToString(), out var v) ? v : 30" />
+                            <span style="font-size:12px;color:#475569">minutes</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── ② Session Policy ── *@
+        <div class="af-card" style="border-left-color:#00695C;margin-bottom:14px">
+            <div class="af-card-header">
+                <div class="af-card-num" style="background:#00695C">2</div>
+                <span class="af-card-title">Session Policy</span>
+            </div>
+            <div class="af-card-body">
+                <div class="af-grid" style="grid-template-columns:1fr 1fr 1fr;gap:14px">
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Idle Timeout</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="number" class="af-finput" style="width:80px" min="5" max="480"
+                                   value="@policy.IdleTimeoutMinutes"
+                                   @onchange="e => policy.IdleTimeoutMinutes = int.TryParse(e.Value?.ToString(), out var v) ? v : 60" />
+                            <span style="font-size:12px;color:#475569">minutes</span>
+                        </div>
+                        <span style="font-size:10px;color:#94A3B8">Auto-logout after inactivity</span>
+                    </div>
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Max Session Length</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="number" class="af-finput" style="width:80px" min="1" max="24"
+                                   value="@policy.SessionMaxHours"
+                                   @onchange="e => policy.SessionMaxHours = int.TryParse(e.Value?.ToString(), out var v) ? v : 10" />
+                            <span style="font-size:12px;color:#475569">hours</span>
+                        </div>
+                        <span style="font-size:10px;color:#94A3B8">Absolute max regardless of activity</span>
+                    </div>
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Concurrent Sessions</label>
+                        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;margin-top:6px">
+                            <input type="checkbox" checked="@policy.EnforceSingleSession"
+                                   style="margin-top:2px"
+                                   @onchange="e => policy.EnforceSingleSession = (bool)(e.Value ?? true)" />
+                            <span>
+                                <strong style="font-size:12px">Enforce single session</strong><br/>
+                                <span style="font-size:10px;color:#94A3B8">Logging in elsewhere automatically signs out the previous session</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── ③ MFA Policy ── *@
+        <div class="af-card" style="border-left-color:#BF360C;margin-bottom:14px">
+            <div class="af-card-header">
+                <div class="af-card-num" style="background:#BF360C">3</div>
+                <span class="af-card-title">MFA Policy</span>
+            </div>
+            <div class="af-card-body">
+                <div class="af-grid" style="grid-template-columns:1fr 1fr 1fr;gap:14px">
+                    <div class="af-fgroup">
+                        <label class="af-flabel">MFA Enforcement</label>
+                        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;margin-top:6px">
+                            <input type="checkbox" checked="@policy.MfaRequired"
+                                   style="margin-top:2px"
+                                   @onchange="e => policy.MfaRequired = (bool)(e.Value ?? false)" />
+                            <span>
+                                <strong style="font-size:12px">Require MFA for all users</strong><br/>
+                                <span style="font-size:10px;color:#94A3B8">Users must enrol before accessing the system</span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="af-fgroup">
+                        <label class="af-flabel" style="margin-bottom:8px">Allowed Methods</label>
+                        @foreach (var (val, label) in new[]{("totp","Authenticator App (TOTP)"),("sms","SMS OTP"),("email","Email OTP")})
+                        {
+                            var v = val; var lbl = label;
+                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:4px">
+                                <input type="checkbox" checked="@MfaMethodEnabled(v)"
+                                       @onchange="e => ToggleMfaMethod(v, (bool)(e.Value ?? false))" />
+                                @lbl
+                            </label>
+                        }
+                    </div>
+                    <div class="af-fgroup">
+                        <label class="af-flabel">Grace Period</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="number" class="af-finput" style="width:80px" min="0" max="30"
+                                   value="@policy.MfaGraceDays"
+                                   @onchange="e => policy.MfaGraceDays = int.TryParse(e.Value?.ToString(), out var v2) ? v2 : 0" />
+                            <span style="font-size:12px;color:#475569">days</span>
+                        </div>
+                        <span style="font-size:10px;color:#94A3B8">Days new users can skip MFA. 0 = immediate</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Actions ── *@
+        <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn-primary" disabled="@(saving||saved)" @onclick="SavePolicy">
+                @(saving ? "Saving…" : saved ? "✓ Saved" : "Save Policy")
+            </button>
+            @if (saved)
+            {
+                <a href="/admin/settings" class="btn-secondary">Close</a>
+                <span style="font-size:12px;color:#10B981;font-weight:500;margin-left:4px">✓ @successMsg</span>
+            }
+            @if (!saved)
+            {
+                <button class="btn-secondary" @onclick="ResetDefaults"
+                        style="margin-left:auto;font-size:11px">↺ Reset to Defaults</button>
+            }
+        </div>
+
+        </fieldset>
+    }
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private List<(Guid Id, string Name, string Code)> clinics = new();
+    private Guid selectedClinicId;
+    private LiPi.Clinic.Identity.Entities.SecurityPolicy? policy;
+    private bool loading, saving, saved;
+    private string successMsg = string.Empty, errorMsg = string.Empty;
+    private string ownUsername = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        ownUsername = user.Identity?.Name ?? string.Empty;
+        var role = user.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+
+        await using var db = await MasterFactory.CreateDbContextAsync();
+
+        if (role is "global_admin" or "sys_admin")
+        {
+            clinics = await db.Clinics
+                .Where(c => c.DeletedAt == null && (c.Status == "active" || c.Status == "provisioning"))
+                .OrderBy(c => c.Name)
+                .Select(c => new { c.Id, c.Name, c.Code })
+                .AsAsyncEnumerable()
+                .Select(c => (c.Id, c.Name, c.Code))
+                .ToListAsync();
+        }
+        else
+        {
+            // SiteAdmin — only their clinics
+            Guid.TryParse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var uid);
+            clinics = await db.ClinicMemberships
+                .Include(cm => cm.Clinic)
+                .Where(cm => cm.PlatformUserId == uid && cm.Status == "active" && cm.Clinic != null)
+                .Select(cm => new { cm.Clinic!.Id, cm.Clinic.Name, cm.Clinic.Code })
+                .AsAsyncEnumerable()
+                .Select(c => (c.Id, c.Name, c.Code))
+                .ToListAsync();
+
+            // Auto-select if only one clinic
+            if (clinics.Count == 1)
+            {
+                selectedClinicId = clinics[0].Id;
+                await LoadPolicy();
+            }
+        }
+    }
+
+    private async Task OnClinicChange(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
+        selectedClinicId = id;
+        saved = false; successMsg = string.Empty; errorMsg = string.Empty;
+        await LoadPolicy();
+    }
+
+    private async Task LoadPolicy()
+    {
+        loading = true; StateHasChanged();
+        try
+        {
+            var ctx = await ClinicDbFactory.CreateForClinicAsync(selectedClinicId);
+            if (ctx == null) { errorMsg = "Cannot connect to clinic database."; loading = false; return; }
+            await using (ctx)
+            {
+                policy = await ctx.SecurityPolicies.FirstOrDefaultAsync()
+                          ?? new LiPi.Clinic.Identity.Entities.SecurityPolicy();
+            }
+        }
+        catch (Exception ex) { errorMsg = $"Load error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task SavePolicy()
+    {
+        if (policy == null) return;
+        saving = true; errorMsg = string.Empty; StateHasChanged();
+        try
+        {
+            var ctx = await ClinicDbFactory.CreateForClinicAsync(selectedClinicId);
+            if (ctx == null) { errorMsg = "Cannot connect to clinic database."; saving = false; return; }
+            await using (ctx)
+            {
+                policy.UpdatedAt = DateTimeOffset.UtcNow;
+                policy.UpdatedBy = ownUsername;
+
+                var existing = await ctx.SecurityPolicies.FirstOrDefaultAsync();
+                if (existing == null)
+                {
+                    policy.Id = Guid.NewGuid();
+                    ctx.SecurityPolicies.Add(policy);
+                }
+                else
+                {
+                    existing.MinLength           = policy.MinLength;
+                    existing.RequireUppercase    = policy.RequireUppercase;
+                    existing.RequireLowercase    = policy.RequireLowercase;
+                    existing.RequireDigit        = policy.RequireDigit;
+                    existing.RequireSymbol       = policy.RequireSymbol;
+                    existing.ExpiryDays          = policy.ExpiryDays;
+                    existing.HistoryCount        = policy.HistoryCount;
+                    existing.MaxFailedAttempts   = policy.MaxFailedAttempts;
+                    existing.LockoutMinutes      = policy.LockoutMinutes;
+                    existing.IdleTimeoutMinutes  = policy.IdleTimeoutMinutes;
+                    existing.SessionMaxHours     = policy.SessionMaxHours;
+                    existing.EnforceSingleSession= policy.EnforceSingleSession;
+                    existing.MfaRequired         = policy.MfaRequired;
+                    existing.AllowedMfaMethods   = policy.AllowedMfaMethods;
+                    existing.MfaGraceDays        = policy.MfaGraceDays;
+                    existing.UpdatedAt           = policy.UpdatedAt;
+                    existing.UpdatedBy           = policy.UpdatedBy;
+                }
+                await ctx.SaveChangesAsync();
+            }
+            successMsg = "Security policy saved successfully.";
+            saved = true;
+        }
+        catch (Exception ex) { errorMsg = $"Save error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+
+    private void ResetDefaults()
+    {
+        if (policy == null) return;
+        policy.MinLength = 8; policy.RequireUppercase = true; policy.RequireLowercase = true;
+        policy.RequireDigit = true; policy.RequireSymbol = true;
+        policy.ExpiryDays = 30; policy.HistoryCount = 0;
+        policy.MaxFailedAttempts = 5; policy.LockoutMinutes = 30;
+        policy.IdleTimeoutMinutes = 60; policy.SessionMaxHours = 10;
+        policy.EnforceSingleSession = true;
+        policy.MfaRequired = false; policy.AllowedMfaMethods = string.Empty; policy.MfaGraceDays = 0;
+    }
+
+    // ── MFA helpers ──────────────────────────────────────────────
+    private bool MfaMethodEnabled(string method) =>
+        policy?.AllowedMfaMethods?.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Contains(method) ?? false;
+
+    private void ToggleMfaMethod(string method, bool enabled)
+    {
+        if (policy == null) return;
+        var methods = (policy.AllowedMfaMethods ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (enabled && !methods.Contains(method)) methods.Add(method);
+        else methods.Remove(method);
+        policy.AllowedMfaMethods = string.Join(",", methods);
+    }
+
+    // ── Complexity rules as tuples to avoid repetition ──────────
+    private IEnumerable<(string Label, Func<bool> Get, Action<bool> Set)> ComplexityRules()
+    {
+        if (policy == null) yield break;
+        yield return ("Uppercase (A–Z)",  () => policy.RequireUppercase, v => policy.RequireUppercase = v);
+        yield return ("Lowercase (a–z)",  () => policy.RequireLowercase, v => policy.RequireLowercase = v);
+        yield return ("Digit (0–9)",      () => policy.RequireDigit,     v => policy.RequireDigit     = v);
+        yield return ("Symbol (!@#…)",    () => policy.RequireSymbol,    v => policy.RequireSymbol    = v);
+    }
+}

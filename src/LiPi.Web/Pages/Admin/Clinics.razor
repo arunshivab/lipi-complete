@@ -1,0 +1,339 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/clinics"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using System.Text.Json
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject IDbContextFactory<MasterDbContext> DbFactory
+@inject ILogger<Clinics> Log
+
+<PageTitle>Clinic Management – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Clinic Management</div>
+    <div class="tn-pt-sub">Facilities & modules</div>
+</SectionContent>
+
+<div class="ap-body">
+  <div class="ap-table-wrap">
+
+    <!-- Toolbar -->
+    <div class="ap-toolbar">
+      <div class="ap-search-box">
+        <svg class="ap-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="cl-search" name="search" type="search" autocomplete="off"
+               placeholder="Search name, code or city…"
+               value="@searchTerm" @oninput="OnSearchInput" />
+      </div>
+      <div class="ap-filters">
+        <button class="ap-filter-btn @(sf=="All"         ?"active":"")" @onclick="FilterAll">All</button>
+        <button class="ap-filter-btn @(sf=="active"      ?"active":"")" @onclick="FilterActive">Active</button>
+        <button class="ap-filter-btn @(sf=="provisioning"?"active":"")" @onclick="FilterProv">Provisioning</button>
+        <button class="ap-filter-btn @(sf=="suspended"   ?"active":"")" @onclick="FilterSusp">Suspended</button>
+      </div>
+      <a href="/admin/clinics/new" class="btn-primary btn-sm" style="white-space:nowrap;margin-left:auto">+ Register Clinic</a>
+    </div>
+
+    <!-- Column headers -->
+    <div style="display:grid;grid-template-columns:44px 1.5fr 160px 130px 110px 90px 90px;gap:0 8px;padding:6px 16px;background:var(--surface-2,#F8FAFC);border-bottom:1px solid var(--border,#E2E8F0)">
+      <div></div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase">CLINIC &amp; ACTIONS</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">ORGANISATION</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">CITY / STATE</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">TYPE</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">GO-LIVE</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">STATUS</div>
+    </div>
+
+    @if (loading)
+    { <div class="ap-placeholder"><div class="ap-placeholder-icon">⏳</div><p>Loading clinics…</p></div> }
+    else if (filtered.Count == 0)
+    {
+      <div class="ap-table-empty">
+        <div class="ap-table-empty-icon">🏥</div>
+        <p class="ap-table-empty-title">No clinics found</p>
+        @if (isGlobalAdmin) { <a href="/admin/clinics/new" class="btn-primary btn-sm">+ Register First Clinic</a> }
+      </div>
+    }
+    else
+    {
+      @foreach (var c in filtered)
+      {
+        var cid = c.Id;
+        <div class="ul-row ul-status-@c.Status" style="display:grid;grid-template-columns:44px 1.5fr 160px 130px 110px 90px 90px;gap:0 8px;padding:10px 16px;align-items:center">
+
+          <!-- Icon -->
+          <div class="ul-avatar ul-avatar-@ClinicColor(c.ClinicType)" style="border-radius:10px;font-size:16px">
+            🏥
+          </div>
+
+          <!-- Main info -->
+          <div class="ul-info">
+            <div class="ul-name-row">
+              <a href="/admin/clinics/@cid/edit" class="ul-username">@c.Name</a>
+              <span class="cl-code-badge">@c.Code</span>
+              <span class="cl-type-badge cl-type-@c.ClinicType.Replace(" ","")">@FormatType(c.ClinicType)</span>
+            </div>
+            <div class="ul-email">@(c.Organization?.LegalName ?? "—") · @c.City, @c.State</div>
+            <!-- Actions -->
+            <div class="ul-actions">
+              <a href="/admin/clinics/@cid/edit" class="ul-act ul-act-edit" title="Edit clinic">✏</a>
+              @{ var _csa = c.Status == "suspended" ? "activate" : "suspend"; var _cid = cid; var _cDel="delete"; }
+              <button type="button" class="ul-act ul-act-susp"
+                      title="@(c.Status=="suspended"?"Activate":"Suspend")"
+                      @onclick="() => PromptAction(_cid, _csa)">
+                @(c.Status=="suspended" ? "▶" : "⏸")
+              </button>
+              <button type="button" class="ul-act ul-act-org" title="Change organisation"
+                      @onclick="() => OpenChangeOrg(_cid)">🏢</button>
+              <button type="button" class="ul-act ul-act-del" title="Delete clinic"
+                      @onclick="() => PromptAction(_cid, _cDel)">🗑</button>
+            </div>
+          </div>
+
+          <div style="font-size:11px;color:var(--tx-2);display:flex;align-items:center;justify-content:center">@(c.Organization?.LegalName ?? "—")</div>
+          <div style="font-size:11px;color:var(--tx-2);display:flex;align-items:center;justify-content:center">@(string.IsNullOrEmpty(c.City)?"—":$"{c.City}, {c.State}")</div>
+          <div style="font-size:11px;color:var(--tx-2);display:flex;align-items:center;justify-content:center">@FormatType(c.ClinicType)</div>
+          <div style="font-size:11px;color:var(--tx-2);font-family:var(--mono);display:flex;align-items:center;justify-content:center">@(c.GoLiveAt.HasValue?c.GoLiveAt.Value.ToString("dd MMM yy"):"—")</div>
+          <div style="display:flex;align-items:center;justify-content:center">
+            <span class="ul-role-pill @StatusPill(c.Status)">@c.Status</span>
+          </div>
+
+        </div><!-- /ul-row -->
+      }
+      <div class="ul-footer-count">Showing @filtered.Count of @allClinics.Count clinic(s)</div>
+    }
+  </div>
+</div>
+
+<!-- Confirmation modal -->
+@if (confirmId != Guid.Empty)
+{
+  <div class="ue-confirm-backdrop" @onclick="CloseConfirm">
+    <div class="ue-confirm-card" @onclick:stopPropagation>
+      <div class="ue-confirm-title">@confirmTitle</div>
+      <div class="ue-confirm-body">@confirmBody</div>
+      @if (!string.IsNullOrEmpty(actionError))
+      { <div style="font-size:11px;color:#DC2626;background:#FEF2F2;border-radius:6px;padding:6px 10px;margin-top:8px">⚠ @actionError</div> }
+      <div class="ue-confirm-btns">
+        <button type="button" class="btn-secondary" @onclick="CloseConfirm">Cancel</button>
+        <button type="button" class="@confirmBtnClass" disabled="@actionBusy" @onclick="ExecuteAction">
+          @(actionBusy ? "Working…" : confirmBtnLabel)
+        </button>
+      </div>
+      <a href="/admin/clinics/new" class="btn-primary btn-sm" style="white-space:nowrap;margin-left:auto">+ Register Clinic</a>
+    </div>
+  </div>
+}
+
+@* ── Change Organisation Modal ── *@
+@if (_orgModalClinicId != Guid.Empty)
+{
+  <div class="ue-confirm-backdrop" @onclick="CloseOrgModal">
+    <div class="ue-confirm-card" style="max-width:420px" @onclick:stopPropagation="true">
+      <div class="ue-confirm-title">Change Organisation</div>
+      <div class="ue-confirm-body">
+        <strong>@_orgModalClinicName</strong><br/>
+        <span style="font-size:11px;color:#64748B">Select the new owning organisation for this clinic.</span>
+      </div>
+      <div style="margin:16px 0">
+        <label style="font-size:11px;font-weight:600;color:#475569;display:block;margin-bottom:6px">Organisation <span style="font-size:10px;color:#94A3B8">(optional)</span></label>
+        <select style="width:100%;padding:8px 10px;border:1px solid #CBD5E1;border-radius:8px;font-size:13px;color:#1E293B;background:#fff"
+                value="@_orgModalSelectedId" @onchange="e => _orgModalSelectedId = e.Value?.ToString() ?? string.Empty">
+          <option value="">— Select organisation —</option>
+          @foreach (var o in _allOrgs)
+          {
+            <option value="@o.Id" selected="@(o.Id.ToString() == _orgModalSelectedId)">@o.LegalName</option>
+          }
+        </select>
+        @if (_orgModalError != string.Empty)
+        {
+          <div style="font-size:11px;color:#DC2626;margin-top:6px">⚠ @_orgModalError</div>
+        }
+      </div>
+      <div class="ue-confirm-btns">
+        <button type="button" class="btn-secondary" @onclick="CloseOrgModal">Cancel</button>
+        <button type="button" class="btn-primary" disabled="@_orgModalBusy" @onclick="SaveOrgChange">
+          @(_orgModalBusy ? "Saving…" : string.IsNullOrEmpty(_orgModalSelectedId) ? "Remove Organisation" : "Change Organisation")
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<style>
+.cl-code-badge{font-size:9px;font-weight:700;background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;border-radius:4px;padding:1px 6px;font-family:'DM Mono',monospace;letter-spacing:.5px}
+.cl-type-badge{font-size:9px;font-weight:600;border-radius:20px;padding:1px 7px;border:1px solid}
+.cl-type-badge{background:#F0FDF4;color:#166534;border-color:#BBF7D0}
+.cl-cap-pill{font-size:9px;font-weight:600;border-radius:4px;padding:2px 5px}
+.cl-cap-onco{background:#FEE2E2;color:#991B1B}.cl-cap-rt{background:#FEF3C7;color:#92400E}
+.cl-cap-nm{background:#EDE9FE;color:#5B21B6}.cl-cap-nabh{background:#DBEAFE;color:#1E40AF}
+.cl-cap-nabl{background:#D1FAE5;color:#065F46}
+.ul-act-org{color:#0284C7!important}.ul-act-org:hover{background:#E0F2FE!important}
+</style>
+
+@code {
+  [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private bool loading=true, isGlobalAdmin;
+  private string searchTerm=string.Empty, sf="All";
+  private List<Clinic> allClinics=new(), filtered=new();
+
+  private Guid   confirmId     = Guid.Empty;
+  private string confirmAction = string.Empty, confirmTitle=string.Empty;
+  private string confirmBody   = string.Empty, confirmBtnLabel=string.Empty, confirmBtnClass=string.Empty;
+  private string actionError   = string.Empty;
+  private bool   actionBusy;
+
+  // Change org modal
+  private Guid   _orgModalClinicId   = Guid.Empty;
+  private string _orgModalClinicName = string.Empty;
+  private string _orgModalSelectedId = string.Empty;
+  private string _orgModalError      = string.Empty;
+  private bool   _orgModalBusy;
+  private List<Organization> _allOrgs = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    var role = (await AuthState).User.Claims.Where(c=>c.Type==ClaimTypes.Role).Select(c=>c.Value).FirstOrDefault();
+    if (role is not ("global_admin" or "sys_admin"))
+    { Nav.NavigateTo("/admin", forceLoad:true); return; }
+    isGlobalAdmin = role == "global_admin";
+    await LoadAsync();
+    // Pre-load orgs for the Change Org modal
+    await using var orgDb = await DbFactory.CreateDbContextAsync();
+    _allOrgs = await orgDb.Organizations
+      .Where(o => o.DeletedAt == null && o.Status == "active")
+      .OrderBy(o => o.LegalName).ToListAsync();
+    loading = false;
+  }
+
+  private async Task LoadAsync()
+  {
+    await using var db = await DbFactory.CreateDbContextAsync();
+    allClinics = await db.Clinics
+      .Include(c=>c.Organization)
+      .Where(c=>c.DeletedAt==null)
+      .OrderBy(c=>c.Name).ToListAsync();
+    ApplyFilter();
+  }
+
+  private void OnSearchInput(ChangeEventArgs e) { searchTerm=e.Value?.ToString()??string.Empty; ApplyFilter(); }
+  private void FilterAll()    { sf="All";          ApplyFilter(); }
+  private void FilterActive() { sf="active";       ApplyFilter(); }
+  private void FilterProv()   { sf="provisioning"; ApplyFilter(); }
+  private void FilterSusp()   { sf="suspended";    ApplyFilter(); }
+
+  private void ApplyFilter()
+  {
+    filtered = allClinics
+      .Where(c => sf=="All" || c.Status==sf)
+      .Where(c => string.IsNullOrWhiteSpace(searchTerm)
+               || c.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+               || c.Code.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+               || (c.City??string.Empty).Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+      .ToList();
+  }
+
+  private void PromptAction(Guid id, string action)
+  {
+    var c = allClinics.First(x=>x.Id==id);
+    confirmId=id; confirmAction=action; actionError=string.Empty;
+    (confirmTitle, confirmBody, confirmBtnLabel, confirmBtnClass) = action switch
+    {
+      "suspend"  => ("Suspend Clinic",
+                     $"Suspend '{c.Name}'? Staff will be unable to log in until reactivated.",
+                     "Suspend", "ue-dz-btn ue-dz-warn"),
+      "activate" => ("Activate Clinic",
+                     $"Reactivate '{c.Name}'? Staff will be able to log in.",
+                     "Activate", "ue-dz-btn ue-dz-ok"),
+      "delete"   => ("Delete Clinic",
+                     $"Delete '{c.Name}'? All associated data is retained per HIPAA. This cannot be undone.",
+                     "Delete", "ue-dz-btn ue-dz-danger"),
+      _          => (string.Empty,string.Empty,string.Empty,string.Empty),
+    };
+  }
+
+  private void CloseConfirm() { confirmId=Guid.Empty; confirmAction=string.Empty; }
+
+  private void OpenChangeOrg(Guid clinicId)
+  {
+    var c = allClinics.First(x => x.Id == clinicId);
+    _orgModalClinicId   = clinicId;
+    _orgModalClinicName = c.Name;
+    _orgModalSelectedId = c.OrganizationId.HasValue && c.OrganizationId != Guid.Empty ? c.OrganizationId.ToString() : string.Empty;
+    _orgModalError      = string.Empty;
+  }
+
+  private void CloseOrgModal()
+  {
+    _orgModalClinicId = Guid.Empty;
+    _orgModalError    = string.Empty;
+  }
+
+  private async Task SaveOrgChange()
+  {
+
+    _orgModalBusy = true; _orgModalError = string.Empty; StateHasChanged();
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var clinic = await db.Clinics.FindAsync(_orgModalClinicId);
+      if (clinic == null) { _orgModalError = "Clinic not found."; return; }
+      if (string.IsNullOrEmpty(_orgModalSelectedId)) clinic.OrganizationId = null; else clinic.OrganizationId = Guid.Parse(_orgModalSelectedId);
+      clinic.UpdatedAt      = DateTime.UtcNow;
+      await db.SaveChangesAsync();
+      CloseOrgModal();
+      await LoadAsync();
+    }
+    catch (Exception ex) { _orgModalError = ex.Message; }
+    finally { _orgModalBusy = false; }
+  }
+
+  private async Task ExecuteAction()
+  {
+    actionBusy=true; actionError=string.Empty; StateHasChanged();
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var clinic = await db.Clinics.FirstOrDefaultAsync(c=>c.Id==confirmId);
+      if (clinic==null) { actionError="Clinic not found."; return; }
+      switch (confirmAction)
+      {
+        case "suspend":  clinic.Status="suspended"; clinic.UpdatedAt=DateTimeOffset.UtcNow; break;
+        case "activate": clinic.Status="active";    clinic.UpdatedAt=DateTimeOffset.UtcNow; break;
+        case "delete":   clinic.DeletedAt=DateTimeOffset.UtcNow; clinic.UpdatedAt=DateTimeOffset.UtcNow; break;
+      }
+      await db.SaveChangesAsync();
+      await LoadAsync();
+      CloseConfirm();
+    }
+    catch (Exception ex) { actionError=ex.InnerException?.Message??ex.Message; Log.LogError(ex,"Clinic action failed"); }
+    finally { actionBusy=false; }
+  }
+
+  private static string ClinicColor(string type) => type switch
+  {
+    "cancer_centre" => "red", "hospital" => "blue", "day_care" => "teal",
+    "diagnostic" => "amber", _ => "navy",
+  };
+  private static string FormatType(string t) => t.Replace("_"," ") switch
+  {
+    "cancer centre" => "Cancer Centre", "day care" => "Day Care",
+    var x => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(x),
+  };
+  private static string StatusPill(string s) => s switch
+  {
+    "active"=>"ul-role-green","suspended"=>"ul-role-red",
+    "provisioning"=>"ul-role-amber",_=>"ul-role-slate",
+  };
+}

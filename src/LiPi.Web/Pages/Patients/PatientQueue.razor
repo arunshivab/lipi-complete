@@ -1,0 +1,387 @@
+@namespace LiPi.Web.Pages.PatientPages
+@page "/patients/queue"
+@page "/patients/{Id}/queue"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using System.Text.RegularExpressions
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+
+<PageTitle>Add to Queue – LiPi</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Add to Queue</div>
+    <div class="tn-pt-sub">OPD · Schedule a patient slot</div>
+</SectionContent>
+
+<div class="pr-body">
+
+  @* KPI strip *@
+  <div class="pr-kpi-strip">
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#0B2545"></div><div class="pr-kpi-lbl">Today's Registrations</div><div class="pr-kpi-val">@_kpiReg</div><div class="pr-kpi-sub">↑ 6 vs yesterday</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#F59E0B"></div><div class="pr-kpi-lbl">OPD Queue</div><div class="pr-kpi-val">@_kpiQueue</div><div class="pr-kpi-sub">avg wait 18 min</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#1B4DA0"></div><div class="pr-kpi-lbl">Appointments Today</div><div class="pr-kpi-val">@_kpiAppts</div><div class="pr-kpi-sub">3 unconfirmed</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#4A9BD4"></div><div class="pr-kpi-lbl">Active Patients</div><div class="pr-kpi-val">@_kpiActive</div><div class="pr-kpi-sub">↑ 5.1% MoM</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#EF4444"></div><div class="pr-kpi-lbl">Pending Consents</div><div class="pr-kpi-val">@_kpiConsents</div><div class="pr-kpi-sub">action required</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#10B981"></div><div class="pr-kpi-lbl">Empty Slots Today</div><div class="pr-kpi-val">@_kpiSlots</div><div class="pr-kpi-sub">across all doctors</div></div>
+  </div>
+
+  <div class="pr-panel">
+    <div class="pr-header">
+      <div>
+        <div class="pr-kicker">&#9711; PATIENT MANAGEMENT &middot; QUEUE</div>
+        <div class="pr-title">Add patient to OPD queue</div>
+        <div class="pr-sub">Select patient, doctor and preferred time slot</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <button type="button" class="pr-btn-ghost" @onclick='() => Nav.NavigateTo(string.IsNullOrEmpty(Id) ? "/patients/search" : $"/patients/{Id}/edit")'>Cancel</button>
+        @if (!_saved)
+        {
+          <button type="button" class="pr-btn-save"
+                  disabled="@(!CanSubmit() || _saving)"
+                  @onclick="HandleSubmit">
+            @(_saving ? "Adding…" : "✓ Add to Queue")
+          </button>
+        }
+        else
+        {
+          <button type="button" class="pr-btn-ghost" @onclick='() => Nav.NavigateTo("/patients/search")'>Close</button>
+        }
+      </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMsg)) { <div class="pq-success">✓ @_successMsg</div> }
+    @if (!string.IsNullOrEmpty(_errorMsg))   { <div class="pq-error">&#9888; @_errorMsg</div>   }
+
+    <div class="pq-layout">
+
+      @* ── LEFT COLUMN ── *@
+      <div>
+        <div class="pr-sh"><span class="pr-sh-num">01</span><span class="pr-sh-title">Select Patient</span><div class="pr-sh-line"></div></div>
+
+        @if (_patientChosen)
+        {
+          <div class="pq-patient-row">
+            <div class="pr-card-avatar" style="width:34px;height:34px;border-radius:9px;font-size:12px;background:linear-gradient(135deg,#4A9BD4,#1B4DA0)">
+              @(_patientName.Length > 0 ? _patientName[0].ToString().ToUpperInvariant() : "?")
+            </div>
+            <div style="flex:1;min-width:0">
+              <div class="pq-patient-name">@_patientName</div>
+              <div class="pq-patient-mrn">@_patientMrn</div>
+            </div>
+            @if (string.IsNullOrEmpty(Id))
+            {
+              <button type="button" class="pq-change-btn" @onclick="ClearPatient">Change ×</button>
+            }
+          </div>
+        }
+        else
+        {
+          @* Patient search inline *@
+          <div class="ps-search-wrap">
+            <span class="ps-search-icon">&#9740;</span>
+            <input id="pq-pt-search" name="patientSearch" autocomplete="off"
+                   class="ps-search-input" style="border-width:1px;font-size:13px;padding:11px 12px 11px 44px"
+                   value="@_ptQuery"
+                   placeholder="Search patient by name or MRN…"
+                   @oninput="OnPtSearch" />
+          </div>
+          @if (_ptResults.Count > 0)
+          {
+            <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px">
+              @foreach (var pt in _ptResults.Take(4))
+              {
+                var ptId = pt.Id; var ptName = pt.Name; var ptMrn = pt.Mrn;
+                <div class="ps-pt-card" style="padding:9px 11px" @onclick="() => SelectPatient(ptId, ptName, ptMrn)">
+                  <span class="ps-pt-arrow">&#8250;</span>
+                  <div class="ps-pt-card-top" style="margin-bottom:4px">
+                    <div class="ps-pt-avatar" style="width:28px;height:28px;font-size:10px">@pt.Initials</div>
+                    <div><div class="ps-pt-name" style="font-size:12px">@pt.Name</div><div class="ps-pt-mrn" style="font-size:9px">@pt.Mrn</div></div>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        }
+
+        <div class="pr-sh" style="margin-top:4px"><span class="pr-sh-num">02</span><span class="pr-sh-title">Doctor &amp; Date</span><div class="pr-sh-line"></div></div>
+        <div class="pr-g2">
+          <label class="pr-float"><div class="pr-flabel">Attending Doctor *</div>
+            <select id="pq-doctor" name="attendingDoctor" autocomplete="off"
+                    class="pr-sel @(_doctorError ? "err" : "")"
+                    value="@_doctor"
+                    @onchange="OnDoctorChange">
+              <option value="">Select doctor…</option>
+              @foreach (var d in _doctors) { <option value="@d">@d</option> }
+            </select>
+            @if (_doctorError) { <span class="pr-err-msg">Doctor is required</span> }</label>
+          <label class="pr-float"><div class="pr-flabel">Date *</div>
+            <input id="pq-date" name="queueDate" type="date" autocomplete="off"
+                   class="pr-inp @(_dateError ? "err" : "")"
+                   value="@_queueDate"
+                   min="@DateTime.Today.ToString("yyyy-MM-dd")"
+                   @onchange="OnDateChange" />
+            @if (_dateError) { <span class="pr-err-msg">Date is required</span> }</label>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_doctor) && !string.IsNullOrEmpty(_queueDate))
+        {
+          <div class="pr-sh" style="margin-top:2px"><span class="pr-sh-num">03</span><span class="pr-sh-title">Available Slots</span><div class="pr-sh-line"></div><span class="pr-note" style="font-size:10px;white-space:nowrap">@_slots.Count(s => !s.Booked) available</span></div>
+          <div class="pq-slot-grid">
+            @foreach (var slot in _slots)
+            {
+              var sid = slot.Time;
+              if (slot.Booked)
+              {
+                <div class="pq-slot booked">
+                  <div class="pq-slot-time">@slot.Time</div>
+                  <div class="pq-slot-dr">Booked</div>
+                </div>
+              }
+              else
+              {
+                <div class="pq-slot @(_selectedSlot == sid ? "selected" : "")" @onclick="() => SelectSlot(sid)">
+                  <div class="pq-slot-time">@slot.Time</div>
+                  <div class="pq-slot-dr">@slot.DoctorShort</div>
+                </div>
+              }
+            }
+          </div>
+          @if (_slotError) { <span class="pr-err-msg" style="display:block;margin-bottom:8px">Please select a time slot</span> }
+        }
+      </div>
+
+      @* ── RIGHT COLUMN ── *@
+      <div>
+        <div class="pr-sh"><span class="pr-sh-num">04</span><span class="pr-sh-title">Priority &amp; Notes</span><div class="pr-sh-line"></div></div>
+
+        <div class="pq-prio-row">
+          <button type="button" class="pq-prio-chip normal @(_priority == "normal" ? "on" : "")"      @onclick='() => _priority = "normal"'>&#9679; Normal</button>
+          <button type="button" class="pq-prio-chip urgent @(_priority == "urgent" ? "on" : "")"      @onclick='() => _priority = "urgent"'>&#9650; Urgent</button>
+          <button type="button" class="pq-prio-chip emergency @(_priority == "emergency" ? "on" : "")" @onclick='() => _priority = "emergency"'>&#9888; Emergency</button>
+        </div>
+
+        <label class="pr-float" style="display:block;margin-bottom:10px">
+          <div class="pr-flabel">Visit Type</div>
+          <select id="pq-visit-type" name="visitType" autocomplete="off"
+                  class="pr-sel" value="@_visitType" @onchange="OnVisitTypeChange">
+            <option value="first_visit">First Visit</option>
+            <option value="follow_up">Follow-Up</option>
+            <option value="review">Review</option>
+            <option value="emergency">Emergency</option>
+            <option value="procedure">Procedure</option>
+          </select>
+        </label>
+
+        <label class="pr-float" style="display:block;margin-bottom:12px">
+          <div class="pr-flabel">Chief Complaint / Notes</div>
+          <textarea id="pq-notes" name="chiefComplaint" autocomplete="off"
+                    class="pr-inp" style="padding-top:22px;height:90px;resize:none"
+                    placeholder="Optional clinical notes for the doctor"
+                    value="@_notes"
+                    @oninput="e => _notes = e.Value?.ToString() ?? string.Empty"></textarea>
+        </label>
+
+        <div class="pr-sh"><span class="pr-sh-num">05</span><span class="pr-sh-title">Confirm</span><div class="pr-sh-line"></div></div>
+        <div class="pq-confirm-box">
+          <div class="pq-confirm-row">
+            <span class="pq-confirm-key">Patient</span>
+            <span class="pq-confirm-val">@(_patientChosen ? _patientName : "—")</span>
+          </div>
+          <div class="pq-confirm-row">
+            <span class="pq-confirm-key">Doctor</span>
+            <span class="pq-confirm-val">@(string.IsNullOrEmpty(_doctor) ? "—" : _doctor)</span>
+          </div>
+          <div class="pq-confirm-row">
+            <span class="pq-confirm-key">Date &amp; Slot</span>
+            <span class="pq-confirm-val" style="font-family:'DM Mono',monospace;font-size:12px">
+              @(string.IsNullOrEmpty(_queueDate) ? "—" : _queueDate)@(string.IsNullOrEmpty(_selectedSlot) ? string.Empty : " · " + _selectedSlot)
+            </span>
+          </div>
+          <div class="pq-confirm-row">
+            <span class="pq-confirm-key">Visit Type</span>
+            <span class="pq-confirm-val">@_visitType.Replace("_", " ")</span>
+          </div>
+          <div class="pq-confirm-row">
+            <span class="pq-confirm-key">Priority</span>
+            <span class="pq-confirm-val" style="color:@PriorityColor(_priority)">@_priority</span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button type="button" class="pr-btn-ghost"
+                  @onclick='() => Nav.NavigateTo(string.IsNullOrEmpty(Id) ? "/patients/search" : $"/patients/{Id}/edit")'>
+            Cancel
+          </button>
+          <button type="button" class="pr-btn-save" style="flex:1"
+                  disabled="@(!CanSubmit() || _saving)"
+                  @onclick="HandleSubmit">
+            @(_saving ? "Adding…" : (_saved ? "✓ Added to Queue" : "✓ Add to Queue"))
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private readonly string _kpiReg = "38", _kpiQueue = "12", _kpiAppts = "47",
+                            _kpiActive = "1,284", _kpiConsents = "3", _kpiSlots = "9";
+
+    private bool   _saving      = false;
+    private bool   _saved       = false;
+    private string _successMsg  = string.Empty;
+    private string _errorMsg    = string.Empty;
+
+    // Patient selection
+    private bool   _patientChosen = false;
+    private string _patientId     = string.Empty;
+    private string _patientName   = string.Empty;
+    private string _patientMrn    = string.Empty;
+    private string _ptQuery       = string.Empty;
+
+    // Form fields
+    private string _doctor      = string.Empty;
+    private string _queueDate   = DateTime.Today.ToString("yyyy-MM-dd");
+    private string _selectedSlot= string.Empty;
+    private string _priority    = "normal";
+    private string _visitType   = "first_visit";
+    private string _notes       = string.Empty;
+
+    // Validation
+    private bool _doctorError = false;
+    private bool _dateError   = false;
+    private bool _slotError   = false;
+
+    private static readonly string[] _doctors = ["Dr. Sharma", "Dr. Patel", "Dr. Rao", "Dr. Nair", "Dr. Iyer"];
+
+    private sealed class SlotDef { public string Time = string.Empty; public string DoctorShort = string.Empty; public bool Booked; }
+    private List<SlotDef> _slots = [];
+
+    // ── Seed patients (reuse from PatientSearch mock) ─────────────────────────
+    private sealed class PtSeed { public string Id = string.Empty, Name = string.Empty, Mrn = string.Empty, Initials = string.Empty; }
+    private static readonly PtSeed[] _ptSeed =
+    [
+        new() { Id="00000001-0000-0000-0000-000000000001", Name="Rajesh Kumar Sharma",  Mrn="PT-2026-003421", Initials="RK" },
+        new() { Id="00000001-0000-0000-0000-000000000002", Name="Priya Sharma",          Mrn="PT-2026-003419", Initials="PS" },
+        new() { Id="00000001-0000-0000-0000-000000000003", Name="Arjun Mehta",           Mrn="PT-2026-003418", Initials="AM" },
+        new() { Id="00000001-0000-0000-0000-000000000004", Name="Sunita Verma",          Mrn="PT-2025-009134", Initials="SV" },
+        new() { Id="00000001-0000-0000-0000-000000000005", Name="Mohammed Irfan Khan",   Mrn="PT-2025-007812", Initials="MI" },
+    ];
+    private List<PtSeed> _ptResults = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Pre-fill patient if navigated from patient record
+        if (!string.IsNullOrWhiteSpace(Id))
+        {
+            // TODO: load patient name+MRN from ClinicCoreDbContext
+            var found = _ptSeed.FirstOrDefault(p => p.Id == Id);
+            if (found is not null) SelectPatient(found.Id, found.Name, found.Mrn);
+        }
+        await Task.CompletedTask;
+    }
+
+    private void SelectPatient(string id, string name, string mrn)
+    {
+        _patientId = id; _patientName = name; _patientMrn = mrn;
+        _patientChosen = true; _ptQuery = string.Empty; _ptResults = [];
+    }
+
+    private void ClearPatient()
+    {
+        _patientId = string.Empty; _patientName = string.Empty; _patientMrn = string.Empty;
+        _patientChosen = false;
+    }
+
+    private void OnPtSearch(ChangeEventArgs e)
+    {
+        _ptQuery = e.Value?.ToString() ?? string.Empty;
+        if (_ptQuery.Length < 2) { _ptResults = []; return; }
+        var q = _ptQuery.ToLowerInvariant();
+        _ptResults = _ptSeed.Where(p =>
+            p.Name.ToLowerInvariant().Contains(q) || p.Mrn.ToLowerInvariant().Contains(q)
+        ).ToList();
+    }
+
+    private void OnDoctorChange(ChangeEventArgs e)
+    {
+        _doctor = e.Value?.ToString() ?? string.Empty;
+        _doctorError = string.IsNullOrEmpty(_doctor);
+        GenerateSlots();
+    }
+
+    private void OnDateChange(ChangeEventArgs e)
+    {
+        _queueDate = e.Value?.ToString() ?? string.Empty;
+        _dateError = string.IsNullOrEmpty(_queueDate);
+        _selectedSlot = string.Empty;
+        GenerateSlots();
+    }
+
+    private void SelectSlot(string time) { _selectedSlot = time; _slotError = false; }
+
+    private void GenerateSlots()
+    {
+        if (string.IsNullOrEmpty(_doctor) || string.IsNullOrEmpty(_queueDate)) { _slots = []; return; }
+
+        // TODO: replace with real slot availability query from clinic schedule DB
+        var short1 = _doctor.Replace("Dr. ", string.Empty)[..Math.Min(3, _doctor.Replace("Dr. ", string.Empty).Length)];
+        var rand = new Random(_queueDate.GetHashCode() + _doctor.GetHashCode());
+        _slots = new List<SlotDef>
+        {
+            new() { Time="09:00", DoctorShort=short1, Booked=false },
+            new() { Time="09:15", DoctorShort=short1, Booked=rand.Next(5)<1 },
+            new() { Time="09:30", DoctorShort=short1, Booked=false },
+            new() { Time="09:45", DoctorShort=short1, Booked=rand.Next(5)<1 },
+            new() { Time="10:00", DoctorShort=short1, Booked=rand.Next(5)<2 },
+            new() { Time="10:15", DoctorShort=short1, Booked=false },
+            new() { Time="10:30", DoctorShort=short1, Booked=rand.Next(5)<1 },
+            new() { Time="11:00", DoctorShort=short1, Booked=false },
+            new() { Time="11:15", DoctorShort=short1, Booked=rand.Next(5)<1 },
+            new() { Time="11:30", DoctorShort=short1, Booked=false },
+            new() { Time="12:00", DoctorShort=short1, Booked=rand.Next(5)<2 },
+            new() { Time="12:15", DoctorShort=short1, Booked=false },
+        };
+    }
+
+    private void OnVisitTypeChange(ChangeEventArgs e) => _visitType = e.Value?.ToString() ?? string.Empty;
+
+    private bool CanSubmit() =>
+        _patientChosen &&
+        !string.IsNullOrEmpty(_doctor) &&
+        !string.IsNullOrEmpty(_queueDate) &&
+        !string.IsNullOrEmpty(_selectedSlot) &&
+        !_saved;
+
+    private async Task HandleSubmit()
+    {
+        _doctorError = string.IsNullOrEmpty(_doctor);
+        _dateError   = string.IsNullOrEmpty(_queueDate);
+        _slotError   = string.IsNullOrEmpty(_selectedSlot);
+        if (_doctorError || _dateError || _slotError || !_patientChosen) return;
+
+        _saving = true; _errorMsg = string.Empty; StateHasChanged();
+        try
+        {
+            await Task.Delay(600); // TODO: insert into clinic queue / appointments table
+            _saved = true;
+            _successMsg = $"{_patientName} added to {_doctor}'s queue · {_queueDate} at {_selectedSlot}";
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string PriorityColor(string p) => p switch
+    {
+        "urgent"    => "#C2410C",
+        "emergency" => "#991B1B",
+        _           => "#10B981",
+    };
+}

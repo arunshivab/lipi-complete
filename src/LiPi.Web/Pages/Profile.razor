@@ -1,0 +1,196 @@
+@namespace LiPi.Web.Pages
+@page "/profile"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using System.Security.Claims
+@using System.Text.RegularExpressions
+@using System.Text.Json
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject IDbContextFactory<MasterDbContext> _masterFactory
+@inject IJSRuntime JS
+
+<PageTitle>My Profile – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">My Profile</div>
+    <div class="tn-pt-sub">Contact &amp; preferences</div>
+</SectionContent>
+
+<div style="padding:24px;max-width:480px">
+
+  <div style="font-size:18px;font-weight:600;color:#0F2D5E;margin-bottom:4px">My Profile</div>
+  <div style="font-size:11px;color:#94A3B8;margin-bottom:24px">@username · @clinicName</div>
+
+  @* ── Contact Details ──────────────────────────────────── *@
+  <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:12px;padding:20px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:#0F2D5E">Contact Details</div>
+        <div style="font-size:11px;color:#94A3B8;margin-top:2px">Email and mobile number</div>
+      </div>
+      @if (!_editing)
+      {
+        <button @onclick="StartEdit"
+          style="padding:5px 14px;font-size:11px;font-weight:500;border:0.5px solid #0B2545;color:#0B2545;border-radius:6px;background:transparent;cursor:pointer">
+          Edit
+        </button>
+      }
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <div style="font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Email</div>
+        @if (_editing)
+        {
+          <input type="email" style="width:100%;height:34px;border:1px solid @(emailErr?"#FCA5A5":"#E2E8F0");border-radius:6px;padding:0 10px;font-size:13px;box-sizing:border-box"
+                 @bind="email" @bind:event="oninput" placeholder="your@email.com" @onblur="ValidateEmail" />
+          @if (emailErr) { <span style="font-size:10px;color:#EF4444">Valid email required</span> }
+        }
+        else { <div style="font-size:13px;color:#0F2D5E;padding:7px 0;border-bottom:0.5px solid #F1F5F9">@(string.IsNullOrEmpty(email) ? "—" : email)</div> }
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Mobile</div>
+        @if (_editing)
+        {
+          <div style="display:flex;gap:6px">
+            <select style="width:90px;height:34px;border:1px solid #E2E8F0;border-radius:6px;padding:0 6px;font-size:12px;flex-shrink:0"
+                    @bind="mobileCode">
+              <option value="+91">+91</option>
+              <option value="+1">+1</option>
+              <option value="+44">+44</option>
+              <option value="+971">+971</option>
+              <option value="+61">+61</option>
+            </select>
+            <input style="flex:1;height:34px;border:1px solid #E2E8F0;border-radius:6px;padding:0 10px;font-size:13px"
+                   @bind="mobile" @bind:event="oninput" placeholder="Mobile number" inputmode="numeric" />
+          </div>
+        }
+        else { <div style="font-size:13px;color:#0F2D5E;padding:7px 0;border-bottom:0.5px solid #F1F5F9">@(string.IsNullOrEmpty(mobile) ? "—" : $"{mobileCode} {mobile}")</div> }
+      </div>
+    </div>
+
+    @if (_editing)
+    {
+      <div style="display:flex;gap:10px;align-items:center;margin-top:14px">
+        <button type="button" class="btn-primary" disabled="@_saving" @onclick="SaveContact">
+          @(_saving ? "Saving…" : "Save Changes")
+        </button>
+        <button type="button" @onclick="CancelEdit"
+          style="padding:6px 14px;font-size:12px;border:0.5px solid #CBD5E1;border-radius:6px;background:transparent;cursor:pointer;color:#475569">
+          Cancel
+        </button>
+        @if (!string.IsNullOrEmpty(_msg))
+        {
+          <span style="font-size:11px;font-weight:500;padding:5px 10px;border-radius:6px;background:@(_msgOk?"#ECFDF5":"#FEF2F2");color:@(_msgOk?"#065F46":"#991B1B");border:1px solid @(_msgOk?"#6EE7B7":"#FCA5A5")">
+            @_msg
+          </span>
+        }
+      </div>
+    }
+  </div>
+
+  @* ── Appearance ────────────────────────────────────────── *@
+  <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:12px;padding:20px">
+    <div style="font-size:14px;font-weight:600;color:#0F2D5E;margin-bottom:4px">Appearance</div>
+    <div style="font-size:11px;color:#94A3B8;margin-bottom:16px">Choose your preferred display mode</div>
+
+    <div style="display:flex;gap:10px">
+      <button @onclick="SetLight"
+        style="flex:1;height:56px;border-radius:10px;border:2px solid @(currentTheme=="light"?"#0B2545":"#E2E8F0");background:@(currentTheme=="light"?"#F0F4FF":"#F8FAFC");cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all .15s">
+        <span style="font-size:18px">☀</span>
+        <span style="font-size:11px;font-weight:@(currentTheme=="light"?"600":"400");color:@(currentTheme=="light"?"#0B2545":"#64748B")">Light</span>
+      </button>
+      <button @onclick="SetDark"
+        style="flex:1;height:56px;border-radius:10px;border:2px solid @(currentTheme=="dark"?"#0B2545":"#E2E8F0");background:@(currentTheme=="dark"?"#F0F4FF":"#F8FAFC");cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all .15s">
+        <span style="font-size:18px">🌙</span>
+        <span style="font-size:11px;font-weight:@(currentTheme=="dark"?"600":"400");color:@(currentTheme=="dark"?"#0B2545":"#64748B")">Dark</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+@code {
+  [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private string username   = string.Empty;
+  private string clinicName = string.Empty;
+  private Guid   userId;
+
+  private string email = string.Empty, mobileCode = "+91", mobile = string.Empty;
+  private bool   emailErr, _editing, _saving;
+  private string _msg = string.Empty;
+  private bool   _msgOk;
+  private string currentTheme = "light";
+
+  protected override async Task OnInitializedAsync()
+  {
+    var user   = (await AuthState).User;
+    username   = user.Identity?.Name ?? user.FindFirst(ClaimTypes.Name)?.Value ?? "Unknown";
+    clinicName = user.FindFirst("clinic")?.Value ?? "—";
+    Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out userId);
+
+    try
+    {
+      await using var db = await _masterFactory.CreateDbContextAsync();
+      var pu = await db.PlatformUsers.FindAsync(userId);
+      if (pu != null)
+      {
+        email = pu.Email ?? string.Empty;
+        var phone = pu.Phone ?? string.Empty;
+        if (phone.StartsWith("+91") && phone.Length > 3)     { mobileCode = "+91"; mobile = phone[3..]; }
+        else if (phone.StartsWith("+1") && phone.Length > 2) { mobileCode = "+1";  mobile = phone[2..]; }
+        else { mobile = phone; }
+      }
+    }
+    catch { }
+  }
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (firstRender)
+      try { currentTheme = await JS.InvokeAsync<string>("lipiTheme.get"); } catch { currentTheme = "light"; }
+  }
+
+  private void StartEdit()  { _editing = true; _msg = string.Empty; }
+  private void CancelEdit() { _editing = false; _msg = string.Empty; }
+
+  private void ValidateEmail() =>
+    emailErr = !Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$");
+
+  private async Task SaveContact()
+  {
+    ValidateEmail();
+    if (emailErr) return;
+    _saving = true; _msg = string.Empty;
+    try
+    {
+      await using var db = await _masterFactory.CreateDbContextAsync();
+      var pu = await db.PlatformUsers.FindAsync(userId);
+      if (pu == null) { _msg = "User not found."; _msgOk = false; return; }
+      pu.Email     = email.Trim().ToLowerInvariant();
+      pu.Phone     = string.IsNullOrWhiteSpace(mobile) ? null : $"{mobileCode}{mobile}";
+      pu.UpdatedAt = DateTime.UtcNow;
+      await db.SaveChangesAsync();
+      _msg = "✓ Saved"; _msgOk = true;
+      _editing = false;
+    }
+    catch (Exception ex) { _msg = $"Error: {ex.Message}"; _msgOk = false; }
+    finally { _saving = false; }
+  }
+
+  private async Task SetLight() => await SetTheme("light");
+  private async Task SetDark()  => await SetTheme("dark");
+  private async Task SetTheme(string theme)
+  {
+    currentTheme = theme;
+    try { await JS.InvokeVoidAsync("lipiTheme.set", theme); } catch { }
+  }
+}

@@ -1,0 +1,650 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/users/{Id:guid}/edit"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using System.Security.Claims
+@using System.Text.RegularExpressions
+@using System.Text.Json
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using LiPi.Clinic.Identity
+@using Microsoft.EntityFrameworkCore
+@using LiPi.Web.Services
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IDbContextFactory<MasterDbContext> _masterFactory
+@inject IDbContextFactory<IdentityDbContext> _dbFactory
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IAuditService _audit
+
+<PageTitle>Edit User – LiPi Admin</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Edit User</div>
+    <div class="tn-pt-sub">Update user details</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:860px;margin:0 auto;padding:20px 24px 60px">
+
+  <nav style="font-size:12px;color:#64748B;margin-bottom:16px">
+    <a href="/admin" style="color:#1565C0;text-decoration:none">Administration</a>
+    <span style="margin:0 6px">›</span>
+    <a href="/admin/users" style="color:#1565C0;text-decoration:none">Users</a>
+    <span style="margin:0 6px">›</span>
+    <span>Edit User</span>
+    <a href="/admin/users" class="btn-secondary btn-sm" style="margin-left:auto">← User List</a>
+  </nav>
+
+  @if (_loading)
+  {
+    <div style="text-align:center;padding:60px;color:#64748B">Loading…</div>
+  }
+  else if (_user == null)
+  {
+    <div class="ap-alert error"><span class="ap-alert-icon">⚠</span><div>User not found.</div></div>
+  }
+  else
+  {
+    @if (!string.IsNullOrEmpty(formError))
+    { <div class="ap-alert error" style="margin-bottom:14px"><span class="ap-alert-icon">⚠</span><div>@formError</div></div> }
+
+    <fieldset disabled="@_saved" style="border:none;padding:0;margin:0">
+
+    @* ① Personal Details *@
+    <div class="af-card" style="border-left:4px solid #1565C0;margin-bottom:14px">
+      <div class="af-card-header">
+        <div class="af-card-num" style="background:#1565C0">1</div>
+        <span class="af-card-title">Personal Details</span>
+        <span style="margin-left:auto;font-size:11px;padding:2px 10px;border-radius:20px;background:@(fn.Status=="active"?"#D1FAE5":"#FEF3C7");color:@(fn.Status=="active"?"#065F46":"#92400E")">@fn.Status</span>
+      </div>
+      <div class="af-card-body">
+        <div class="af-grid4">
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-title">Title</label>
+            <select id="ue-title" autocomplete="honorific-prefix" name="title" class="af-fselect" value="@fn.Title" @onchange="OnTitleChange">
+              <option value="">Select…</option>
+              @foreach (var t in AdminData.Titles)
+              { <option value="@t">@t</option> }
+            </select>
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-fn">First Name <span class="af-req">*</span></label>
+            <input id="ue-fn" autocomplete="given-name" name="firstName" class="af-finput @Ec(FN)" readonly="@_saved" value="@fn.FirstName" @oninput="OnFn" @onblur="OnFnBlur" placeholder="Letters only" />
+            @Es(FN)
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-mn">Middle Name</label>
+            <input id="ue-mn" autocomplete="additional-name" name="middleName" class="af-finput" readonly="@_saved" value="@fn.MiddleName" @oninput="OnMn" placeholder="Optional" />
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-ln">Last Name <span class="af-req">*</span></label>
+            <input id="ue-ln" autocomplete="family-name" name="lastName" class="af-finput @Ec(LN)" readonly="@_saved" value="@fn.LastName" @oninput="OnLn" @onblur="OnLnBlur" placeholder="Letters only" />
+            @Es(LN)
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-nick">Nickname</label>
+            <input id="ue-nick" autocomplete="nickname" name="nickname" class="af-finput" readonly="@_saved" value="@fn.Nickname" @oninput="e => fn.Nickname = e.Value?.ToString() ?? string.Empty" />
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-dn">Display Name</label>
+            <input id="ue-dn" autocomplete="name" name="displayName" class="af-finput" readonly="@_saved" value="@fn.DisplayName" @oninput="OnDn" placeholder="Auto from Title + Name" />
+            <span class="af-fhint">Auto-filled · edit to override</span>
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-gender">Gender <span class="af-req">*</span></label>
+            <select id="ue-gender" autocomplete="sex" name="gender" class="af-fselect @Ec(GEN)" value="@fn.Gender" @onchange="OnGenChange" @onblur="OnGenBlur">
+              <option value="">Select…</option>
+              @foreach (var g in AdminData.Genders)
+              { <option value="@g.Value">@g.Label</option> }
+            </select>
+            @Es(GEN)
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-dob">Date of Birth <span class="af-req">*</span></label>
+            <input id="ue-dob" autocomplete="bday" name="dateOfBirth" type="date" class="af-finput @Ec(DOB)" value="@fn.DateOfBirth" max="@MaxDob" @onchange="OnDob" />
+            @Es(DOB)
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-blood">Blood Group</label>
+            <select id="ue-blood" autocomplete="off" name="bloodGroup" class="af-fselect" @bind="fn.BloodGroup">
+              <option value="">Select…</option>
+              @foreach (var bg in AdminData.BloodGroups)
+              { <option value="@bg">@bg</option> }
+            </select>
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-nationality">Nationality</label>
+            <input id="ue-nationality" autocomplete="country" name="nationality" class="af-finput" value="@fn.Nationality" @oninput="e => fn.Nationality = e.Value?.ToString() ?? string.Empty" placeholder="e.g. Indian" />
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-username">Username</label>
+            <input id="ue-username" autocomplete="username" name="username" class="af-finput" value="@(_user?.Username ?? string.Empty)" readonly
+                   style="background:#F1F5F9;color:#64748B;cursor:not-allowed"
+                   title="Username cannot be changed" />
+            <span class="af-fhint">Cannot be changed after registration</span>
+          </div>
+        </div>
+
+        @* Photo & Signature *@
+        <div style="display:flex;gap:24px;align-items:flex-start;padding-top:14px;border-top:1px solid #F1F5F9;margin-top:4px">
+          @* Photo *@
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+            <span style="font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.4px">Photo</span>
+            <div style="width:80px;height:80px;border-radius:8px;border:1px solid #E2E8F0;position:relative;overflow:hidden;cursor:pointer;background:#F8FAFC;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px"
+                 onmouseenter="this.querySelector('.ue-ph-ov').style.opacity='1';this.querySelector('.ue-ph-ov').style.pointerEvents='all'"
+                 onmouseleave="this.querySelector('.ue-ph-ov').style.opacity='0';this.querySelector('.ue-ph-ov').style.pointerEvents='none'">
+              @if (!string.IsNullOrEmpty(_photo))
+              { <img src="@_photo" alt="Photo" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0" /> }
+              else
+              {
+                <span style="font-size:22px;opacity:.35">📷</span>
+                <span style="font-size:9px;color:#94A3B8">No photo</span>
+              }
+              <div class="ue-ph-ov" style="position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;opacity:0;transition:opacity .2s;pointer-events:none">
+                @if (!string.IsNullOrEmpty(_photo))
+                {
+                  <button type="button" @onclick:stopPropagation="true" @onclick="ShowPhotoPreview" style="background:#fff;color:#0B2545;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Preview</button>
+                  <button type="button" @onclick:stopPropagation="true" @onclick="ClearPhoto" style="background:rgba(239,68,68,.9);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Clear</button>
+                }
+                else
+                {
+                  <button type="button" onclick="document.getElementById('ue-photo-inp').click()" style="background:#fff;color:#0B2545;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Upload</button>
+                  <button type="button" onclick="document.getElementById('ue-photo-inp').click()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Scan</button>
+                }
+              </div>
+            </div>
+            <span style="font-size:9px;color:#94A3B8;text-align:center;max-width:80px">JPG/PNG · max 1MB</span>
+            <InputFile id="ue-photo-inp" OnChange="OnPhotoSelected" accept="image/*" style="display:none" />
+          </div>
+          @* Signature *@
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+            <span style="font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.4px">Signature</span>
+            <div style="width:80px;height:80px;border-radius:8px;border:1px solid #E2E8F0;position:relative;overflow:hidden;cursor:pointer;background:#F8FAFC;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px"
+                 onmouseenter="this.querySelector('.ue-sg-ov').style.opacity='1';this.querySelector('.ue-sg-ov').style.pointerEvents='all'"
+                 onmouseleave="this.querySelector('.ue-sg-ov').style.opacity='0';this.querySelector('.ue-sg-ov').style.pointerEvents='none'">
+              @if (!string.IsNullOrEmpty(_sig))
+              { <img src="@_sig" alt="Signature" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;background:#fff" /> }
+              else
+              {
+                <span style="font-size:22px;opacity:.35">✍</span>
+                <span style="font-size:9px;color:#94A3B8">No signature</span>
+              }
+              <div class="ue-sg-ov" style="position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;opacity:0;transition:opacity .2s;pointer-events:none">
+                @if (!string.IsNullOrEmpty(_sig))
+                {
+                  <button type="button" @onclick:stopPropagation="true" @onclick="ShowSigPreview" style="background:#fff;color:#0B2545;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Preview</button>
+                  <button type="button" @onclick:stopPropagation="true" @onclick="ClearSig" style="background:rgba(239,68,68,.9);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Clear</button>
+                }
+                else
+                {
+                  <button type="button" onclick="document.getElementById('ue-sig-inp').click()" style="background:#fff;color:#0B2545;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Upload</button>
+                  <button type="button" onclick="document.getElementById('ue-sig-inp').click()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Scan</button>
+                }
+              </div>
+            </div>
+            <span style="font-size:9px;color:#94A3B8;text-align:center;max-width:80px">JPG/PNG · max 1MB</span>
+            <InputFile id="ue-sig-inp" OnChange="OnSigSelected" accept="image/*" style="display:none" />
+          </div>
+        </div>
+        @if (_previewSrc != null)
+        {
+          <div style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center" @onclick="ClosePreview">
+            <img style="max-width:90vw;max-height:80vh;border-radius:10px" src="@_previewSrc" @onclick:stopPropagation="true" />
+          </div>
+        }
+      </div>
+    </div>
+
+    @* ② Qualifications *@
+    <div class="af-card" style="border-left:4px solid #6A1B9A;margin-bottom:14px">
+      <div class="af-card-header">
+        <div class="af-card-num" style="background:#6A1B9A">2</div>
+        <span class="af-card-title">Qualifications</span>
+        @if (_quals.Count > 0) { <span class="af-card-badge">@_quals.Count selected</span> }
+      </div>
+      <div class="af-card-body">
+        <div class="af-chips">
+          @foreach (var q in AdminData.Qualifications)
+          {
+            var qv = q;
+            <span class="af-qual-chip @(_quals.Contains(q) ? "selected" : string.Empty)" @onclick="() => TgQual(qv)">@q</span>
+          }
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+          <input id="ue-custom-qual" autocomplete="off" name="customQual" class="af-finput" style="max-width:220px" value="@_cq"
+                 placeholder="Custom qualification — press Enter"
+                 @oninput="e => _cq = e.Value?.ToString() ?? string.Empty"
+                 @onkeydown="OnCqKey" />
+        </div>
+        @if (_quals.Count > 0)
+        {
+          <div style="margin-top:12px">
+            <div style="font-size:10px;font-weight:600;color:#6A1B9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Selected — drag to reorder or use arrows:</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              @for (int qi = 0; qi < _quals.Count; qi++)
+              {
+                var q = _quals[qi]; var qi2 = qi;
+                <span style="display:inline-flex;align-items:center;gap:4px;background:#EDE7F6;border-radius:20px;padding:4px 10px;font-size:12px;color:#4A148C;font-weight:500">
+                  <span style="opacity:.5;font-size:11px">&#9776;</span>
+                  @q
+                  <button type="button" @onclick="() => MqUp(qi2)" disabled="@(qi2==0)" style="background:none;border:none;color:#6A1B9A;cursor:pointer;padding:0 2px;font-size:13px;opacity:@(qi2==0?"0.3":"1")">&#9664;</button>
+                  <button type="button" @onclick="() => MqDn(qi2)" disabled="@(qi2==_quals.Count-1)" style="background:none;border:none;color:#6A1B9A;cursor:pointer;padding:0 2px;font-size:13px;opacity:@(qi2==_quals.Count-1?"0.3":"1")">&#9654;</button>
+                  <button type="button" @onclick="() => RmQual(qi2)" style="background:none;border:none;color:#C62828;cursor:pointer;padding:0 2px;font-size:14px;font-weight:700">&#215;</button>
+                </span>
+              }
+            </div>
+          </div>
+        }
+        <div class="af-grid4" style="margin-top:14px">
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-nmc">NMC Reg. Number</label>
+            <input id="ue-nmc" autocomplete="off" name="nmcRegNumber" class="af-finput" value="@fn.NmcRegNumber" @oninput="OnNmc" placeholder="National Medical Commission reg." />
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-aerb">AERB RP No.</label>
+            <input id="ue-aerb" autocomplete="off" name="aerbRpNumber" class="af-finput" value="@fn.AerbRpNumber" @oninput="OnAerb" placeholder="Radiation Protection Officer licence" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    @* ③ Professional & Employment *@
+    <div class="af-card" style="border-left:4px solid #00695C;margin-bottom:14px">
+      <div class="af-card-header">
+        <div class="af-card-num" style="background:#00695C">3</div>
+        <span class="af-card-title">Professional &amp; Employment</span>
+      </div>
+      <div class="af-card-body">
+        <div class="af-grid4">
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-desig">Designation <span class="af-req">*</span></label>
+            <input id="ue-desig" autocomplete="off" name="designation" class="af-finput @Ec(DES)" value="@fn.Designation" list="ue-desig-list" @oninput="OnDes" @onblur="OnDesBlur" />
+            <datalist id="ue-desig-list">
+              @foreach (var d in AdminData.Designations)
+              { <option value="@d" /> }
+            </datalist>
+            @Es(DES)
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-stype">Staff Type <span class="af-req">*</span></label>
+            <select id="ue-stype" autocomplete="off" name="staffType" class="af-fselect @Ec(STP)" value="@fn.StaffType" @onchange="OnStpChange" @onblur="OnStpBlur">
+              <option value="">Select…</option>
+              @foreach (var t in AdminData.StaffTypes)
+              { <option value="@t.Value">@t.Label</option> }
+            </select>
+            @Es(STP)
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-dept">Department</label>
+            <input id="ue-dept" autocomplete="off" name="department" class="af-finput" value="@fn.Department" @oninput="e => fn.Department = e.Value?.ToString() ?? string.Empty" placeholder="e.g. Radiation Oncology" />
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-empcode">Employee Code</label>
+            <input id="ue-empcode" autocomplete="off" name="employeeCode" class="af-finput" value="@fn.EmployeeCode" @oninput="e => fn.EmployeeCode = e.Value?.ToString() ?? string.Empty" placeholder="EMP-001" />
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-joined">Joining Date</label>
+            <input id="ue-joined" autocomplete="off" name="joiningDate" type="date" class="af-finput" value="@fn.JoiningDate" @onchange="e => fn.JoiningDate = e.Value?.ToString() ?? string.Empty" />
+          </div>
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-status">Status</label>
+            <select id="ue-status" autocomplete="off" name="status" class="af-fselect" @bind="fn.Status">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    @* ④ Contact *@
+    <div class="af-card" style="border-left:4px solid #BF360C;margin-bottom:14px">
+      <div class="af-card-header">
+        <div class="af-card-num" style="background:#BF360C">4</div>
+        <span class="af-card-title">Contact</span>
+      </div>
+      <div class="af-card-body">
+        <div class="af-grid4">
+          <div class="af-fgroup">
+            <label class="af-flabel" for="ue-email">Email <span class="af-req">*</span></label>
+            <input id="ue-email" autocomplete="email" name="email" type="email" class="af-finput @Ec(EML)" readonly="@_saved" value="@fn.Email" @oninput="OnEml" @onblur="OnEmlBlur" placeholder="user@facility.com" />
+            @Es(EML)
+          </div>
+          <div class="af-fgroup af-span2">
+            <label class="af-flabel" for="ue-mobile">Mobile</label>
+            <div class="af-phone-row">
+              <select id="ue-mobile-cc" autocomplete="tel-country-code" name="mobileCode" class="af-fselect af-phone-cc" @bind="fn.PhoneCountryCode">
+                @foreach (var cc in AdminData.CountryCodes)
+                { <option value="@cc.Code">@cc.Label</option> }
+              </select>
+              <input id="ue-mobile" autocomplete="tel-national" name="mobileNumber" class="af-finput @Ec(MOB)" readonly="@_saved" value="@fn.Phone" @oninput="OnMob" @onblur="OnMobBlur" placeholder="Mobile number" inputmode="numeric" />
+            @Es(MOB)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </fieldset>
+
+    @* Actions *@
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      <a href="/admin/users" class="btn-secondary">@(_saved ? "Close" : "Cancel")</a>
+      <div style="display:flex;gap:10px;align-items:center">
+        @if (!string.IsNullOrEmpty(_savedMsg))
+        {
+          <span style="font-size:11px;font-weight:500;padding:5px 12px;border-radius:6px;background:#ECFDF5;color:#065F46;border:1px solid #6EE7B7">@_savedMsg</span>
+        }
+        <a href="/admin/users/@Id/roles" class="btn-secondary">Manage Roles →</a>
+        <button type="button" class="btn-primary" disabled="@(_saving||_saved)" @onclick="HandleSave">
+          @(_saving ? "Saving…" : _saved ? "✓ Saved" : "Save Changes")
+        </button>
+      </div>
+    </div>
+  }
+</div>
+
+@code {
+  [Parameter] public Guid Id { get; set; }
+  [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private PlatformUser? _user;
+  private bool _loading = true, _saving, _saved, _dnEdited;
+  private string formError = string.Empty, _savedMsg = string.Empty;
+  private string? _photo, _sig, _previewSrc;
+  private string _cq = string.Empty;
+  private List<string> _quals = new();
+
+  private static string MaxDob => DateTime.Today.AddYears(-16).AddDays(-1).ToString("yyyy-MM-dd");
+
+  // Validation state
+  private readonly Dictionary<string, bool>   _t = new();
+  private readonly Dictionary<string, string> _e = new();
+
+  private const string FN="fn",LN="ln",GEN="gen",DOB="dob",DES="des",STP="stp",EML="eml",MOB="mob";
+
+  private string Ec(string f) => _t.GetValueOrDefault(f) && !string.IsNullOrEmpty(_e.GetValueOrDefault(f)) ? "err" : string.Empty;
+  private RenderFragment Es(string f) => b =>
+  {
+    if (_t.GetValueOrDefault(f) && !string.IsNullOrEmpty(_e.GetValueOrDefault(f)))
+    {
+      b.OpenElement(0,"span"); b.AddAttribute(1,"class","af-ferr");
+      b.AddContent(2,_e[f]); b.CloseElement();
+    }
+  };
+  private void Touch(string f) { _t[f]=true; V(f); }
+  private void V(string f)
+  {
+    _e[f] = f switch
+    {
+      "fn"  => string.IsNullOrWhiteSpace(fn.FirstName)   ? "Required" : string.Empty,
+      "ln"  => string.IsNullOrWhiteSpace(fn.LastName)    ? "Required" : string.Empty,
+      "gen" => string.IsNullOrWhiteSpace(fn.Gender)      ? "Required" : string.Empty,
+      "dob" => ValidateDob(fn.DateOfBirth),
+      "des" => string.IsNullOrWhiteSpace(fn.Designation) ? "Required" : string.Empty,
+      "stp" => string.IsNullOrWhiteSpace(fn.StaffType)   ? "Required" : string.Empty,
+      "eml" => ValidateEmail(fn.Email),
+      "mob" => ValidateMobile(fn.PhoneCountryCode, fn.Phone),
+      _ => string.Empty,
+    };
+  }
+
+  private class FormData
+  {
+    public string Title          { get; set; } = string.Empty;
+    public string FirstName      { get; set; } = string.Empty;
+    public string MiddleName     { get; set; } = string.Empty;
+    public string LastName       { get; set; } = string.Empty;
+    public string Nickname       { get; set; } = string.Empty;
+    public string DisplayName    { get; set; } = string.Empty;
+    public string Gender         { get; set; } = string.Empty;
+    public string DateOfBirth    { get; set; } = string.Empty;
+    public string BloodGroup     { get; set; } = string.Empty;
+    public string Nationality    { get; set; } = "Indian";
+    public string NmcRegNumber   { get; set; } = string.Empty;
+    public string AerbRpNumber   { get; set; } = string.Empty;
+    public string Designation    { get; set; } = string.Empty;
+    public string StaffType      { get; set; } = string.Empty;
+    public string Department     { get; set; } = string.Empty;
+    public string EmployeeCode   { get; set; } = string.Empty;
+    public string JoiningDate    { get; set; } = string.Empty;
+    public string Status         { get; set; } = "active";
+    public string Email          { get; set; } = string.Empty;
+    public string PhoneCountryCode { get; set; } = "+91";
+    public string Phone          { get; set; } = string.Empty;
+    public bool   MustChangePassword { get; set; }
+  }
+
+  private FormData fn = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    foreach (var f in new[]{ FN,LN,GEN,DOB,DES,STP,EML,MOB })
+    { _t[f]=false; _e[f]=string.Empty; }
+
+    try
+    {
+      await using var db = await _masterFactory.CreateDbContextAsync();
+      _user = await db.PlatformUsers.FindAsync(Id);
+      if (_user == null) { _loading=false; return; }
+
+      // Populate form from entity
+      fn.Status          = _user.Status;
+      fn.Email           = _user.Email ?? string.Empty;
+      fn.PhoneCountryCode = "+91";
+      var ph = _user.Phone ?? string.Empty;
+      if (ph.StartsWith("+91") && ph.Length > 3)     { fn.PhoneCountryCode="+91"; fn.Phone=ph[3..]; }
+      else if (ph.StartsWith("+1") && ph.Length > 2) { fn.PhoneCountryCode="+1";  fn.Phone=ph[2..]; }
+      else { fn.Phone = ph; }
+
+      // Read extension_data for the rest
+      try
+      {
+        var ext = JsonSerializer.Deserialize<JsonElement>(_user.ExtensionData ?? "{}");
+        fn.Title        = Str(ext,"title");
+        fn.FirstName    = Str(ext,"firstName",  _user.FirstName);
+        fn.MiddleName   = Str(ext,"middleName");
+        fn.LastName     = Str(ext,"lastName",   _user.LastName);
+        fn.Nickname     = Str(ext,"nickname");
+        fn.DisplayName  = Str(ext,"displayName",_user.DisplayName);
+        fn.Gender       = Str(ext,"gender");
+        fn.DateOfBirth  = Str(ext,"dob");
+        fn.BloodGroup   = Str(ext,"bloodGroup");
+        fn.Nationality  = Str(ext,"nationality","Indian");
+        fn.NmcRegNumber = Str(ext,"nmcRegNumber");
+        fn.AerbRpNumber = Str(ext,"aerbRpNumber");
+        fn.Designation  = Str(ext,"designation");
+        fn.StaffType    = Str(ext,"staffType");
+        fn.Department   = Str(ext,"department");
+        fn.EmployeeCode = Str(ext,"employeeCode");
+        fn.JoiningDate  = Str(ext,"joiningDate");
+
+        // Qualifications
+        if (ext.TryGetProperty("qualifications", out var qa) && qa.ValueKind == JsonValueKind.Array)
+          _quals = qa.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Where(s => !string.IsNullOrEmpty(s)).ToList();
+
+        // Photo / Signature
+        if (ext.TryGetProperty("photoData", out var pd) && pd.ValueKind != JsonValueKind.Null)
+          _photo = pd.GetString();
+        if (ext.TryGetProperty("signatureData", out var sd) && sd.ValueKind != JsonValueKind.Null)
+          _sig = sd.GetString();
+      }
+      catch { fn.FirstName = _user.FirstName; fn.LastName = _user.LastName; fn.DisplayName = _user.DisplayName; }
+    }
+    catch { }
+    finally { _loading=false; }
+  }
+
+  private static string Str(JsonElement e, string key, string? fallback = null)
+  {
+    if (e.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String)
+      return v.GetString() ?? fallback ?? string.Empty;
+    return fallback ?? string.Empty;
+  }
+
+  // ── Input handlers ──────────────────────────────────────────────────────
+  private void OnTitleChange(ChangeEventArgs e) { fn.Title = e.Value?.ToString() ?? string.Empty; AutoDn(); }
+  private void OnFn(ChangeEventArgs e) { fn.FirstName  = Lo(e.Value?.ToString()); AutoDn(); if (_t.GetValueOrDefault(FN)) V(FN); StateHasChanged(); }
+  private void OnMn(ChangeEventArgs e) { fn.MiddleName = Lo(e.Value?.ToString()); }
+  private void OnLn(ChangeEventArgs e) { fn.LastName   = Lo(e.Value?.ToString()); AutoDn(); if (_t.GetValueOrDefault(LN)) V(LN); StateHasChanged(); }
+  private void OnDn(ChangeEventArgs e) { fn.DisplayName = e.Value?.ToString() ?? string.Empty; _dnEdited = !string.IsNullOrEmpty(fn.DisplayName); }
+  private void OnGenBlur()   { Touch(GEN); }
+  private void OnGenChange(ChangeEventArgs e) { fn.Gender = e.Value?.ToString() ?? string.Empty; Touch(GEN); }
+  private void OnFnBlur()    { Touch(FN); }
+  private void OnLnBlur()    { Touch(LN); }
+  private void OnDob(ChangeEventArgs e) { fn.DateOfBirth = e.Value?.ToString() ?? string.Empty; Touch(DOB); }
+  private void OnDes(ChangeEventArgs e) { fn.Designation = e.Value?.ToString() ?? string.Empty; if (_t.GetValueOrDefault(DES)) V(DES); StateHasChanged(); }
+  private void OnDesBlur()   { Touch(DES); }
+  private void OnStpBlur()   { Touch(STP); }
+  private void OnStpChange(ChangeEventArgs e) { fn.StaffType = e.Value?.ToString() ?? string.Empty; Touch(STP); }
+  private void OnEml(ChangeEventArgs e) { fn.Email = e.Value?.ToString() ?? string.Empty; if (_t.GetValueOrDefault(EML)) V(EML); StateHasChanged(); }
+  private void OnEmlBlur()   { Touch(EML); }
+  private void OnMob(ChangeEventArgs e)     { fn.Phone = Digits(e.Value?.ToString()); if (_t.GetValueOrDefault(MOB)) V(MOB); StateHasChanged(); }
+  private void OnMobBlur()                   { Touch(MOB); }
+  private void OnNmc(ChangeEventArgs e) { fn.NmcRegNumber = e.Value?.ToString() ?? string.Empty; }
+  private void OnAerb(ChangeEventArgs e){ fn.AerbRpNumber = e.Value?.ToString() ?? string.Empty; }
+
+  private void AutoDn()
+  {
+    if (_dnEdited) return;
+    fn.DisplayName = string.Join(" ", new[]{ fn.Title, fn.FirstName, fn.LastName }.Where(s => !string.IsNullOrEmpty(s)));
+  }
+
+  // ── Qualifications ──────────────────────────────────────────────────────
+  private void TgQual(string q) { if (_quals.Contains(q)) _quals.Remove(q); else _quals.Add(q); }
+  private void MqUp(int i) { if (i>0) (_quals[i],_quals[i-1])=(_quals[i-1],_quals[i]); }
+  private void MqDn(int i) { if (i<_quals.Count-1) (_quals[i],_quals[i+1])=(_quals[i+1],_quals[i]); }
+  private void RmQual(int i) { if (i>=0 && i<_quals.Count) _quals.RemoveAt(i); }
+  private void OnCqKey(KeyboardEventArgs e)
+  {
+    if (e.Key=="Enter" && !string.IsNullOrWhiteSpace(_cq)) { _quals.Add(_cq.Trim()); _cq=string.Empty; }
+  }
+
+  // ── Photo / Signature ────────────────────────────────────────────────────
+  private void ShowPhotoPreview() => _previewSrc = _photo;
+  private void ShowSigPreview()   => _previewSrc = _sig;
+  private void ClosePreview()     => _previewSrc = null;
+
+  private async Task ClearPhoto()
+  {
+    if (!await JS.InvokeAsync<bool>("confirm","Remove profile photo? This cannot be undone.")) return;
+    _photo = null;
+  }
+  private async Task ClearSig()
+  {
+    if (!await JS.InvokeAsync<bool>("confirm","Remove signature? This cannot be undone.")) return;
+    _sig = null;
+  }
+  private async Task OnPhotoSelected(InputFileChangeEventArgs e)
+  {
+    var src = await ReadImg(e.File); if (src != null) _photo = src;
+  }
+  private async Task OnSigSelected(InputFileChangeEventArgs e)
+  {
+    var src = await ReadImg(e.File); if (src != null) _sig = src;
+  }
+  private static async Task<string?> ReadImg(IBrowserFile f)
+  {
+    if (f.Size > 1_048_576 || !f.ContentType.StartsWith("image/")) return null;
+    using var ms = new MemoryStream();
+    using var s  = f.OpenReadStream(1_048_576);
+    await s.CopyToAsync(ms);
+    return $"data:{f.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+  }
+
+  // ── Save ─────────────────────────────────────────────────────────────────
+  private async Task HandleSave()
+  {
+    // Touch all required fields
+    foreach (var f in new[]{ FN,LN,GEN,DOB,DES,STP,EML,MOB }) Touch(f);
+    if (_e.Values.Any(v => !string.IsNullOrEmpty(v)))
+    {
+      formError = "Please fix the errors above.";
+      await JS.InvokeVoidAsync("eval",
+        "document.querySelector('.af-ferr')?.closest('.af-fgroup')?.scrollIntoView({behavior:'smooth',block:'center'})");
+      return;
+    }
+    formError = string.Empty; _saving = true;
+    try
+    {
+      var actor = (await AuthState).User;
+      await using var db = await _masterFactory.CreateDbContextAsync();
+      var pu = await db.PlatformUsers.FindAsync(Id);
+      if (pu == null) { formError = "User not found."; return; }
+
+      pu.FirstName   = fn.FirstName;
+      pu.LastName    = fn.LastName;
+      pu.DisplayName = fn.DisplayName;
+      pu.Email       = fn.Email.Trim().ToLowerInvariant();
+      pu.Phone       = string.IsNullOrWhiteSpace(fn.Phone) ? null : $"{fn.PhoneCountryCode}{fn.Phone}";
+      pu.Status      = fn.Status;
+      pu.UpdatedAt   = DateTime.UtcNow;
+
+      // Rebuild ExtensionData
+      pu.ExtensionData = JsonSerializer.Serialize(new Dictionary<string,object?>
+      {
+        ["title"]          = fn.Title,
+        ["firstName"]      = fn.FirstName,
+        ["middleName"]     = fn.MiddleName,
+        ["lastName"]       = fn.LastName,
+        ["nickname"]       = fn.Nickname,
+        ["displayName"]    = fn.DisplayName,
+        ["gender"]         = fn.Gender,
+        ["dob"]            = fn.DateOfBirth,
+        ["bloodGroup"]     = fn.BloodGroup,
+        ["nationality"]    = fn.Nationality,
+        ["nmcRegNumber"]   = fn.NmcRegNumber,
+        ["aerbRpNumber"]   = fn.AerbRpNumber,
+        ["qualifications"] = _quals.ToArray(),
+        ["designation"]    = fn.Designation,
+        ["staffType"]      = fn.StaffType,
+        ["department"]     = fn.Department,
+        ["employeeCode"]   = fn.EmployeeCode,
+        ["joiningDate"]    = fn.JoiningDate,
+        ["photoData"]      = _photo ?? string.Empty,
+        ["signatureData"]  = _sig   ?? string.Empty,
+      });
+
+      await db.SaveChangesAsync();
+
+      try { await _audit.LogAsync(Guid.Empty, actor, AuditActions.UserContactUpdated,
+        "user", Id, pu.Username, null, new { updatedBy = actor.Identity?.Name }); }
+      catch { }
+
+      _savedMsg = "✓ Changes saved successfully";
+      _saved = true;
+    }
+    catch (Exception ex) { formError = $"Error: {ex.Message}"; }
+    finally { _saving = false; }
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  private static string Lo(string? s) =>
+    string.IsNullOrEmpty(s) ? string.Empty : Regex.Replace(s, @"[^a-zA-Z\s\-\.]", string.Empty);
+  private static string Digits(string? s) =>
+    string.IsNullOrEmpty(s) ? string.Empty : Regex.Replace(s, @"\D", string.Empty);
+  private static string ValidateDob(string dob)
+  {
+    if (string.IsNullOrWhiteSpace(dob)) return "Date of birth is required";
+    if (!DateTime.TryParse(dob, out var dt)) return "Invalid date";
+    if (dt > DateTime.Today.AddYears(-16).AddDays(-1)) return "Must be at least 16 years old";
+    return string.Empty;
+  }
+  private static string ValidateEmail(string e)
+  {
+    if (string.IsNullOrEmpty(e)) return "Email is required";
+    return Regex.IsMatch(e, @"^[^@\s]+@[^@\s]+\.[^@\s]+$") ? string.Empty : "Invalid email";
+  }
+
+  private static string ValidateMobile(string code, string number)
+  {
+    if (string.IsNullOrEmpty(number)) return string.Empty; // optional on edit
+    return code == "+91"
+      ? (Regex.IsMatch(number, @"^[6-9]\d{9}$") ? string.Empty : "India: 10 digits starting 6–9")
+      : (Regex.IsMatch(number, @"^\d{7,15}$")   ? string.Empty : "Enter 7–15 digits");
+  }
+}

@@ -1,0 +1,211 @@
+%% LiPi :: Clinic :: core schema :: ER Diagram
+erDiagram
+    COUNTRIES ||--o{ STATES      : "has"
+    STATES    ||--o{ CITIES      : "has"
+    CITIES    ||--o{ PINCODES    : "has"
+    COUNTRIES ||--o{ ADDRESSES   : "located in"
+    CITIES    ||--o{ ADDRESSES   : "located in"
+
+    FACILITY  ||--o{ DEPARTMENTS : "houses"
+    DEPARTMENTS ||--o{ WARDS     : "contains"
+    WARDS     ||--o{ ROOMS       : "contains"
+    ROOMS     ||--o{ BEDS        : "contains"
+
+    SPECIALTIES ||--o{ SPECIALTIES : "sub-specialty of"
+
+    PERSONS   ||--o{ CONTACT_POINTS  : "reachable via"
+    PERSONS   ||--o{ PERSON_ADDRESSES: "lives at"
+    ADDRESSES ||--o{ PERSON_ADDRESSES: "home of"
+
+    PERSONS   ||--|| PATIENTS    : "is-a"
+    PERSONS   ||--|| STAFF       : "is-a"
+
+    PATIENTS  ||--o{ PATIENT_IDENTIFIERS : "ABHA/Aadhaar/..."
+    PATIENTS  ||--o{ EMERGENCY_CONTACTS  : "reach in crisis"
+    PATIENTS  ||--o{ CONSENTS            : "granted"
+    ICD10_CODES ||--o{ PATIENTS          : "death cause"
+
+    STAFF     ||--o{ STAFF_DEPARTMENTS : "works in"
+    DEPARTMENTS ||--o{ STAFF_DEPARTMENTS : "staffed by"
+    STAFF     ||--o{ DEPARTMENTS : "heads"
+    STAFF     ||--o{ CONSENTS    : "witnessed"
+    SPECIALTIES ||--o{ STAFF     : "primary"
+
+    PATIENTS  ||--o{ STAFF : "primary doctor"
+
+    COUNTRIES {
+        char(2) code PK
+        text name
+        char(3) iso3
+        text dial_code
+    }
+    STATES {
+        uuid id PK
+        char(2) country_code FK
+        text name
+        text code
+    }
+    CITIES {
+        uuid id PK
+        uuid state_id FK
+        text name
+        numeric latitude
+        numeric longitude
+    }
+    PINCODES {
+        uuid id PK
+        uuid city_id FK
+        text pincode UK
+        text area
+    }
+    ADDRESSES {
+        uuid id PK
+        uuid clinic_id
+        text use_type
+        text line1
+        text line2
+        uuid city_id FK
+        text pincode
+        char(2) country_code FK
+    }
+    ICD10_CODES {
+        text code PK
+        text description
+        text chapter
+        bool is_billable
+    }
+    SNOMED_CODES {
+        text code PK
+        text fully_specified_name
+        text preferred_term
+    }
+    LOINC_CODES {
+        text code PK
+        text long_name
+    }
+    RXNORM_CODES {
+        text rxcui PK
+        text name
+        text tty
+    }
+    FACILITY {
+        uuid id PK
+        uuid clinic_id
+        text code UK
+        text name
+    }
+    DEPARTMENTS {
+        uuid id PK
+        uuid clinic_id
+        uuid facility_id FK
+        text code UK
+        text name
+        text department_type
+        uuid head_staff_id FK
+    }
+    SPECIALTIES {
+        uuid id PK
+        text code UK
+        text name
+        uuid parent_id FK
+    }
+    WARDS {
+        uuid id PK
+        uuid clinic_id
+        uuid department_id FK
+        text code UK
+        text ward_type
+        int  bed_capacity
+    }
+    ROOMS {
+        uuid id PK
+        uuid ward_id FK
+        text room_number
+        text room_type
+    }
+    BEDS {
+        uuid id PK
+        uuid room_id FK
+        text bed_number
+        text bed_type
+        text status
+    }
+    PERSONS {
+        uuid id PK
+        uuid clinic_id
+        text given_name
+        text middle_name
+        text family_name
+        text display_name "generated"
+        text gender
+        date date_of_birth
+        text blood_group
+        char(2) nationality_code FK
+    }
+    CONTACT_POINTS {
+        uuid id PK
+        uuid person_id FK
+        text system
+        text value
+        text use_type
+        bool is_verified
+    }
+    PERSON_ADDRESSES {
+        uuid id PK
+        uuid person_id FK
+        uuid address_id FK
+        bool is_primary
+    }
+    PATIENTS {
+        uuid id PK
+        uuid person_id FK,UK
+        text mrn UK
+        text uhid
+        timestamptz registration_date
+        uuid primary_doctor_id FK
+        bool deceased
+        text death_cause_icd10 FK
+        text patient_type
+        jsonb active_alerts
+    }
+    PATIENT_IDENTIFIERS {
+        uuid id PK
+        uuid patient_id FK
+        text identifier_type
+        text identifier_value
+        bool is_verified
+    }
+    EMERGENCY_CONTACTS {
+        uuid id PK
+        uuid patient_id FK
+        text name
+        text relationship
+        text phone
+        bool is_primary
+    }
+    STAFF {
+        uuid id PK
+        uuid person_id FK,UK
+        text employee_code UK
+        text staff_type
+        uuid primary_specialty_id FK
+        uuid primary_department_id FK
+        text mci_registration_no
+        text hpr_id
+        bool on_call
+    }
+    STAFF_DEPARTMENTS {
+        uuid staff_id PK,FK
+        uuid department_id PK,FK
+        bool is_primary
+    }
+    CONSENTS {
+        uuid id PK
+        uuid patient_id FK
+        text consent_type
+        bool granted
+        timestamptz valid_from
+        timestamptz valid_to
+        uuid witness_staff_id FK
+        text abdm_consent_artefact_id
+    }

@@ -1,0 +1,960 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/users/new"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using System.Text.RegularExpressions
+@using Isopoh.Cryptography.Argon2
+@using LiPi.Web.Services
+@using LiPi.Clinic.Identity
+@using LiPi.Clinic.Identity.Entities
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using Microsoft.EntityFrameworkCore
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@inject IDbContextFactory<IdentityDbContext> _dbFactory
+@inject IDbContextFactory<MasterDbContext> _masterDbFactory
+@inject ILogger<UsersNew> _logger
+@inject IJSRuntime JS
+
+<PageTitle>Register Staff User – LiPi Admin</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Register User</div>
+    <div class="tn-pt-sub">New staff member</div>
+</SectionContent>
+
+<div class="ap-body">
+
+    <!-- Breadcrumb -->
+    <div class="af-breadcrumb">
+        <a href="/admin">Administration</a>
+        <span class="af-breadcrumb-sep">›</span>
+        <a href="/admin/users">Users</a>
+        <span class="af-breadcrumb-sep">›</span>
+        <span class="af-breadcrumb-current">Register Staff User</span>
+        <a href="/admin/users" class="btn-secondary btn-sm" style="margin-left:auto">← User List</a>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {<div class="ap-alert error"><span class="ap-alert-icon">⚠</span><div>@errorMsg</div></div>}
+
+    <!-- ① Personal Details -->
+    <div class="af-card" style="border-left:4px solid #1565C0">
+        <div class="af-card-header">
+            <div class="af-card-num" style="background:#1565C0">1</div>
+            <span class="af-card-title">Personal Details</span>
+        </div>
+        <div class="af-card-body">
+            <div class="af-grid4">
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-title">Title</label>
+                    <select id="un-title" autocomplete="honorific-prefix" name="title" class="af-fselect" value="@m.Title"
+                            @onchange="OnTitleChange">
+                        <option value="">Select…</option>
+                        @foreach (var t in AdminData.Titles)
+                        {<option value="@t">@t</option>}
+                    </select>
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-fn">First Name <span class="af-req">*</span></label>
+                    <input id="un-fn" autocomplete="given-name" name="firstName" class="af-finput @ErrCss(FN)" value="@m.FirstName"
+                           @oninput="OnFirstNameInput" @onblur="OnFirstNameBlur" placeholder="Letters only" />
+                    @ErrSpan(FN)
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-mn">Middle Name</label>
+                    <input id="un-mn" autocomplete="additional-name" name="middleName" class="af-finput" value="@m.MiddleName"
+                           @oninput="OnMiddleInput" placeholder="Optional" />
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-ln">Last Name <span class="af-req">*</span></label>
+                    <input id="un-ln" autocomplete="family-name" name="lastName" class="af-finput @ErrCss(LN)" value="@m.LastName"
+                           @oninput="OnLastNameInput" @onblur="OnLastNameBlur" placeholder="Letters only" />
+                    @ErrSpan(LN)
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-nick">Nickname</label>
+                    <input id="un-nick" autocomplete="nickname" name="nickname" class="af-finput" value="@m.Nickname"
+                           @oninput="OnNicknameInput" placeholder="e.g. Dr. Raj" />
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-dn">Display Name</label>
+                    <input id="un-dn" autocomplete="name" name="displayName" class="af-finput" value="@m.DisplayName"
+                           @oninput="OnDisplayNameInput" placeholder="Auto-populated from Title + Name" />
+                    <span class="af-fhint">Auto-filled · edit to override</span>
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-gender">Gender <span class="af-req">*</span></label>
+                    <select id="un-gender" autocomplete="sex" name="gender" class="af-fselect @ErrCss(GEN)" @bind="m.Gender"
+                            @bind:event="onchange" @onblur="OnGenderBlur">
+                        <option value="">Select…</option>
+                        @foreach (var g in AdminData.Genders)
+                        {<option value="@g.Value">@g.Label</option>}
+                    </select>
+                    @ErrSpan(GEN)
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-dob">Date of Birth <span class="af-req">*</span></label>
+                    <input id="un-dob" autocomplete="bday" name="dateOfBirth" type="date" class="af-finput @ErrCss(DOB)" value="@m.DateOfBirth"
+                           max="@MaxDob" @onchange="OnDobChange" />
+                    @ErrSpan(DOB)
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-blood">Blood Group</label>
+                    <select id="un-blood" autocomplete="off" name="bloodGroup" class="af-fselect" @bind="m.BloodGroup">
+                        <option value="">Select…</option>
+                        @foreach (var bg in AdminData.BloodGroups)
+                        {<option value="@bg">@bg</option>}
+                    </select>
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-nationality">Nationality</label>
+                    <input id="un-nationality" autocomplete="country" name="nationality" class="af-finput" value="@m.Nationality"
+                           @oninput="e => m.Nationality = e.Value?.ToString() ?? string.Empty"
+                           placeholder="e.g. Indian" />
+                </div>
+
+
+        <!-- Photo & Signature -->
+        <div style="display:flex;gap:24px;align-items:flex-start;padding-top:14px;border-top:1px solid #F1F5F9">
+
+          @* Photo *@
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+            <span style="font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.4px">Photo</span>
+            <div style="width:80px;height:80px;border-radius:8px;border:1px solid #E2E8F0;position:relative;overflow:hidden;cursor:pointer;background:#F8FAFC;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px"
+                 onmouseenter="this.querySelector('.ph-ov').style.opacity='1';this.querySelector('.ph-ov').style.pointerEvents='all'"
+                 onmouseleave="this.querySelector('.ph-ov').style.opacity='0';this.querySelector('.ph-ov').style.pointerEvents='none'">
+              @if (!string.IsNullOrEmpty(_photoPreview))
+              {
+                <img src="@_photoPreview" alt="Photo"
+                     style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0" />
+              }
+              else
+              {
+                <span style="font-size:22px;opacity:.35">📷</span>
+                <span style="font-size:9px;color:#94A3B8">No photo</span>
+              }
+              <div class="ph-ov"
+                   style="position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;opacity:0;transition:opacity .2s;pointer-events:none">
+                @if (!string.IsNullOrEmpty(_photoPreview))
+                {
+                  <button type="button" @onclick:stopPropagation="true" @onclick="ShowPhotoPreview"
+                    style="background:#fff;color:#0B2545;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Preview</button>
+                  <button type="button" @onclick:stopPropagation="true" @onclick="ClearPhoto"
+                    style="background:rgba(239,68,68,.9);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Clear</button>
+                }
+                else
+                {
+                  <button type="button" onclick="document.getElementById('un-photo-inp').click()"
+                    style="background:#fff;color:#0B2545;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Upload</button>
+                  <button type="button" onclick="document.getElementById('un-photo-inp').click()"
+                    style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Scan</button>
+                }
+              </div>
+            </div>
+            <span style="font-size:9px;color:#94A3B8;text-align:center;max-width:80px">JPG/PNG · max 1MB</span>
+            <InputFile id="un-photo-inp" name="photo" autocomplete="off" OnChange="OnUnPhotoSelected" accept="image/*" style="display:none" />
+          </div>
+
+          @* Signature *@
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+            <span style="font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.4px">Signature</span>
+            <div style="width:80px;height:80px;border-radius:8px;border:1px solid #E2E8F0;position:relative;overflow:hidden;cursor:pointer;background:#F8FAFC;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px"
+                 onmouseenter="this.querySelector('.sg-ov').style.opacity='1';this.querySelector('.sg-ov').style.pointerEvents='all'"
+                 onmouseleave="this.querySelector('.sg-ov').style.opacity='0';this.querySelector('.sg-ov').style.pointerEvents='none'">
+              @if (!string.IsNullOrEmpty(_sigPreview))
+              {
+                <img src="@_sigPreview" alt="Signature"
+                     style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;background:#fff" />
+              }
+              else
+              {
+                <span style="font-size:22px;opacity:.35">✍</span>
+                <span style="font-size:9px;color:#94A3B8">No signature</span>
+              }
+              <div class="sg-ov"
+                   style="position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;opacity:0;transition:opacity .2s;pointer-events:none">
+                @if (!string.IsNullOrEmpty(_sigPreview))
+                {
+                  <button type="button" @onclick:stopPropagation="true" @onclick="ShowSigPreview"
+                    style="background:#fff;color:#0B2545;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Preview</button>
+                  <button type="button" @onclick:stopPropagation="true" @onclick="ClearSig"
+                    style="background:rgba(239,68,68,.9);color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Clear</button>
+                }
+                else
+                {
+                  <button type="button" onclick="document.getElementById('un-sig-inp').click()"
+                    style="background:#fff;color:#0B2545;border:none;border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Upload</button>
+                  <button type="button" onclick="document.getElementById('un-sig-inp').click()"
+                    style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:5px;font-size:10px;font-weight:600;padding:3px 0;width:58px;cursor:pointer">Scan</button>
+                }
+              </div>
+            </div>
+            <span style="font-size:9px;color:#94A3B8;text-align:center;max-width:80px">JPG/PNG · max 1MB</span>
+            <InputFile id="un-sig-inp" name="signature" autocomplete="off" OnChange="OnUnSigSelected" accept="image/*" style="display:none" />
+          </div>
+        </div>
+
+        @if (_previewSrc != null)
+        {
+          <div style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center"
+               @onclick="ClosePreview">
+            <img style="max-width:90vw;max-height:80vh;border-radius:10px"
+                 src="@_previewSrc" @onclick:stopPropagation="true" />
+          </div>
+        }
+            </div>
+        </div>
+    </div>
+
+    <!-- ② Qualifications -->
+    <div class="af-card" style="border-left:4px solid #6A1B9A">
+        <div class="af-card-header">
+            <div class="af-card-num" style="background:#6A1B9A">2</div>
+            <span class="af-card-title">Qualifications</span>
+            @if (selectedQuals.Count > 0)
+            {<span class="af-card-badge">@selectedQuals.Count selected</span>}
+        </div>
+        <div class="af-card-body">
+            <div class="af-chips">
+                @foreach (var q in AdminData.Qualifications)
+                {
+                    <span class="af-chip @(selectedQuals.Contains(q) ? "sel" : "")"
+                          @onclick="() => ToggleQual(q)">@q</span>
+                }
+            </div>
+            <div style="margin-top:10px; display:flex; gap:8px; align-items:center">
+                <input id="un-custom-qual" autocomplete="off" name="customQual" class="af-finput" style="max-width:220px" value="@customQual"
+                       placeholder="Custom qualification — press Enter"
+                       @oninput="OnCustomQualInput" @onkeydown="OnCustomQualKey" />
+                @if (selectedQuals.Count > 0)
+                {<span class="af-fhint">Selected: @string.Join(", ", selectedQuals)</span>}
+            </div>
+            @ErrSpan(QUAL)
+
+            @* Selected quals with reorder *@
+            @if (selectedQuals.Count > 0)
+            {
+              <div style="margin-top:12px">
+                <div style="font-size:10px;font-weight:600;color:#6A1B9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">
+                  Selected — drag to reorder or use arrows:
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  @for (int qi = 0; qi < selectedQuals.Count; qi++)
+                  {
+                    var q = selectedQuals[qi]; var qi2 = qi;
+                    <span style="display:inline-flex;align-items:center;gap:4px;background:#EDE7F6;border-radius:20px;padding:4px 10px;font-size:12px;color:#4A148C;font-weight:500;cursor:grab;user-select:none">
+                      <span style="cursor:grab;opacity:.5;font-size:11px">&#9776;</span>
+                      @q
+                      <button type="button" @onclick="() => MoveQualUp(qi2)" disabled="@(qi2==0)"
+                        style="background:none;border:none;color:#6A1B9A;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;opacity:@(qi2==0?"0.3":"1")"
+                        title="Move left">&#9664;</button>
+                      <button type="button" @onclick="() => MoveQualDown(qi2)" disabled="@(qi2==selectedQuals.Count-1)"
+                        style="background:none;border:none;color:#6A1B9A;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;opacity:@(qi2==selectedQuals.Count-1?"0.3":"1")"
+                        title="Move right">&#9654;</button>
+                      <button type="button" @onclick="() => RemoveQual(qi2)"
+                        style="background:none;border:none;color:#C62828;cursor:pointer;padding:0 2px;font-size:14px;font-weight:700;line-height:1"
+                        title="Remove">&#215;</button>
+                    </span>
+                  }
+                </div>
+              </div>
+            }
+
+            <div class="af-grid4" style="margin-top:14px">
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-nmc">NMC Reg. Number</label>
+                    <input id="un-nmc" autocomplete="off" name="nmcRegNumber" class="af-finput" value="@m.NmcRegNumber"
+                           @oninput="e => m.NmcRegNumber = e.Value?.ToString() ?? string.Empty"
+                           placeholder="National Medical Commission reg." />
+                </div>
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-aerb">AERB RP No.</label>
+                    <input id="un-aerb" autocomplete="off" name="aerbRpNumber" class="af-finput" value="@m.AerbRpNumber"
+                           @oninput="e => m.AerbRpNumber = e.Value?.ToString() ?? string.Empty"
+                           placeholder="Radiation Protection Officer licence" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ③ Professional & Employment -->
+    <div class="af-card" style="border-left:4px solid #00695C">
+        <div class="af-card-header">
+            <div class="af-card-num" style="background:#00695C">3</div>
+            <span class="af-card-title">Professional &amp; Employment</span>
+        </div>
+        <div class="af-card-body">
+            <div class="af-grid4">
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-desig">Designation <span class="af-req">*</span></label>
+                    <input id="un-desig" autocomplete="off" name="designation" class="af-finput @ErrCss(DES)" value="@m.Designation"
+                           placeholder="Type or pick" list="desig-list"
+                           @oninput="OnDesigInput" @onblur="OnDesigBlur" />
+                    <datalist id="desig-list">
+                        @foreach (var d in AdminData.Designations)
+                        {<option value="@d" />}
+                    </datalist>
+                    @ErrSpan(DES)
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-stype">Staff Type <span class="af-req">*</span></label>
+                    <select id="un-stype" autocomplete="off" name="staffType" class="af-fselect @ErrCss(STP)" @bind="m.StaffType"
+                            @bind:event="onchange" @onblur="OnStaffTypeBlur">
+                        <option value="">Select…</option>
+                        @foreach (var t in AdminData.StaffTypes)
+                        {<option value="@t.Value">@t.Label</option>}
+                    </select>
+                    @ErrSpan(STP)
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-dept">Department</label>
+                    <input id="un-dept" autocomplete="off" name="department" class="af-finput" value="@m.Department"
+                           placeholder="e.g. Radiation Oncology"
+                           @oninput="OnDeptInput" />
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-empcode">Employee Code</label>
+                    <input id="un-empcode" autocomplete="off" name="employeeCode" class="af-finput" value="@m.EmployeeCode"
+                           placeholder="EMP-001"
+                           @oninput="OnEmpCodeInput" />
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-clinic">Clinic <span class="af-req">*</span></label>
+                    @if (clinicsLoading)
+                    {<span class="af-fhint">Loading…</span>}
+                    else if (clinics.Count == 0)
+                    {<div class="ap-alert error" style="margin:0;padding:6px 10px;font-size:11px">No clinics found — <a href="/admin/clinics/new">register a clinic first</a></div>}
+                    else
+                    {
+                        <select id="un-clinic" autocomplete="off" name="clinicId" class="af-fselect @ErrCss(CLI)" @bind="m.ClinicId"
+                                @bind:event="onchange" @onblur="OnClinicBlur">
+                            <option value="">Select facility…</option>
+                            @foreach (var c in clinics)
+                            {<option value="@c.Id">@c.Name</option>}
+                        </select>
+                        @ErrSpan(CLI)
+                    }
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-joined">Joining Date</label>
+                    <input id="un-joined" autocomplete="off" name="joiningDate" type="date" class="af-finput" value="@m.JoiningDate"
+                           @onchange="OnJoiningDateChange" />
+                    @if (!string.IsNullOrEmpty(joiningNote))
+                    {<span class="af-fhint">@joiningNote</span>}
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ④ Contact -->
+    <div class="af-card" style="border-left:4px solid #BF360C">
+        <div class="af-card-header">
+            <div class="af-card-num" style="background:#BF360C">4</div>
+            <span class="af-card-title">Contact</span>
+        </div>
+        <div class="af-card-body">
+            <div class="af-grid4">
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-email">Email <span class="af-req">*</span></label>
+                    <input id="un-email" autocomplete="email" name="email" type="email" class="af-finput @ErrCss(EML)" value="@m.Email"
+                           placeholder="user@facility.com"
+                           @oninput="OnEmailInput" @onblur="OnEmailBlur" />
+                    @ErrSpan(EML)
+                </div>
+
+                <div class="af-fgroup af-span2">
+                    <label class="af-flabel" for="un-mobile">Mobile <span class="af-req">*</span></label>
+                    <div class="af-phone-row">
+                        <select id="un-mobile-cc" autocomplete="tel-country-code" name="mobileCode" class="af-fselect af-phone-cc" @bind="m.MobileCode"
+                                @bind:event="onchange" @onblur="OnMobileBlur">
+                            @foreach (var cc in AdminData.CountryCodes)
+                            {<option value="@cc.Code">@cc.Label</option>}
+                        </select>
+                        <input id="un-mobile" autocomplete="tel-national" name="mobileNumber" class="af-finput @ErrCss(MOB)" value="@m.MobileNumber"
+                               placeholder="@MobileHint(m.MobileCode)" inputmode="numeric"
+                               @oninput="OnMobileInput" @onblur="OnMobileBlur" />
+                    </div>
+                    @ErrSpan(MOB)
+                </div>
+
+                <div class="af-fgroup af-span2">
+                    <label class="af-flabel" for="un-landline">Landline (optional)</label>
+                    <div class="af-phone-row">
+                        <select id="un-land-cc" autocomplete="tel-country-code" name="landlineCode" class="af-fselect af-phone-cc" @bind="m.LandlineCode">
+                            @foreach (var cc in AdminData.CountryCodes)
+                            {<option value="@cc.Code">@cc.Label</option>}
+                        </select>
+                        <input id="un-landline" autocomplete="tel" name="landlineNumber" class="af-finput" value="@m.LandlineNumber"
+                               placeholder="STD code + number" inputmode="numeric"
+                               @oninput="OnLandlineInput" @onblur="OnLandlineBlur" />
+                    </div>
+                    @ErrSpan(LL)
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ⑥  <!-- ⑥ System Access -->
+    <div class="af-card" style="border-left:4px solid #006064">
+        <div class="af-card-header">
+            <div class="af-card-num" style="background:#006064">6</div>
+            <span class="af-card-title">System Access</span>
+        </div>
+        <div class="af-card-body">
+            <div class="af-grid4">
+
+                <div class="af-fgroup af-span2">
+                    <label class="af-flabel" for="un-username">Username <span class="af-req">*</span></label>
+                    <input id="un-username" autocomplete="username" name="username" class="af-finput @ErrCss(USR) @(IsTouched(USR) && NoErr(USR) ? "ok" : "")"
+                           value="@m.Username" placeholder="firstname.lastname"
+                           @oninput="OnUsernameInput" @onblur="@(async () => await OnUsernameBlur())" />
+                    @ErrSpan(USR)
+                    @if (_usernameChecking)
+                    { <span class="af-fhint" style="color:#94A3B8">⟳ Checking…</span> }
+                    else if (_usernameAvailable == true)
+                    { <span class="af-fhint" style="color:#10B981">✓ Username available</span> }
+
+                </div>
+
+                <div class="af-fgroup" style="justify-content:flex-end; padding-bottom:2px">
+                    <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; margin-top:18px">
+                        <InputCheckbox @bind-Value="m.MustChangePassword" />
+                        Require password change on first login
+                    </label>
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-pwd">Password <span class="af-req">*</span></label>
+                    <input id="un-pwd" autocomplete="new-password" name="password" type="password" class="af-finput @ErrCss(PWD)" value="@m.Password"
+                           placeholder="Min 8 chars"
+                           @oninput="OnPasswordInput" @onblur="OnPasswordBlur" />
+                    @ErrSpan(PWD)
+                </div>
+
+                <div class="af-fgroup">
+                    <label class="af-flabel" for="un-cpwd">Confirm Password <span class="af-req">*</span></label>
+                    <input id="un-cpwd" autocomplete="new-password" name="confirmPassword" type="password" class="af-finput @ErrCss(CPW)" value="@m.ConfirmPassword"
+                           placeholder="Repeat password"
+                           @oninput="OnConfirmPwdInput" @onblur="OnConfirmPwdBlur" />
+                    @ErrSpan(CPW)
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    @if (!string.IsNullOrEmpty(formError))
+    {<div class="ap-alert error"><span class="ap-alert-icon">⚠</span><div>@formError</div></div>}
+
+    @if (!string.IsNullOrEmpty(successMsg))
+    {<div class="ap-alert success" style="margin-bottom:8px"><span class="ap-alert-icon">✓</span><div>@successMsg</div></div>}
+
+    <div style="display:flex; gap:10px; padding:8px 0 24px">
+        <button type="button" class="btn-primary" disabled="@saving" @onclick="HandleSubmit">
+            @(saving ? "Saving…" : "Register User")
+        </button>
+        <a href="/admin/users" class="btn-secondary">Cancel</a>
+    </div>
+
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private UserModel m = new();
+    private string successMsg  = string.Empty;
+    private string errorMsg    = string.Empty;
+    private string formError   = string.Empty;
+    private string joiningNote = string.Empty;
+    private string customQual  = string.Empty;
+    private bool   saving;
+    private bool   _displayNameManuallyEdited;
+    private bool   _usernameManuallyEdited;
+    private bool?  _usernameAvailable = null;
+    private bool   _usernameChecking  = false;
+    private string? _photoPreview, _sigPreview, _previewSrc;
+    private bool   clinicsLoading = true;
+    private string currentRole    = string.Empty;
+    private List<LiPi.Master.Entities.Clinic> clinics = new();
+    private List<string> selectedQuals = new();
+    private static string MaxDob => DateTime.Today.AddYears(-16).AddDays(-1).ToString("yyyy-MM-dd");
+
+    // Field keys
+    private const string FN   = "FirstName";
+    private const string LN   = "LastName";
+    private const string GEN  = "Gender";
+    private const string DOB  = "DateOfBirth";
+    private const string DES  = "Designation";
+    private const string STP  = "StaffType";
+    private const string CLI  = "ClinicId";
+    private const string EML  = "Email";
+    private const string MOB  = "Mobile";
+    private const string LL   = "Landline";
+    private const string USR  = "Username";
+    private const string PWD  = "Password";
+    private const string CPW  = "ConfirmPwd";
+    private const string QUAL = "Qual";
+
+    private readonly Dictionary<string, bool>   touched = new();
+    private readonly Dictionary<string, string> err     = new();
+
+    // ── CSS helpers ───────────────────────────────────────────────────────
+    private string ErrCss(string f) =>
+        touched.GetValueOrDefault(f) && !string.IsNullOrEmpty(err.GetValueOrDefault(f)) ? "err" : string.Empty;
+
+    private RenderFragment ErrSpan(string f) => b =>
+    {
+        if (touched.GetValueOrDefault(f) && !string.IsNullOrEmpty(err.GetValueOrDefault(f)))
+        {
+            b.OpenElement(0, "span"); b.AddAttribute(1, "class", "af-ferr");
+            b.AddContent(2, err[f]); b.CloseElement();
+        }
+    };
+
+    private bool IsTouched(string f) => touched.GetValueOrDefault(f);
+    private bool NoErr(string f)     => string.IsNullOrEmpty(err.GetValueOrDefault(f));
+
+    // ── Init ──────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        currentRole = user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).FirstOrDefault() ?? string.Empty;
+        if (currentRole is not ("global_admin" or "sys_admin" or "site_admin"))
+        { Navigation.NavigateTo("/dashboard", forceLoad: true); return; }
+
+        foreach (var f in new[]{ FN,LN,GEN,DOB,DES,STP,CLI,EML,MOB,LL,USR,PWD,CPW,QUAL })
+        { touched[f] = false; err[f] = string.Empty; }
+
+        try
+        {
+            await using var masterDb = await _masterDbFactory.CreateDbContextAsync();
+            if (currentRole == "site_admin")
+            {
+                // SiteAdmin sees only their own clinics
+                var uid = Guid.Empty;
+                Guid.TryParse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out uid);
+                clinics = await masterDb.ClinicMemberships
+                    .Include(cm => cm.Clinic)
+                    .Where(cm => cm.PlatformUserId == uid && cm.Status == "active" && cm.Clinic != null && cm.Clinic.DeletedAt == null)
+                    .Select(cm => cm.Clinic!)
+                    .OrderBy(c => c.Name)
+                    .ToListAsync();
+                // Auto-select if only one
+                if (clinics.Count == 1) m.ClinicId = clinics[0].Id.ToString();
+            }
+            else
+            {
+                clinics = await masterDb.Clinics
+                    .Where(c => c.DeletedAt == null && (c.Status == "active" || c.Status == "provisioning"))
+                    .OrderBy(c => c.Name).ToListAsync();
+            }
+        }
+        catch { }
+        finally { clinicsLoading = false; }
+    }
+
+    // ── Event handlers ────────────────────────────────────────────────────
+    private void OnFirstNameInput(ChangeEventArgs e)  { m.FirstName  = LettersOnly(e.Value?.ToString()); AutoFillDisplayName(); AutoFillUsername(); if (touched.GetValueOrDefault(FN)) { Validate(FN); StateHasChanged(); } }
+    private void OnFirstNameBlur()                    { Touch(FN); }
+    private void OnMiddleInput(ChangeEventArgs e)     { m.MiddleName = LettersOnly(e.Value?.ToString()); }
+    private void OnLastNameInput(ChangeEventArgs e)   { m.LastName   = LettersOnly(e.Value?.ToString()); AutoFillDisplayName(); AutoFillUsername(); if (touched.GetValueOrDefault(LN)) { Validate(LN); StateHasChanged(); } }
+    private void OnLastNameBlur()                     { Touch(LN); }
+    private void OnNicknameInput(ChangeEventArgs e)   { m.Nickname   = e.Value?.ToString() ?? string.Empty; }
+    private void OnGenderBlur()                       { Touch(GEN); }
+    private void OnDobChange(ChangeEventArgs e)       { m.DateOfBirth = e.Value?.ToString() ?? string.Empty; Touch(DOB); }
+    private void OnDesigInput(ChangeEventArgs e)      { m.Designation = e.Value?.ToString() ?? string.Empty; if (touched.GetValueOrDefault(DES)) { Validate(DES); StateHasChanged(); } }
+    private void OnDesigBlur()                        { Touch(DES); }
+    private void OnStaffTypeBlur()                    { Touch(STP); }
+    private void OnClinicBlur()                       { Touch(CLI); }
+    private void OnDeptInput(ChangeEventArgs e)       { m.Department   = e.Value?.ToString() ?? string.Empty; }
+    private void OnEmpCodeInput(ChangeEventArgs e)    { m.EmployeeCode = e.Value?.ToString() ?? string.Empty; }
+    private void OnJoiningDateChange(ChangeEventArgs e)
+    {
+        m.JoiningDate = e.Value?.ToString() ?? string.Empty;
+        if (DateTime.TryParse(m.JoiningDate, out var jd) && jd.Date > DateTime.Today)
+            joiningNote = $"Joining date {jd:dd MMM yyyy} is in the future — view-only access until then.";
+        else joiningNote = string.Empty;
+    }
+    private void OnEmailInput(ChangeEventArgs e)      { m.Email = e.Value?.ToString() ?? string.Empty; if (touched.GetValueOrDefault(EML)) { Validate(EML); StateHasChanged(); } }
+    private void OnEmailBlur()                        { Touch(EML); }
+    private void OnMobileInput(ChangeEventArgs e)     { m.MobileNumber  = DigitsOnly(e.Value?.ToString()); if (touched.GetValueOrDefault(MOB)) { Validate(MOB); StateHasChanged(); } }
+    private void OnMobileBlur()                       { Touch(MOB); }
+    private void OnLandlineInput(ChangeEventArgs e)   { m.LandlineNumber = e.Value?.ToString() ?? string.Empty; }
+    private void OnLandlineBlur()                     { Touch(LL); }
+    private void OnUsernameInput(ChangeEventArgs e)   { m.Username = (e.Value?.ToString() ?? string.Empty).ToLowerInvariant().Trim(); _usernameManuallyEdited = !string.IsNullOrEmpty(m.Username); _usernameAvailable = null; if (touched.GetValueOrDefault(USR)) { Validate(USR); StateHasChanged(); } }
+    private async Task OnUsernameBlur()
+    {
+        Touch(USR);
+        if (string.IsNullOrEmpty(m.Username) || !string.IsNullOrEmpty(err.GetValueOrDefault(USR)))
+        { _usernameAvailable = null; return; }
+        _usernameChecking = true; _usernameAvailable = null; StateHasChanged();
+        try
+        {
+            await using var db = await _masterDbFactory.CreateDbContextAsync();
+            var taken = await db.PlatformUsers
+                .AnyAsync(u => u.Username == m.Username && u.DeletedAt == null);
+            _usernameAvailable = !taken;
+            if (taken) err[USR] = $"Username '{m.Username}' is already taken";
+        }
+        catch { _usernameAvailable = null; }
+        finally { _usernameChecking = false; StateHasChanged(); }
+    }
+    private void OnPasswordInput(ChangeEventArgs e)   { m.Password = e.Value?.ToString() ?? string.Empty; if (touched.GetValueOrDefault(PWD)) { Validate(PWD); StateHasChanged(); } if (touched.GetValueOrDefault(CPW)) { Validate(CPW); StateHasChanged(); } }
+    private void OnPasswordBlur()                     { Touch(PWD); }
+    private void OnConfirmPwdInput(ChangeEventArgs e) { m.ConfirmPassword = e.Value?.ToString() ?? string.Empty; if (touched.GetValueOrDefault(CPW)) { Validate(CPW); StateHasChanged(); } }
+    private void OnConfirmPwdBlur()                   { Touch(CPW); if (IsTouched(PWD)) Validate(PWD); }
+    private void OnCustomQualInput(ChangeEventArgs e) { customQual = e.Value?.ToString() ?? string.Empty; }
+    private void OnCustomQualKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(customQual))
+        { selectedQuals.Add(customQual.Trim()); customQual = string.Empty; }
+    }
+
+    private void ToggleQual(string q) { if (selectedQuals.Contains(q)) selectedQuals.Remove(q); else selectedQuals.Add(q); }
+
+    // ── Touch + Validate ──────────────────────────────────────────────────
+    private void Touch(string f) { touched[f] = true; Validate(f); }
+
+    private void Validate(string f)
+    {
+        err[f] = f switch
+        {
+            FN   => string.IsNullOrWhiteSpace(m.FirstName)   ? "First name is required"   : string.Empty,
+            LN   => string.IsNullOrWhiteSpace(m.LastName)    ? "Last name is required"    : string.Empty,
+            GEN  => string.IsNullOrWhiteSpace(m.Gender)      ? "Gender is required"       : string.Empty,
+            DOB  => ValidateDob(m.DateOfBirth),
+            DES  => string.IsNullOrWhiteSpace(m.Designation) ? "Designation is required"  : string.Empty,
+            STP  => string.IsNullOrWhiteSpace(m.StaffType)   ? "Staff type is required"   : string.Empty,
+            CLI  => string.IsNullOrWhiteSpace(m.ClinicId)    ? "Clinic is required"       : string.Empty,
+            EML  => ValidateEmail(m.Email),
+            MOB  => ValidateMobile(m.MobileCode, m.MobileNumber),
+            LL   => ValidateLandline(m.LandlineCode, m.LandlineNumber),
+            USR  => ValidateUsername(m.Username),
+            PWD  => ValidatePassword(m.Password),
+            CPW  => m.ConfirmPassword != m.Password ? "Passwords do not match" : string.Empty,
+            QUAL => selectedQuals.Count == 0 ? "At least one qualification is required" : string.Empty,
+            _    => string.Empty,
+        };
+    }
+
+    private static string ValidateDob(string dob)
+    {
+        if (string.IsNullOrWhiteSpace(dob)) return "Date of birth is required";
+        if (!DateTime.TryParse(dob, out var dt))  return "Invalid date";
+        var maxDob = DateTime.Today.AddYears(-16).AddDays(-1);
+        if (dt > maxDob) return "Must be at least 16 years old";
+        return string.Empty;
+    }
+
+    private static string ValidateEmail(string e)
+    {
+        if (string.IsNullOrEmpty(e)) return "Email is required";
+        return Regex.IsMatch(e, @"^[^@\s]+@[^@\s]+\.[^@\s]+$") ? string.Empty : "Enter a valid email address";
+    }
+
+    private static string ValidateMobile(string code, string number)
+    {
+        if (string.IsNullOrEmpty(number)) return "Mobile number is required";
+        return code == "+91"
+            ? (Regex.IsMatch(number, @"^[6-9]\d{9}$") ? string.Empty : "India: 10 digits starting 6–9")
+            : (Regex.IsMatch(number, @"^\d{7,15}$")   ? string.Empty : "Enter 7–15 digits");
+    }
+
+    private static string ValidateLandline(string code, string number)
+    {
+        if (string.IsNullOrEmpty(number)) return string.Empty;
+        var d = Regex.Replace(number, @"\D", string.Empty);
+        return code == "+91"
+            ? (Regex.IsMatch(d, @"^\d{6,11}$") ? string.Empty : "India landline: STD + number, 6–11 digits")
+            : (Regex.IsMatch(d, @"^\d{6,15}$") ? string.Empty : "Enter 6–15 digits");
+    }
+
+    private static string ValidateUsername(string u)
+    {
+        if (string.IsNullOrEmpty(u))  return "Username is required";
+        if (u.Length < 3)             return "Minimum 3 characters";
+        return Regex.IsMatch(u, @"^[a-z0-9._\-]+$") ? string.Empty : "Letters, digits, dots, underscores, hyphens only";
+    }
+
+    private static string ValidatePassword(string p)
+    {
+        if (string.IsNullOrEmpty(p)) return "Password is required";
+        if (p.Length < 8)            return "Minimum 8 characters";
+        if (!Regex.IsMatch(p, @"[A-Z]")) return "Must include an uppercase letter";
+        if (!Regex.IsMatch(p, @"[a-z]")) return "Must include a lowercase letter";
+        if (!Regex.IsMatch(p, @"\d"))    return "Must include a digit";
+        if (!Regex.IsMatch(p, @"[^a-zA-Z0-9]")) return "Must include a symbol";
+        return string.Empty;
+    }
+
+    // ── Submit ────────────────────────────────────────────────────────────
+    private async Task HandleSubmit()
+    {
+        // Validate qualifications and roles first
+        if (!string.IsNullOrWhiteSpace(customQual)) selectedQuals.Add(customQual.Trim());
+        touch_all();
+
+        if (err.Values.Any(e => e != string.Empty))
+        {
+            formError = "Please fix the errors above before submitting.";
+            await JS.InvokeVoidAsync("eval",
+                "(function(){ var g=document.querySelector('.af-ferr')?.closest('.af-fgroup'); if(!g) return; g.scrollIntoView({behavior:'smooth',block:'center'}); var inp=g.querySelector('input,select,textarea'); if(inp){ inp.focus(); } })()");
+            return;
+        }
+        formError = string.Empty;
+
+        saving = true;
+        try
+        {
+            await using var _db = await _dbFactory.CreateDbContextAsync();
+            var hash = Argon2.Hash(m.Password);
+            if (!Guid.TryParse(m.ClinicId, out var clinicId))
+            { errorMsg = "Invalid clinic selection."; return; }
+
+            var user = (await AuthState).User;
+            var creatorId = Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var cid) ? cid : (Guid?)null;
+
+            var newUser = new LiPi.Master.Entities.PlatformUser
+            {
+                Id                 = Guid.NewGuid(),
+                Username           = m.Username.Trim().ToLowerInvariant(),
+                Email              = m.Email.Trim().ToLowerInvariant(),
+                Phone              = string.IsNullOrEmpty(m.MobileNumber) ? null : $"{m.MobileCode}{DigitsOnly(m.MobileNumber)}",
+                PasswordHash       = hash,
+                MustChangePassword = m.MustChangePassword,
+                Status             = "active",
+                UserType           = "staff",
+                FirstName          = m.FirstName,
+                LastName           = m.LastName,
+                DisplayName        = string.IsNullOrEmpty(m.DisplayName) ? $"{m.FirstName} {m.LastName}".Trim() : m.DisplayName,
+                Nationality        = m.Nationality,
+                CreatedAt          = DateTime.UtcNow,
+                UpdatedAt          = DateTime.UtcNow,
+                CreatedBy          = creatorId,
+                ExtensionData      = BuildExt(),
+            };
+
+            // Save PlatformUser to master DB
+            await using var masterDb = await _masterDbFactory.CreateDbContextAsync();
+            masterDb.PlatformUsers.Add(newUser);
+            await masterDb.SaveChangesAsync();
+
+            // Add clinic membership
+            masterDb.ClinicMemberships.Add(new LiPi.Master.Entities.ClinicMembership
+            {
+                Id             = Guid.NewGuid(),
+                PlatformUserId = newUser.Id,
+                ClinicId       = clinicId,
+                Status         = "active",
+                CreatedAt      = DateTime.UtcNow,
+                UpdatedAt      = DateTime.UtcNow,
+                CreatedBy      = creatorId,
+            });
+            await masterDb.SaveChangesAsync();
+
+
+
+            successMsg = $"User '{newUser.Username}' registered successfully.";
+            await Task.Delay(1000);
+            Navigation.NavigateTo($"/admin/users/{newUser.Id}/roles", forceLoad: true);
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        {
+            _logger.LogError(ex, "DB error creating user");
+            errorMsg = ex.InnerException?.Message.Contains("unique") == true
+                ? $"Username '{m.Username}' is already taken. Please choose a different username."
+                : "Database error — please try again.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error creating user");
+            errorMsg = "Unexpected error — please try again.";
+        }
+        finally { saving = false; }
+    }
+
+    private void touch_all()
+    {
+        foreach (var f in new[]{ FN,LN,GEN,DOB,DES,STP,CLI,EML,MOB,USR,PWD,CPW,QUAL })
+            Touch(f);
+    }
+
+    private string BuildExt() => System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object>
+    {
+        ["title"]          = m.Title,
+        ["firstName"]      = m.FirstName,
+        ["lastName"]       = m.LastName,
+        ["middleName"]     = m.MiddleName,
+        ["nickname"]       = m.Nickname,
+        ["displayName"]    = m.DisplayName,
+        ["gender"]         = m.Gender,
+        ["dob"]            = m.DateOfBirth,
+        ["bloodGroup"]     = m.BloodGroup,
+        ["nationality"]    = m.Nationality,
+        ["nmcRegNumber"]   = m.NmcRegNumber,
+        ["aerbRpNumber"]   = m.AerbRpNumber,
+        ["qualifications"] = selectedQuals.ToArray(),
+        ["designation"]    = m.Designation,
+        ["staffType"]      = m.StaffType,
+        ["department"]     = m.Department,
+        ["employeeCode"]   = m.EmployeeCode,
+        ["joiningDate"]    = m.JoiningDate,
+        ["photoData"]      = _photoPreview ?? string.Empty,
+        ["signatureData"]  = _sigPreview   ?? string.Empty,
+    });
+
+    private static string LettersOnly(string? s) =>
+        string.IsNullOrEmpty(s) ? string.Empty : Regex.Replace(s, @"[^a-zA-Z\s\-\.]", string.Empty);
+
+    private static string DigitsOnly(string? s) =>
+        string.IsNullOrEmpty(s) ? string.Empty : Regex.Replace(s, @"\D", string.Empty);
+
+    private static string MobileHint(string code) => code switch
+    {
+        "+91" => "10 digits starting 6–9", "+1" => "10 digits",
+        "+44" => "10 digits", "+61" => "9 digits", "+971" => "9 digits",
+        _     => "Digits only",
+    };
+
+    // ── Title & DisplayName ───────────────────────────────────────────────
+    private void OnTitleChange(ChangeEventArgs e)
+    {
+        m.Title = e.Value?.ToString() ?? string.Empty;
+        AutoFillDisplayName();
+    }
+    private void OnDisplayNameInput(ChangeEventArgs e)
+    {
+        m.DisplayName = e.Value?.ToString() ?? string.Empty;
+        _displayNameManuallyEdited = !string.IsNullOrEmpty(m.DisplayName);
+    }
+    private void AutoFillUsername()
+    {
+        if (_usernameManuallyEdited) return;
+        var first = (m.FirstName ?? string.Empty).Trim().ToLowerInvariant();
+        var last  = (m.LastName  ?? string.Empty).Trim().ToLowerInvariant();
+        // Remove non-alphanumeric except dots/hyphens
+        first = System.Text.RegularExpressions.Regex.Replace(first, @"[^a-z0-9]", string.Empty);
+        last  = System.Text.RegularExpressions.Regex.Replace(last,  @"[^a-z0-9]", string.Empty);
+        if (!string.IsNullOrEmpty(first) && !string.IsNullOrEmpty(last))
+            m.Username = $"{first}.{last}";
+        else if (!string.IsNullOrEmpty(first))
+            m.Username = first;
+    }
+
+    private void AutoFillDisplayName()
+    {
+        if (_displayNameManuallyEdited) return;
+        var parts = new[] { m.Title, m.FirstName, m.LastName }
+            .Where(s => !string.IsNullOrEmpty(s));
+        m.DisplayName = string.Join(" ", parts);
+    }
+
+    // ── Qual reorder ─────────────────────────────────────────────────────
+    private void MoveQualUp(int i)
+    {
+        if (i <= 0 || i >= selectedQuals.Count) return;
+        (selectedQuals[i], selectedQuals[i-1]) = (selectedQuals[i-1], selectedQuals[i]);
+    }
+    private void MoveQualDown(int i)
+    {
+        if (i < 0 || i >= selectedQuals.Count-1) return;
+        (selectedQuals[i], selectedQuals[i+1]) = (selectedQuals[i+1], selectedQuals[i]);
+    }
+    private void RemoveQual(int i)
+    {
+        if (i >= 0 && i < selectedQuals.Count) selectedQuals.RemoveAt(i);
+    }
+
+    // ── Photo / Signature ─────────────────────────────────────────────────
+    private void ShowPhotoPreview() => _previewSrc = _photoPreview;
+    private void ShowSigPreview()   => _previewSrc = _sigPreview;
+    private void ClosePreview()     => _previewSrc = null;
+    private async Task ClearPhoto()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove profile photo? This cannot be undone.")) return;
+        _photoPreview = null;
+    }
+    private async Task ClearSig()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove signature? This cannot be undone.")) return;
+        _sigPreview = null;
+    }
+    private async Task OnUnPhotoSelected(InputFileChangeEventArgs e)
+    {
+        var src = await ReadMediaFile(e.File);
+        if (src != null) _photoPreview = src;
+    }
+    private async Task OnUnSigSelected(InputFileChangeEventArgs e)
+    {
+        var src = await ReadMediaFile(e.File);
+        if (src != null) _sigPreview = src;
+    }
+    private static async Task<string?> ReadMediaFile(IBrowserFile file)
+    {
+        if (file.Size > 1_048_576 || !file.ContentType.StartsWith("image/")) return null;
+        using var ms = new MemoryStream();
+        using var s  = file.OpenReadStream(1_048_576);
+        await s.CopyToAsync(ms);
+        return $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+    }
+
+    private class UserModel
+    {
+        public string Title            { get; set; } = string.Empty;
+        public string FirstName        { get; set; } = string.Empty;
+        public string MiddleName       { get; set; } = string.Empty;
+        public string LastName         { get; set; } = string.Empty;
+        public string Nickname         { get; set; } = string.Empty;
+        public string DisplayName      { get; set; } = string.Empty;
+        public string Gender           { get; set; } = string.Empty;
+        public string DateOfBirth      { get; set; } = string.Empty;
+        public string BloodGroup       { get; set; } = string.Empty;
+        public string Nationality      { get; set; } = "Indian";
+        public string NmcRegNumber     { get; set; } = string.Empty;
+        public string AerbRpNumber     { get; set; } = string.Empty;
+        public string Designation      { get; set; } = string.Empty;
+        public string StaffType        { get; set; } = string.Empty;
+        public string Department       { get; set; } = string.Empty;
+        public string EmployeeCode     { get; set; } = string.Empty;
+        public string JoiningDate      { get; set; } = string.Empty;
+        public string ClinicId         { get; set; } = string.Empty;
+        public string Email            { get; set; } = string.Empty;
+        public string MobileCode       { get; set; } = "+91";
+        public string MobileNumber     { get; set; } = string.Empty;
+        public string LandlineCode     { get; set; } = "+91";
+        public string LandlineNumber   { get; set; } = string.Empty;
+        public string Username         { get; set; } = string.Empty;
+        public bool   MustChangePassword { get; set; } = true;
+        public string Password         { get; set; } = string.Empty;
+        public string ConfirmPassword  { get; set; } = string.Empty;
+
+
+    }
+}

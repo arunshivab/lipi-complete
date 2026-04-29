@@ -1,0 +1,238 @@
+erDiagram
+    PROCESS_DEFINITIONS ||--o{ PROCESS_STEPS : "decomposes"
+    PROCESS_DEFINITIONS ||--o{ DEFECTS : "tracks"
+    PROCESS_DEFINITIONS ||--o{ SPC_OBSERVATIONS : "measures"
+    PROCESS_DEFINITIONS ||--o{ SPC_ROLLUPS : "aggregates"
+    PROCESS_DEFINITIONS ||--o{ CONTROL_CHART_POINTS : "charts"
+    PROCESS_DEFINITIONS ||--o{ FMEA_ITEMS : "analyzes"
+    PROCESS_DEFINITIONS ||--o{ KAIZEN_SUGGESTIONS : "improves"
+    PROCESS_DEFINITIONS ||--o{ PROCESS_TREND_SUMMARY : "summarizes"
+    DEFECTS ||--o{ FMEA_ITEMS : "origins_from"
+    SPC_OBSERVATIONS ||--o{ SPC_ROLLUPS : "aggregates_into"
+    SPC_ROLLUPS ||--o{ CONTROL_CHART_POINTS : "plots"
+    FMEA_ITEMS ||--o{ PROJECTS : "triggers_dmaic"
+    PROJECTS ||--o{ PROCESS_DEFINITIONS : "improves"
+
+    PROCESS_DEFINITIONS {
+        uuid id PK
+        uuid clinic_id FK
+        text process_code UK "PROC_OPD_REGISTRATION"
+        text process_name
+        int process_level "1, 2, 3, 4 (hierarchical)"
+        uuid parent_process_id FK "for hierarchy"
+        uuid department_id FK
+        uuid process_owner_id FK
+        text process_objective
+        text kpi_code "turnaround_time, error_rate"
+        numeric kpi_target
+        text kpi_unit "hours, minutes, percent, ppm"
+        numeric upper_spec_limit "USL"
+        numeric lower_spec_limit "LSL"
+        numeric target_value "nominal"
+        boolean critical_step
+        text documentation_s3_key "flowchart, FMEA"
+        date effective_from
+        date effective_to
+        text status "draft, active, under_review, archived"
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    PROCESS_STEPS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid process_id FK
+        int step_sequence
+        text step_name
+        text step_description
+        text responsible_role_code
+        int estimated_duration_mins
+        text success_criteria
+        text risk_level "low, medium, high"
+        text mitigating_control "if high risk"
+        datetime created_at
+        int row_version
+    }
+
+    DEFECTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid process_id FK
+        date defect_date
+        text defect_code
+        text defect_type "documentation_error, patient_safety, billing_error, procedural_deviation"
+        text severity "critical, major, minor, observation"
+        text description
+        text root_cause
+        uuid detected_by FK
+        text detected_stage "during_process, by_qa, by_customer, external_audit"
+        text immediate_action
+        boolean capa_required
+        uuid capa_id FK "to compliance.capa_items"
+        numeric defect_cost
+        text status "reported, investigating, capa_raised, resolved, closed"
+        datetime closed_at
+        boolean trend_flag "if part of trend"
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    SPC_OBSERVATIONS {
+        uuid id PK "PK part 1"
+        date observation_date FK "PK part 2; partitioned monthly"
+        uuid clinic_id FK
+        uuid process_id FK
+        time observation_time
+        text observation_batch "morning_shift, afternoon"
+        numeric observation_value "measured KPI"
+        text observation_unit "inherited from process"
+        uuid subgroup_id FK "for rational subgrouping"
+        boolean is_outlier
+    }
+
+    SPC_ROLLUPS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid process_id FK UK
+        date rollup_date "day/week/month start"
+        text rollup_period "daily, weekly, monthly"
+        int sample_count
+        numeric mean_value
+        numeric std_dev
+        numeric min_value
+        numeric max_value
+        numeric median_value
+        numeric q1_value "25th percentile"
+        numeric q3_value "75th percentile"
+        numeric iqr_value "inter-quartile range"
+        numeric cp_index "process capability"
+        numeric cpk_index "capability (min Cpu/Cpl)"
+        numeric pp_index "performance"
+        numeric ppk_index "performance (min)"
+        numeric process_yield "% within spec"
+        int defects_count
+        boolean out_of_control "SPC rule violation"
+        text control_rule_violated "rule_1, rule_6, etc."
+        datetime created_at
+        int row_version
+    }
+
+    CONTROL_CHART_POINTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid process_id FK
+        text chart_type "x_bar, individual, range, p_chart, u_chart"
+        date point_date
+        numeric point_value
+        numeric ucl "upper control limit"
+        numeric lcl "lower control limit"
+        numeric center_line "process mean"
+        numeric usl "upper spec limit"
+        numeric lsl "lower spec limit"
+        boolean is_out_of_control
+        text spc_rule_violated
+        text alert_level "normal, warning, critical"
+        datetime created_at
+        int row_version
+    }
+
+    FMEA_ITEMS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid process_id FK
+        uuid process_step_id FK
+        text failure_mode "what could go wrong"
+        text potential_effects "consequences"
+        text potential_causes
+        int severity_score "1-10"
+        int occurrence_score "1-10"
+        int detection_score "1-10"
+        int rpn_value "Risk Priority Number (S*O*D)"
+        text current_controls "existing preventive"
+        text recommended_action
+        uuid action_owner FK
+        date action_deadline
+        text action_taken
+        boolean action_effective
+        int revised_severity "after action"
+        int revised_occurrence
+        int revised_detection
+        int revised_rpn
+        text notes
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    PROJECTS {
+        uuid id PK
+        uuid clinic_id FK
+        text project_code UK "DMAIC_001"
+        text project_name
+        text project_type "dmaic, dmadv, kaizen, other"
+        uuid related_process_id FK
+        uuid sponsor_id FK "executive sponsor"
+        uuid project_lead_id FK "black belt"
+        uuid[] team_members "green belts, team"
+        text charter_s3_key
+        text problem_statement
+        text goal_statement
+        text scope
+        numeric baseline_metric "starting performance"
+        numeric target_metric "desired performance"
+        text metric_unit
+        date project_start_date
+        date target_completion_date
+        date actual_completion_date
+        text status "initiated, define, measure, analyze, improve, control, completed"
+        boolean phase_define_complete
+        boolean phase_measure_complete
+        boolean phase_analyze_complete
+        boolean phase_improve_complete
+        boolean phase_control_complete
+        numeric financial_benefit "projected/realized savings"
+        text notes
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    KAIZEN_SUGGESTIONS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid process_id FK
+        uuid suggested_by FK
+        date suggested_date
+        text suggestion_title
+        text suggestion_detail
+        text expected_benefit
+        text estimated_effort "low, medium, high"
+        text status "submitted, under_review, approved, implemented, rejected"
+        uuid reviewed_by FK
+        date reviewed_date
+        text review_comments
+        uuid implementation_owner FK
+        date implementation_date
+        text verified_benefit
+        datetime created_at
+        int row_version
+    }
+
+    PROCESS_TREND_SUMMARY {
+        uuid id PK
+        uuid clinic_id FK
+        uuid process_id FK UK
+        date summary_date
+        int defect_count_30d
+        int defect_count_90d
+        int defect_count_365d
+        text trend_direction "improving, stable, declining"
+        numeric cpk_current
+        text cpk_trend
+        date last_out_of_control_date
+        text process_alert_level "green, yellow, red"
+        text notes
+        datetime updated_at
+    }

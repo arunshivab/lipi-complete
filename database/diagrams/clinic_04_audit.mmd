@@ -1,0 +1,131 @@
+erDiagram
+    AUDIT_EVENTS ||--o{ HASH_CHAIN_VERIFICATION_RUNS : "verified_by"
+    PHI_ACCESS_LOG ||--o{ AUDIT_EVENTS : "triggered_by"
+    EXPORT_LOG ||--o{ AUDIT_EVENTS : "triggered_by"
+    PRINT_LOG ||--o{ AUDIT_EVENTS : "triggered_by"
+    BLOCKCHAIN_ANCHORS ||--o{ AUDIT_EVENTS : "anchors"
+
+    EVENT_TYPES {
+        text code PK "patient.created, prescription.signed"
+        text category "authentication, authorization, data_read, data_write, data_export, admin_action"
+        text severity "info, notice, warning, alert, critical"
+        boolean is_phi_access "true if PHI accessed"
+        text description
+        boolean nabh_required "NABH-mandated"
+        boolean dpdp_required "DPDP-mandated"
+    }
+
+    AUDIT_EVENTS {
+        uuid id FK "PK part 1"
+        datetime event_ts FK "PK part 2; partitioned monthly"
+        uuid clinic_id FK "tenant"
+        text action FK "to event_types.code"
+        uuid actor_user_id FK "identity.users.id"
+        citext actor_username "denormalized snapshot"
+        text[] actor_role_codes "roles at moment of action"
+        inet actor_ip
+        text actor_user_agent
+        uuid actor_session_id FK
+        uuid actor_service_acct_id FK
+        text entity_type "core.patient, opd.encounter"
+        uuid entity_id
+        uuid entity_parent_id
+        text action_detail
+        jsonb before_state
+        jsonb after_state
+        text change_reason "required for break-glass"
+        uuid request_id FK "correlation"
+        uuid correlation_id FK
+        text outcome "success, failure, denied, error"
+        bytea previous_hash "SHA-256 tip from previous event"
+        bytea current_hash "SHA-256(previous_hash || event_ts || ...)"
+    }
+
+    HASH_CHAIN_TIP {
+        uuid clinic_id PK
+        bytea tip_hash "current chain tip"
+        uuid tip_event_id FK
+        datetime tip_event_ts FK
+        datetime updated_at
+    }
+
+    PHI_ACCESS_LOG {
+        uuid id FK "PK part 1"
+        datetime accessed_at FK "PK part 2; partitioned monthly"
+        uuid clinic_id FK "tenant"
+        uuid actor_user_id FK
+        text[] actor_role_codes
+        inet actor_ip
+        uuid patient_id FK
+        text mrn_snapshot "MRN at access time"
+        text access_context "direct_care, referral, billing, research, break_glass"
+        text resource_type "encounter, lab_report, dicom, prescription"
+        uuid resource_id FK
+        text purpose_of_use
+        text justification "required if context=break_glass"
+        boolean minimum_necessary_principle_ok
+        text consent_ref
+        uuid request_id FK
+    }
+
+    EXPORT_LOG {
+        uuid id PK
+        uuid clinic_id FK
+        datetime exported_at
+        uuid actor_user_id FK
+        inet actor_ip
+        text export_type "patient_summary, mis_report, dicom, research_dataset"
+        text export_format "pdf, xlsx, csv, fhir_json"
+        int record_count
+        uuid[] patient_ids
+        jsonb query_parameters
+        text destination "download, email, sftp, s3, api"
+        text destination_detail
+        bytea file_sha256
+        bigint file_size_bytes
+        text dlp_scan_result "clean, warning, blocked, skipped"
+        text consent_ref
+        text justification
+    }
+
+    PRINT_LOG {
+        uuid id PK
+        uuid clinic_id FK
+        datetime printed_at
+        uuid actor_user_id FK
+        text printer_name
+        text document_type "discharge_summary, prescription, lab_report"
+        uuid document_ref_id FK
+        uuid patient_id FK
+        int copies
+        boolean watermark_applied
+        inet client_ip
+    }
+
+    BLOCKCHAIN_ANCHORS {
+        uuid id PK
+        uuid clinic_id FK
+        text anchor_type "audit_events, phi_access, export_log"
+        datetime window_from
+        datetime window_to
+        bigint row_count "events in this window"
+        bytea batch_merkle_root "Merkle root of window"
+        text ledger_tx_id "Hyperledger tx"
+        bigint ledger_block_no
+        datetime anchored_at
+        datetime verified_at
+        text status "pending, anchored, verified, mismatch"
+    }
+
+    HASH_CHAIN_VERIFICATION_RUNS {
+        uuid id PK
+        uuid clinic_id FK
+        datetime started_at
+        datetime finished_at
+        datetime window_from
+        datetime window_to
+        bigint rows_checked
+        int breaks_found "# of hash mismatches"
+        uuid first_break_id "first bad hash"
+        text outcome "running, clean, break_detected, error"
+    }

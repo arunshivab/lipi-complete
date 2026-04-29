@@ -1,0 +1,271 @@
+@namespace LiPi.Web.Pages.PatientPages
+@page "/patients/search"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject LiPi.Web.Services.ClinicDbFactory ClinicDbFactory
+
+<PageTitle>Patient Search – LiPi</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Patient Search</div>
+    <div class="tn-pt-sub">Find, view and manage patient records</div>
+</SectionContent>
+
+<div class="pr-body">
+
+  @* ── KPI strip ── *@
+  <div class="pr-kpi-strip">
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#0B2545"></div><div class="pr-kpi-lbl">Today's Registrations</div><div class="pr-kpi-val">@_kpiReg</div><div class="pr-kpi-sub">↑ 6 vs yesterday</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#F59E0B"></div><div class="pr-kpi-lbl">OPD Queue</div><div class="pr-kpi-val">@_kpiQueue</div><div class="pr-kpi-sub">avg wait 18 min</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#1B4DA0"></div><div class="pr-kpi-lbl">Appointments Today</div><div class="pr-kpi-val">@_kpiAppts</div><div class="pr-kpi-sub">3 unconfirmed</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#4A9BD4"></div><div class="pr-kpi-lbl">Active Patients</div><div class="pr-kpi-val">@_kpiActive</div><div class="pr-kpi-sub">↑ 5.1% MoM</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#EF4444"></div><div class="pr-kpi-lbl">Pending Consents</div><div class="pr-kpi-val">@_kpiConsents</div><div class="pr-kpi-sub">action required</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#10B981"></div><div class="pr-kpi-lbl">Empty Slots Today</div><div class="pr-kpi-val">@_kpiSlots</div><div class="pr-kpi-sub">across all doctors</div></div>
+  </div>
+
+  <div class="pr-panel">
+
+    <div class="pr-header">
+      <div>
+        <div class="pr-kicker">&#9711; PATIENT MANAGEMENT &middot; SEARCH</div>
+        <div class="pr-title">Find a patient</div>
+        <div class="pr-sub">Search by name, MRN, mobile, Aadhaar last-4 or date of birth</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <button type="button" class="pr-btn-primary" @onclick='() => Nav.NavigateTo("/patients/new")'>
+          + Register new patient
+        </button>
+      </div>
+    </div>
+
+    @* Search bar *@
+    <div class="ps-search-wrap">
+      <span class="ps-search-icon">&#9740;</span>
+      <input id="ps-search" name="patientSearch" autocomplete="off"
+             class="ps-search-input"
+             value="@_query"
+             placeholder="Name · MRN · Mobile · Aadhaar last-4 · DOB (yyyy-mm-dd)…"
+             @oninput="OnSearchInput"
+             @onkeydown="OnSearchKeyDown" />
+      
+    </div>
+
+    @* Filter chips *@
+    <div class="ps-filter-strip">
+      @foreach (var f in _filters)
+      {
+        var fv = f.Value;
+        <button type="button" class="ps-filter-chip @(_activeFilter == fv ? "active" : "")"
+                @onclick="() => SetFilter(fv)">@f.Label</button>
+      }
+    </div>
+
+    @* Result count *@
+    @if (!string.IsNullOrWhiteSpace(_query))
+    {
+      <div class="ps-result-count">
+        @_results.Count result@(_results.Count == 1 ? "" : "s") for &ldquo;@_query&rdquo;
+        @if (_activeFilter != "all") { <span>&nbsp;&middot;&nbsp;filter: @_activeFilter</span> }
+      </div>
+    }
+
+    @* Results *@
+    @if (_results.Count > 0)
+    {
+      <div class="ps-card-grid">
+        @foreach (var p in _results)
+        {
+          var pid = p.Id;
+          <div class="ps-pt-card" @onclick="() => OpenPatient(pid)">
+            <span class="ps-pt-arrow">&#8250;</span>
+            <div class="ps-pt-card-top">
+              <div class="ps-pt-avatar" style="background:@p.AvatarBg;color:@p.AvatarTx">@p.Initials</div>
+              <div style="min-width:0;flex:1">
+                <div class="ps-pt-name">@p.Name</div>
+                <div class="ps-pt-mrn">@p.Mrn</div>
+              </div>
+            </div>
+            <div class="ps-pt-tags">
+              <span class="ps-pt-tag">@p.Sex &middot; @p.Dob</span>
+              @if (!string.IsNullOrEmpty(p.Mobile)) { <span class="ps-pt-tag">@p.Mobile</span> }
+              @if (!string.IsNullOrEmpty(p.LastEncounter))
+              {
+                <span class="ps-pt-tag @p.LastEncounterType.ToLowerInvariant()">@p.LastEncounterType</span>
+              }
+              @if (p.IsVip)      { <span class="ps-pt-tag vip">&#9733; VIP</span> }
+              @if (p.HasAllergy) { <span class="ps-pt-tag allergy">&#9888; Allergies</span> }
+            </div>
+          </div>
+        }
+      </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_query))
+    {
+      <div class="ps-empty">
+        <div class="ps-empty-icon">&#9740;</div>
+        <div class="ps-empty-title">No patients found</div>
+        <div>No records match &ldquo;@_query&rdquo;. Check spelling or try a different field.</div>
+        <div style="margin-top:14px">
+          <button type="button" class="pr-btn-primary"
+                  @onclick='() => Nav.NavigateTo("/patients/new")'>
+            Register as new patient
+          </button>
+        </div>
+      </div>
+    }
+    else
+    {
+      <div class="ps-empty">
+        <div class="ps-empty-icon">&#9711;</div>
+        <div class="ps-empty-title">Start typing to search</div>
+        <div>Search across all patient records in this clinic.</div>
+      </div>
+    }
+
+  </div>
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    // KPI (TODO: wire to IKpiService)
+    private readonly string _kpiReg = "38", _kpiQueue = "12", _kpiAppts = "47",
+                            _kpiActive = "1,284", _kpiConsents = "3", _kpiSlots = "9";
+
+    private string _query        = string.Empty;
+    private string _activeFilter = "all";
+
+    private sealed record FilterOption(string Value, string Label);
+    private static readonly FilterOption[] _filters =
+    [
+        new("all",     "All"),
+        new("name",    "By Name"),
+        new("mrn",     "By MRN"),
+        new("mobile",  "By Mobile"),
+        new("aadhaar", "By Aadhaar"),
+        new("dob",     "By DOB"),
+        new("opd",     "OPD Only"),
+        new("ipd",     "IPD Only"),
+    ];
+
+    // ── Patient result model ─────────────────────────────────────────────────
+    private sealed class PatientResult
+    {
+        public string Id               = string.Empty;
+        public string Name             = string.Empty;
+        public string Initials         = string.Empty;
+        public string Mrn              = string.Empty;
+        public string Sex              = string.Empty;
+        public string Dob              = string.Empty;
+        public string Mobile           = string.Empty;
+        public string LastEncounter    = string.Empty;
+        public string LastEncounterType= string.Empty;
+        public bool   IsVip            = false;
+        public bool   HasAllergy       = false;
+        public string AvatarBg         = "#E3F2FD";
+        public string AvatarTx         = "#1B4DA0";
+    }
+
+    // ── Seed data (TODO: replace with ClinicCoreDbContext query) ────────────
+    private static readonly PatientResult[] _seed =
+    [
+        new() { Id="00000001-0000-0000-0000-000000000001", Name="Rajesh Kumar Sharma",  Initials="RK", Mrn="PT-2026-003421", Sex="M", Dob="15 Apr 1978", Mobile="+91 98765 43210", LastEncounterType="OPD",  IsVip=true,  AvatarBg="#E3F2FD", AvatarTx="#1B4DA0" },
+        new() { Id="00000001-0000-0000-0000-000000000002", Name="Priya Sharma",          Initials="PS", Mrn="PT-2026-003419", Sex="F", Dob="22 Jun 1985", Mobile="+91 88765 43211", LastEncounterType="OPD",               AvatarBg="#FFF3E0", AvatarTx="#E65100" },
+        new() { Id="00000001-0000-0000-0000-000000000003", Name="Arjun Mehta",           Initials="AM", Mrn="PT-2026-003418", Sex="M", Dob="08 Feb 1970", Mobile="+91 77654 32109", LastEncounterType="IPD",               AvatarBg="#F3E8FF", AvatarTx="#7C3AED" },
+        new() { Id="00000001-0000-0000-0000-000000000004", Name="Sunita Verma",          Initials="SV", Mrn="PT-2025-009134", Sex="F", Dob="30 Sep 1980", Mobile="+91 98123 45678", LastEncounterType="OPD",               AvatarBg="#FEF9C3", AvatarTx="#854D0E" },
+        new() { Id="00000001-0000-0000-0000-000000000005", Name="Mohammed Irfan Khan",   Initials="MI", Mrn="PT-2025-007812", Sex="M", Dob="14 Jan 1955", Mobile="+91 99887 76655", LastEncounterType="OPD",  HasAllergy=true, AvatarBg="#ECFDF5", AvatarTx="#065F46" },
+        new() { Id="00000001-0000-0000-0000-000000000006", Name="Ananya Krishnamurthy",  Initials="AK", Mrn="PT-2024-005511", Sex="F", Dob="02 Nov 1992", Mobile="+91 87654 32101", LastEncounterType="IPD",               AvatarBg="#FEF2F2", AvatarTx="#991B1B" },
+    ];
+
+    private List<PatientResult> _results = new(_seed);
+
+    // ── Search ────────────────────────────────────────────────────────────────
+    private async void OnSearchInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? string.Empty;
+        await RunSearchAsync();
+    }
+
+    private async void OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") { _query = string.Empty; await RunSearchAsync(); }
+    }
+
+    private async void SetFilter(string f) { _activeFilter = f; await RunSearchAsync(); }
+
+    private async Task RunSearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) { _results = new(_seed); StateHasChanged(); return; }
+
+        // Try real DB first
+        try
+        {
+            var user     = (await AuthState).User;
+            var clinicId = LiPi.Web.Services.ClaimsHelper.ClinicId(user);
+            if (clinicId.HasValue)
+            {
+                var coreDb = await ClinicDbFactory.CreateCoreForClinicAsync(clinicId.Value);
+                if (coreDb != null)
+                {
+                    await using (coreDb)
+                    {
+                        var q = _query.Trim().ToLowerInvariant();
+                        var dbResults = await coreDb.Patients
+                            .Where(p => p.ClinicId == clinicId.Value && p.Person.DeletedAt == null)
+                            .Include(p => p.Person)
+                                .ThenInclude(pe => pe.ContactPoints)
+                            .Include(p => p.Identifiers)
+                            .Where(p =>
+                                p.Person.GivenName.ToLower().Contains(q) ||
+                                (p.Person.FamilyName != null && p.Person.FamilyName.ToLower().Contains(q)) ||
+                                p.Person.DisplayName.ToLower().Contains(q) ||
+                                p.Mrn.ToLower().Contains(q) ||
+                                p.Person.ContactPoints.Any(cp => cp.System == "phone" && cp.Value.Contains(q)))
+                            .Take(20)
+                            .AsNoTracking()
+                            .ToListAsync();
+
+                        _results = dbResults.Select(p =>
+                        {
+                            var mobile = p.Person.ContactPoints.FirstOrDefault(cp => cp.System == "phone" && cp.IsPrimary)?.Value ?? string.Empty;
+                            var initials = string.Concat(new[]{p.Person.GivenName, p.Person.FamilyName ?? string.Empty}
+                                .Where(s => s.Length > 0).Select(s => s[0].ToString().ToUpperInvariant()));
+                            return new PatientResult
+                            {
+                                Id = p.Id.ToString(), Name = p.Person.DisplayName, Initials = initials,
+                                Mrn = p.Mrn, Sex = p.Person.Gender ?? string.Empty,
+                                Dob = p.Person.DateOfBirth?.ToString("dd MMM yyyy") ?? string.Empty,
+                                Mobile = mobile, LastEncounterType = "OPD",
+                                IsVip = p.VipFlag,
+                                AvatarBg = "#E3F2FD", AvatarTx = "#1B4DA0",
+                            };
+                        }).ToList();
+
+                        StateHasChanged();
+                        return;
+                    }
+                }
+            }
+        }
+        catch { /* fall through to seed data */ }
+
+        // Fallback to seed data
+        var sq = _query.Trim().ToLowerInvariant();
+        _results = _seed.Where(p => MatchesAny(p, sq)).ToList();
+        StateHasChanged();
+    }
+
+    private static bool MatchesAny(PatientResult p, string q) =>
+        p.Name.ToLowerInvariant().Contains(q) ||
+        p.Mrn.ToLowerInvariant().Contains(q)  ||
+        p.Mobile.Replace(" ", "").Contains(q.Replace(" ", "")) ||
+        p.Dob.ToLowerInvariant().Contains(q);
+
+    private void OpenPatient(string id) =>
+        Nav.NavigateTo($"/patients/{id}/edit");
+}

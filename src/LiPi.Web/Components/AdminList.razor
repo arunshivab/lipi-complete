@@ -1,0 +1,240 @@
+@namespace LiPi.Web.Components
+@using LiPi.Web.Pages.AdminPages
+@using System.Text.RegularExpressions
+
+<div class="af-card" style="border-left-color:@Color;margin-bottom:16px">
+    <div class="af-card-header">
+        <div class="af-card-num" style="background:@Color">≡</div>
+        <span class="af-card-title">@Title (@Rows.Count)</span>
+    </div>
+    <div style="padding:0">
+        @if (!Rows.Any())
+        {
+            <div style="padding:20px;text-align:center;color:#94A3B8;font-size:12px">No @Title found.</div>
+        }
+        else
+        {
+            <div class="ma-th" style="grid-template-columns:32px 1.4fr 130px 160px 1fr 100px 120px">
+                <div></div>
+                <div>Admin</div>
+                <div style="text-align:center">Phone</div>
+                <div style="text-align:center">Email</div>
+                <div style="text-align:center">Clinics</div>
+                <div style="text-align:center">Status</div>
+                <div style="text-align:right">Actions</div>
+            </div>
+
+            @foreach (var row in Rows)
+            {
+                var r = row;
+                var editing = _editRow?.Id == r.Id;
+
+                <div>
+                    <div class="ma-row" style="grid-template-columns:32px 1.4fr 130px 160px 1fr 100px 120px">
+
+                        <div class="ul-avatar ul-avatar-@AvatarColor(r.UserType)" style="width:28px;height:28px;font-size:10px;border-radius:50%">
+                            @Initials(r.DisplayName)
+                        </div>
+
+                        @* Name — editable *@
+                        <div>
+                            @if (editing)
+                            {
+                                <div style="display:flex;gap:5px;margin-bottom:3px">
+                                    <input class="ma-inp" style="width:90px" @bind="_editFirst" @bind:event="oninput" placeholder="First" />
+                                    <input class="ma-inp" style="width:90px" @bind="_editLast"  @bind:event="oninput" placeholder="Last" />
+                                </div>
+                            }
+                            else
+                            {
+                                <div style="font-size:12px;font-weight:600;color:#0F2D5E">@r.DisplayName</div>
+                            }
+                            <div style="font-size:10px;color:#94A3B8;font-family:monospace">@r.Username</div>
+                        </div>
+
+                        @* Phone *@
+                        <div style="text-align:center">
+                            @if (editing)
+                            { <input class="ma-inp" @bind="_editPhone" @bind:event="oninput" placeholder="Mobile" /> }
+                            else
+                            { <span style="font-size:11px;color:#475569">@(r.Phone ?? "—")</span> }
+                        </div>
+
+                        @* Email *@
+                        <div style="text-align:center">
+                            @if (editing)
+                            { <input class="ma-inp" type="email" @bind="_editEmail" @bind:event="oninput" placeholder="Email" /> }
+                            else
+                            { <span style="font-size:11px;color:#475569">@(r.Email ?? "—")</span> }
+                        </div>
+
+                        @* Clinics *@
+                        <div style="text-align:center">
+                            @if (r.Clinics.Any())
+                            {
+                                <div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">
+                                    @foreach (var c in r.Clinics.Take(2))
+                                    { <span style="font-size:9px;background:#EEF2FF;color:#3730A3;border-radius:10px;padding:1px 6px">@c</span> }
+                                    @if (r.Clinics.Count > 2)
+                                    { <span style="font-size:9px;color:#94A3B8">+@(r.Clinics.Count-2)</span> }
+                                </div>
+                            }
+                            else
+                            { <span style="font-size:10px;color:#94A3B8">All clinics</span> }
+                        </div>
+
+                        @* Status *@
+                        <div style="text-align:center">
+                            <span class="ul-role-pill @StatusPill(r.Status)">@r.Status</span>
+                        </div>
+
+                        @* Actions *@
+                        <div style="display:flex;gap:3px;justify-content:flex-end;align-items:center">
+                            @if (editing)
+                            {
+                                <button class="btn-primary" style="font-size:10px;padding:3px 10px"
+                                        @onclick="@(async () => await DoSave(r.Id))">✓ Save</button>
+                                <button class="btn-secondary" style="font-size:10px;padding:3px 8px"
+                                        @onclick="CancelEdit">Cancel</button>
+                            }
+                            else
+                            {
+                                <button class="ul-act ul-act-edit" title="Edit" @onclick="() => StartEdit(r)">✏</button>
+                                <button class="ul-act" title="Reset Password" style="color:#7C3AED"
+                                        @onclick="@(async () => await OnResetPwd.InvokeAsync(r.Id))">🔑</button>
+                                @if (!IsGodMode)
+                                {
+                                    @if (r.Status == "active" && OnSuspend.HasDelegate)
+                                    { <button class="ul-act ul-act-susp" title="Suspend" @onclick="@(async () => await OnSuspend.InvokeAsync(r.Id))">⏸</button> }
+                                    @if (r.Status is "active" or "suspended" && OnTerminate.HasDelegate)
+                                    { <button class="ul-act ul-act-del" title="Terminate" @onclick="@(async () => await OnTerminate.InvokeAsync(r.Id))">⏻</button> }
+                                    @if (r.Status == "locked" && OnUnlock.HasDelegate)
+                                    { <button class="ul-act ul-act-ok" title="Unlock" @onclick="@(async () => await OnUnlock.InvokeAsync(r.Id))">🔓</button> }
+                                    @if (r.Status is "suspended" or "terminated" && OnReactivate.HasDelegate)
+                                    { <button class="ul-act ul-act-ok" title="Reactivate" @onclick="@(async () => await OnReactivate.InvokeAsync(r.Id))">▶</button> }
+                                }
+                            }
+                        </div>
+                    </div>
+
+                    @* ── Clinic editor (SiteAdmin only, expands below the row) ── *@
+                    @if (editing && r.UserType == "site_admin" && AllClinics.Any())
+                    {
+                        <div style="padding:10px 14px 14px 46px;background:#F8FAFC;border-bottom:1px solid #E2E8F0">
+                            <div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+                                Clinic Assignments
+                            </div>
+                            @* Selected chips *@
+                            @if (_editClinicIds.Any())
+                            {
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;padding:5px 8px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:6px">
+                                    @foreach (var id in _editClinicIds.ToList())
+                                    {
+                                        var cname = AllClinics.FirstOrDefault(c => c.Id == id).Name ?? string.Empty;
+                                        var rid = id;
+                                        <span style="display:flex;align-items:center;gap:4px;background:#DBEAFE;color:#1E40AF;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:500">
+                                            @cname
+                                            <button type="button" style="background:none;border:none;color:#1E40AF;cursor:pointer;padding:0;font-size:11px;line-height:1"
+                                                    @onclick="() => _editClinicIds.Remove(rid)">×</button>
+                                        </span>
+                                    }
+                                </div>
+                            }
+                            @* Search *@
+                            <input class="ma-inp" style="width:100%;margin-bottom:6px"
+                                   placeholder="Search clinics by name or code…"
+                                   @bind="_editClinicSearch" @bind:event="oninput" />
+                            @* Filtered list *@
+                            <div style="max-height:140px;overflow-y:auto;border:1px solid #E2E8F0;border-radius:6px;padding:4px">
+                                @{ var filtered = AllClinics.Where(c =>
+                                       string.IsNullOrEmpty(_editClinicSearch) ||
+                                       c.Name.Contains(_editClinicSearch, StringComparison.OrdinalIgnoreCase) ||
+                                       c.Code.Contains(_editClinicSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                                @if (!filtered.Any())
+                                { <div style="padding:8px;text-align:center;font-size:11px;color:#94A3B8">No clinics found</div> }
+                                @foreach (var c in filtered)
+                                {
+                                    var cid = c.Id; var sel = _editClinicIds.Contains(cid);
+                                    <button type="button" @onclick="() => ToggleEditClinic(cid)"
+                                            style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:none;border-radius:5px;background:@(sel?"#EFF6FF":"transparent");cursor:pointer;text-align:left;width:100%">
+                                        <input type="checkbox" checked="@sel" style="pointer-events:none;flex-shrink:0" />
+                                        <span style="flex:1;font-size:11px;color:#0F2D5E;font-weight:@(sel?"600":"400")">@c.Name</span>
+                                        <span style="font-size:9px;background:#EEF2FF;color:#3730A3;border-radius:3px;padding:1px 5px;font-family:monospace">@c.Code</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title    { get; set; } = string.Empty;
+    [Parameter] public string Color    { get; set; } = "#0B2545";
+    [Parameter] public bool   IsGodMode{ get; set; }
+    [Parameter] public List<SysAdmins.AdminRow> Rows { get; set; } = new();
+    [Parameter] public List<(Guid Id, string Name, string Code)> AllClinics { get; set; } = new();
+
+    [Parameter] public EventCallback<(Guid Id, string First, string Last, string Email, string Phone, HashSet<Guid> ClinicIds)> OnSave { get; set; }
+    [Parameter] public EventCallback<Guid> OnResetPwd  { get; set; }
+    [Parameter] public EventCallback<Guid> OnLock      { get; set; }
+    [Parameter] public EventCallback<Guid> OnUnlock    { get; set; }
+    [Parameter] public EventCallback<Guid> OnSuspend   { get; set; }
+    [Parameter] public EventCallback<Guid> OnTerminate { get; set; }
+    [Parameter] public EventCallback<Guid> OnReactivate{ get; set; }
+
+    // Local edit state — no parameter passing needed
+    private SysAdmins.AdminRow? _editRow;
+    private string _editFirst = string.Empty, _editLast  = string.Empty;
+    private string _editEmail = string.Empty, _editPhone = string.Empty;
+    private HashSet<Guid> _editClinicIds = new();
+    private string _editClinicSearch = string.Empty;
+
+    private void StartEdit(SysAdmins.AdminRow r)
+    {
+        _editRow   = r;
+        _editFirst = r.FirstName;
+        _editLast  = r.LastName;
+        _editEmail = r.Email  ?? string.Empty;
+        _editPhone = r.Phone  ?? string.Empty;
+        _editClinicIds  = r.ClinicIds.ToHashSet();
+        _editClinicSearch = string.Empty;
+    }
+
+    private void CancelEdit() => _editRow = null;
+
+    private void ToggleEditClinic(Guid id) { if (!_editClinicIds.Remove(id)) _editClinicIds.Add(id); }
+
+    private async Task DoSave(Guid id)
+    {
+        await OnSave.InvokeAsync((id, _editFirst, _editLast, _editEmail, _editPhone, _editClinicIds));
+        _editRow = null;
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+             : name.Length >= 2  ? name[..2].ToUpper() : name.ToUpper();
+    }
+
+    private static string AvatarColor(string type) => type switch
+    {
+        "global_admin" => "navy",
+        "sys_admin"    => "purple",
+        "site_admin"   => "teal",
+        _              => "slate",
+    };
+
+    private static string StatusPill(string s) => s switch
+    {
+        "active"     => "ul-role-green",
+        "suspended"  => "ul-role-amber",
+        "terminated" => "ul-role-red",
+        "locked"     => "ul-role-red",
+        _            => "ul-role-navy",
+    };
+}

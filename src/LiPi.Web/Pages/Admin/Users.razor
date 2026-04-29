@@ -1,0 +1,535 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using System.Text.Json
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using LiPi.Clinic.Identity
+@using LiPi.Clinic.Identity.Entities
+@using Microsoft.EntityFrameworkCore
+@using LiPi.Web.Services
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+@inject IDbContextFactory<MasterDbContext> _masterFactory
+@inject IDbContextFactory<IdentityDbContext> _identityFactory
+@inject IAuditService _audit
+
+<PageTitle>User Management – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+  <div class="tn-pt-title">User Management</div>
+  <div class="tn-pt-sub">Register, roles &amp; rights</div>
+</SectionContent>
+
+<div class="ap-body">
+  <div class="ap-table-wrap">
+
+    @* Toolbar *@
+    <div class="ap-toolbar">
+      <div class="ap-search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" placeholder="Search name, username or email…"
+               value="@_search" @oninput="OnSearch" />
+      </div>
+      <div class="ap-filters">
+        @foreach (var s in new[]{"All","active","suspended"})
+        {
+          var sv = s;
+          <button class="ap-filter-btn @(_status==sv&&!_showTerminated?"active":"")"
+                  @onclick="() => SetStatus(sv)">
+            @(sv=="All"?"All":char.ToUpper(sv[0])+sv[1..])
+          </button>
+        }
+        <button class="ap-filter-btn @(_showTerminated?"active":"")"
+                @onclick="ToggleTerminated"
+                style="@(_showTerminated?"border-color:#DC2626;color:#DC2626":"")">
+          Terminated
+        </button>
+      </div>
+      <a href="/admin/users/new" class="btn-primary btn-sm" style="white-space:nowrap;margin-left:auto">+ Register User</a>
+    </div>
+
+    @* Terminated banner *@
+    @if (_showTerminated)
+    {
+      <div style="background:#FEF2F2;border-bottom:1px solid #FECACA;padding:8px 16px;font-size:11px;color:#991B1B;display:flex;align-items:center;gap:8px">
+        <span>⚠</span>
+        Showing terminated users only — these accounts are deactivated and cannot log in.
+        <button @onclick="ToggleTerminated" style="margin-left:auto;background:none;border:none;color:#991B1B;cursor:pointer;font-size:11px;font-weight:600">✕ Close</button>
+      </div>
+    }
+
+    @* Column headers *@
+    @if (!_loading && _filtered.Count > 0)
+    {
+      <div style="display:grid;grid-template-columns:44px 1.8fr 130px 140px 1fr 110px;gap:0 8px;padding:6px 16px;border-bottom:0.5px solid var(--border)">
+        <div></div>
+        <div class="ul-col-hdr">Name &amp; Actions</div>
+        <div class="ul-col-hdr" style="text-align:center">Roles</div>
+        <div class="ul-col-hdr" style="text-align:center">Designation</div>
+        <div class="ul-col-hdr" style="text-align:center">Clinics</div>
+        <div class="ul-col-hdr" style="text-align:center">Status</div>
+      </div>
+    }
+
+    @if (_loading)
+    {
+      <div class="ap-placeholder"><div class="ap-placeholder-icon">⏳</div><p>Loading users…</p></div>
+    }
+    else if (_filtered.Count == 0)
+    {
+      <div class="ap-table-empty">
+        <div class="ap-table-empty-icon">👥</div>
+        <p class="ap-table-empty-title">@(_showTerminated ? "No terminated users" : "No users found")</p>
+        @if (!_showTerminated)
+        {
+          <a href="/admin/users/new" class="btn-primary btn-sm">+ Register First User</a>
+        }
+      </div>
+    }
+    else
+    {
+      @foreach (var u in _filtered)
+      {
+        var uid = u.Id;
+        var rowStatus = _isSiteAdmin && _membershipStatus.TryGetValue(u.Id, out var _ms) ? _ms : u.Status;
+        var isTerminated = rowStatus == "terminated";
+        <div class="ul-row ul-status-@rowStatus"
+             style="display:grid;grid-template-columns:44px 1.8fr 130px 140px 1fr 110px;gap:0 8px;padding:10px 16px;align-items:center;@(isTerminated?"opacity:.6":"")">
+
+          <div class="ul-avatar ul-avatar-navy" style="border-radius:50%;font-size:13px;font-weight:700">
+            @(u.FirstName?[..1].ToUpper())@(u.LastName?[..1].ToUpper())
+          </div>
+
+          <div class="ul-info">
+            <div class="ul-name-row">
+              <a href="/admin/users/@uid/edit" class="ul-username">@u.DisplayName</a>
+              <span class="ul-mono-badge">@u.Username</span>
+            </div>
+            <div class="ul-email">@(u.Email ?? "—")</div>
+            <div class="ul-actions">
+              @if (!isTerminated)
+              {
+                <a href="/admin/users/@uid/edit"   class="ul-act ul-act-edit"   title="Edit user">✏</a>
+                <a href="/admin/users/@uid/roles"  class="ul-act ul-act-roles"  title="Assign roles">🎭</a>
+                <a href="/admin/users/@uid/rights" class="ul-act ul-act-rights" title="Assign rights">🔑</a>
+                <a href="/admin/users/@uid/assign" class="ul-act" title="Manage clinic assignments" style="color:#0891B2">🏥</a>
+                @if (rowStatus == "suspended")
+                {
+                  <button type="button" class="ul-act ul-act-ok" title="Reactivate user"
+                          @onclick="() => Prompt(uid, ReactivateAction)">▶</button>
+                }
+                else
+                {
+                  <button type="button" class="ul-act ul-act-susp" title="Suspend user"
+                          @onclick="() => Prompt(uid, SuspendAction)">⏸</button>
+                }
+                <button type="button" class="ul-act ul-act-del" title="Terminate user"
+                        @onclick="() => Prompt(uid, TerminateAction)">⏻</button>
+              }
+              else
+              {
+                <button type="button" class="ul-act ul-act-ok" title="Reactivate user"
+                        @onclick="() => Prompt(uid, ReactivateAction)">▶ Reactivate</button>
+              }
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:2px;align-items:center;justify-content:center">
+            @{ var uRole = GetRole(u.Id); }
+            @if (!string.IsNullOrEmpty(uRole))
+            {
+                @foreach (var rp in uRole.Split(", ", StringSplitOptions.RemoveEmptyEntries))
+                { <span style="background:#EDE7F6;color:#4A148C;border-radius:20px;padding:1px 8px;font-size:9px;font-weight:500;white-space:nowrap">@rp</span> }
+            }
+            else
+            { <span style="font-size:10px;color:#94A3B8">—</span> }
+          </div>
+          <div style="font-size:11px;color:var(--tx-2);display:flex;align-items:center;justify-content:center">@GetDesignation(u)</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;justify-content:center">
+            @{ var uClinics = _clinics.TryGetValue(u.Id, out var cl2) ? cl2 : new(); }
+            @if (!uClinics.Any())
+            { <span style="font-size:10px;color:#94A3B8">—</span> }
+            @foreach (var cn in uClinics)
+            {
+                <span style="font-size:9px;background:#EEF2FF;color:#3730A3;border-radius:10px;padding:2px 7px;white-space:nowrap;font-weight:500">@cn</span>
+            }
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center">
+            <span class="ul-role-pill @StatusPill(rowStatus)">@rowStatus</span>
+          </div>
+
+        </div>
+      }
+      <div class="ul-footer-count">Showing @_filtered.Count of @_all.Count user(s)</div>
+    }
+
+  </div>
+</div>
+
+@* Confirmation dialog *@
+@if (_confirmId != Guid.Empty)
+{
+  <div class="ue-confirm-backdrop" @onclick="CloseConfirm">
+    <div class="ue-confirm-card" @onclick:stopPropagation="true">
+      <div class="ue-confirm-title">@_confirmTitle</div>
+      <div class="ue-confirm-body">@_confirmBody</div>
+      @if (!string.IsNullOrEmpty(_confirmError))
+      {
+        <div style="font-size:11px;color:#DC2626;background:#FEF2F2;border-radius:6px;padding:6px 10px;margin-top:8px">⚠ @_confirmError</div>
+      }
+      <div class="ue-confirm-btns">
+        <button type="button" class="btn-secondary" @onclick="CloseConfirm">Cancel</button>
+        <button type="button" class="@_confirmBtnClass" disabled="@_actionBusy" @onclick="ExecuteAction">
+          @(_actionBusy ? "Working…" : _confirmBtnLabel)
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<style>
+.ul-mono-badge{font-size:9px;font-weight:700;background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;border-radius:4px;padding:1px 6px;font-family:'DM Mono',monospace;letter-spacing:.5px}
+.ul-act-roles{color:#7C3AED!important}.ul-act-roles:hover{background:#F5F3FF!important}
+.ul-act-rights{color:#EA580C!important}.ul-act-rights:hover{background:#FFF7ED!important}
+.ul-act-ok{color:#16A34A!important;font-size:10px!important}.ul-act-ok:hover{background:#ECFDF5!important}
+.ul-col-hdr{font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px}
+</style>
+
+@code {
+  [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private bool   _loading = true, _showTerminated;
+  private string _search = string.Empty, _status = "All";
+  private List<PlatformUser> _all = new(), _filtered = new();
+  private Dictionary<Guid, (string ClinicName, string Designation)> _meta = new();
+  private Dictionary<Guid, List<string>> _clinics = new();
+  private HashSet<Guid> _siteAdminClinicIds = new();
+  private Dictionary<Guid, string> _roles = new();
+
+  private const string SuspendAction    = "suspend";
+  private const string TerminateAction  = "terminate";
+  private const string ReactivateAction = "reactivate";
+
+  private Guid   _confirmId     = Guid.Empty;
+  private Guid   siteAdminClinicId = Guid.Empty;
+  private string _currentRole = string.Empty;
+  private bool   _isSiteAdmin => _currentRole == "site_admin";
+  private bool   _isGlobalOrSys => _currentRole is "global_admin" or "sys_admin";
+  // Clinic membership statuses for SiteAdmin view
+  private Dictionary<Guid, string> _membershipStatus = new();
+  private string _confirmAction = string.Empty, _confirmTitle  = string.Empty;
+  private string _confirmBody   = string.Empty, _confirmBtnLabel = string.Empty;
+  private string _confirmBtnClass = string.Empty, _confirmError = string.Empty;
+  private bool   _actionBusy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var auth = await AuthState;
+    var role = auth.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+    _currentRole = role ?? string.Empty;
+    var _siteAdminClinicId = Guid.Empty;
+    if (role == "site_admin")
+    {
+        var cid = auth.User.FindFirst("clinicId")?.Value;
+        Guid.TryParse(cid, out _siteAdminClinicId);
+    }
+    siteAdminClinicId = _siteAdminClinicId;
+    if (role == "site_admin")
+    {
+        // Load ALL clinics the SiteAdmin belongs to (not just current login clinic)
+        var adminUserId = Guid.Empty;
+        Guid.TryParse(auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out adminUserId);
+        if (adminUserId != Guid.Empty)
+        {
+            await using var tempDb = await _masterFactory.CreateDbContextAsync();
+            var allMyClinicIds = await tempDb.ClinicMemberships
+                .Where(cm => cm.PlatformUserId == adminUserId && cm.Status == "active")
+                .Select(cm => cm.ClinicId).ToListAsync();
+            _siteAdminClinicIds = allMyClinicIds.ToHashSet();
+        }
+    }
+    if (role is not ("global_admin" or "sys_admin" or "site_admin"))
+    { Nav.NavigateTo("/dashboard", forceLoad: true); return; }
+    await LoadAsync();
+  }
+
+  private async Task LoadAsync()
+  {
+    _loading = true;
+    try
+    {
+      await using var db = await _masterFactory.CreateDbContextAsync();
+      var usersQ = db.PlatformUsers
+        .Where(u => u.DeletedAt == null && u.UserType == "staff")
+        .Include(u => u.ClinicMemberships).ThenInclude(cm => cm.Clinic)
+        .OrderBy(u => u.LastName).ThenBy(u => u.FirstName);
+
+      // SiteAdmin sees only their clinic's users
+      if (siteAdminClinicId != Guid.Empty)
+      {
+          _all = await usersQ
+              .Where(u => u.ClinicMemberships.Any(cm => cm.ClinicId == siteAdminClinicId))
+              .ToListAsync();
+          // Load per-clinic membership statuses for SiteAdmin
+          var ids = _all.Select(u => u.Id).ToList();
+          _membershipStatus = await db.ClinicMemberships
+              .Where(cm => cm.ClinicId == siteAdminClinicId && ids.Contains(cm.PlatformUserId))
+              .ToDictionaryAsync(cm => cm.PlatformUserId, cm => cm.Status);
+      }
+      else
+          _all = await usersQ.ToListAsync();
+
+      foreach (var u in _all)
+      {
+        try
+        {
+          var ext = JsonSerializer.Deserialize<JsonElement>(u.ExtensionData ?? "{}");
+          var des = ext.TryGetProperty("designation", out var d) ? d.GetString() ?? string.Empty : string.Empty;
+          var cl  = u.ClinicMemberships.FirstOrDefault()?.Clinic?.Name ?? "—";
+          _meta[u.Id] = (cl, des);
+          _clinics[u.Id] = u.ClinicMemberships
+              .Where(cm => cm.Status == "active" && cm.Clinic != null &&
+                           (_siteAdminClinicIds.Count == 0 || _siteAdminClinicIds.Contains(cm.ClinicId)))
+              .Select(cm => cm.Clinic!.Name).ToList();
+        }
+        catch { _meta[u.Id] = ("—", string.Empty); }
+      }
+    }
+    catch { }
+    // Load roles from identity DB
+    try
+    {
+      await using var identDb = await _identityFactory.CreateDbContextAsync();
+      var userIds = _all.Select(u => u.Id).ToList();
+      var userRoles = await identDb.UserRoles
+        .Include(ur => ur.Role)
+        .Where(ur => userIds.Contains(ur.UserId) && ur.ValidTo == null)
+        .ToListAsync();
+      _roles = userRoles
+        .GroupBy(ur => ur.UserId)
+        .ToDictionary(
+          g => g.Key,
+          g => string.Join(", ", g.Select(ur => FormatRoleLabel(ur.Role?.Code ?? string.Empty))
+                                  .Where(s => !string.IsNullOrEmpty(s)).Take(2))
+        );
+    }
+    catch { }
+    finally { _loading = false; ApplyFilter(); }
+  }
+
+  private void OnSearch(ChangeEventArgs e)  { _search = e.Value?.ToString() ?? string.Empty; ApplyFilter(); }
+  private void SetStatus(string s)          { _status = s; _showTerminated = false; ApplyFilter(); }
+  private void ToggleTerminated()           { _showTerminated = !_showTerminated; if (_showTerminated) _status = "All"; ApplyFilter(); }
+
+  private void ApplyFilter()
+  {
+    _filtered = _all
+      .Where(u => {
+          var s = _isSiteAdmin && _membershipStatus.TryGetValue(u.Id, out var ms2) ? ms2 : u.Status;
+          return _showTerminated ? s == "terminated" : (_status == "All" || s == _status) && s != "terminated";
+      })
+      .Where(u => string.IsNullOrWhiteSpace(_search)
+               || (u.DisplayName ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase)
+               || (u.Username    ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase)
+               || (u.Email       ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase))
+      .ToList();
+  }
+
+  private void Prompt(Guid id, string action)
+  {
+    var u = _all.First(x => x.Id == id);
+    _confirmId = id; _confirmAction = action; _confirmError = string.Empty;
+    (_confirmTitle, _confirmBody, _confirmBtnLabel, _confirmBtnClass) = action switch
+    {
+      "suspend"    => ($"Suspend {u.DisplayName}?",
+                       _isSiteAdmin
+                           ? $"This will suspend {u.DisplayName} from this clinic only. They may still be active in other clinics."
+                           : "This will suspend the user across all clinics and block login system-wide.",
+                       "Suspend", "ue-dz-btn ue-dz-warn"),
+      "reactivate" => ($"Reactivate {u.DisplayName}?",
+                       _isSiteAdmin
+                           ? $"This will restore {u.DisplayName}'s access to this clinic."
+                           : "This will restore the user's access to all clinics they are a member of.",
+                       "Reactivate", "ue-dz-btn ue-dz-ok"),
+      "terminate"  => ($"Terminate {u.DisplayName}?",
+                       _isSiteAdmin
+                           ? $"This will terminate {u.DisplayName}'s membership in this clinic. They may still be active in other clinics. Audit records are preserved per HIPAA."
+                           : $"This will terminate {u.DisplayName} across all clinics. All audit records are preserved per HIPAA.",
+                       "Terminate", "ue-dz-btn ue-dz-danger"),
+      _ => (string.Empty, string.Empty, string.Empty, string.Empty)
+    };
+  }
+
+  private void CloseConfirm() { _confirmId = Guid.Empty; _confirmAction = string.Empty; }
+
+  private async Task ExecuteAction()
+  {
+    _actionBusy = true; _confirmError = string.Empty; StateHasChanged();
+    try
+    {
+      var actor = (await AuthState).User;
+      await using var db = await _masterFactory.CreateDbContextAsync();
+      var u = await db.PlatformUsers.FindAsync(_confirmId);
+      if (u == null) { _confirmError = "User not found."; return; }
+
+      var newStatus = _confirmAction switch
+      {
+        "suspend"    => "suspended",
+        "reactivate" => "active",
+        "terminate"  => "terminated",
+        _            => u.Status
+      };
+
+      if (_isSiteAdmin && siteAdminClinicId != Guid.Empty)
+      {
+          // SiteAdmin: update this clinic membership only
+          var cm = await db.ClinicMemberships
+              .FirstOrDefaultAsync(m => m.PlatformUserId == _confirmId && m.ClinicId == siteAdminClinicId);
+          if (cm != null)
+          {
+              cm.Status    = newStatus;
+              cm.UpdatedAt = DateTime.UtcNow;
+              if (newStatus == "suspended")   cm.SuspendedAt  = DateTime.UtcNow;
+              if (newStatus == "terminated")  cm.TerminatedAt = DateTime.UtcNow;
+              if (newStatus == "active")      { cm.SuspendedAt = null; cm.TerminatedAt = null; }
+          }
+          await db.SaveChangesAsync();
+          // Auto-terminate platform user if all clinics terminated
+          if (newStatus == "terminated")
+          {
+              var anyActive = await db.ClinicMemberships
+                  .AnyAsync(m => m.PlatformUserId == _confirmId && m.Status != "terminated");
+              if (!anyActive) { u.Status = "terminated"; u.UpdatedAt = DateTime.UtcNow; }
+          }
+      }
+      else
+      {
+          // GlobalAdmin/SysAdmin: update platform user + all clinic memberships
+          u.Status    = newStatus;
+          u.UpdatedAt = DateTime.UtcNow;
+          var allCms = await db.ClinicMemberships
+              .Where(m => m.PlatformUserId == _confirmId).ToListAsync();
+          foreach (var cm in allCms)
+          {
+              cm.Status    = newStatus;
+              cm.UpdatedAt = DateTime.UtcNow;
+              if (newStatus == "suspended")  cm.SuspendedAt  = DateTime.UtcNow;
+              if (newStatus == "terminated") cm.TerminatedAt = DateTime.UtcNow;
+              if (newStatus == "active")     { cm.SuspendedAt = null; cm.TerminatedAt = null; }
+          }
+      }
+      await db.SaveChangesAsync();
+
+      var auditAction = _confirmAction switch
+      {
+        "suspend"    => AuditActions.UserSuspended,
+        "reactivate" => AuditActions.UserReactivated,
+        "terminate"  => AuditActions.UserTerminated,
+        _            => string.Empty
+      };
+      if (!string.IsNullOrEmpty(auditAction))
+        try { await _audit.LogAsync(Guid.Empty, actor, auditAction, "user", _confirmId, u.Username, null, null); }
+        catch { }
+
+      CloseConfirm();
+      await LoadAsync();
+    }
+    catch (Exception ex) { _confirmError = ex.Message; }
+    finally { _actionBusy = false; }
+  }
+
+  private string GetRole(Guid id) => _roles.TryGetValue(id, out var r) ? r : string.Empty;
+
+  private static string FormatRoleLabel(string code) => code switch
+  {
+    "consultant"          => "Consultant",
+    "visiting_consultant" => "Visiting Consultant",
+    "medical_officer"     => "Medical Officer",
+    "senior_resident"     => "Sr. Resident",
+    "junior_resident"     => "Jr. Resident",
+    "chief_nurse"         => "Chief Nurse",
+    "nurse_manager"       => "Nurse Manager",
+    "nurse_supervisor"    => "Nurse Supervisor",
+    "staff_nurse"         => "Staff Nurse",
+    "trainee_nurse"       => "Trainee Nurse",
+    "chief_physicist"     => "Chief Physicist",
+    "senior_physicist"    => "Sr. Physicist",
+    "medical_physicist"   => "Physicist",
+    "resident_physicist"  => "Resident Physicist",
+    "trainee_physicist"   => "Trainee Physicist",
+    "senior_dosimetrist"  => "Sr. Dosimetrist",
+    "dosimetrist"         => "Dosimetrist",
+    "chief_rtt"           => "Chief RTT",
+    "senior_rtt"          => "Senior RTT",
+    "rtt"                 => "RTT",
+    "trainee_rtt"         => "Trainee RTT",
+    "chief_rad_tech"      => "Chief Rad Tech",
+    "senior_rad_tech"     => "Sr. Rad Tech",
+    "rad_tech"            => "Rad Tech",
+    "trainee_rad_tech"    => "Trainee Rad Tech",
+    "chief_lab_tech"      => "Chief Lab Tech",
+    "senior_lab_tech"     => "Sr. Lab Tech",
+    "lab_tech"            => "Lab Tech",
+    "trainee_lab_tech"    => "Trainee Lab Tech",
+    "chief_nm_tech"       => "Chief NM Tech",
+    "senior_nm_tech"      => "Sr. NM Tech",
+    "nm_tech"             => "NM Tech",
+    "trainee_nm_tech"     => "Trainee NM Tech",
+    "ot_incharge"         => "OT In-charge",
+    "ot_tech"             => "OT Tech",
+    "trainee_ot_tech"     => "Trainee OT Tech",
+    "cssd_incharge"       => "CSSD In-charge",
+    "cssd_tech"           => "CSSD Tech",
+    "trainee_cssd_tech"   => "Trainee CSSD Tech",
+    "head_billing"        => "Head Billing",
+    "billing_manager"     => "Billing Manager",
+    "billing_supervisor"  => "Billing Supervisor",
+    "billing_executive"   => "Billing Executive",
+    "billing_trainee"     => "Billing Trainee",
+    "chief_pharmacist"    => "Chief Pharmacist",
+    "senior_pharmacist"   => "Sr. Pharmacist",
+    "pharmacist"          => "Pharmacist",
+    "trainee_pharmacist"  => "Trainee Pharmacist",
+    "chief_dietician"     => "Chief Dietician",
+    "senior_dietician"    => "Sr. Dietician",
+    "dietician"           => "Dietician",
+    "trainee_dietician"   => "Trainee Dietician",
+    "chief_physio"        => "Chief Physio",
+    "senior_physio"       => "Sr. Physio",
+    "physiotherapist"     => "Physiotherapist",
+    "trainee_physio"      => "Trainee Physio",
+    "senior_counsellor"   => "Sr. Counsellor",
+    "counsellor"          => "Counsellor",
+    "social_worker"       => "Social Worker",
+    "trainee_counsellor"  => "Trainee Counsellor",
+    "coo"                 => "COO",
+    "facility_director"   => "Facility Director",
+    "administrator"       => "Administrator",
+    "mro"                 => "MRO",
+    "front_desk_manager"  => "Front Desk Mgr",
+    "front_desk_executive"=> "Front Desk Exec",
+    "help_desk"           => "Help Desk",
+    "rso_1"               => "RSO Level I",
+    "rso_2"               => "RSO Level II",
+    "rso_3"               => "RSO Level III",
+    _ => string.Empty,
+  };
+
+  private string GetDesignation(PlatformUser u) => _meta.TryGetValue(u.Id, out var m) ? m.Designation : string.Empty;
+  private string GetClinic(PlatformUser u)       => _meta.TryGetValue(u.Id, out var m) ? m.ClinicName  : "—";
+
+  private static string StatusPill(string s) => s switch
+  {
+    "active"     => "ul-pill-green",
+    "suspended"  => "ul-pill-amber",
+    "terminated" => "ul-pill-red",
+    _            => "ul-pill-navy",
+  };
+}

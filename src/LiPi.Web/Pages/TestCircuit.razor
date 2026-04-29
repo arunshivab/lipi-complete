@@ -1,0 +1,47 @@
+@page "/test-circuit"
+@rendermode InteractiveServer
+
+@* ─────────────────────────────────────────────────────────────────
+   CIRCUIT DIAGNOSTIC PAGE — navigate to /test-circuit
+   If the button increments the counter, the Blazor SignalR circuit
+   is working correctly and all interactivity in UsersNew will work.
+   If clicking does nothing, there is a system-level circuit issue.
+   DELETE this file once confirmed working.
+───────────────────────────────────────────────────────────────── *@
+
+<style>
+  .tc { font-family: sans-serif; max-width: 400px; margin: 60px auto; text-align: center; padding: 40px;
+        border: 2px solid #e2e8f0; border-radius: 16px; background: #fff; }
+  .tc h1 { font-size: 18px; color: #0F2D5E; margin-bottom: 8px; }
+  .tc p  { font-size: 13px; color: #94A3B8; margin-bottom: 24px; }
+  .tc .count { font-size: 56px; font-weight: 700; color: @(count > 0 ? "#10B981" : "#94A3B8"); margin: 16px 0; }
+  .tc button { background: #0F2D5E; color: #fff; border: none; padding: 12px 32px;
+               border-radius: 8px; font-size: 14px; cursor: pointer; margin: 4px; }
+  .tc .reset { background: #EF4444; }
+  .tc .status { margin-top: 20px; font-size: 12px; padding: 8px 14px; border-radius: 8px;
+                background: @(count > 0 ? "#ECFDF5" : "#F1F5F9");
+                color: @(count > 0 ? "#065F46" : "#475569"); }
+</style>
+
+<div class="tc">
+  <h1>🔌 Blazor Circuit Test</h1>
+  <p>Click the button. If the number goes up, the circuit works.</p>
+  <div class="count">@count</div>
+  <button @onclick="Increment">Click me</button>
+  <button class="reset" @onclick="Reset">Reset</button>
+  <div class="status">
+    @if (count == 0)
+    { <span>Waiting for click…</span> }
+    else
+    { <span>✅ Circuit is working! Clicked @count time@(count == 1 ? "" : "s").</span> }
+  </div>
+  <p style="margin-top:20px;font-size:11px;color:#94A3B8">
+    Last render: @DateTime.Now.ToString("HH:mm:ss")
+  </p>
+</div>
+
+@code {
+  private int count = 0;
+  private void Increment() => count++;
+  private void Reset()     => count = 0;
+}

@@ -1,0 +1,125 @@
+@namespace LiPi.Web.Components.Shared
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using Microsoft.JSInterop
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+@if (_visible)
+{
+    @if (_open)
+    {
+        <div class="pfab-overlay" @onclick="Close"></div>
+    }
+
+    <div class="pfab-wrap @(_open ? "open" : "")">
+
+        @if (_open)
+        {
+            <div class="pfab-actions">
+                <div class="pfab-action-row" @onclick='() => Go("/patients/new")'>
+                    <div class="pfab-chip">
+                        Register patient
+                        <div class="pfab-chip-sub">New UHID reserved immediately</div>
+                    </div>
+                    <div class="pfab-action-dot reg">&#9998;</div>
+                </div>
+                <div class="pfab-action-row" @onclick='() => Go("/patients/search")'>
+                    <div class="pfab-chip">
+                        Search patient
+                        <div class="pfab-chip-sub">Name · MRN · Mobile · Aadhaar</div>
+                    </div>
+                    <div class="pfab-action-dot srch">&#9740;</div>
+                </div>
+                <div class="pfab-action-row" @onclick='() => Go("/patients/queue")'>
+                    <div class="pfab-chip">
+                        Add to queue
+                        <div class="pfab-chip-sub">Pick doctor and slot</div>
+                    </div>
+                    <div class="pfab-action-dot que">&#9711;</div>
+                </div>
+            </div>
+        }
+
+        <button class="pfab-btn" type="button"
+                title="Patient actions"
+                @onclick="Toggle">
+            <div class="pfab-pulse"></div>
+            <div class="pfab-icon"></div>
+        </button>
+
+    </div>
+
+
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private bool   _visible     = false;
+    private bool   _open        = false;
+
+
+    private DotNetObjectReference<PatientFab>? _selfRef;
+
+    private static readonly string[] _patientRoles =
+    [
+        "global_admin","sys_admin","site_admin",
+        "reception","data_entry",
+        "nurse","charge_nurse",
+        "physician","consultant","resident",
+        "billing_staff","tpa_staff",
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user  = (await AuthState).User;
+        var roles = user.Claims
+                       .Where(c => c.Type == ClaimTypes.Role)
+                       .Select(c => c.Value)
+                       .ToHashSet();
+        _visible = roles.Overlaps(_patientRoles);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !_visible) return;
+
+        _selfRef = DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("lipiNav.initFab", _selfRef);
+        }
+        catch { /* ignore during SSR */ }
+
+
+    }
+
+    [JSInvokable("HandleShortcut")]
+    public Task HandleShortcut(string action)
+    {
+        _ = action switch
+        {
+            "new"    => InvokeAsync(() => Go("/patients/new")),
+            "search" => InvokeAsync(() => Go("/patients/search")),
+            "queue"  => InvokeAsync(() => Go("/patients/queue")),
+            "close"  => InvokeAsync(Close),
+            _        => Task.CompletedTask,
+        };
+        return Task.CompletedTask;
+    }
+
+    private void Toggle() => _open = !_open;
+    private void Close()  { _open = false; StateHasChanged(); }
+    private void Go(string path) { _open = false; StateHasChanged(); Nav.NavigateTo(path); }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("lipiNav.disposeFab"); }
+        catch { }
+        _selfRef?.Dispose();
+    }
+}

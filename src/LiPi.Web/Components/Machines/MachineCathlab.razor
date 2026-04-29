@@ -1,0 +1,58 @@
+@namespace LiPi.Web.Components.Machines
+
+<!-- Catheterization Laboratory Component -->
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" class="machine-svg">
+    <rect width="800" height="500" fill="transparent"/>
+
+    <!-- Cath Lab Setup -->
+    <g id="cath-lab">
+        <!-- C-Arm Fluoroscope -->
+        <path d="M 350 120 Q 400 100 450 120" fill="none" stroke="rgba(245,158,11,0.5)" stroke-width="10" stroke-linecap="round"/>
+        <circle cx="350" cy="120" r="25" fill="rgba(255,255,255,0.1)" stroke="rgba(245,158,11,0.4)" stroke-width="2"/>
+        <circle cx="450" cy="120" r="25" fill="rgba(255,255,255,0.1)" stroke="rgba(245,158,11,0.4)" stroke-width="2"/>
+
+        <!-- X-ray Source (rotating) -->
+        <g style="animation: rotate-gantry 4s linear infinite; transform-origin: 400px 120px;">
+            <circle cx="400" cy="80" r="8" fill="rgba(245,158,11,0.8)" style="animation: pulse-glow 1.5s ease-in-out infinite;"/>
+        </g>
+
+        <!-- Procedural Table -->
+        <rect x="300" y="250" width="200" height="60" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" stroke-width="2" rx="4"
+              style="animation: slide-table 5s ease-in-out infinite;"/>
+        <rect x="310" y="260" width="180" height="40" fill="rgba(255,255,255,0.06)" stroke="none" rx="2"/>
+
+        <!-- Monitor Display (animated scan line) -->
+        <rect x="130" y="180" width="100" height="120" fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.4)" stroke-width="2" rx="4"/>
+        <line x1="130" y1="200" x2="230" y2="200" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+        <line x1="130" y1="240" x2="230" y2="240" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+        <line x1="130" y1="280" x2="230" y2="280" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+
+        <!-- Control Panel -->
+        <rect x="520" y="180" width="110" height="140" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.2)" stroke-width="2" rx="6"/>
+
+        <!-- Pressure/Flow Indicators -->
+        <rect x="530" y="200" width="90" height="30" fill="rgba(245,158,11,0.1)" stroke="rgba(245,158,11,0.3)" stroke-width="1" rx="2"/>
+        <text x="575" y="223" font-family="DM Mono" font-size="11" fill="rgba(245,158,11,0.8)" text-anchor="middle">120/80 mmHg</text>
+
+        <!-- Status Lights -->
+        <circle cx="545" cy="260" r="4" fill="rgba(16,185,129,0.9)" style="animation: blink-led 1s ease-in-out infinite;"/>
+        <circle cx="575" cy="260" r="4" fill="rgba(56,189,248,0.9)" style="animation: blink-led 1.1s ease-in-out infinite;"/>
+        <circle cx="605" cy="260" r="4" fill="rgba(245,158,11,0.9)" style="animation: blink-led 0.9s ease-in-out infinite;"/>
+
+        <!-- Contrast Injector -->
+        <rect x="620" y="200" width="40" height="80" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.2)" stroke-width="1" rx="3"/>
+        <circle cx="640" cy="215" r="6" fill="rgba(245,158,11,0.5)" style="animation: pulse-glow 1.5s ease-in-out infinite;"/>
+
+        <!-- Info Text -->
+        <text x="400" y="450" font-family="DM Sans" font-size="16" fill="rgba(255,255,255,0.6)" text-anchor="middle">Interventional Cardiology</text>
+    </g>
+</svg>
+
+<style>
+    .machine-svg {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        filter: drop-shadow(0 20px 40px rgba(0,0,0,0.5));
+    }
+</style>

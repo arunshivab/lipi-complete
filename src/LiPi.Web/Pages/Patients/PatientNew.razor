@@ -1,0 +1,1100 @@
+@namespace LiPi.Web.Pages.PatientPages
+@page "/patients/new"
+@page "/patients/register"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using System.Security.Claims
+@using System.Text.RegularExpressions
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject LiPi.Web.Services.IAadhaarXmlService AadhaarSvc
+@inject LiPi.Web.Services.ClinicDbFactory ClinicDbFactory
+@inject LiPi.Web.Services.IDuplicateDetectionService DupSvc
+
+<PageTitle>Register Patient – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Register Patient</div>
+    <div class="tn-pt-sub">OPD · New patient registration</div>
+</SectionContent>
+
+<div class="pr-body">
+
+  <div class="pr-kpi-strip">
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#0B2545"></div><div class="pr-kpi-lbl">Today's Reg</div><div class="pr-kpi-val">38</div><div class="pr-kpi-sub">↑ 6 vs yesterday</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#D97706"></div><div class="pr-kpi-lbl">OPD Queue</div><div class="pr-kpi-val">12</div><div class="pr-kpi-sub">avg wait 18 min</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#1B4DA0"></div><div class="pr-kpi-lbl">Appts Today</div><div class="pr-kpi-val">47</div><div class="pr-kpi-sub">3 unconfirmed</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#4A9BD4"></div><div class="pr-kpi-lbl">Active Patients</div><div class="pr-kpi-val">1,284</div><div class="pr-kpi-sub">↑ 5.1% MoM</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#EF4444"></div><div class="pr-kpi-lbl">Pending</div><div class="pr-kpi-val">3</div><div class="pr-kpi-sub">action required</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#10B981"></div><div class="pr-kpi-lbl">Empty Slots</div><div class="pr-kpi-val">9</div><div class="pr-kpi-sub">all doctors</div></div>
+  </div>
+
+
+  @if (_dupOpen && _dupMatches.Count > 0)
+  {
+    <div class="dup-backdrop" @onclick="CloseDup">
+      <div class="dup-box" @onclick:stopPropagation="true">
+        <div class="dup-head"><div class="dup-head-icon">⚠️</div>
+          <span class="dup-head-title">Possible duplicate patient</span>
+          <button type="button" class="pr-modal-close" @onclick="CloseDup">✕ Close</button></div>
+        <div class="dup-body">
+          @foreach (var dm in _dupMatches)
+          { var dmid = dm.PatientId;
+            <div class="dup-match-card">
+              <div class="dup-match-head"><span class="dup-strength @DupCss(dm.MatchStrength)">@dm.MatchStrength.ToUpperInvariant()</span>
+                <span style="font-size:12px;font-weight:500;color:#0B2545;flex:1;margin-left:8px">@dm.DisplayName</span>
+                <span style="font-family:'DM Mono',monospace;font-size:11px;color:#E8B84B">@dm.Mrn</span></div>
+              <div class="dup-cols">
+                <div><div class="dup-col-head"><div class="dup-col-badge" style="background:#E3F2FD;color:#1B4DA0">NEW</div>This form</div>
+                  <div class="dup-field"><span class="dup-field-lbl">Name</span><span class="dup-field-val">@m.DisplayName</span></div>
+                  <div class="dup-field"><span class="dup-field-lbl">DOB</span><span class="dup-field-val">@(string.IsNullOrEmpty(m.DateOfBirth)?_ageDisp+" yrs est.":m.DateOfBirth)</span></div>
+                  <div class="dup-field"><span class="dup-field-lbl">Mobile</span><span class="dup-field-val">@(string.IsNullOrEmpty(m.Mobile)?"—":m.MobCC+" "+m.Mobile)</span></div></div>
+                <div><div class="dup-col-head"><div class="dup-col-badge" style="background:#ECFDF5;color:#065F46">DB</div>Existing record</div>
+                  <div class="dup-field"><span class="dup-field-lbl">Name</span><span class="dup-field-val">@dm.DisplayName</span></div>
+                  <div class="dup-field"><span class="dup-field-lbl">DOB</span><span class="dup-field-val">@(dm.DateOfBirth??"—")</span></div>
+                  <div class="dup-field"><span class="dup-field-lbl">Mobile</span><span class="dup-field-val">@(dm.Mobile??"—")</span></div></div>
+              </div>
+              <div class="dup-actions">
+                <button type="button" class="dup-open-btn" @onclick="() => OpenExisting(dmid)">Open existing record</button>
+                <div style="flex:1"></div>
+                <label class="pr-float" style="max-width:230px"><div class="pr-flabel">Override reason (required)</div>
+                  <input class="pr-inp" value="@_dupReason" @oninput="OnDupReason" placeholder="e.g. Verified in person" /></label>
+                <button type="button" class="dup-override-btn" disabled="@(string.IsNullOrWhiteSpace(_dupReason))" @onclick="OverrideDup">Override &amp; Continue</button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (_idOpen)
+  {
+    <div class="pr-modal-backdrop" @onclick="CloseId">
+      <div class="pr-modal-box" @onclick:stopPropagation="true">
+        <div class="pr-modal-head"><div class="pr-modal-icon" style="background:#E3F2FD;color:#1B4DA0">ID</div>
+          <span class="pr-modal-title">Patient Identifiers</span>
+          <button type="button" class="pr-modal-close" @onclick="CloseId">✕ Close</button></div>
+        <div class="pr-modal-body">
+          <div class="pr-modal-section">
+            <div class="pr-modal-section-title"><div class="pr-modal-badge" style="background:#E3F2FD;color:#1B4DA0">AB</div>ABDM / ABHA</div>
+            <div class="pr-mtabs">
+              <button type="button" class="pr-mtab @(_abdTab==0?_mtOn:_e)" @onclick="SetAbdTab0">ABHA Number</button>
+              <button type="button" class="pr-mtab @(_abdTab==1?_mtOn:_e)" @onclick="SetAbdTab1">ABHA Address</button>
+            </div>
+            @if (_abdTab == 0)
+            { <label class="pr-float" style="display:block;margin-bottom:8px"><div class="pr-flabel">14-digit ABHA Number</div>
+                <input id="pn-abha" name="abhaNumber" autocomplete="off" class="pr-minp" value="@m.AbhaNumber" inputmode="numeric" maxlength="17" @oninput="OnAbha" /></label>
+              <button type="button" class="pr-fetch-btn pr-fetch-abdm" disabled="@true">Fetch from ABDM →</button>
+              <div style="font-size:9px;color:#F59E0B;margin-top:4px">ABDM API — coming soon</div> }
+            @if (_abdTab == 1)
+            { <label class="pr-float" style="display:block;margin-bottom:8px"><div class="pr-flabel">ABHA Address</div>
+                <input id="pn-abha-a" name="abhaAddress" autocomplete="off" class="pr-minp" value="@m.AbhaAddress" placeholder="name@abdm" @oninput="OnAbhaAddr" /></label>
+              <button type="button" class="pr-fetch-btn pr-fetch-abdm" disabled="@true">Fetch from ABDM →</button> }
+          </div>
+          <div class="pr-modal-divider"></div>
+          <div class="pr-modal-section">
+            <div class="pr-modal-section-title"><div class="pr-modal-badge" style="background:#FFF3E0;color:#E65100">AA</div>Aadhaar — UIDAI</div>
+            <div class="pr-mtabs">
+              <button type="button" class="pr-mtab @(_aadTab==0?_mtOn:_e)" @onclick="SetAadTab0">XML Upload</button>
+              <button type="button" class="pr-mtab @(_aadTab==1?_mtOn:_e)" @onclick="SetAadTab1">Last 4 digits</button>
+            </div>
+            @if (_aadTab == 0 && !_aadDone)
+            { @if (!_clinicIndia)
+              { <label class="pr-consent-row" style="display:flex;margin-bottom:8px">
+                  <input type="checkbox" @onchange="OnAadConsent" />
+                  <span>Patient has provided consent to share identity document data</span>
+                </label> }
+              @if (_clinicIndia || _aadConsent)
+              { <div class="pr-aadh-upload"><div><div class="pr-upload-lbl">Offline XML from uidai.gov.in</div>
+                  <InputFile id="pn-aadh-zip" OnChange="OnAadhaarFile" accept=".zip" style="font-size:10px;width:100%" /></div>
+                  <label class="pr-float"><div class="pr-flabel">Share Code</div>
+                    <input id="pn-share" name="shareCode" autocomplete="off" class="pr-minp" value="@_shareCode" placeholder="4 digits" maxlength="4" inputmode="numeric" @oninput="OnShareCode" /></label>
+                </div>
+                <span class="pr-aa-note">Full Aadhaar never stored · UIDAI regulations</span>
+                @if (!string.IsNullOrEmpty(_aadErr)){<div class="pr-err-msg">⚠ @_aadErr</div>}
+                <button type="button" class="pr-fetch-btn pr-fetch-aadh"
+                        disabled="@(_aadFile==null||_shareCode.Length!=4||_aadParsing)" @onclick="ParseAadhaar">
+                  @(_aadParsing?"Reading…":"Auto-fill from XML →")</button> }
+              else { <span class="pr-aa-note">Tick consent above to upload</span> } }
+            @if (_aadTab == 0 && _aadDone)
+            { <div style="background:#ECFDF5;border:.5px solid #6EE7B7;border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:12px;color:#065F46">
+                ✅ Auto-filled — UID ending ···@m.AadhaarLast4
+                <button type="button" style="margin-left:auto;font-size:10px;color:#94A3B8;background:none;border:none;cursor:pointer" @onclick="ClearAadhaar">Clear</button></div> }
+            @if (_aadTab == 1)
+            { <label class="pr-float" style="display:block"><div class="pr-flabel">Last 4 digits only</div>
+                <input id="pn-aad4" name="aadhaarLast4" autocomplete="off" class="pr-minp" value="@m.AadhaarLast4" placeholder="1234" maxlength="4" inputmode="numeric" @oninput="OnAad4" /></label>
+              <span class="pr-aa-note">For record linking only</span> }
+          </div>
+          <div class="pr-modal-divider"></div>
+          <div class="pr-modal-section" style="margin-bottom:0">
+            <div class="pr-modal-section-title"><div class="pr-modal-badge" style="background:#F3E8FF;color:#7C3AED">OT</div>Other Government ID</div>
+            <div class="pr-g2" style="margin-bottom:0">
+              <label class="pr-float"><div class="pr-flabel">ID Type</div>
+                <select id="pn-oid-t" name="otherIdType" autocomplete="off" class="pr-msel" value="@m.OtherIdType" @onchange="OnOtherType">
+                  <option value="">—</option>
+                  <option value="passport">Passport</option>
+                  <option value="pan">PAN Card</option>
+                  <option value="voter_id">Voter ID</option>
+                  <option value="driving_licence">Driving Licence</option>
+                </select></label>
+              <label class="pr-float"><div class="pr-flabel">ID Number</div>
+                <input id="pn-oid-v" name="otherIdValue" autocomplete="off" class="pr-minp" value="@m.OtherIdValue" @oninput="OnOtherVal" /></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <div class="pr-panel">
+
+    <div class="pr-tabs">
+      <div class="@TabCss(0)" @onclick="() => GoTab(0)">
+        <div class="pr-tab-num">@TabNum(0)</div>
+        <div><div class="pr-tab-step">STEP 01</div><div class="pr-tab-lbl">Identity</div></div>
+      </div>
+      <div class="@TabCss(1)" @onclick="() => GoTab(1)">
+        <div class="pr-tab-num">@TabNum(1)</div>
+        <div><div class="pr-tab-step">STEP 02</div><div class="pr-tab-lbl">Address</div></div>
+      </div>
+      <div class="@TabCss(2)" @onclick="() => GoTab(2)">
+        <div class="pr-tab-num">@TabNum(2)</div>
+        <div><div class="pr-tab-step">STEP 03 · optional</div><div class="pr-tab-lbl">Socioeconomic</div></div>
+      </div>
+      <div class="@TabCss(3)" @onclick="() => GoTab(3)">
+        <div class="pr-tab-num">@TabNum(3)</div>
+        <div><div class="pr-tab-step">STEP 04 · optional</div><div class="pr-tab-lbl">Reg. Details</div></div>
+      </div>
+      <div class="@TabCss(4)" @onclick="() => GoTab(4)">
+        <div class="pr-tab-num">@TabNum(4)</div>
+        <div><div class="pr-tab-step">STEP 05</div><div class="pr-tab-lbl">Review</div></div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0">
+        @if (!string.IsNullOrEmpty(_successMsg))
+        { <span class="pr-inline-success">✓ @_successMsg</span> }
+        @if (!string.IsNullOrEmpty(_errorMsg) && _tab == 4)
+        { <span class="pr-inline-error">⚠ @_errorMsg</span> }
+        <button type="button" class="pr-btn-ghost" @onclick="HandleCancel">@(_saved ? "Close" : "Cancel")</button>
+        <button type="button" class="pr-btn-ghost" disabled="@(_tab == 0 || _saved)" @onclick="HandleBack">← Back</button>
+        <button type="button" class="pr-btn-primary" disabled="@(_tab == 4 || _saved)" @onclick="HandleNext">Next →</button>
+      </div>
+    </div>
+
+    <fieldset disabled="@_saved" style="border:none;padding:0;margin:0">
+    <div class="pr-main">
+      <div>
+
+        @if (_tab == 0) {
+          <div class="pr-form">
+            <div class="pr-sh"><span class="pr-sh-num">01</span><span class="pr-sh-title">Personal Identity</span><div class="pr-sh-line"></div></div>
+            <div class="pr-g4n">
+              <label class="pr-float"><div class="pr-flabel">Title</div>
+                <select id="pn-title" name="title" autocomplete="honorific-prefix" class="pr-sel" value="@m.Title" @onchange="OnTitle">
+                  <option value=""></option>
+                  <option value="Mr">Mr</option>
+                  <option value="Mrs">Mrs</option>
+                  <option value="Miss">Miss</option>
+                  <option value="Ms">Ms</option>
+                  <option value="Dr">Dr</option>
+                  <option value="Prof">Prof</option>
+                  <option value="Baby">Baby</option>
+                  <option value="Master">Master</option>
+                  <option value="Rev">Rev</option>
+                </select></label>
+              <label class="pr-float"><div class="pr-flabel">First Name <span style="color:#EF4444">*</span></div>
+                <input id="pn-fn" name="firstName" autocomplete="given-name" class="pr-inp @ErrCss(_kFn)"
+                       @bind:get="m.FirstName" @bind:set="OnFn" @bind:event="oninput" @onblur="OnFnBlur" />
+                @ErrFrag(_kFn)</label>
+              <label class="pr-float"><div class="pr-flabel">Middle Name</div>
+                <input id="pn-mn" name="middleName" autocomplete="additional-name" class="pr-inp"
+                       @bind:get="m.MiddleName" @bind:set="OnMn" @bind:event="oninput" /></label>
+              <label class="pr-float"><div class="pr-flabel">Last Name <span style="color:#EF4444">*</span></div>
+                <input id="pn-ln" name="lastName" autocomplete="family-name" class="pr-inp @ErrCss(_kLn)"
+                       @bind:get="m.LastName" @bind:set="OnLn" @bind:event="oninput" @onblur="OnLnBlur" />
+                @ErrFrag(_kLn)</label>
+            </div>
+            <div class="pr-dob-row">
+              <label class="pr-float"><div class="pr-flabel">Date of Birth <span style="font-size:8px;color:#7B8EA5;font-weight:400">⇄ auto-fills age</span></div>
+                <input id="pn-dob" name="dob" type="date" autocomplete="bday" class="pr-inp @ErrCss(_kDob)"
+                       value="@m.DateOfBirth" max="@DateTime.Today.ToString("yyyy-MM-dd")"
+                       @onchange="OnDob" @onblur="OnDobBlur" />
+                @ErrFrag(_kDob)</label>
+              <label class="pr-float"><div class="pr-flabel">Age (yrs)</div>
+                <input id="pn-age" name="approximateAge" autocomplete="off" class="pr-inp"
+                       @bind:get="_ageDisp" @bind:set="OnAgeSet" @bind:event="oninput"
+                       inputmode="numeric" maxlength="3" />
+                <span class="pr-note @_ageNoteCss">@_ageNote</span></label>
+              <label class="pr-float"><div class="pr-flabel">Gender <span style="color:#EF4444">*</span></div>
+                <select id="pn-gender" name="gender" autocomplete="sex" class="pr-sel @ErrCss(_kGender)" value="@_gender" @onchange="OnGender">
+                  <option value="">Select…</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other / Non-binary</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+                @ErrFrag(_kGender)</label>
+              <label class="pr-float"><div class="pr-flabel">Blood Group</div>
+                <select id="pn-blood" name="bloodGroup" autocomplete="off" class="pr-sel" value="@m.BloodGroup" @onchange="OnBlood">
+                  <option value="">Unknown</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                </select></label>
+            </div>
+            <div class="pr-dob-row">
+              <label class="pr-float" style="grid-column:1/3"><div class="pr-flabel">Marital Status</div>
+                <select id="pn-marital" name="maritalStatus" autocomplete="off" class="pr-sel" value="@m.MaritalStatus" @onchange="e => m.MaritalStatus=e.Value?.ToString()??string.Empty">
+                  <option value="">Select…</option>
+                  <option value="single">Single</option>
+                  <option value="married">Married</option>
+                  <option value="divorced">Divorced</option>
+                  <option value="widowed">Widowed</option>
+                </select></label>
+              <label class="pr-float"><div class="pr-flabel">Nationality</div>
+                <select id="pn-nat" name="nationality" autocomplete="country" class="pr-sel" value="@m.Nationality" @onchange="e => m.Nationality=e.Value?.ToString()??string.Empty">
+                  <option value="IN">Indian</option><option value="XX">Other</option>
+                </select></label>
+              <label class="pr-float"><div class="pr-flabel">Preferred Language</div>
+                <select id="pn-lang" name="preferredLanguage" autocomplete="language" class="pr-sel" value="@m.Language" @onchange="e => m.Language=e.Value?.ToString()??string.Empty">
+                  <option value="hi">Hindi</option>
+                  <option value="en">English</option>
+                  <option value="ta">Tamil</option>
+                  <option value="te">Telugu</option>
+                  <option value="mr">Marathi</option>
+                  <option value="bn">Bengali</option>
+                  <option value="gu">Gujarati</option>
+                  <option value="kn">Kannada</option>
+                </select></label>
+            </div>
+            <div class="pr-sh" style="margin-top:4px"><span class="pr-sh-num">02</span><span class="pr-sh-title">Contact</span><div class="pr-sh-line"></div></div>
+            <div class="pr-g3">
+              <label class="pr-float"><div class="pr-flabel">Mobile <span style="color:#EF4444">*</span></div>
+                <div class="pr-cc-wrap">
+                  <select id="pn-mob-cc" name="mobileCC" autocomplete="tel-country-code" class="pr-cc-sel" value="@m.MobCC" @onchange="OnMobCC">
+                    <option value="+91">+91 India</option>
+                    <option value="+1">+1 USA/CA</option>
+                    <option value="+44">+44 UK</option>
+                    <option value="+971">+971 UAE</option>
+                    <option value="+966">+966 KSA</option>
+                    <option value="+65">+65 SG</option>
+                    <option value="+61">+61 AU</option>
+                    <option value="+880">+880 BD</option>
+                    <option value="+94">+94 LK</option>
+                  </select>
+                  <input id="pn-mob" name="mobile" autocomplete="tel-national" class="pr-cc-inp @ErrCss(_kMob)"
+                         @bind:get="m.Mobile" @bind:set="OnMobSet" @bind:event="oninput"
+                         inputmode="numeric" placeholder="@MobHint()"
+                         @onblur="OnMobBlur" /></div>
+                @ErrFrag(_kMob)</label>
+              <label class="pr-float"><div class="pr-flabel">Alternate</div>
+                <div class="pr-cc-wrap">
+                  <select id="pn-amob-cc" name="altMobCC" autocomplete="off" class="pr-cc-sel" value="@m.AltMobCC" @onchange="e => m.AltMobCC=e.Value?.ToString()??string.Empty">
+                    <option value="+91">+91</option>
+                    <option value="+1">+1</option>
+                    <option value="+44">+44</option>
+                    <option value="+971">+971</option>
+                    <option value="+966">+966</option>
+                    <option value="+65">+65</option>
+                    <option value="+61">+61</option>
+                  </select>
+                  <input id="pn-amob" name="altMobile" autocomplete="off" class="pr-cc-inp @ErrCss(_kAlt)"
+                         @bind:get="m.AltMobile" @bind:set="OnAltMobSet" @bind:event="oninput"
+                         inputmode="numeric" placeholder="@MobHint()"
+                         @onblur="OnAltBlur" /></div>
+                @ErrFrag(_kAlt)</label>
+              <label class="pr-float"><div class="pr-flabel">Email <span style="font-size:8px;color:#7B8EA5">(optional)</span></div>
+                <input id="pn-email" name="email" type="email" autocomplete="email" class="pr-inp @ErrCss(_kEmail)"
+                       value="@m.Email" @oninput="OnEmail" @onblur="OnEmailBlur" />
+                @ErrFrag(_kEmail)</label>
+            </div>
+            <div class="pr-g3">
+              <label class="pr-float"><div class="pr-flabel">WhatsApp</div>
+                <div class="pr-cc-wrap">
+                  <select id="pn-wa-cc" name="whatsappCC" autocomplete="off" class="pr-cc-sel" value="@m.WaCC" @onchange="e => m.WaCC=e.Value?.ToString()??string.Empty">
+                    <option value="+91">+91</option>
+                    <option value="+1">+1</option>
+                    <option value="+44">+44</option>
+                    <option value="+971">+971</option>
+                    <option value="+966">+966</option>
+                    <option value="+65">+65</option>
+                    <option value="+61">+61</option>
+                  </select>
+                  <input id="pn-wa" name="whatsapp" autocomplete="off" class="pr-cc-inp @ErrCss(_kWa)"
+                         @bind:get="m.WhatsApp" @bind:set="OnWaSet" @bind:event="oninput"
+                         inputmode="numeric" placeholder="if different"
+                         @onblur="OnWaBlur" /></div>
+                @ErrFrag(_kWa)</label>
+              <label class="pr-float"><div class="pr-flabel">Landline</div>
+                <div class="pr-cc-wrap">
+                  <select id="pn-land-isd" name="landlineISD" autocomplete="off" class="pr-cc-sel" style="width:68px" value="@m.LandISD" @onchange="e => m.LandISD=e.Value?.ToString()??string.Empty">
+                    <option value="+91">+91</option>
+                    <option value="+1">+1</option>
+                    <option value="+44">+44</option>
+                    <option value="+971">+971</option>
+                    <option value="+65">+65</option>
+                  </select>
+                  <input id="pn-land-std" name="landlineSTD" autocomplete="off" inputmode="numeric" maxlength="5" placeholder="STD"
+                         style="width:56px;flex:none;border-left:none;border-right:none;border-radius:0;padding:16px 6px 5px;font-family:'DM Mono',monospace;font-size:12px;background:#fff;border-top:1px solid #B6C4D4;border-bottom:1px solid #B6C4D4;color:#0B2545;outline:none"
+                         value="@m.LandSTD" @oninput="e => m.LandSTD=StripDig(e.Value?.ToString(),5)" />
+                  <input id="pn-land-num" name="landlineNum" autocomplete="tel" class="pr-cc-inp"
+                         value="@m.LandNum" inputmode="numeric" placeholder="Number" @oninput="e => m.LandNum=StripDig(e.Value?.ToString(),10)" /></div></label>
+              <label class="pr-float"><div class="pr-flabel">Secondary Email <span style="font-size:8px;color:#7B8EA5">(optional)</span></div>
+                <input id="pn-email2" name="secondaryEmail" type="email" autocomplete="off" class="pr-inp @ErrCss(_kEmail2)"
+                       value="@m.Email2" @oninput="OnEmail2" @onblur="OnEmail2Blur" />
+                @ErrFrag(_kEmail2)</label>
+            </div>
+            <div class="pr-sh" style="margin-top:4px"><span class="pr-sh-num">03</span><span class="pr-sh-title">Alert Flags</span><div class="pr-sh-line"></div></div>
+            <div class="pr-flag-strip">
+              <button type="button" class="pr-flag-chip @(m.VipFlag?_cVip:_e)"    @onclick="TgVip">★ VIP</button>
+              <button type="button" class="pr-flag-chip @(m.Allergy?_cAl:_e)"     @onclick="TgAl">⚠ Allergies</button>
+              <button type="button" class="pr-flag-chip @(m.OrganDonor?_cOr:_e)"  @onclick="TgOr">♥ Organ Donor</button>
+              <button type="button" class="pr-flag-chip @(m.Research?_cAct:_e)"   @onclick="TgRes">🔬 Research</button>
+              <button type="button" class="pr-flag-chip @(m.Intl?_cAct:_e)"       @onclick="TgIntl">🌍 International</button>
+            </div>
+          </div>
+        }
+
+        @if (_tab == 1) {
+          <div class="pr-form">
+            <div class="pr-sh"><span class="pr-sh-num">04</span><span class="pr-sh-title">Address</span><div class="pr-sh-line"></div></div>
+            <LiPi.Web.Components.AddressBlock
+                AddressLine="@m.AddressLine" AddressLineChanged="v => m.AddressLine = v"
+                City="@m.City"              CityChanged="OnCityChanged"
+                State="@m.State"            StateChanged="OnStateChanged"
+                PinCode="@m.PinCode"        PinCodeChanged="OnPinChanged"
+                Required="true"
+                PinCodeBlurred="OnPinBlurred"
+                AddressLineBlurred="OnAddrBlurred"
+                CityBlurred="OnCityBlurred"
+                StateBlurred="OnStateBlurred"
+                PinError="@_pinErr"   PinErrorMsg="@_pinErrMsg"
+                CityError="@_cityErr" CityErrorMsg="City is required"
+                StateError="@_stateErr" StateErrorMsg="State is required" />
+          </div>
+        }
+
+        @if (_tab == 2) {
+          <div class="pr-form">
+            <div class="pr-sh"><span class="pr-sh-num">05</span><span class="pr-sh-title">Socioeconomic Profile</span><div class="pr-sh-line"></div></div>
+            <div class="pr-g3">
+              <label class="pr-float"><div class="pr-flabel">Occupation</div>
+                <input id="pn-occ" name="occupation" autocomplete="off" class="pr-inp" value="@m.Occupation" placeholder="e.g. Teacher" @oninput="e => m.Occupation=e.Value?.ToString()??string.Empty" /></label>
+              <label class="pr-float"><div class="pr-flabel">Education Level</div>
+                <select id="pn-edu" name="educationLevel" autocomplete="off" class="pr-sel" value="@m.Education" @onchange="e => m.Education=e.Value?.ToString()??string.Empty">
+                  <option value="">Select…</option>
+                  <option value="illiterate">Illiterate</option>
+                  <option value="primary">Primary</option>
+                  <option value="secondary">Secondary</option>
+                  <option value="higher_sec">Higher Secondary</option>
+                  <option value="diploma">Diploma / ITI</option>
+                  <option value="graduate">Graduate</option>
+                  <option value="post_graduate">Post-Graduate</option>
+                  <option value="professional">Professional</option>
+                </select></label>
+              <div class="pr-g2" style="margin-bottom:0">
+                <label class="pr-float"><div class="pr-flabel">Height (cm)</div>
+                  <input id="pn-ht" name="heightCm" autocomplete="off" class="pr-inp" value="@m.HeightCm" inputmode="numeric" @oninput="OnHt" /></label>
+                <label class="pr-float"><div class="pr-flabel">Weight (kg)</div>
+                  <input id="pn-wt" name="weightKg" autocomplete="off" class="pr-inp" value="@m.WeightKg" inputmode="numeric" @oninput="OnWt" /></label>
+              </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_bmi)) { <div class="pr-note pr-note-ok" style="margin-bottom:8px">BMI: @_bmi @BmiCat(_bmi)</div> }
+            <div class="pr-sh" style="margin-top:4px"><span class="pr-sh-num">06</span><span class="pr-sh-title">Lifestyle &amp; Risk Factors</span><div class="pr-sh-line"></div></div>
+            <div class="pr-tobacco-box">
+              <div class="pr-tobacco-lbl">Tobacco / Smoking</div>
+              <div class="pr-g3" style="margin-bottom:0">
+                <label class="pr-float"><div class="pr-flabel">Status</div>
+                  <select id="pn-tob" name="tobaccoStatus" autocomplete="off" class="pr-sel" value="@m.TobaccoStatus" @onchange="e => m.TobaccoStatus=e.Value?.ToString()??_never">
+                    <option value="not_disclosed">Not disclosed</option><option value="never">Never</option><option value="current">Current</option><option value="former">Former / Quit</option>
+                  </select></label>
+                @if (m.TobaccoStatus == "current" || m.TobaccoStatus == "former")
+                {
+                  <label class="pr-float"><div class="pr-flabel">Type</div>
+                    <select id="pn-ttype" name="tobaccoType" autocomplete="off" class="pr-sel" value="@m.TobaccoType" @onchange="e => m.TobaccoType=e.Value?.ToString()??string.Empty">
+                      <option value="cigarette">Cigarette</option>
+                      <option value="beedi">Beedi</option>
+                      <option value="gutkha">Gutkha</option>
+                      <option value="hookah">Hookah</option>
+                      <option value="mixed">Mixed</option>
+                    </select></label>
+                  <label class="pr-float"><div class="pr-flabel">Duration (years)</div>
+                    <input id="pn-tdur" name="tobaccoDuration" autocomplete="off" class="pr-inp"
+                           value="@m.TobaccoDuration" inputmode="numeric"
+                           @oninput="e => m.TobaccoDuration=e.Value?.ToString()??string.Empty" /></label>
+                }
+              </div>
+            </div>
+            <div class="pr-g2">
+              <label class="pr-float"><div class="pr-flabel">Alcohol Use</div>
+                <select id="pn-alc" name="alcoholUse" autocomplete="off" class="pr-sel" value="@m.AlcoholUse" @onchange="e => m.AlcoholUse=e.Value?.ToString()??string.Empty">
+                  <option value="not_disclosed">Not disclosed</option>
+                  <option value="none">None</option>
+                  <option value="occasional">Occasional</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="heavy">Heavy / Dependent</option>
+                </select></label>
+              <label class="pr-float"><div class="pr-flabel">Physical Activity</div>
+                <select id="pn-act" name="physicalActivity" autocomplete="off" class="pr-sel" value="@m.Activity" @onchange="e => m.Activity=e.Value?.ToString()??string.Empty">
+                  <option value="not_disclosed">Not disclosed</option>
+                  <option value="sedentary">Sedentary</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="active">Active</option>
+                </select></label>
+            </div>
+          </div>
+        }
+
+        @if (_tab == 3) {
+          <div class="pr-form">
+            <div class="pr-sh"><span class="pr-sh-num">07</span><span class="pr-sh-title">Registration Details</span><div class="pr-sh-line"></div></div>
+            <div class="pr-g3">
+              <label class="pr-float"><div class="pr-flabel">Patient Type</div>
+                <select id="pn-pttype" name="patientType" autocomplete="off" class="pr-sel" value="@m.PatientType" @onchange="OnPatTypeChange">
+                  <option value="walk_in">Walk-In</option>
+                  <option value="general">General / Other</option>
+                  <option value="vip">VIP</option>
+                  <option value="international">International</option>
+                  <option value="staff">Staff Patient</option>
+                  <option value="charity">Charity / CGS</option>
+                  <option value="research">Research / Trial</option>
+                </select></label>
+              <label class="pr-float"><div class="pr-flabel">Priority</div>
+                <select id="pn-pri" name="priority" autocomplete="off" class="pr-sel" value="@m.Priority" @onchange="e => m.Priority=e.Value?.ToString()??string.Empty">
+                  <option value="normal">Normal</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="emergency">Emergency</option>
+                </select></label>
+              <label class="pr-float"><div class="pr-flabel">Referral Source</div>
+                <select id="pn-refsrc" name="referralSource" autocomplete="off" class="pr-sel" value="@m.RefSrc" @onchange="e => m.RefSrc=e.Value?.ToString()??string.Empty">
+                  <option value="">Select…</option>
+                  <option value="walk_in">Walk-In</option>
+                  <option value="doctor_ref">Doctor Referral</option>
+                  <option value="hospital_ref">Hospital Referral</option>
+                  <option value="online">Online</option>
+                  <option value="camp">Medical Camp</option>
+                  <option value="insurance">Insurance / TPA</option>
+                  <option value="govt">Government Programme</option>
+                </select></label>
+            </div>
+            <div class="pr-g2">
+              <label class="pr-float"><div class="pr-flabel">Referred By</div>
+                <input id="pn-refby" name="referredBy" autocomplete="off" class="pr-inp"
+                       value="@m.RefBy" placeholder="Dr. Name or hospital" @oninput="e => m.RefBy=e.Value?.ToString()??string.Empty" /></label>
+              <label class="pr-float"><div class="pr-flabel">How did you hear about us?</div>
+                <select id="pn-hear" name="howHeard" autocomplete="off"
+                        class="pr-sel @(_isWalkIn?"":"pr-sel-disabled")"
+                        disabled="@(!_isWalkIn)"
+                        value="@(_isWalkIn?m.HowHeard:"referral")"
+                        @onchange="OnHowHeardChange">
+                  @if (m.PatientType != "general")
+                  { <option value="referral">Referral</option> }
+                  else
+                  { <option value="">Select…</option>
+                    <option value="friends_family">Friends / Family</option>
+                    <option value="doctor_referral">Doctor Referral</option>
+                    <option value="social_media">Social Media</option>
+                    <option value="google">Google Search</option>
+                    <option value="newspaper">Newspaper / Print</option>
+                    <option value="tv_radio">TV / Radio</option>
+                    <option value="medical_camp">Medical Camp</option>
+                    <option value="insurance">Insurance / TPA</option>
+                    <option value="employer">Employer / Corporate</option>
+                    <option value="other">Other</option> }
+                </select></label>
+            </div>
+            @if (m.HowHeard == "doctor_referral" && _isWalkIn)
+            { <label class="pr-float" style="display:block;margin-bottom:7px"><div class="pr-flabel">Referring Doctor / Source</div>
+                <input id="pn-hear-detail" name="howHeardDetail" autocomplete="off" class="pr-inp"
+                       value="@m.HowHeardDetail" placeholder="Dr. Name or clinic"
+                       @oninput="e => m.HowHeardDetail=e.Value?.ToString()??string.Empty" /></label> }
+            <div class="pr-sh" style="margin-top:4px"><span class="pr-sh-num">08</span><span class="pr-sh-title">Payer / Insurance</span><div class="pr-sh-line"></div></div>
+            <div class="pr-payer-cats">
+              <button type="button" class="pr-payer-cat @(m.Payer==_pSelf?_pOn:_e2)"  @onclick="SetPS">&#9679; Self Paying</button>
+              <button type="button" class="pr-payer-cat @(m.Payer==_pCorp?_pOn:_e2)"  @onclick="SetPC">&#127970; Corporate</button>
+              <button type="button" class="pr-payer-cat @(m.Payer==_pIns?_pOn:_e2)"   @onclick="SetPI">&#128196; Insurance / TPA</button>
+              <button type="button" class="pr-payer-cat @(m.Payer==_pGovt?_pOn:_e2)"  @onclick="SetPG">&#127963; Govt Scheme</button>
+              <button type="button" class="pr-payer-cat @(m.Payer==_pOther?_pOn:_e2)" @onclick="SetPO">&#8943; Others</button>
+            </div>
+            @if (m.Payer == _pSelf) {
+              <div class="pr-payer-sub"><div class="pr-payer-sub-title">Self Paying</div>
+                <div style="font-size:12px;color:#475569">Patient pays directly. No insurance or scheme.</div></div> }
+            @if (m.Payer == _pCorp) {
+              <div class="pr-payer-sub"><div class="pr-payer-sub-title">Corporate</div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Company Name <span style="color:#EF4444">*</span></div>
+                    <input id="pn-corp-n" name="corpName" autocomplete="organization" class="pr-inp" value="@m.CorpName" @oninput="e => m.CorpName=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Employee ID</div>
+                    <input id="pn-corp-e" name="corpEmpId" autocomplete="off" class="pr-inp" value="@m.CorpEmpId" @oninput="e => m.CorpEmpId=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">HR Contact Name</div>
+                    <input id="pn-corp-hr" name="corpHr" autocomplete="off" class="pr-inp" value="@m.CorpHr" @oninput="e => m.CorpHr=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">HR Phone</div>
+                    <input id="pn-corp-hrp" name="corpHrPhone" autocomplete="off" class="pr-inp" value="@m.CorpHrPhone" @oninput="e => m.CorpHrPhone=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+                <label class="pr-float" style="display:block"><div class="pr-flabel">Corporate Billing Email</div>
+                  <input id="pn-corp-em" name="corpEmail" type="email" autocomplete="off" class="pr-inp" value="@m.CorpEmail" @oninput="e => m.CorpEmail=e.Value?.ToString()??string.Empty" /></label>
+              </div> }
+            @if (m.Payer == _pIns) {
+              <div class="pr-payer-sub"><div class="pr-payer-sub-title">Insurance / TPA</div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Insurance Company <span style="color:#EF4444">*</span></div>
+                    <input id="pn-ins-co" name="insCompany" autocomplete="off" class="pr-inp" value="@m.InsCo" @oninput="e => m.InsCo=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">TPA Name (if different)</div>
+                    <input id="pn-tpa" name="tpaName" autocomplete="off" class="pr-inp" value="@m.TpaName" @oninput="e => m.TpaName=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Policy Number <span style="color:#EF4444">*</span></div>
+                    <input id="pn-pol-n" name="policyNumber" autocomplete="off" class="pr-inp mono" value="@m.PolicyNo" @oninput="e => m.PolicyNo=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Policy Holder Name</div>
+                    <input id="pn-pol-h" name="policyHolder" autocomplete="off" class="pr-inp" value="@m.PolHolder" @oninput="e => m.PolHolder=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Holder Relationship</div>
+                    <input id="pn-pol-r" name="policyRelation" autocomplete="off" class="pr-inp" value="@m.PolRelation" placeholder="Self / Spouse / Parent" @oninput="e => m.PolRelation=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Cashless Limit (INR)</div>
+                    <input id="pn-cash" name="cashlessLimit" autocomplete="off" class="pr-inp mono" inputmode="numeric" value="@m.CashlessLimit" @oninput="e => m.CashlessLimit=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Valid From</div>
+                    <input id="pn-pol-f" name="policyFrom" type="date" autocomplete="off" class="pr-inp" value="@m.PolFrom" @onchange="e => m.PolFrom=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Valid To</div>
+                    <input id="pn-pol-t" name="policyTo" type="date" autocomplete="off" class="pr-inp" value="@m.PolTo" @onchange="e => m.PolTo=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+                <div class="sc-tog-row" style="margin-top:4px">
+                  <div><div class="sc-tog-lbl">Pre-authorisation required</div><div class="sc-tog-sub">Notify TPA desk before any procedure</div></div>
+                  <div class="sc-toggle @(m.PreAuth?_togOn:_togOff)" @onclick="TgPreAuth"></div>
+                </div>
+              </div> }
+            @if (m.Payer == _pGovt) {
+              <div class="pr-payer-sub"><div class="pr-payer-sub-title">Government Scheme</div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Scheme <span style="color:#EF4444">*</span></div>
+                    <select id="pn-scheme" name="govtScheme" autocomplete="off" class="pr-sel" value="@m.GovtScheme" @onchange="e => m.GovtScheme=e.Value?.ToString()??string.Empty">
+                      <option value="">Select…</option>
+                      <option value="cghs">CGHS</option>
+                      <option value="echs">ECHS</option>
+                      <option value="esic">ESIC</option>
+                      <option value="pmjay">Ayushman Bharat (PMJAY)</option>
+                      <option value="state">State Scheme</option>
+                      <option value="other">Other</option>
+                    </select></label>
+                  <label class="pr-float"><div class="pr-flabel">Beneficiary / Card No. <span style="color:#EF4444">*</span></div>
+                    <input id="pn-bene" name="beneficiaryNo" autocomplete="off" class="pr-inp mono" value="@m.BeneNo" @oninput="e => m.BeneNo=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Card Holder Name</div>
+                    <input id="pn-bene-n" name="beneficiaryName" autocomplete="off" class="pr-inp" value="@m.BeneHolder" @oninput="e => m.BeneHolder=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Holder Relationship</div>
+                    <input id="pn-bene-r" name="beneficiaryRel" autocomplete="off" class="pr-inp" value="@m.BeneRelation" placeholder="Self / Dependent" @oninput="e => m.BeneRelation=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Valid From</div>
+                    <input id="pn-sch-f" name="schemeFrom" type="date" autocomplete="off" class="pr-inp" value="@m.SchemeFrom" @onchange="e => m.SchemeFrom=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Income Group</div>
+                    <select id="pn-income" name="incomeGroup" autocomplete="off" class="pr-sel" value="@m.IncomeGroup" @onchange="e => m.IncomeGroup=e.Value?.ToString()??string.Empty">
+                      <option value="">Select…</option>
+                      <option value="bpl">BPL (Below Poverty Line)</option>
+                      <option value="lower">Lower</option>
+                      <option value="lower_middle">Lower Middle</option>
+                      <option value="middle">Middle</option>
+                      <option value="upper_middle">Upper Middle</option>
+                      <option value="upper">Upper</option>
+                      <option value="unknown">Prefer not to say</option>
+                    </select></label>
+                </div>
+              </div> }
+            @if (m.Payer == _pOther) {
+              <div class="pr-payer-sub"><div class="pr-payer-sub-title">Other Payer</div>
+                <div class="pr-g2">
+                  <label class="pr-float"><div class="pr-flabel">Payer Name <span style="color:#EF4444">*</span></div>
+                    <input id="pn-oth-n" name="otherPayerName" autocomplete="off" class="pr-inp" value="@m.OtherPayerName" @oninput="e => m.OtherPayerName=e.Value?.ToString()??string.Empty" /></label>
+                  <label class="pr-float"><div class="pr-flabel">Contact / Reference</div>
+                    <input id="pn-oth-r" name="otherPayerRef" autocomplete="off" class="pr-inp" value="@m.OtherPayerRef" @oninput="e => m.OtherPayerRef=e.Value?.ToString()??string.Empty" /></label>
+                </div>
+              </div> }
+          </div>
+        }
+
+        @if (_tab == 4) {
+          <div class="pr-form">
+            <div class="pr-sh"><span class="pr-sh-num">09</span><span class="pr-sh-title">Review &amp; Confirm</span><div class="pr-sh-line"></div></div>
+            <div style="font-size:12px;color:#475569;margin-bottom:8px">Reserving <span style="font-family:'DM Mono',monospace;color:#E8B84B">@_uhid</span> for <strong>@m.DisplayName</strong>. Verify all details before saving.</div>
+            <div class="pr-review-grid">
+            <div class="pr-review-row"><span class="pr-review-key">NAME</span><span class="pr-review-val">@m.DisplayName.ToUpperInvariant()</span></div>
+            <div class="pr-review-row"><span class="pr-review-key">DOB / AGE</span><span class="pr-review-val">@(string.IsNullOrEmpty(m.DateOfBirth)?"":m.DateOfBirth)@(string.IsNullOrEmpty(_ageDisp)?"":" · "+_ageDisp+" YRS")</span></div>
+            <div class="pr-review-row"><span class="pr-review-key">GENDER</span><span class="pr-review-val">@_gender.ToUpperInvariant()</span></div>
+            <div class="pr-review-row"><span class="pr-review-key">BLOOD</span><span class="pr-review-val">@m.BloodGroup.ToUpperInvariant()</span></div>
+            <div class="pr-review-row"><span class="pr-review-key">MOBILE</span><span class="pr-review-val">@(m.MobCC+" "+m.Mobile)</span></div>
+            <div class="pr-review-row"><span class="pr-review-key">EMAIL</span><span class="pr-review-val">@(string.IsNullOrEmpty(m.Email)?"—":m.Email.ToUpperInvariant())</span></div>
+            <div class="pr-review-row"><span class="pr-review-key">ADDRESS</span><span class="pr-review-val">@((m.City+", "+m.State+" "+m.PinCode).ToUpperInvariant())</span></div>
+            <div class="pr-review-row"><span class="pr-review-key">PATIENT TYPE</span><span class="pr-review-val">@m.PatientType.Replace("_"," ").ToUpperInvariant()</span></div>
+            @if (!string.IsNullOrEmpty(m.HowHeard))
+            { <div class="pr-review-row"><span class="pr-review-key">HOW HEARD</span><span class="pr-review-val">@m.HowHeard.Replace("_"," ").ToUpperInvariant()@(string.IsNullOrEmpty(m.HowHeardDetail)?"":" · "+m.HowHeardDetail.ToUpperInvariant())</span></div> }
+            <div class="pr-review-row"><span class="pr-review-key">PAYER</span><span class="pr-review-val">@m.Payer.Replace("_"," ").ToUpperInvariant()</span></div>
+            <div class="pr-review-row"><span class="pr-review-key">UHID RESERVED</span><span class="pr-review-val">@_uhid</span></div>
+            </div><!-- /pr-review-grid -->
+            <div class="pr-sh" style="margin-top:10px"><span class="pr-sh-num">10</span><span class="pr-sh-title">Consent</span><div class="pr-sh-line"></div></div>
+            @if (_clinicIndia)
+            { <div class="pr-consent-row-r" style="background:#F0FDF4;border-color:#6EE7B7">
+                <input type="checkbox" checked disabled id="pn-c-implied" />
+                <span style="color:#065F46">Walk-in registration — implied consent. Patient was informed that health data will be stored securely for their care.</span>
+              </div> }
+            else
+            { <label class="pr-consent-row-r"><input id="pn-c-hipaa" name="hipaaConsent" type="checkbox" checked="@m.HipaaConsent" @onchange="e => m.HipaaConsent=e.Value is true" /> HIPAA / Privacy consent (mandatory for non-India clinics)</label>
+              @if (!m.HipaaConsent) { <div class="pr-err-msg" style="margin-bottom:8px">HIPAA consent is required.</div> } }
+            @if (m.PhotoConsent || _photoUrl != null)
+            { <label class="pr-consent-row-r"><input id="pn-c-photo" type="checkbox" checked="@m.PhotoConsent" @onchange="e => m.PhotoConsent=e.Value is true" /> Photo on file consent</label> }
+            @if (!_saved)
+            {
+              <div style="margin-top:16px;padding-top:12px;border-top:0.5px solid #C8D3E0;display:flex;flex-direction:column;align-items:stretch;gap:6px">
+                @if (!string.IsNullOrEmpty(_errorMsg))
+                { <div class="pr-inline-error" style="text-align:center">⚠ @_errorMsg</div> }
+                <button type="button" class="pr-btn-save" style="width:100%;padding:11px;font-size:13px"
+                        disabled="@_saving" @onclick="HandleSubmit">
+                  @(_saving ? "Registering…" : "✓ Register Patient")
+                </button>
+              </div>
+            }
+            @if (_saved)
+            { <div class="pr-inline-success" style="margin-top:16px;text-align:center;padding:10px">✓ @_successMsg</div> }
+          </div>
+        }
+
+      </div>
+
+      <div>
+        <div class="pr-patient-card">
+          <div class="pr-card-kicker">&#9711; live patient card</div>
+          <div class="pr-card-top">
+            <div>
+              @if (_photoUrl is not null)
+              { <div class="pr-card-photo" @onclick="TrigPhoto"><img src="@_photoUrl" alt="photo" /></div> }
+              else
+              { <div class="pr-card-photo" @onclick="TrigPhoto"><span style="font-size:20px;opacity:.3;color:#fff">&#9786;</span><span class="pr-card-photo-lbl">Photo</span></div> }
+              <InputFile id="pn-photo" class="pr-photo-input" OnChange="OnPhoto" accept="image/*" />
+            </div>
+            <div style="min-width:0;flex:1">
+              <div class="pr-card-name">@(string.IsNullOrWhiteSpace(m.DisplayName)?"New patient":m.DisplayName)</div>
+              <div class="pr-card-uhid">@_uhid</div>
+            </div>
+          </div>
+          <div class="pr-card-divider"></div>
+          <div class="pr-card-row"><span class="pr-card-lbl">Mobile</span><span class="pr-card-val mono">@(string.IsNullOrEmpty(m.Mobile)?"—":m.MobCC+" "+m.Mobile)</span></div>
+          <div class="pr-card-row"><span class="pr-card-lbl">Gender</span><span class="pr-card-val">@(string.IsNullOrEmpty(_gender)?"—":_gender)@(string.IsNullOrEmpty(_ageDisp)?"":" · "+_ageDisp+" yrs")</span></div>
+          <div class="pr-card-row"><span class="pr-card-lbl">DOB</span><span class="pr-card-val mono">@(string.IsNullOrEmpty(m.DateOfBirth)?"—":m.DateOfBirth)</span></div>
+          <div class="pr-card-row"><span class="pr-card-lbl">Address</span><span class="pr-card-val">@(string.IsNullOrEmpty(m.City)?"—":m.City+", "+m.State+" "+m.PinCode)</span></div>
+          <div class="pr-card-row"><span class="pr-card-lbl">Payer</span><span class="pr-card-val">@m.Payer.Replace("_"," ")</span></div>
+          @if (m.VipFlag || m.Allergy || m.OrganDonor)
+          { <div class="pr-card-divider"></div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              @if (m.VipFlag)    { <span class="pr-flag-chip pr-flag-vip">★ VIP</span> }
+              @if (m.Allergy)   { <span class="pr-flag-chip pr-flag-allergy">⚠ Allergies</span> }
+              @if (m.OrganDonor){ <span class="pr-flag-chip pr-flag-organ">♥ Organ Donor</span> }
+            </div> }
+          <div class="pr-card-divider"></div>
+          <div class="pr-card-consent">@if(_clinicIndia){<span class="pr-card-consent-ok">Implied consent ✓</span>}else{<span class="@(m.HipaaConsent?_consentOk:_e)">HIPAA @(m.HipaaConsent?"✓":"◌")</span>}</div>
+        </div>
+        @if (_tab == 0)
+        {
+        <div class="pr-id-card" @onclick="OpenId">
+          <div class="pr-id-strip">
+            <span class="pr-id-strip-lbl">ID</span>
+            <span class="pr-id-entry @(string.IsNullOrEmpty(m.AbhaNumber)?"pr-id-unset":"pr-id-set")">
+              <span class="pr-id-dot"></span><span class="pr-id-code" style="background:#E3F2FD;color:#1B4DA0">AB</span>
+            </span>
+            <span class="pr-id-entry @(string.IsNullOrEmpty(m.AadhaarLast4)?"pr-id-unset":"pr-id-set")">
+              <span class="pr-id-dot"></span><span class="pr-id-code" style="background:#FFF3E0;color:#E65100">AA</span>
+            </span>
+            <span class="pr-id-entry @(string.IsNullOrEmpty(m.OtherIdValue)?"pr-id-unset":"pr-id-set")">
+              <span class="pr-id-dot"></span><span class="pr-id-code" style="background:#F3E8FF;color:#7C3AED">OT</span>
+            </span>
+            <span style="margin-left:auto;font-size:11px;color:#94A3B8">↗</span>
+          </div>
+        </div>
+        }
+        <div class="pr-card-hint">Step @(_tab+1) of 5 · @_hints[Math.Min(_tab,4)]</div>
+        <div class="pr-emerg-note">&#9889; Minimum: Name + DOB/Age + Gender + Mobile + PIN</div>
+      </div>
+    </div>
+    </fieldset>
+  </div>
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+    [Parameter][SupplyParameterFromQuery(Name="m")] public string? ReturnModule { get; set; }
+
+    // Constants — no string literals in Razor attributes
+    private const string _e="", _e2="";
+    private const string _tabActive="pr-tab pr-tab-active", _tabDone="pr-tab pr-tab-done";
+    private const string _cVip="pr-flag-chip pr-flag-vip", _cAl="pr-flag-chip pr-flag-allergy";
+    private const string _cOr="pr-flag-chip pr-flag-organ", _cAct="pr-flag-chip pr-flag-active";
+    private const string _consentOk="pr-card-consent-ok";
+    private const string _pOn="pr-payer-cat pr-payer-cat-on";
+    private const string _ptWalkIn="walk_in";
+    private bool _isWalkIn => m.PatientType == _ptWalkIn;
+    private const string _pSelf="self", _pCorp="corporate", _pIns="insurance", _pGovt="govt", _pOther="other_payer";
+    private const string _togOn="sc-toggle sc-toggle-on", _togOff="sc-toggle";
+    private const string _never="not_disclosed"; // hide sub-fields when not disclosed or never
+    private const string _mtOn="pr-mtab pr-mtab-on";
+    private const string _kFn="fn",_kLn="ln",_kDob="dob",_kGender="gender";
+    private const string _kMob="mob",_kAlt="alt",_kWa="wa",_kEmail="email",_kEmail2="email2";
+
+    private int    _tab=0;
+    private bool   _saving=false, _saved=false;
+    private string _successMsg=string.Empty, _errorMsg=string.Empty;
+    private string _uhid=string.Empty, _gender=string.Empty;
+    private string _ageDisp=string.Empty, _ageNote=string.Empty, _ageNoteCss="pr-note";
+    private string _bmi=string.Empty;
+    private bool   _clinicIndia=true;
+    private string? _photoUrl;
+    private IBrowserFile? _photoFile;
+    private bool   _idOpen=false, _dupOpen=false;
+    private int    _abdTab=0, _aadTab=0;
+    private bool   _aadConsent=false, _aadParsing=false, _aadDone=false;
+    private string _shareCode=string.Empty, _aadErr=string.Empty;
+    private IBrowserFile? _aadFile;
+    private bool   _pinErr=false, _cityErr=false, _stateErr=false;
+    private string _pinErrMsg=string.Empty;
+    private bool   _dupOverridden=false;
+    private string _dupReason=string.Empty;
+    private List<LiPi.Web.Services.DuplicateMatch> _dupMatches=new();
+
+    private static readonly string[] _hints=[
+        "Fill name, DOB/age, gender, contact details and flags.",
+        "Enter address and PIN code.",
+        "Occupation, measurements and lifestyle (optional).",
+        "Patient type, doctor, referral and payer details (optional).",
+        "Review all details and confirm consent."
+    ];
+
+    private sealed class PM {
+        public string Title=string.Empty,FirstName=string.Empty,MiddleName=string.Empty,LastName=string.Empty,DisplayName=string.Empty;
+        public string DateOfBirth=string.Empty,Gender=string.Empty,BloodGroup=string.Empty,MaritalStatus=string.Empty;
+        public string Nationality="IN",Language="hi";
+        public string MobCC="+91",Mobile=string.Empty,AltMobCC="+91",AltMobile=string.Empty;
+        public string WaCC="+91",WhatsApp=string.Empty;
+        public string LandISD="+91",LandSTD=string.Empty,LandNum=string.Empty;
+        public string Email=string.Empty,Email2=string.Empty;
+        public string AddressLine=string.Empty,City=string.Empty,State=string.Empty,PinCode=string.Empty;
+        public string AbhaNumber=string.Empty,AbhaAddress=string.Empty,AadhaarLast4=string.Empty;
+        public string OtherIdType=string.Empty,OtherIdValue=string.Empty;
+        public string Occupation=string.Empty,Education=string.Empty,HeightCm=string.Empty,WeightKg=string.Empty;
+        public string TobaccoStatus="not_disclosed",TobaccoType=string.Empty,TobaccoDuration=string.Empty;
+        public string AlcoholUse="not_disclosed",Activity="not_disclosed";
+        public string PatientType="walk_in",Priority="normal";
+        public string RefSrc=string.Empty,RefBy=string.Empty;
+        public string HowHeard=string.Empty,HowHeardDetail=string.Empty;
+        public string Payer="self";
+        public string CorpName=string.Empty,CorpEmpId=string.Empty,CorpHr=string.Empty,CorpHrPhone=string.Empty,CorpEmail=string.Empty;
+        public string InsCo=string.Empty,TpaName=string.Empty,PolicyNo=string.Empty,PolHolder=string.Empty,PolRelation=string.Empty;
+        public string PolFrom=string.Empty,PolTo=string.Empty,CashlessLimit=string.Empty;
+        public bool   PreAuth=false;
+        public string GovtScheme=string.Empty,BeneNo=string.Empty,BeneHolder=string.Empty,BeneRelation=string.Empty,SchemeFrom=string.Empty,IncomeGroup=string.Empty;
+        public string OtherPayerName=string.Empty,OtherPayerRef=string.Empty;
+        public bool VipFlag,Allergy,OrganDonor,Research,Intl,HipaaConsent=true,PhotoConsent;
+    }
+    private PM m=new();
+    private readonly Dictionary<string,string> _errs=new();
+    private readonly Dictionary<string,bool>   _tch=new();
+
+    protected override async Task OnInitializedAsync()
+    { _uhid=$"PT-{DateTime.Today.Year}-{Random.Shared.Next(100000,999999)}";
+      await Task.CompletedTask; }
+
+    private readonly HashSet<int> _visited = new();
+    private void GoTab(int t) { _visited.Add(_tab); _tab=Math.Clamp(t,0,4); }
+    private void HandleBack()  => GoTab(_tab-1);
+    private void HandleCancel()=> Nav.NavigateTo(string.IsNullOrEmpty(ReturnModule)?"/patients":$"/module/{ReturnModule}");
+
+    private async Task HandleNext()
+    { _visited.Add(_tab); if (!ValidTab(_tab))
+      { await JS.InvokeVoidAsync("eval","setTimeout(()=>{var el=document.querySelector('.pr-inp.err,.pr-sel.err,.pr-cc-inp.err');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();}},50)");
+        return; }
+      if (_tab==0 && !_dupOverridden)
+      { await RunDupCheck(); if (_dupMatches.Count>0){_dupOpen=true;return;} }
+      GoTab(_tab+1); }
+
+    private bool ValidTab(int t)
+    { _errorMsg=string.Empty;
+      if (t==0)
+      { foreach(var f in new[]{_kFn,_kLn,_kGender,_kMob}) Touch(f);
+        if (string.IsNullOrEmpty(m.DateOfBirth)&&string.IsNullOrEmpty(_ageDisp)) _errs[_kDob]="Date of birth or age is required";
+        return _errs.All(kv=>string.IsNullOrEmpty(kv.Value)); }
+      if (t==1)
+      { _pinErr=string.IsNullOrEmpty(m.PinCode); _pinErrMsg=_pinErr?"PIN code required":string.Empty;
+        _cityErr=string.IsNullOrEmpty(m.City); _stateErr=string.IsNullOrEmpty(m.State);
+        return !_pinErr&&!_cityErr&&!_stateErr; }
+      return true; }
+
+    private async Task HandleSubmit()
+    { if (!_clinicIndia&&!m.HipaaConsent){_errorMsg="HIPAA consent is required.";return;}
+      m.FirstName=OnlyLet(m.FirstName); m.MiddleName=OnlyLet(m.MiddleName); m.LastName=OnlyLet(m.LastName);
+      Rebuild();
+      _saving=true;_errorMsg=string.Empty;StateHasChanged();
+      try
+      { var user=(await AuthState).User;
+        var cid=LiPi.Web.Services.ClaimsHelper.ClinicId(user)??throw new InvalidOperationException("No clinic in session.");
+        var db=await ClinicDbFactory.CreateCoreForClinicAsync(cid)??throw new InvalidOperationException("Cannot connect to clinic database.");
+        await using(db)
+        { await using var tx=await db.Database.BeginTransactionAsync();
+          var pe=new LiPi.Clinic.Core.Entities.Person{Id=Guid.NewGuid(),ClinicId=cid,Title=string.IsNullOrEmpty(m.Title)?null:m.Title,GivenName=m.FirstName,MiddleName=string.IsNullOrEmpty(m.MiddleName)?null:m.MiddleName,FamilyName=m.LastName,DisplayName=m.DisplayName,Gender=m.Gender,DateOfBirth=DateOnly.TryParse(m.DateOfBirth,out var dob)?dob:null,BloodGroup=string.IsNullOrEmpty(m.BloodGroup)?null:m.BloodGroup,MaritalStatus=string.IsNullOrEmpty(m.MaritalStatus)?null:m.MaritalStatus,NationalityCode=m.Nationality,PreferredLanguage=m.Language,CreatedAt=DateTimeOffset.UtcNow,UpdatedAt=DateTimeOffset.UtcNow};
+          db.Persons.Add(pe);
+          var pt=new LiPi.Clinic.Core.Entities.Patient{Id=Guid.NewGuid(),ClinicId=cid,PersonId=pe.Id,Mrn=_uhid,RegistrationDate=DateTimeOffset.UtcNow,VipFlag=m.VipFlag,OrganDonor=m.OrganDonor,PatientType=m.PatientType,ReferralSource=string.IsNullOrEmpty(m.RefSrc)?null:m.RefSrc,Occupation=string.IsNullOrEmpty(m.Occupation)?null:m.Occupation,CreatedAt=DateTimeOffset.UtcNow,UpdatedAt=DateTimeOffset.UtcNow};
+          db.Patients.Add(pt);
+          if(!string.IsNullOrEmpty(m.Mobile)) db.ContactPoints.Add(new LiPi.Clinic.Core.Entities.ContactPoint{Id=Guid.NewGuid(),ClinicId=cid,PersonId=pe.Id,System="phone",Value=m.MobCC+m.Mobile,UseType="mobile",IsPrimary=true,CreatedAt=DateTimeOffset.UtcNow,UpdatedAt=DateTimeOffset.UtcNow});
+          if(!string.IsNullOrEmpty(m.Email)) db.ContactPoints.Add(new LiPi.Clinic.Core.Entities.ContactPoint{Id=Guid.NewGuid(),ClinicId=cid,PersonId=pe.Id,System="email",Value=m.Email,UseType="work",IsPrimary=false,CreatedAt=DateTimeOffset.UtcNow,UpdatedAt=DateTimeOffset.UtcNow});
+          if(!string.IsNullOrEmpty(m.AadhaarLast4)) db.PatientIdentifiers.Add(new LiPi.Clinic.Core.Entities.PatientIdentifier{Id=Guid.NewGuid(),ClinicId=cid,PatientId=pt.Id,IdentifierType="aadhaar",IdentifierValue=m.AadhaarLast4,IssuingAuthority="UIDAI",IsVerified=_aadDone,CreatedAt=DateTimeOffset.UtcNow,UpdatedAt=DateTimeOffset.UtcNow});
+          db.Consents.Add(new LiPi.Clinic.Core.Entities.Consent{Id=Guid.NewGuid(),ClinicId=cid,PatientId=pt.Id,ConsentType=_clinicIndia?"implied_walk_in":"hipaa_privacy",Granted=true,GrantedAt=DateTimeOffset.UtcNow,ValidFrom=DateTimeOffset.UtcNow,Scope="{}"});
+          await db.SaveChangesAsync(); await tx.CommitAsync(); } }
+      catch(Exception ex){_errorMsg=ex.Message;}
+      finally{_saving=false;}
+      if(string.IsNullOrEmpty(_errorMsg))
+      { _saved=true; _successMsg=$"Patient '{m.DisplayName}' registered · MRN: {_uhid}";
+        await Task.Delay(1500);
+        Nav.NavigateTo(string.IsNullOrEmpty(ReturnModule)?"/patients":$"/module/{ReturnModule}"); } }
+
+    private void SetPS() => m.Payer=_pSelf;
+    private void SetPC() => m.Payer=_pCorp;
+    private void SetPI() => m.Payer=_pIns;
+    private void SetPG() => m.Payer=_pGovt;
+    private void SetPO() => m.Payer=_pOther;
+
+    private void TgVip()  => m.VipFlag    =!m.VipFlag;
+    private void TgAl()   => m.Allergy    =!m.Allergy;
+    private void TgOr()   => m.OrganDonor =!m.OrganDonor;
+    private void TgRes()  => m.Research   =!m.Research;
+    private void TgIntl() => m.Intl       =!m.Intl;
+    private void TgPreAuth()=>m.PreAuth   =!m.PreAuth;
+
+    private void OpenId()  => _idOpen=true;
+    private void CloseId() => _idOpen=false;
+    private void CloseDup()=> _dupOpen=false;
+    private void OverrideDup(){_dupOverridden=true;_dupOpen=false;GoTab(1);}
+    private void OpenExisting(Guid id){_dupOpen=false;Nav.NavigateTo($"/patients/{id}/edit");}
+    private void SetAbdTab0()=>_abdTab=0; private void SetAbdTab1()=>_abdTab=1;
+    private void SetAadTab0()=>_aadTab=0; private void SetAadTab1()=>_aadTab=1;
+
+    private async Task TrigPhoto() => await JS.InvokeVoidAsync("eval","document.getElementById('pn-photo')?.click()");
+    private async Task OnPhoto(InputFileChangeEventArgs e)
+    { _photoFile=e.File;
+      try{var buf=new byte[Math.Min(_photoFile.Size,2097152)];
+          await using var s=_photoFile.OpenReadStream(maxAllowedSize:2097152);
+          var rd=await s.ReadAsync(buf);
+          _photoUrl=$"data:{_photoFile.ContentType};base64,{Convert.ToBase64String(buf,0,rd)}";}
+      catch{_photoUrl=null;} }
+
+    private void OnTitle(ChangeEventArgs e) {m.Title=e.Value?.ToString()??string.Empty;Rebuild();}
+    private void OnFn(string? v)  {m.FirstName=OnlyLet(v);Rebuild();if(_tch.GetValueOrDefault(_kFn))Validate(_kFn);}
+    private void OnFnBlur()       =>Touch(_kFn);
+    private void OnMn(string? v)  =>m.MiddleName=OnlyLet(v);
+    private void OnLn(string? v)  {m.LastName=OnlyLet(v);Rebuild();if(_tch.GetValueOrDefault(_kLn))Validate(_kLn);}
+    private void OnLnBlur()       =>Touch(_kLn);
+    private void OnGender(ChangeEventArgs e){_gender=e.Value?.ToString()??string.Empty;m.Gender=_gender;Touch(_kGender);}
+    private void OnDob(ChangeEventArgs e)
+    { m.DateOfBirth=e.Value?.ToString()??string.Empty;_tch[_kDob]=true;Validate(_kDob);
+      if(!string.IsNullOrEmpty(m.DateOfBirth)&&DateTime.TryParse(m.DateOfBirth,out var d)&&d<=DateTime.Today)
+      { var now=DateTime.Today;var age=now.Year-d.Year-(now<d.AddYears(now.Year-d.Year)?1:0);
+        _ageDisp=age.ToString();_ageNote="exact age";_ageNoteCss="pr-note pr-note-ok";}
+      else if(!string.IsNullOrEmpty(m.DateOfBirth)){_ageDisp=string.Empty;_ageNote=string.Empty;_ageNoteCss="pr-note";}
+      StateHasChanged();}
+    private void OnDobBlur()   =>Touch(_kDob);
+    private void OnAgeSet(string? v)
+    { _ageDisp=StripDig(v,3);
+      if(int.TryParse(_ageDisp,out var age)&&age>0)
+      { m.DateOfBirth=$"{DateTime.Today.Year-age}-01-01";_ageNote=$"est. Jan 1 {DateTime.Today.Year-age}";_ageNoteCss="pr-note pr-note-warn"; } }
+
+    private void OnAge(ChangeEventArgs e)
+    { _ageDisp=StripDig(e.Value?.ToString(),3);
+      if(int.TryParse(_ageDisp,out var age)&&age>0)
+      { m.DateOfBirth=$"{DateTime.Today.Year-age}-01-01";_ageNote=$"est. Jan 1 {DateTime.Today.Year-age}";_ageNoteCss="pr-note pr-note-warn"; } }
+    private void OnBlood(ChangeEventArgs e) =>m.BloodGroup=e.Value?.ToString()??string.Empty;
+
+    private void OnMobCC(ChangeEventArgs e){m.MobCC=e.Value?.ToString()??string.Empty;if(_tch.GetValueOrDefault(_kMob))Validate(_kMob);}
+    private void OnMobSet(string? v)       {m.Mobile=StripDig(v,m.MobCC=="+91"?10:15);if(_tch.GetValueOrDefault(_kMob))Validate(_kMob);}
+    private void OnMob(ChangeEventArgs e)  {m.Mobile=StripDig(e.Value?.ToString(),m.MobCC=="+91"?10:15);if(_tch.GetValueOrDefault(_kMob))Validate(_kMob);}
+    private void OnMobBlur()               =>Touch(_kMob);
+    private void OnAltMobSet(string? v)    {m.AltMobile=StripDig(v,15);if(_tch.GetValueOrDefault(_kAlt))Validate(_kAlt);}
+    private void OnAltMob(ChangeEventArgs e){m.AltMobile=StripDig(e.Value?.ToString(),15);if(_tch.GetValueOrDefault(_kAlt))Validate(_kAlt);}
+    private void OnAltBlur()               =>Touch(_kAlt);
+    private void OnWaSet(string? v)        {m.WhatsApp=StripDig(v,15);if(_tch.GetValueOrDefault(_kWa))Validate(_kWa);}
+    private void OnWaBlur()                =>Touch(_kWa);
+    private void OnEmail(ChangeEventArgs e) {m.Email=e.Value?.ToString()??string.Empty;if(_tch.GetValueOrDefault(_kEmail))Validate(_kEmail);}
+    private void OnEmailBlur()             =>Touch(_kEmail);
+    private void OnEmail2(ChangeEventArgs e){m.Email2=e.Value?.ToString()??string.Empty;if(_tch.GetValueOrDefault(_kEmail2))Validate(_kEmail2);}
+    private void OnEmail2Blur()            =>Touch(_kEmail2);
+
+    private void OnHt(ChangeEventArgs e){m.HeightCm=e.Value?.ToString()??string.Empty;CalcBmi();}
+    private void OnWt(ChangeEventArgs e){m.WeightKg=e.Value?.ToString()??string.Empty;CalcBmi();}
+
+    private void OnPinChanged(string v)  { m.PinCode=v; if (_pinErr && !string.IsNullOrEmpty(v)) { _pinErr=false; _pinErrMsg=string.Empty; } }
+    private void OnPinBlurred()          { _pinErr=string.IsNullOrEmpty(m.PinCode); _pinErrMsg=_pinErr?"PIN code is required":string.Empty; StateHasChanged(); }
+    private void OnAddrBlurred()         { }  // address line not mandatory — no error needed
+    private void OnCityBlurred()         { _cityErr=string.IsNullOrEmpty(m.City); StateHasChanged(); }
+    private void OnStateBlurred()        { _stateErr=string.IsNullOrEmpty(m.State); StateHasChanged(); }
+    private void OnCityChanged(string v) { m.City=v;   _cityErr=string.IsNullOrEmpty(v); StateHasChanged(); }
+    private void OnStateChanged(string v){ m.State=v;  _stateErr=string.IsNullOrEmpty(v); StateHasChanged(); }
+
+    private void OnPatTypeChange(ChangeEventArgs e)
+    { m.PatientType=e.Value?.ToString()??string.Empty;
+      if(m.PatientType!=_ptWalkIn){m.HowHeard="referral";m.HowHeardDetail=string.Empty;}
+      else m.HowHeard=string.Empty; }
+    private void OnHowHeardChange(ChangeEventArgs e)
+    { m.HowHeard=e.Value?.ToString()??string.Empty;
+      if(m.HowHeard!="doctor_referral")m.HowHeardDetail=string.Empty; }
+
+
+    private void OnAadConsent(ChangeEventArgs e)=>_aadConsent=e.Value is true;
+    private void OnAadhaarFile(InputFileChangeEventArgs e)=>_aadFile=e.File;
+    private void OnShareCode(ChangeEventArgs e)=>_shareCode=StripDig(e.Value?.ToString(),4);
+    private void OnAbha(ChangeEventArgs e)    =>m.AbhaNumber=e.Value?.ToString()??string.Empty;
+    private void OnAbhaAddr(ChangeEventArgs e) =>m.AbhaAddress=e.Value?.ToString()??string.Empty;
+    private void OnAad4(ChangeEventArgs e)     =>m.AadhaarLast4=StripDig(e.Value?.ToString(),4);
+    private void OnOtherType(ChangeEventArgs e)=>m.OtherIdType=e.Value?.ToString()??string.Empty;
+    private void OnOtherVal(ChangeEventArgs e) =>m.OtherIdValue=e.Value?.ToString()??string.Empty;
+    private void OnDupReason(ChangeEventArgs e)=>_dupReason=e.Value?.ToString()??string.Empty;
+    private void ClearAadhaar(){_aadDone=false;_aadFile=null;_shareCode=string.Empty;_aadErr=string.Empty;m.AadhaarLast4=string.Empty;_aadConsent=false;}
+
+    private async Task ParseAadhaar()
+    { if(_aadFile==null||_shareCode.Length!=4)return;
+      _aadParsing=true;_aadErr=string.Empty;StateHasChanged();
+      try
+      { await using var s=_aadFile.OpenReadStream(maxAllowedSize:5242880);
+        var r=await AadhaarSvc.ParseAsync(s,_shareCode);
+        if(!r.Success){_aadErr=r.Error??"Unknown error";return;}
+        if(!string.IsNullOrEmpty(r.FullName)){var p=r.FullName.Trim().Split(' ',2);m.FirstName=p[0];m.LastName=p.Length>1?p[^1]:string.Empty;Rebuild();}
+        if(!string.IsNullOrEmpty(r.DateOfBirth)){m.DateOfBirth=r.DateOfBirth.Length==10?r.DateOfBirth:$"{r.DateOfBirth}-01-01";OnDob(new ChangeEventArgs{Value=m.DateOfBirth});}
+        if(!string.IsNullOrEmpty(r.Gender)){m.Gender=r.Gender.ToUpperInvariant() switch{"M"=>"male","F"=>"female",_=>"other"};_gender=m.Gender;}
+        if(!string.IsNullOrEmpty(r.AddressLine))m.AddressLine=r.AddressLine;
+        if(!string.IsNullOrEmpty(r.District))m.City=r.District;
+        if(!string.IsNullOrEmpty(r.State))m.State=r.State;
+        if(!string.IsNullOrEmpty(r.PinCode))m.PinCode=r.PinCode;
+        m.AadhaarLast4=r.LastFourUid??string.Empty;
+        _aadDone=true;_idOpen=false; }
+      catch(Exception ex){_aadErr=$"Error: {ex.Message}";}
+      finally{_aadParsing=false;} }
+
+    private async Task RunDupCheck()
+    { _dupMatches=new();
+      try
+      { var user=(await AuthState).User;var cid=LiPi.Web.Services.ClaimsHelper.ClinicId(user);
+        if(cid==null)return;
+        var db=await ClinicDbFactory.CreateCoreForClinicAsync(cid.Value);
+        if(db==null)return;
+        await using(db)
+        { var req=new LiPi.Web.Services.DuplicateCheckRequest{AadhaarLastFour=string.IsNullOrEmpty(m.AadhaarLast4)?null:m.AadhaarLast4,AbhaNumber=string.IsNullOrEmpty(m.AbhaNumber)?null:m.AbhaNumber,GivenName=m.FirstName,FamilyName=m.LastName,DateOfBirth=string.IsNullOrEmpty(m.DateOfBirth)?null:m.DateOfBirth,AgeDisplay=_ageDisp,DobConfidence=string.IsNullOrEmpty(m.DateOfBirth)?"estimated":"self_reported",Mobile=m.Mobile};
+          _dupMatches=await DupSvc.CheckAsync(cid.Value,req,db); } }
+      catch{} }
+
+    private void Touch(string f){_tch[f]=true;Validate(f);StateHasChanged();}
+    private void Validate(string f)
+    { _errs[f]=f switch{
+        var k when k==_kFn     =>string.IsNullOrWhiteSpace(m.FirstName)?"First name is required":string.Empty,
+        var k when k==_kLn     =>string.IsNullOrWhiteSpace(m.LastName)?"Last name is required":string.Empty,
+        var k when k==_kGender =>string.IsNullOrEmpty(_gender)?"Gender is required":string.Empty,
+        var k when k==_kDob    =>(string.IsNullOrEmpty(m.DateOfBirth)&&string.IsNullOrEmpty(_ageDisp))?"Date of birth or age is required":(!string.IsNullOrEmpty(m.DateOfBirth)&&(!DateTime.TryParse(m.DateOfBirth,out var dv)||dv>DateTime.Today))?"Date of birth cannot be in the future":string.Empty,
+        var k when k==_kMob    =>string.IsNullOrEmpty(m.Mobile)?"Mobile is required":m.MobCC=="+91"&&!Regex.IsMatch(m.Mobile,"^[6-9]\\d{9}$")?"India: 10 digits starting 6-9":string.Empty,
+        var k when k==_kAlt    =>string.IsNullOrEmpty(m.AltMobile)?string.Empty:m.MobCC=="+91"&&!Regex.IsMatch(m.AltMobile,"^[6-9]\\d{9}$")?"India: 10 digits starting 6-9":string.Empty,
+        var k when k==_kWa     =>string.IsNullOrEmpty(m.WhatsApp)?string.Empty:m.WaCC=="+91"&&!Regex.IsMatch(m.WhatsApp,"^[6-9]\\d{9}$")?"India: 10 digits starting 6-9":string.Empty,
+        var k when k==_kEmail  =>string.IsNullOrEmpty(m.Email)?string.Empty:Regex.IsMatch(m.Email,"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")?string.Empty:"Invalid email address",
+        var k when k==_kEmail2 =>string.IsNullOrEmpty(m.Email2)?string.Empty:Regex.IsMatch(m.Email2,"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")?string.Empty:"Invalid email address",
+        _=>string.Empty }; }
+
+    private string ErrCss(string f)=>_tch.GetValueOrDefault(f)&&!string.IsNullOrEmpty(_errs.GetValueOrDefault(f,string.Empty))?"err":string.Empty;
+    private RenderFragment ErrFrag(string f)=>b=>{if(_tch.GetValueOrDefault(f)&&!string.IsNullOrEmpty(_errs.GetValueOrDefault(f,string.Empty))){b.OpenElement(0,"span");b.AddAttribute(1,"class","pr-err-msg");b.AddContent(2,_errs[f]);b.CloseElement();}};
+    private static string DupCss(string s)=>s switch{"high"=>"dup-high","probable"=>"dup-probable",_=>"dup-possible"};
+    private void Rebuild(){m.DisplayName=string.Join(" ",new[]{m.Title,m.FirstName,m.LastName}.Where(x=>!string.IsNullOrWhiteSpace(x)));}
+    private void CalcBmi(){_bmi=string.Empty;if(float.TryParse(m.HeightCm,out var h)&&float.TryParse(m.WeightKg,out var w)&&h>0)_bmi=(w/(h/100f*(h/100f))).ToString("F1");}
+    private static string BmiCat(string s)=>float.TryParse(s,out var v)?v switch{<18.5f=>"· Underweight",<25f=>"· Normal",<30f=>"· Overweight",_=>"· Obese"}:string.Empty;
+    private string MobHint()=>m.MobCC switch{"+91"=>"10 digits 6-9","+1"=>"10 digits",_=>"Digits only"};
+    private static string StripDig(string?s,int max=20)=>string.IsNullOrEmpty(s)?string.Empty:new string(s.Where(char.IsDigit).Take(max).ToArray());
+    private static string OnlyLet(string?s)=>string.IsNullOrEmpty(s)?string.Empty:Regex.Replace(s,"[^a-zA-Z\\-\\.]",string.Empty);
+
+    // ── Tab status indicators ────────────────────────────────────────────────
+    private string TabStatus(int tab)
+    {
+        if (!_visited.Contains(tab) && _tab != tab) return "neutral";
+        return tab switch
+        {
+            0 => Tab1Status(),
+            1 => Tab2Status(),
+            2 => Tab2OptStatus(),   // socioeconomic — optional
+            3 => Tab3OptStatus(),   // reg details — optional
+            _ => "neutral"
+        };
+    }
+
+    private string Tab1Status()
+    {
+        // Mandatory: FirstName, LastName, Gender, Mobile, (DOB or Age)
+        var fields = new[]
+        {
+            !string.IsNullOrWhiteSpace(m.FirstName),
+            !string.IsNullOrWhiteSpace(m.LastName),
+            !string.IsNullOrEmpty(_gender),
+            !string.IsNullOrEmpty(m.Mobile),
+            !string.IsNullOrEmpty(m.DateOfBirth) || !string.IsNullOrEmpty(_ageDisp),
+        };
+        var n = fields.Count(f => f);
+        return n == 5 ? "complete" : n == 0 ? "empty" : "partial";
+    }
+
+    private string Tab2Status()
+    {
+        // Mandatory: PIN, City, State
+        var fields = new[]
+        {
+            !string.IsNullOrWhiteSpace(m.PinCode),
+            !string.IsNullOrWhiteSpace(m.City),
+            !string.IsNullOrWhiteSpace(m.State),
+        };
+        var n = fields.Count(f => f);
+        return n == 3 ? "complete" : n == 0 ? "empty" : "partial";
+    }
+
+    private string Tab2OptStatus() =>   // socioeconomic — optional
+        (!string.IsNullOrEmpty(m.Occupation) || !string.IsNullOrEmpty(m.HeightCm) ||
+         m.TobaccoStatus != _never || m.AlcoholUse != "none") ? "opt-filled" : "neutral";
+
+    private string Tab3OptStatus() =>   // reg details — optional
+        (!string.IsNullOrEmpty(m.RefSrc) || (!string.IsNullOrEmpty(m.HowHeard) && m.HowHeard != "referral") ||
+         m.Payer != _pSelf) ? "opt-filled" : "neutral";
+
+    private string TabCss(int tab)
+    {
+        if (_tab == tab) return _tabActive;
+        return TabStatus(tab) switch
+        {
+            "complete"   => "pr-tab pr-tab-complete",
+            "partial"    => "pr-tab pr-tab-partial",
+            "empty"      => "pr-tab pr-tab-empty",
+            "opt-filled" => "pr-tab pr-tab-complete pr-tab-optional",
+            _            => "pr-tab pr-tab-optional",
+        };
+    }
+
+    private string TabNum(int tab)
+    {
+        var nums = new[] { "01", "02", "03", "04", "05" };
+        return TabStatus(tab) switch
+        {
+            "complete"   => "✓",
+            "opt-filled" => "✓",
+            "partial"    => nums[tab],
+            "empty"      => nums[tab],
+            _            => nums[tab],
+        };
+    }
+
+}

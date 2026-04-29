@@ -1,0 +1,216 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/roles"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Navigation
+
+<PageTitle>Roles &amp; Permissions – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Roles & Permissions</div>
+    <div class="tn-pt-sub">Define access rights</div>
+</SectionContent>
+
+<div class="ap-header">
+  <div style="flex:1">
+    <h1 class="ap-title">Roles &amp; Permissions</h1>
+    <p class="ap-subtitle" style="font-size:11px;color:var(--tx-3);margin-top:2px">
+      Click any cell to cycle: <span class="rp-leg rp-full">● Full</span>
+      <span class="rp-leg rp-view">◐ View</span>
+      <span class="rp-leg rp-none">· None</span>
+      &nbsp;·&nbsp; System roles are locked.
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    @if (isDirty)
+    {
+      <button class="btn-secondary" @onclick="DiscardChanges">Discard</button>
+      <button class="btn-primary" @onclick="SaveChanges">Save Changes</button>
+    }
+    else
+    { <span style="font-size:11px;color:var(--tx-3)">No unsaved changes</span> }
+  </div>
+</div>
+
+@if (!string.IsNullOrEmpty(saveMsg))
+{ <div class="ap-body" style="padding-bottom:0"><div class="ap-alert success"><span class="ap-alert-icon">✓</span><div>@saveMsg</div></div></div> }
+
+<div class="ap-body">
+  <!-- Module legend -->
+  <div class="rp-mod-legend">
+    @foreach (var m in Modules)
+    { <span class="rp-mod-tip" title="@m.Name"><strong>@m.Code</strong> @m.Name</span> }
+  </div>
+
+  <div class="ap-card" style="padding:0;overflow:hidden">
+    <div class="rp-scroll">
+      <table class="rp-table">
+        <thead>
+          <tr>
+            <th class="rp-th-role">Role</th>
+            @foreach (var m in Modules)
+            { <th class="rp-th-mod" title="@m.Name">@m.Code</th> }
+          </tr>
+        </thead>
+        <tbody>
+          @foreach (var grp in Groups)
+          {
+            <tr class="rp-cat-row">
+              <td colspan="@(Modules.Length + 1)">@grp.Label</td>
+            </tr>
+            @foreach (var role in grp.Roles)
+            {
+              <tr class="rp-role-row">
+                <td class="rp-role-name">
+                  <span class="rp-role-dot rp-dot-@GroupKey(role.Code)"></span>
+                  @role.Name
+                  @if (IsLocked(role.Code)) { <span class="rp-lock">🔒</span> }
+                </td>
+                @foreach (var mod in Modules)
+                {
+                  var key    = $"{role.Code}|{mod.Code}";
+                  var perm   = permissions[key];
+                  var locked = IsLocked(role.Code);
+                  var k      = key;
+                  <td class="rp-cell rp-@perm @(locked?"rp-locked":"rp-editable")"
+                      title="@role.Name – @mod.Name"
+                      @onclick="() => { if (!locked) CyclePermission(k); }">
+                    @(perm=="full"?"●":perm=="view"?"◐":"·")
+                  </td>
+                }
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+.rp-mod-legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.rp-mod-tip{font-size:10px;background:#F8FAFC;border:1px solid var(--border,#E2E8F0);border-radius:4px;padding:2px 8px;color:var(--tx-2)}
+.rp-mod-tip strong{color:var(--tx);margin-right:3px}
+.rp-leg{font-size:11px;padding:1px 6px;border-radius:20px;margin:0 3px}
+.rp-leg.rp-full{background:#D1FAE5;color:#065F46}
+.rp-leg.rp-view{background:#DBEAFE;color:#1E40AF}
+.rp-leg.rp-none{background:#F1F5F9;color:#94A3B8}
+.rp-scroll{overflow-x:auto}
+.rp-table{width:100%;border-collapse:collapse;font-size:12px}
+.rp-th-role{text-align:left;padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:.3px;color:var(--tx-3);text-transform:uppercase;background:#F8FAFC;position:sticky;left:0;z-index:2;border-bottom:2px solid var(--border,#E2E8F0);min-width:180px}
+.rp-th-mod{padding:8px 6px;font-size:9px;font-weight:700;color:var(--tx-3);text-transform:uppercase;background:#F8FAFC;text-align:center;border-bottom:2px solid var(--border,#E2E8F0);min-width:48px;border-left:1px solid var(--border,#E2E8F0)}
+.rp-cat-row td{background:#F0F4F8;color:var(--tx-2,#475569);font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:6px 14px;border-top:2px solid var(--border,#E2E8F0)}
+.rp-role-row:hover{background:#F8FAFC}
+.rp-role-name{padding:8px 14px;font-size:12px;color:var(--tx);white-space:nowrap;position:sticky;left:0;background:#fff;border-bottom:1px solid var(--border,#E2E8F0);display:flex;align-items:center;gap:6px}
+.rp-role-row:hover .rp-role-name{background:#F8FAFC}
+.rp-role-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.rp-dot-system{background:#1B4DA0}.rp-dot-admin{background:#D97706}
+.rp-dot-clinical{background:#10B981}.rp-dot-nursing{background:#06B6D4}
+.rp-dot-allied{background:#8B5CF6}.rp-dot-support{background:#94A3B8}
+.rp-lock{font-size:10px;margin-left:4px;opacity:.5}
+.rp-cell{text-align:center;padding:8px 4px;border-bottom:1px solid var(--border,#E2E8F0);border-left:1px solid var(--border,#E2E8F0);font-size:14px;transition:background .1s;user-select:none}
+.rp-editable{cursor:pointer}.rp-locked{cursor:not-allowed;opacity:.7}
+.rp-cell.rp-full{color:#065F46;background:#F0FDF4}.rp-editable.rp-full:hover{background:#DCFCE7}
+.rp-cell.rp-view{color:#1E40AF;background:#EFF6FF}.rp-editable.rp-view:hover{background:#DBEAFE}
+.rp-cell.rp-none{color:#CBD5E1;background:#fff}.rp-editable.rp-none:hover{background:#F1F5F9}
+</style>
+
+@code {
+  [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private bool   isDirty = false;
+  private string saveMsg = string.Empty;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var role = (await AuthState).User.Claims
+      .Where(c=>c.Type==ClaimTypes.Role).Select(c=>c.Value).FirstOrDefault();
+    if (role is not ("global_admin" or "sys_admin" or "site_admin"))
+      Navigation.NavigateTo("/dashboard", forceLoad:true);
+    BuildMatrix();
+  }
+
+  private record Mod(string Code, string Name);
+  private record RoleDef(string Code, string Name);
+  private record Group(string Label, string Key, RoleDef[] Roles);
+
+  private static readonly Mod[] Modules =
+  [
+    new("OP","Outpatient"), new("IP","Inpatient"), new("RO","Rad.Onco"), new("MO","Med.Onco"),
+    new("Sx","Surgery"), new("CV","Cardiovasc"), new("Ph","Pharmacy"), new("Lab","Lab"),
+    new("Rad","Radiology"), new("NM","Nuclear Med"), new("Bl","Billing"), new("Nu","Nursing"),
+  ];
+
+  private static readonly Group[] Groups =
+  [
+    new("System Roles",    "system",   [new("global_admin","Global Admin"), new("sys_admin","Sys Admin"), new("site_admin","Site Admin")]),
+    new("Administrative",  "admin",    [new("director","Director / HOD"), new("dept_manager","Dept. Manager")]),
+    new("Clinical",        "clinical", [new("physician","Treating Physician"), new("consultant","Consultant"), new("resident","Resident / Intern")]),
+    new("Nursing",         "nursing",  [new("charge_nurse","Charge / Head Nurse"), new("nurse","Staff Nurse")]),
+    new("Allied Health",   "allied",   [new("physicist","Medical Physicist"), new("dosimetrist","Dosimetrist"),
+      new("radiographer","Radiographer / RTT"), new("pharmacist","Pharmacist"),
+      new("lab_tech","Lab Technician"), new("radiologist","Radiologist")]),
+    new("Support",         "support",  [new("billing_staff","Billing Staff"), new("reception","Receptionist"), new("data_entry","Data Entry")]),
+  ];
+
+  private readonly Dictionary<string,string> permissions = new();
+
+  private void BuildMatrix()
+  {
+    foreach (var grp in Groups)
+    foreach (var role in grp.Roles)
+    foreach (var mod in Modules)
+      permissions[$"{role.Code}|{mod.Code}"] = DefaultPerm(role.Code, mod.Code);
+  }
+
+  private static bool IsLocked(string r) => r is "global_admin" or "sys_admin" or "site_admin";
+
+  private static string GroupKey(string role) => role switch
+  {
+    "global_admin" or "sys_admin" or "site_admin" => "system",
+    "director"     or "dept_manager"              => "admin",
+    "physician"    or "consultant" or "resident"  => "clinical",
+    "charge_nurse" or "nurse"                     => "nursing",
+    "physicist" or "dosimetrist" or "radiographer" or "pharmacist" or "lab_tech" or "radiologist" => "allied",
+    _ => "support",
+  };
+
+  // Cycle: none → view → full → none (each click upgrades then wraps)
+  private void CyclePermission(string key)
+  {
+    permissions[key] = permissions[key] switch
+    {
+      "none" => "view",
+      "view" => "full",
+      _      => "none",
+    };
+    isDirty = true; saveMsg = string.Empty;
+  }
+
+  private void SaveChanges()   { isDirty=false; saveMsg="Permissions saved (session only — DB write coming in next sprint)."; }
+  private void DiscardChanges(){ permissions.Clear(); BuildMatrix(); isDirty=false; saveMsg=string.Empty; }
+
+  private static string DefaultPerm(string role, string mod) => role switch
+  {
+    "global_admin" or "sys_admin" or "site_admin" => "full",
+    "director"     or "dept_manager"              => "view",
+    "physician"    => mod is "OP" or "IP" or "RO" or "MO" or "Sx" or "Nu" ? "full" : "view",
+    "consultant"   => mod is "OP" or "IP" ? "view" : "none",
+    "resident"     => mod is "OP" or "IP" or "Nu" ? "view" : "none",
+    "charge_nurse" or "nurse" => mod is "Nu" or "IP" or "OP" ? "full" : "view",
+    "physicist"    => mod is "RO" or "NM" ? "full" : "none",
+    "dosimetrist"  => mod is "RO" ? "full" : "none",
+    "radiographer" => mod is "Rad" or "NM" ? "full" : "none",
+    "pharmacist"   => mod is "Ph" ? "full" : mod is "OP" or "IP" ? "view" : "none",
+    "lab_tech"     => mod is "Lab" ? "full" : "none",
+    "radiologist"  => mod is "Rad" ? "full" : mod is "OP" or "IP" ? "view" : "none",
+    "billing_staff"=> mod is "Bl" ? "full" : mod is "Ph" or "Lab" ? "view" : "none",
+    "reception"    => mod is "OP" or "IP" ? "full" : "none",
+    "data_entry"   => mod is "OP" ? "view" : "none",
+    _              => "none",
+  };
+}

@@ -1,0 +1,240 @@
+@namespace LiPi.Web.Components
+@using System.Net.Http
+@using System.Text.Json
+
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpFactory
+
+<div class="ab-wrap">
+
+    @* PIN Code — primary entry *@
+    <div class="ab-pin-row">
+        <div class="ab-fg ab-pin-fg">
+            <label for="ab-pin" class="ab-lbl">PIN Code @if (Required) { <span class="ab-req">*</span> }</label>
+            <div class="ab-pin-input-row">
+                <input id="ab-pin" name="pinCode" autocomplete="postal-code" class="ab-inp @(PinError ? "err" : "")"
+                       value="@PinCode"
+                       placeholder="6-digit PIN"
+                       inputmode="numeric"
+                       maxlength="6"
+                       @oninput="OnPinInput"
+                       @onblur="OnPinBlur" />
+                @if (lookingUp)
+                { <span class="ab-pin-status ab-pin-loading">Looking up…</span> }
+                else if (autoFilled)
+                { <span class="ab-pin-status ab-pin-ok">✓ Auto-filled</span> }
+                else if (!string.IsNullOrEmpty(lookupError))
+                { <span class="ab-pin-status ab-pin-err">@lookupError</span> }
+            </div>
+            @if (PinError) { <span class="ab-err">@PinErrorMsg</span> }
+            <span class="ab-note">Enter PIN → city and state auto-fill</span>
+        </div>
+    </div>
+
+    <div class="ab-g3">
+        @* Address Line *@
+        <div class="ab-fg ab-s3">
+            <label for="ab-addr" class="ab-lbl">Street / Area / Locality @if (Required) { <span class="ab-req">*</span> }</label>
+            <input id="ab-addr" name="addressLine" autocomplete="street-address" class="ab-inp @(AddressLineError?"err":"")" value="@AddressLine" placeholder="Building, Street, Area, Locality"
+                   @oninput="OnAddressLineInput" @onblur="OnAddressLineBlur" />
+            @if (AddressLineError) { <span class="ab-err">@AddressLineErrorMsg</span> }
+        </div>
+
+        @* District / City — read-only after PIN lookup unless overridden *@
+        <div class="ab-fg ab-s2">
+            <label  class="ab-lbl">
+                District / City @if (Required) { <span class="ab-req">*</span> }
+                @if (autoFilled && !cityOverride)
+                { <button type="button" class="ab-edit-btn" @onclick="OverrideCity" title="Edit manually">✏</button> }
+            </label>
+            @if (autoFilled && !cityOverride)
+            {
+                <div id="ab-city" class="ab-readonly-val" tabindex="0">@City</div>
+            }
+            else
+            {
+                <input id="ab-city" name="city" autocomplete="address-level2" class="ab-inp @(CityError ? "err" : "")"
+                       value="@City"
+                       placeholder="District or city"
+                       @oninput="OnCityInput" @onblur="OnCityBlur" />
+                @if (CityError) { <span class="ab-err">@CityErrorMsg</span> }
+            }
+        </div>
+
+        @* State — read-only after PIN lookup unless overridden *@
+        <div class="ab-fg">
+            <label for="ab-state" class="ab-lbl">
+                State @if (Required) { <span class="ab-req">*</span> }
+                @if (autoFilled && !stateOverride)
+                { <button type="button" class="ab-edit-btn" @onclick="OverrideState" title="Edit manually">✏</button> }
+            </label>
+            @if (autoFilled && !stateOverride)
+            {
+                <div id="ab-state-ro" class="ab-readonly-val" tabindex="0">@State</div>
+            }
+            else
+            {
+                <select id="ab-state" name="state" autocomplete="address-level1" class="ab-sel @(StateError ? "err" : "")"
+                        value="@State"
+                        @onchange="OnStateChange" @onblur="OnStateBlur">
+                    <option value="">Select state…</option>
+                    @foreach (var s in IndianStates)
+                    { <option value="@s">@s</option> }
+                </select>
+                @if (StateError) { <span class="ab-err">@StateErrorMsg</span> }
+            }
+        </div>
+
+        @* Country *@
+        <div class="ab-fg">
+            <label for="ab-country" class="ab-lbl">Country</label>
+            <input id="ab-country" name="country" autocomplete="country" class="ab-inp" value="India" readonly style="color:var(--tx-3,#94A3B8)" />
+        </div>
+    </div>
+</div>
+
+@code {
+    // Two-way bound parameters
+    [Parameter] public string AddressLine { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> AddressLineChanged { get; set; }
+    [Parameter] public string City  { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> CityChanged  { get; set; }
+    [Parameter] public string State { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> StateChanged { get; set; }
+    [Parameter] public string PinCode { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PinCodeChanged { get; set; }
+
+    // Validation
+    [Parameter] public bool            Required        { get; set; }
+    [Parameter] public EventCallback  PinCodeBlurred      { get; set; }
+    [Parameter] public EventCallback  AddressLineBlurred  { get; set; }
+    [Parameter] public EventCallback  CityBlurred         { get; set; }
+    [Parameter] public EventCallback  StateBlurred        { get; set; }
+    [Parameter] public bool   AddressLineError    { get; set; }
+    [Parameter] public string AddressLineErrorMsg { get; set; } = string.Empty;
+    [Parameter] public bool   PinError    { get; set; }
+    [Parameter] public string PinErrorMsg { get; set; } = string.Empty;
+    [Parameter] public bool   CityError   { get; set; }
+    [Parameter] public string CityErrorMsg{ get; set; } = string.Empty;
+    [Parameter] public bool   StateError  { get; set; }
+    [Parameter] public string StateErrorMsg{ get; set; } = string.Empty;
+
+    private bool   lookingUp, autoFilled, cityOverride, stateOverride;
+    private string lookupError = string.Empty;
+
+    private async Task OnPinInput(ChangeEventArgs e)
+    {
+        var raw = new string((e.Value?.ToString() ?? string.Empty)
+            .Where(char.IsDigit).Take(6).ToArray());
+
+        PinCode = raw;
+        await PinCodeChanged.InvokeAsync(raw);
+
+        // Clear city/state immediately when PIN changes
+        if (autoFilled || (!string.IsNullOrEmpty(City) && raw.Length < 6))
+        {
+            autoFilled = cityOverride = stateOverride = false;
+            lookupError = string.Empty;
+            if (raw.Length < 6)  // Only clear if PIN is being edited (not completed)
+            {
+                City  = string.Empty; await CityChanged.InvokeAsync(string.Empty);
+                State = string.Empty; await StateChanged.InvokeAsync(string.Empty);
+            }
+        }
+
+        if (raw.Length == 6)
+            await LookupPin(raw);
+    }
+
+    private async Task OnPinBlur()
+    {
+        if (PinCodeBlurred.HasDelegate) await PinCodeBlurred.InvokeAsync();
+
+        if (PinCode.Length == 6 && !autoFilled)
+            await LookupPin(PinCode);
+    }
+
+    private async Task LookupPin(string pin)
+    {
+        lookingUp = true; lookupError = string.Empty; StateHasChanged();
+        try
+        {
+            using var http = HttpFactory.CreateClient("IndiaPinApi");
+            var resp = await http.GetStringAsync($"pincode/{pin}");
+            var docs  = JsonSerializer.Deserialize<JsonElement[]>(resp);
+            if (docs is { Length: > 0 })
+            {
+                var doc    = docs[0];
+                var status = doc.GetProperty("Status").GetString();
+                if (status == "Success")
+                {
+                    var po = doc.GetProperty("PostOffice")[0];
+                    var dist  = po.GetProperty("District").GetString() ?? string.Empty;
+                    var state = po.GetProperty("State").GetString()    ?? string.Empty;
+
+                    City  = dist;  await CityChanged.InvokeAsync(dist);
+                    State = state; await StateChanged.InvokeAsync(state);
+                    autoFilled = true; cityOverride = stateOverride = false;
+                }
+                else
+                { lookupError = "PIN not found — enter city and state manually"; }
+            }
+        }
+        catch
+        { lookupError = "Could not reach PIN lookup service — enter manually"; }
+        finally { lookingUp = false; }
+    }
+
+    private void OverrideCity()  => cityOverride  = true;
+    private void OverrideState() => stateOverride = true;
+
+    private async Task OnAddressLineInput(ChangeEventArgs e)
+    {
+        AddressLine = e.Value?.ToString() ?? string.Empty;
+        await AddressLineChanged.InvokeAsync(AddressLine);
+    }
+
+    private async Task OnAddressLineBlur()
+    {
+        if (AddressLineBlurred.HasDelegate) await AddressLineBlurred.InvokeAsync();
+    }
+
+    private async Task OnCityBlur()
+    {
+        if (CityBlurred.HasDelegate) await CityBlurred.InvokeAsync();
+    }
+
+    private async Task OnStateBlur()
+    {
+        if (StateBlurred.HasDelegate) await StateBlurred.InvokeAsync();
+    }
+
+    private async Task OnCityInput(ChangeEventArgs e)
+    {
+        City = e.Value?.ToString() ?? string.Empty;
+        // Manually edited city → clear PIN
+        if (City != string.Empty && !string.IsNullOrEmpty(PinCode))
+        { PinCode = string.Empty; await PinCodeChanged.InvokeAsync(string.Empty); autoFilled = false; }
+        await CityChanged.InvokeAsync(City);
+    }
+
+    private async Task OnStateChange(ChangeEventArgs e)
+    {
+        State = e.Value?.ToString() ?? string.Empty;
+        // Manually changed state → clear city and PIN
+        City    = string.Empty; await CityChanged.InvokeAsync(string.Empty);
+        PinCode = string.Empty; await PinCodeChanged.InvokeAsync(string.Empty);
+        autoFilled = false;
+        await StateChanged.InvokeAsync(State);
+    }
+
+    private static readonly string[] IndianStates =
+    [
+        "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat",
+        "Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh",
+        "Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan",
+        "Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
+        "Andaman & Nicobar Islands","Chandigarh","Dadra & Nagar Haveli and Daman & Diu",
+        "Delhi","Jammu & Kashmir","Ladakh","Lakshadweep","Puducherry",
+    ];
+}

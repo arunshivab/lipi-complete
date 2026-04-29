@@ -1,0 +1,161 @@
+%% LiPi :: Master Registry :: ER Diagram
+erDiagram
+    ORGANIZATIONS ||--o{ CLINICS                 : "owns"
+    ORGANIZATIONS ||--o{ CLINIC_GROUPS            : "defines"
+    ORGANIZATIONS ||--o{ SUBSCRIPTIONS            : "holds"
+    ORGANIZATIONS ||--o{ IDENTITY_PROVIDERS       : "federates via"
+    ORGANIZATIONS ||--o{ GLOBAL_USERS             : "employs"
+
+    CLINICS       ||--|| CLINIC_DATABASES         : "has OLTP at"
+    CLINICS       ||--o{ CLINIC_GROUP_MEMBERS     : "member of"
+    CLINIC_GROUPS ||--o{ CLINIC_GROUP_MEMBERS     : "contains"
+
+    SUBSCRIPTION_PLANS ||--o{ SUBSCRIPTIONS       : "defines tier for"
+    SUBSCRIPTIONS ||--o{ INVOICES                 : "billed as"
+
+    GLOBAL_USERS  ||--o{ GLOBAL_USER_CLINIC_ACCESS : "can access"
+    CLINICS       ||--o{ GLOBAL_USER_CLINIC_ACCESS : "accessible by"
+
+    IDENTITY_PROVIDERS ||--o{ IDP_GROUP_ROLE_MAPPINGS : "maps AD groups"
+    CLINICS            ||--o{ IDP_GROUP_ROLE_MAPPINGS : "scoped to"
+
+    FEATURE_FLAGS ||--o{ FEATURE_FLAG_OVERRIDES   : "overridden by"
+
+    GLOBAL_USERS  ||--o{ AUDIT_EVENTS             : "actor on"
+    CLINICS       ||--o{ AUDIT_EVENTS             : "context for"
+
+    ORGANIZATIONS {
+        uuid    id PK
+        text    legal_name
+        text    trading_name
+        text    org_type
+        char(2) country_code
+        text    pan
+        text    gstin
+        text    cin
+        jsonb   registered_address
+        jsonb   primary_contact
+        text    status
+        timestamptz onboarded_at
+    }
+    CLINICS {
+        uuid    id PK
+        uuid    organization_id FK
+        text    code
+        text    name
+        text    clinic_type
+        text    city
+        text    state
+        jsonb   address
+        text    timezone
+        int     bed_count
+        bool    nabh_accredited
+        bool    has_oncology
+        bool    has_rt
+        bool    has_nuclear_med
+        text    status
+        timestamptz go_live_at
+    }
+    CLINIC_DATABASES {
+        uuid id PK
+        uuid clinic_id FK
+        text db_host
+        int  db_port
+        text db_name
+        text db_schema_version
+        text encryption_key_arn
+        bool fdw_linked
+        text health_status
+    }
+    CLINIC_GROUPS {
+        uuid id PK
+        uuid organization_id FK
+        text name
+        text group_type
+    }
+    CLINIC_GROUP_MEMBERS {
+        uuid clinic_group_id PK,FK
+        uuid clinic_id PK,FK
+    }
+    SUBSCRIPTION_PLANS {
+        uuid id PK
+        text code UK
+        text tier
+        text[] modules_included
+        int max_users
+        int max_beds
+        numeric price_inr_monthly
+        jsonb features
+    }
+    SUBSCRIPTIONS {
+        uuid id PK
+        uuid organization_id FK
+        uuid clinic_id FK
+        uuid plan_id FK
+        date starts_on
+        date ends_on
+        text billing_cycle
+        text status
+        text[] addon_modules
+    }
+    INVOICES {
+        uuid id PK
+        uuid subscription_id FK
+        text invoice_number UK
+        date period_start
+        date period_end
+        numeric amount_inr
+        numeric total_inr
+        text status
+    }
+    GLOBAL_USERS {
+        uuid id PK
+        text email UK
+        text user_type
+        uuid organization_id FK
+        bool is_mfa_enabled
+        text status
+    }
+    GLOBAL_USER_CLINIC_ACCESS {
+        uuid global_user_id PK,FK
+        uuid clinic_id PK,FK
+        text access_level
+    }
+    IDENTITY_PROVIDERS {
+        uuid id PK
+        uuid organization_id FK
+        text idp_type
+        text display_name
+        jsonb config
+        bool is_default
+    }
+    IDP_GROUP_ROLE_MAPPINGS {
+        uuid id PK
+        uuid identity_provider_id FK
+        text ad_group_dn
+        text role_code
+        uuid clinic_id FK
+    }
+    FEATURE_FLAGS {
+        uuid id PK
+        text flag_key UK
+        bool default_enabled
+        jsonb rollout_rules
+    }
+    FEATURE_FLAG_OVERRIDES {
+        uuid id PK
+        uuid feature_flag_id FK
+        text scope_type
+        uuid scope_id
+        bool enabled
+    }
+    AUDIT_EVENTS {
+        uuid id PK
+        timestamptz event_ts
+        uuid actor_user_id FK
+        text action
+        text entity_type
+        uuid entity_id
+        bytea previous_hash
+        bytea current_hash
+    }

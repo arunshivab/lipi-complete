@@ -1,0 +1,229 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Sections
+@using System.Security.Claims
+@using LiPi.Web.Services
+@inject NavigationManager Nav
+
+<div class="tn-shell">
+
+    <!-- ── Top bar ── -->
+    <header class="tn-topbar">
+
+        <!-- SINGLE SVG background — one element, zero seam lines -->
+        <svg class="tn-bg-svg" viewBox="0 0 1000 72" preserveAspectRatio="none"
+             xmlns="http://www.w3.org/2000/svg">
+            <rect width="1000" height="72" fill="#0F2D5E"/>
+            <rect x="338" y="0" width="324" height="70" fill="#F0F4F8"/>
+            <path d="M 340 0 C 285 0, 285 71, 230 70 L 340 70 Z" fill="#F0F4F8"/>
+            <path d="M 340 0 C 285 0, 285 71, 230 72 L 0 72 L 0 0 Z" fill="#0F2D5E"/>
+            <path d="M 660 0 C 715 0, 715 71, 770 70 L 660 70 Z" fill="#F0F4F8"/>
+            <path d="M 660 0 C 715 0, 715 71, 770 72 L 1000 72 L 1000 0 Z" fill="#0F2D5E"/>
+        </svg>
+
+        <!-- Title: absolutely centred — click navigates to Settings -->
+        <a href="/admin/settings" class="tn-center-title">
+            <SectionOutlet SectionName="page-title" />
+        </a>
+
+        <!-- Content row -->
+        <div class="tn-row">
+            <a href="/dashboard" class="tn-brand" title="Dashboard">
+                <div class="tn-logo">L</div>
+                <div class="tn-brand-text">
+                    <span class="tn-brand-name">LiPi</span>
+                    <span class="tn-brand-sub">Armoki HIS</span>
+                </div>
+            </a>
+            <div style="display:flex;align-items:center;padding-left:16px;margin-left:12px">
+                <div class="tn-greeting">
+                    <div class="tn-greet-line1">
+                        <span class="tn-greet-phrase">@greeting,</span>
+                        <span class="tn-greet-name">@displayName</span>
+                    </div>
+                    <div class="tn-greet-clinic">@clinicName</div>
+                </div>
+            </div>
+            <div class="tn-center-spacer"></div>
+            <div class="tn-clock" id="tn-clock">
+                <span class="tn-clock-time" id="tn-clock-time">--:--:--</span>
+                <span class="tn-clock-date" id="tn-clock-date">@DateTime.Now.ToString("ddd, dd MMM yyyy")</span>
+            </div>
+            @if (isAdmin)
+            {
+                <div class="tn-admin-wrap">
+                    <input type="checkbox" id="admin-menu-toggle" class="tn-admin-chk"
+                           @checked="@IsActiveStartsWith("/admin")" />
+                    <label for="admin-menu-toggle" class="tn-admin-trigger" title="Administration">
+                        ⚙ @displayName
+                    </label>
+                    <nav class="tn-admin-sub" aria-label="Administration">
+                        <a href="/admin/settings" class="tn-asub-btn @(IsActiveStartsWith("/admin/settings")? "active" : "")"><span class="tn-asub-icon">⚙</span>Settings</a>
+                        <a href="@profileHref"    class="tn-asub-btn"><span class="tn-asub-icon">👤</span>View Profile</a>
+                        <form method="post" action="/logout" style="margin:0">
+                            <button type="submit" class="tn-asub-btn tn-asub-signout"><span class="tn-asub-icon">⏻</span>Sign Out</button>
+                        </form>
+                    </nav>
+                </div>
+            }
+            else
+            {
+                <div class="tn-admin-wrap">
+                    <input type="checkbox" id="admin-menu-toggle" class="tn-admin-chk" />
+                    <label for="admin-menu-toggle" class="tn-admin-trigger" title="My Account">
+                        👤 @displayName
+                    </label>
+                    <nav class="tn-admin-sub" aria-label="My Account">
+                        <a href="@profileHref" class="tn-asub-btn"><span class="tn-asub-icon">👤</span>View Profile</a>
+                        <form method="post" action="/logout" style="margin:0">
+                            <button type="submit" class="tn-asub-btn tn-asub-signout"><span class="tn-asub-icon">⏻</span>Sign Out</button>
+                        </form>
+                    </nav>
+                </div>
+            }
+        </div><!-- tn-row -->
+
+    </header>
+
+    <!-- ── Page content ── -->
+    <main class="tn-content">
+        @Body
+    </main>
+
+    <!-- ── Bottom circular module dock ── -->
+    <nav class="tn-dock" aria-label="Module navigation">
+
+        @foreach (var mod in GetVisibleClinical())
+        {
+            <a href="@mod.Route"
+               class="tn-dock-item @(IsActive(mod.Route) ? "active" : "")"
+               style="--dc: @mod.Color">
+                <div class="tn-dock-btn">
+                    <span class="tn-dc-code">@mod.Code</span>
+                </div>
+                <span class="tn-dc-label">@mod.Name</span>
+            </a>
+        }
+
+        <div class="tn-dock-sep"></div>
+
+        @foreach (var mod in GetVisibleSupport())
+        {
+            <a href="@mod.Route"
+               class="tn-dock-item @(IsActive(mod.Route) ? "active" : "")"
+               style="--dc: @mod.Color">
+                <div class="tn-dock-btn">
+                    <span class="tn-dc-code">@mod.Code</span>
+                </div>
+                <span class="tn-dc-label">@mod.Name</span>
+            </a>
+        }
+
+        @if (isAdmin)
+        {
+        }
+
+    </nav>
+
+    <!-- ── Patient FAB (teal, role-gated) ── -->
+    <LiPi.Web.Components.Shared.PatientFab />
+
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private string   username       = string.Empty;
+    private string   displayName    = string.Empty;
+    private string   clinicName     = string.Empty;
+    private string   roleDisplay    = string.Empty;
+    private string   roleBadgeClass = "staff";
+    private string   greeting       = "Hello";
+    private bool     isAdmin;
+    private string   ownId = string.Empty;
+    private bool     isGlobalAdmin;
+    private string[] userRoles      = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user   = (await AuthState).User;
+        username    = user.Identity?.Name ?? "User";
+        ownId       = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        // Use clinic full name if available, fall back to code
+        clinicName  = user.FindFirst("clinicName")?.Value
+                   ?? user.FindFirst("clinic")?.Value
+                   ?? "—";
+        // Build display name: displayName claim → firstName+lastName → username
+        var fn = user.FindFirst("firstName")?.Value   ?? string.Empty;
+        var ln = user.FindFirst("lastName")?.Value    ?? string.Empty;
+        var dn = user.FindFirst("displayName")?.Value ?? string.Empty;
+        displayName = !string.IsNullOrEmpty(dn)
+            ? dn
+            : (!string.IsNullOrEmpty(fn) || !string.IsNullOrEmpty(ln))
+                ? $"{fn} {ln}".Trim()
+                : username;
+        userRoles  = user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToArray();
+
+        var role      = userRoles.FirstOrDefault() ?? string.Empty;
+        isAdmin       = role is "global_admin" or "sys_admin" or "site_admin";
+        isGlobalAdmin = role == "global_admin";
+
+        (roleDisplay, roleBadgeClass) = role switch
+        {
+            "global_admin" => ("Global Admin", "global-admin"),
+            "sys_admin"    => ("Sys Admin",    "sys-admin"),
+            "site_admin"   => ("Site Admin",   "site-admin"),
+            var r          => (string.IsNullOrEmpty(r) ? "Staff" : FormatRole(r), "staff"),
+        };
+
+        var h = DateTime.Now.Hour;
+        greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Good night";
+    }
+
+    private IEnumerable<AdminData.ModuleDef> GetVisibleClinical() =>
+        AdminData.ClinicalModules.Where(m => CanSeeModule(m.Code));
+
+    private IEnumerable<AdminData.ModuleDef> GetVisibleSupport() =>
+        AdminData.SupportModules.Where(m => CanSeeModule(m.Code));
+
+    private bool CanSeeModule(string code)
+    {
+        if (isAdmin) return true;
+        return code switch
+        {
+            "PT"  => HasAnyRole("physician","consultant","resident","charge_nurse","nurse","reception","billing_staff","data_entry","tpa_staff"),
+            "BL"  => HasAnyRole("billing_staff","tpa_staff","reception","site_admin"),
+            "OP"  => HasAnyRole("physician","consultant","resident","charge_nurse","nurse","reception","billing_staff","data_entry"),
+            "IP"  => HasAnyRole("physician","consultant","resident","charge_nurse","nurse","billing_staff"),
+            "RO"  => HasAnyRole("physician","physicist","dosimetrist","radiographer","charge_nurse","nurse"),
+            "MO"  => HasAnyRole("physician","consultant","resident","charge_nurse","nurse"),
+            "Sx"  => HasAnyRole("physician","consultant","resident","charge_nurse","nurse"),
+            "CV"  => HasAnyRole("physician","consultant","resident","charge_nurse","nurse"),
+            "Ph"  => HasAnyRole("pharmacist","physician","charge_nurse","nurse"),
+            "Lab" => HasAnyRole("lab_tech","physician","radiologist"),
+            "Rad" => HasAnyRole("radiographer","radiologist","physicist"),
+            "NM"  => HasAnyRole("physicist","radiographer","radiologist"),
+            _     => true,
+        };
+    }
+
+    private bool HasAnyRole(params string[] roles) => userRoles.Any(r => roles.Contains(r));
+
+    private static string FormatRole(string r) =>
+        string.Join(' ', r.Split('_').Select(s => char.ToUpper(s[0]) + s[1..]));
+
+    private string profileHref => "/profile";
+
+    private bool IsActive(string path)
+    {
+        var rel = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/').ToLower();
+        return rel == path.TrimEnd('/').ToLower();
+    }
+
+    private bool IsActiveStartsWith(string prefix)
+    {
+        var rel = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/').ToLower();
+        prefix  = prefix.TrimEnd('/').ToLower();
+        return rel == prefix || rel.StartsWith(prefix + "/");
+    }
+}

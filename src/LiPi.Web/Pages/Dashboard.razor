@@ -1,0 +1,388 @@
+@page "/dashboard"
+@namespace LiPi.Web.Pages
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Sections
+@using System.Security.Claims
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using LiPi.Clinic.Identity
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject IDbContextFactory<MasterDbContext>   MasterFactory
+@inject IDbContextFactory<IdentityDbContext> IdentFactory
+
+<PageTitle>Dashboard – LiPi HIS</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Dashboard</div>
+    <div class="tn-pt-sub">@_greeting, @_displayName</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:1000px;margin:0 auto;padding:20px 24px 60px">
+
+    @if (_loading)
+    {
+        <div style="padding:60px;text-align:center;color:#94A3B8">Loading…</div>
+    }
+    else if (_role == "global_admin")
+    {
+        @* ══ GLOBAL ADMIN ════════════════════════════════════════════ *@
+        <div class="db-metrics">
+            <div class="dmc"><div class="dmc-l">Clinics</div><div class="dmc-v">@_clinicCount</div><div class="dmc-s">@_activeClinicCount active</div></div>
+            <div class="dmc"><div class="dmc-l">Organisations</div><div class="dmc-v">@_orgCount</div><div class="dmc-s">@_activeOrgCount active</div></div>
+            <div class="dmc"><div class="dmc-l">Users</div><div class="dmc-v">@_userCount</div><div class="dmc-s">all clinics</div></div>
+            <div class="dmc @(_pendingRoles>0?"dmc-warn":"")"><div class="dmc-l">Pending roles</div><div class="dmc-v">@_pendingRoles</div><div class="dmc-s">@(_pendingRoles==0?"all assigned ✓":"need assignment")</div></div>
+            <div class="dmc"><div class="dmc-l">Sys admins</div><div class="dmc-v">@_sysAdminCount</div></div>
+            <div class="dmc"><div class="dmc-l">Site admins</div><div class="dmc-v">@_siteAdminCount</div></div>
+        </div>
+
+        <div class="db-grid2">
+            <div class="db-card">
+                <div class="db-ch">Clinics</div>
+                <div class="db-cb">
+                    @if (!_clinics.Any())
+                    { <div class="db-empty">No clinics registered yet.</div> }
+                    @foreach (var c in _clinics.Take(6))
+                    {
+                        <div class="db-row">
+                            <span class="db-dot db-dot-@StatusColor(c.Status)"></span>
+                            <div class="db-rt">
+                                <div style="font-size:12px;font-weight:500;color:#0F2D5E">@c.Name</div>
+                                <div style="font-size:10px;color:#94A3B8">@c.Code · @c.City</div>
+                            </div>
+                            <span class="db-pill db-pill-@StatusColor(c.Status)">@c.Status</span>
+                        </div>
+                    }
+                    @if (_clinics.Count > 6)
+                    { <div style="padding:8px 0;font-size:11px;color:#94A3B8;text-align:center">+@(_clinics.Count-6) more · <a href="/admin/clinics" style="color:#1565C0">view all</a></div> }
+                </div>
+            </div>
+            <div class="db-card">
+                <div class="db-ch">Recent registrations</div>
+                <div class="db-cb">
+                    @if (!_recent.Any())
+                    { <div class="db-empty">No users registered yet.</div> }
+                    @foreach (var u in _recent)
+                    {
+                        <div class="db-row">
+                            <div class="db-av">@Initials(u.DisplayName)</div>
+                            <div class="db-rt">
+                                <div style="font-size:12px;font-weight:500;color:#0F2D5E">@u.DisplayName</div>
+                                <div style="font-size:10px;color:#94A3B8">@u.ClinicName · @u.Designation</div>
+                            </div>
+                            <span class="@(u.HasRole?"db-pill db-pill-green":"db-pill db-pill-amber")">@(u.HasRole?"assigned":"no role")</span>
+                        </div>
+                    }
+                </div>
+                @if (_pendingRoles > 0)
+                { <div style="padding:8px 14px;border-top:0.5px solid #E2E8F0"><a href="/admin/users" style="font-size:11px;color:#D97706;text-decoration:none;font-weight:500">↪ @_pendingRoles user@(_pendingRoles==1?"":"s") need role assignment</a></div> }
+            </div>
+        </div>
+    }
+    else if (_role == "sys_admin")
+    {
+        @* ══ SYS ADMIN ══════════════════════════════════════════════ *@
+        <div class="db-metrics">
+            <div class="dmc"><div class="dmc-l">Clinics</div><div class="dmc-v">@_clinicCount</div><div class="dmc-s">@_activeClinicCount active</div></div>
+            <div class="dmc"><div class="dmc-l">Users</div><div class="dmc-v">@_userCount</div></div>
+            <div class="dmc @(_pendingRoles>0?"dmc-warn":"")"><div class="dmc-l">Pending roles</div><div class="dmc-v">@_pendingRoles</div><div class="dmc-s">@(_pendingRoles==0?"all assigned ✓":"need assignment")</div></div>
+            <div class="dmc"><div class="dmc-l">Site admins</div><div class="dmc-v">@_siteAdminCount</div></div>
+        </div>
+
+        <div class="db-grid2">
+            <div class="db-card">
+                <div class="db-ch">Clinics</div>
+                <div class="db-cb">
+                    @if (!_clinics.Any())
+                    { <div class="db-empty">No clinics assigned.</div> }
+                    @foreach (var c in _clinics)
+                    {
+                        <div class="db-row">
+                            <span class="db-dot db-dot-@StatusColor(c.Status)"></span>
+                            <div class="db-rt">
+                                <div style="font-size:12px;font-weight:500;color:#0F2D5E">@c.Name</div>
+                                <div style="font-size:10px;color:#94A3B8">@c.Code</div>
+                            </div>
+                            <span style="font-size:10px;color:#94A3B8">@(c.UserCount) users</span>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="db-card">
+                <div class="db-ch">Quick actions</div>
+                <div class="db-cb" style="display:flex;flex-wrap:wrap;gap:8px;padding:14px">
+                    <a href="/admin/users/new"      class="db-qa">Register user</a>
+                    @if (_pendingRoles > 0)
+                    { <a href="/admin/users"        class="db-qa db-qa-warn">Assign roles (@_pendingRoles)</a> }
+                    <a href="/admin/security-policy" class="db-qa">Security policy</a>
+                    <a href="/admin/audit"           class="db-qa">Audit log</a>
+                    <a href="/admin/sysadmins"       class="db-qa">Manage admins</a>
+                </div>
+                @if (_recent.Any())
+                {
+                    <div style="border-top:0.5px solid #E2E8F0;padding:8px 0 0">
+                        <div class="db-ch" style="border-bottom:none;font-size:11px">Recent registrations</div>
+                        @foreach (var u in _recent.Take(3))
+                        {
+                            <div class="db-row" style="padding:6px 14px">
+                                <div class="db-av" style="width:24px;height:24px;font-size:9px">@Initials(u.DisplayName)</div>
+                                <div class="db-rt">
+                                    <div style="font-size:11px;color:#0F2D5E">@u.DisplayName</div>
+                                    <div style="font-size:10px;color:#94A3B8">@u.ClinicName</div>
+                                </div>
+                                <span class="@(u.HasRole?"db-pill db-pill-green":"db-pill db-pill-amber")">@(u.HasRole?"assigned":"no role")</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (_role == "site_admin")
+    {
+        @* ══ SITE ADMIN ═════════════════════════════════════════════ *@
+        <div class="db-metrics">
+            <div class="dmc"><div class="dmc-l">@(_clinicCount==1?"Clinic":"Clinics")</div><div class="dmc-v">@_clinicCount</div></div>
+            <div class="dmc"><div class="dmc-l">Users</div><div class="dmc-v">@_userCount</div><div class="dmc-s">@(_clinicCount>1?"across all clinics":"")</div></div>
+            <div class="dmc @(_pendingRoles>0?"dmc-warn":"")"><div class="dmc-l">Pending roles</div><div class="dmc-v">@_pendingRoles</div><div class="dmc-s">@(_pendingRoles==0?"all assigned ✓":"need assignment")</div></div>
+            <div class="dmc"><div class="dmc-l">Registered today</div><div class="dmc-v">@_todayCount</div></div>
+        </div>
+
+        <div class="db-grid2">
+            <div class="db-card">
+                <div class="db-ch">Recent registrations</div>
+                <div class="db-cb">
+                    @if (!_recent.Any())
+                    { <div class="db-empty">No users registered yet. <a href="/admin/users/new" style="color:#1565C0">Register first user →</a></div> }
+                    @foreach (var u in _recent)
+                    {
+                        <div class="db-row">
+                            <div class="db-av">@Initials(u.DisplayName)</div>
+                            <div class="db-rt">
+                                <div style="font-size:12px;font-weight:500;color:#0F2D5E">@u.DisplayName</div>
+                                <div style="font-size:10px;color:#94A3B8">@u.Designation@(string.IsNullOrEmpty(u.Designation)||string.IsNullOrEmpty(u.ClinicName)?"":" · ")@u.ClinicName</div>
+                            </div>
+                            <span class="@(u.HasRole?"db-pill db-pill-green":"db-pill db-pill-amber")">@(u.HasRole?"assigned":"no role")</span>
+                        </div>
+                    }
+                </div>
+                @if (_pendingRoles > 0)
+                { <div style="padding:8px 14px;border-top:0.5px solid #E2E8F0"><a href="/admin/users" style="font-size:11px;color:#D97706;text-decoration:none;font-weight:500">↪ @_pendingRoles user@(_pendingRoles==1?"":"s") need role assignment</a></div> }
+            </div>
+            <div class="db-card">
+                <div class="db-ch">Quick actions</div>
+                <div class="db-cb" style="display:flex;flex-wrap:wrap;gap:8px;padding:14px">
+                    <a href="/admin/users/new"       class="db-qa">Register user</a>
+                    @if (_pendingRoles > 0)
+                    { <a href="/admin/users"         class="db-qa db-qa-warn">Assign roles (@_pendingRoles)</a> }
+                    <a href="/admin/security-policy"  class="db-qa">Security policy</a>
+                    <a href="/admin/audit"            class="db-qa">Audit log</a>
+                    <a href="/admin/clinic-config"    class="db-qa">Clinic config</a>
+                </div>
+                @if (_clinics.Count > 1)
+                {
+                    <div style="border-top:0.5px solid #E2E8F0">
+                        <div class="db-ch" style="border-bottom:none;font-size:11px">My clinics</div>
+                        @foreach (var c in _clinics)
+                        {
+                            <div class="db-row" style="padding:5px 14px">
+                                <span class="db-dot db-dot-@StatusColor(c.Status)"></span>
+                                <div style="font-size:11px;color:#0F2D5E">@c.Name</div>
+                                <span style="font-size:10px;color:#94A3B8;margin-left:auto">@c.UserCount users</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+.db-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:16px}
+.dmc{background:#F8FAFC;border-radius:10px;padding:14px 16px}
+.dmc-warn{background:#FFFBEB}
+.dmc-l{font-size:10px;color:#64748B;margin-bottom:4px;font-weight:500}
+.dmc-warn .dmc-l{color:#B45309}
+.dmc-v{font-size:26px;font-weight:500;color:#0B2545;line-height:1}
+.dmc-warn .dmc-v{color:#92400E}
+.dmc-s{font-size:10px;color:#94A3B8;margin-top:3px}
+.dmc-warn .dmc-s{color:#B45309}
+.db-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.db-card{background:#fff;border:0.5px solid #E2E8F0;border-radius:12px;overflow:hidden}
+.db-ch{padding:11px 14px;font-size:12px;font-weight:600;color:#0F2D5E;border-bottom:0.5px solid #E2E8F0}
+.db-cb{padding:4px 0}
+.db-row{display:flex;align-items:center;gap:9px;padding:8px 14px;border-bottom:0.5px solid #F1F5F9}
+.db-row:last-child{border-bottom:none}
+.db-empty{padding:16px 14px;font-size:12px;color:#94A3B8}
+.db-av{width:28px;height:28px;border-radius:50%;background:#0B2545;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.db-rt{flex:1;min-width:0}
+.db-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.db-dot-green{background:#10B981}.db-dot-amber{background:#F59E0B}.db-dot-red{background:#EF4444}.db-dot-blue{background:#3B82F6}
+.db-pill{font-size:9px;padding:2px 7px;border-radius:10px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.db-pill-green{background:#D1FAE5;color:#065F46}
+.db-pill-amber{background:#FEF3C7;color:#92400E}
+.db-pill-red{background:#FEE2E2;color:#991B1B}
+.db-qa{font-size:11px;padding:5px 11px;border:0.5px solid #E2E8F0;border-radius:6px;background:#fff;color:#0F2D5E;text-decoration:none;white-space:nowrap}
+.db-qa:hover{background:#F8FAFC;border-color:#0B2545}
+.db-qa-warn{border-color:#FCD34D;background:#FFFBEB;color:#92400E}
+</style>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private string _role = string.Empty, _displayName = string.Empty;
+    private string _greeting = "Welcome";
+    private bool   _loading  = true;
+    private Guid   _ownId;
+
+    // Metrics
+    private int _clinicCount, _activeClinicCount, _orgCount, _activeOrgCount;
+    private int _userCount, _pendingRoles, _sysAdminCount, _siteAdminCount, _todayCount;
+
+    // Lists
+    private List<ClinicStat>  _clinics = new();
+    private List<RecentUser>  _recent  = new();
+
+    private record ClinicStat(Guid Id, string Name, string Code, string City, string Status, int UserCount);
+    private record RecentUser(string DisplayName, string ClinicName, string Designation, bool HasRole);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user      = (await AuthState).User;
+        _role         = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? string.Empty;
+        _displayName  = user.FindFirst("displayName")?.Value ?? user.Identity?.Name ?? "Admin";
+        Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out _ownId);
+        _greeting     = Greeting();
+
+        try
+        {
+            await using var masterDb = await MasterFactory.CreateDbContextAsync();
+
+            // ── Get clinics in scope ────────────────────────────────
+            List<Guid> scopedClinicIds = new();
+            bool hasScope = false;
+
+            if (_role is "sys_admin" or "site_admin")
+            {
+                scopedClinicIds = await masterDb.ClinicMemberships
+                    .Where(cm => cm.PlatformUserId == _ownId && cm.Status == "active")
+                    .Select(cm => cm.ClinicId).ToListAsync();
+                hasScope = scopedClinicIds.Any();
+            }
+
+            // Clinics query
+            var clinicsQ = masterDb.Clinics.Where(c => c.DeletedAt == null);
+            if (hasScope) clinicsQ = clinicsQ.Where(c => scopedClinicIds.Contains(c.Id));
+            var allClinics = await clinicsQ.OrderBy(c => c.Name).ToListAsync();
+
+            _clinicCount       = allClinics.Count;
+            _activeClinicCount = allClinics.Count(c => c.Status == "active");
+
+            // Users query
+            var usersQ = masterDb.PlatformUsers
+                .Include(u => u.ClinicMemberships)
+                .Where(u => u.DeletedAt == null && u.UserType == "staff");
+            if (hasScope)
+                usersQ = usersQ.Where(u => u.ClinicMemberships.Any(cm => scopedClinicIds.Contains(cm.ClinicId) && cm.Status == "active"));
+            var allUsers = await usersQ.OrderByDescending(u => u.CreatedAt).ToListAsync();
+            _userCount   = allUsers.Count;
+            _todayCount  = allUsers.Count(u => u.CreatedAt.Date == DateTime.UtcNow.Date);
+
+            // Admins (GlobalAdmin only)
+            if (_role == "global_admin")
+            {
+                _orgCount       = await masterDb.Organizations.CountAsync(o => o.DeletedAt == null);
+                _activeOrgCount = await masterDb.Organizations.CountAsync(o => o.DeletedAt == null && o.Status == "active");
+                _sysAdminCount  = await masterDb.PlatformUsers.CountAsync(u => u.UserType == "sys_admin"  && u.DeletedAt == null);
+                _siteAdminCount = await masterDb.PlatformUsers.CountAsync(u => u.UserType == "site_admin" && u.DeletedAt == null);
+            }
+            if (_role == "sys_admin")
+            {
+                _siteAdminCount = hasScope
+                    ? await masterDb.PlatformUsers.CountAsync(u => u.UserType == "site_admin" && u.DeletedAt == null &&
+                        u.ClinicMemberships.Any(cm => scopedClinicIds.Contains(cm.ClinicId)))
+                    : await masterDb.PlatformUsers.CountAsync(u => u.UserType == "site_admin" && u.DeletedAt == null);
+            }
+
+            // Clinic stats with user counts
+            var usersByClinic = allUsers
+                .SelectMany(u => u.ClinicMemberships.Select(cm => cm.ClinicId))
+                .GroupBy(id => id)
+                .ToDictionary(g => g.Key, g => g.Count());
+            _clinics = allClinics.Select(c => new ClinicStat(
+                c.Id, c.Name, c.Code, c.City, c.Status,
+                usersByClinic.TryGetValue(c.Id, out var cnt) ? cnt : 0)).ToList();
+
+            // Recent users + role status
+            var recentUsers = allUsers.Take(6).ToList();
+            var recentIds   = recentUsers.Select(u => u.Id).ToList();
+            Dictionary<Guid, bool> roleMap = new();
+            try
+            {
+                await using var identDb = await IdentFactory.CreateDbContextAsync();
+                var assigned = await identDb.UserRoles
+                    .Where(ur => recentIds.Contains(ur.UserId) && ur.ValidTo == null)
+                    .Select(ur => ur.UserId).Distinct().ToListAsync();
+                roleMap = recentIds.ToDictionary(id => id, id => assigned.Contains(id));
+            }
+            catch { recentIds.ForEach(id => roleMap[id] = false); }
+
+            // Pending roles count
+            var allUserIds = allUsers.Select(u => u.Id).ToList();
+            try
+            {
+                await using var identDb = await IdentFactory.CreateDbContextAsync();
+                var withRoles = await identDb.UserRoles
+                    .Where(ur => allUserIds.Contains(ur.UserId) && ur.ValidTo == null)
+                    .Select(ur => ur.UserId).Distinct().ToListAsync();
+                _pendingRoles = allUserIds.Count(id => !withRoles.Contains(id));
+            }
+            catch { }
+
+            // Build recent list
+            var clinicNameById = allClinics.ToDictionary(c => c.Id, c => c.Name);
+            _recent = recentUsers.Select(u =>
+            {
+                var cn = u.ClinicMemberships.FirstOrDefault()?.ClinicId;
+                var des = string.Empty;
+                try
+                {
+                    var ext = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(u.ExtensionData ?? "{}");
+                    if (ext.TryGetProperty("designation", out var d)) des = d.GetString() ?? string.Empty;
+                }
+                catch { }
+                return new RecentUser(
+                    u.DisplayName ?? u.Username,
+                    cn.HasValue && clinicNameById.TryGetValue(cn.Value, out var name) ? name : string.Empty,
+                    des, roleMap.TryGetValue(u.Id, out var hr) && hr);
+            }).ToList();
+        }
+        catch { }
+        finally { _loading = false; }
+    }
+
+    private static string Greeting()
+    {
+        var h = DateTime.Now.Hour;
+        return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+    }
+
+    private static string Initials(string name)
+    {
+        var p = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length >= 2 ? $"{p[0][0]}{p[^1][0]}".ToUpper()
+             : name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+
+    private static string StatusColor(string s) => s switch
+    {
+        "active"       => "green",
+        "provisioning" => "amber",
+        "suspended"    => "red",
+        _              => "blue"
+    };
+}

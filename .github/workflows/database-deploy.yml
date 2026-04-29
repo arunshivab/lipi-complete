@@ -1,0 +1,97 @@
+name: Database Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths: [ 'database/**' ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  validate:
+    name: Validate SQL Schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Validate SQL syntax
+        run: |
+          cd database
+          python scripts/validate-sql.py
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: validate
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run database provisioning
+        env:
+          PGPASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: |
+          cd database
+          chmod +x scripts/provision-db.sh
+          ./scripts/provision-db.sh --host ${{ secrets.STAGING_DB_HOST }} --port 5432 --username postgres --database lipi_staging
+      - name: Run smoke tests
+        env:
+          PGPASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: |
+          psql -h ${{ secrets.STAGING_DB_HOST }} -U postgres -d lipi_staging -f database/scripts/smoke-tests.sql
+      - name: Slack notification
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Staging deployment ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  deploy-production:
+    name: Deploy to Production
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create backup
+        env:
+          PGPASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+        run: |
+          pg_dump -h ${{ secrets.PROD_DB_HOST }} -U postgres -d lipi_prod -F custom -f backup_$(date +%Y%m%d_%H%M%S).dump
+      - name: Upload backup
+        uses: actions/upload-artifact@v3
+        with:
+          name: prod-backup
+          path: backup_*.dump
+          retention-days: 30
+      - name: Run database provisioning
+        env:
+          PGPASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+        run: |
+          cd database
+          chmod +x scripts/provision-db.sh
+          ./scripts/provision-db.sh --host ${{ secrets.PROD_DB_HOST }} --port 5432 --username postgres --database lipi_prod --verbose
+      - name: Run smoke tests
+        env:
+          PGPASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+        run: |
+          psql -h ${{ secrets.PROD_DB_HOST }} -U postgres -d lipi_prod -f database/scripts/smoke-tests.sql
+      - name: Slack notification
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Production deployment ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+.vs/
+
+# Secrets
+appsettings.Development.json
+appsettings.Production.json
+*.pfx
+*.p12
+
+# Logs
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store

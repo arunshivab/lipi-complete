@@ -1,0 +1,211 @@
+erDiagram
+    LICENCE_TYPES ||--o{ LICENCES : "classifies"
+    LICENCES ||--o{ LICENCE_RESPONSIBILITY : "assigns"
+    LICENCES ||--o{ PHYSICAL_COPY_ACCESS_LOG : "tracks"
+    LICENCES ||--o{ RENEWAL_SCHEDULE : "schedules"
+    LICENCES ||--o{ COMPLIANCE_ALERTS : "triggers"
+    RENEWAL_SCHEDULE ||--o{ LICENCES : "links_to_new"
+    INSPECTION_RECORDS ||--o{ CAPA_ITEMS : "raises"
+    CAPA_ITEMS ||--o{ COMPLIANCE_ALERTS : "escalates"
+    POLICIES ||--o{ COMPLIANCE_ALERTS : "referenced_by"
+    TRAINING_COMPLETIONS ||--o{ COMPLIANCE_ALERTS : "validates"
+    INCIDENTS ||--o{ CAPA_ITEMS : "triggers"
+
+    LICENCE_TYPES {
+        text code PK "fire_noc, cgwa_consent, cdsco_import, aerb, nabh"
+        text name
+        text issuing_authority "Fire Department, CGWA, CDSCO"
+        text document_class "permission, certificate, licence, consent"
+        int renewal_cycle_months
+        text[] mandatory_for_departments
+        text compliance_standard "fire_safety, water_mgmt, medical_device, nuclear"
+        boolean audit_required
+        text description
+    }
+
+    LICENCES {
+        uuid id PK
+        uuid clinic_id FK
+        text licence_type_code FK
+        uuid department_id FK
+        text licence_number UK "clinic + type + number"
+        date issued_date
+        date valid_from
+        date valid_to
+        text issued_by "authority name"
+        text authority_contact
+        text status "applied, approved, active, suspended, expired, revoked"
+        text status_reason "default, lapsed, voluntary"
+        text conditions_text "specific clauses"
+        text physical_copy_s3_key
+        text digital_copy_url
+        datetime renewal_applied_at
+        datetime renewal_approved_at
+        uuid previous_licence_id FK "renewal chain"
+        boolean is_critical
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    LICENCE_RESPONSIBILITY {
+        uuid id PK
+        uuid clinic_id FK
+        uuid licence_id FK
+        uuid staff_id FK
+        text responsibility_role "primary_holder, custodian, renewal_owner, signatory"
+        datetime assigned_at
+        uuid assigned_by FK
+        datetime valid_from
+        datetime valid_to
+        text notes
+        datetime created_at
+        int row_version
+    }
+
+    PHYSICAL_COPY_ACCESS_LOG {
+        uuid id PK
+        uuid clinic_id FK
+        uuid licence_id FK
+        datetime accessed_at
+        uuid actor_user_id FK
+        text actor_action "checked_out, checked_in, inspected, scanned"
+        text purpose "regulatory_inspection, renewal, audit, training"
+        text location_stored_at "safe_A2, office_cabinet_B1"
+        int custody_duration_mins
+        text notes
+    }
+
+    RENEWAL_SCHEDULE {
+        uuid id PK
+        uuid clinic_id FK
+        uuid licence_id FK
+        int days_before_expiry
+        date due_date
+        datetime renewal_submitted_at
+        datetime renewal_approved_at
+        uuid new_licence_id FK "upon approval"
+        text status "pending, submitted, approved, lapsed"
+        uuid assigned_to FK "person responsible"
+        text notes
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    COMPLIANCE_ALERTS {
+        uuid id PK
+        uuid clinic_id FK
+        text alert_type "licence_expiry_imminent, licence_expired, critical_licence_missing, capa_overdue, inspection_due"
+        uuid licence_id FK
+        text severity "low, medium, high, critical"
+        datetime raised_at
+        text target_audience "clinic_admin, dpo, medical_director, board, ceo"
+        text message
+        text action_required
+        date due_date
+        text status "open, acknowledged, in_progress, resolved, escalated"
+        uuid acknowledged_by FK
+        datetime acknowledged_at
+        datetime resolved_at
+        text resolution_notes
+    }
+
+    INSPECTION_RECORDS {
+        uuid id PK
+        uuid clinic_id FK
+        text inspection_type "internal_audit, regulatory_inspection, accreditation_visit"
+        date inspection_date
+        text conducted_by "auditor/inspector name"
+        text scope_description
+        int findings_count
+        int critical_findings
+        int major_findings
+        int minor_findings
+        boolean capa_required
+        text report_s3_key
+        date scheduled_followup_date
+        datetime followup_completed_at
+        text notes
+        datetime created_at
+        int row_version
+    }
+
+    CAPA_ITEMS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid inspection_id FK
+        text finding_code
+        text description
+        text root_cause_analysis
+        text action_planned
+        uuid assigned_to FK
+        date due_date
+        text status "open, in_progress, completed, verified_effective, closed"
+        date completion_date
+        date effectiveness_review_date
+        uuid verified_by FK
+        datetime verified_at
+        text notes
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    POLICIES {
+        uuid id PK
+        uuid clinic_id FK
+        text policy_code UK "FIRE_SAFETY_2026"
+        text policy_title
+        text description
+        int version
+        date effective_from
+        date effective_to
+        text document_s3_key
+        date approval_date
+        uuid approved_by FK
+        uuid published_by FK
+        text[] compliance_mapped_to
+        int review_cycle_months
+        date next_review_due
+        text status "draft, approved, active, superseded, archived"
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    TRAINING_COMPLETIONS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        text training_name
+        text training_category "induction, mandatory_annual, regulatory_required"
+        date training_date
+        text certificate_s3_key
+        numeric completion_hours
+        numeric score
+        boolean passed
+        date valid_until
+        text conducted_by
+        text notes
+        datetime created_at
+        int row_version
+    }
+
+    INCIDENTS {
+        uuid id PK
+        uuid clinic_id FK
+        date incident_date
+        text incident_type "safety_hazard, medication_error, needle_stick, fire, data_breach, infection_control_breach"
+        text severity "minor, moderate, serious, critical"
+        uuid reported_by FK
+        text description
+        text immediate_action
+        boolean capa_raised
+        uuid capa_id FK
+        text status "reported, investigating, closed, escalated"
+        text investigation_notes
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }

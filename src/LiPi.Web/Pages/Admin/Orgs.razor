@@ -1,0 +1,277 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/orgs"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject IDbContextFactory<MasterDbContext> DbFactory
+@inject ILogger<Orgs> Log
+
+<PageTitle>Organizations – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Organisations</div>
+    <div class="tn-pt-sub">Hospital groups & entities</div>
+</SectionContent>
+
+<div class="ap-body">
+  <div class="ap-table-wrap">
+
+    <!-- Toolbar -->
+    <div class="ap-toolbar">
+      <div class="ap-search-box">
+        <svg class="ap-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="org-search" name="search" type="search" autocomplete="off"
+               placeholder="Search name, type or country…"
+               value="@searchTerm" @oninput="OnSearchInput" />
+      </div>
+      <div class="ap-filters">
+        <button class="ap-filter-btn @(sf=="All"        ?"active":"")" @onclick="FilterAll">All</button>
+        <button class="ap-filter-btn @(sf=="active"     ?"active":"")" @onclick="FilterActive">Active</button>
+        <button class="ap-filter-btn @(sf=="onboarding" ?"active":"")" @onclick="FilterOnboard">Onboarding</button>
+        <button class="ap-filter-btn @(sf=="suspended"  ?"active":"")" @onclick="FilterSusp">Suspended</button>
+      </div>
+      <a href="/admin/orgs/new" class="btn-primary btn-sm" style="white-space:nowrap;margin-left:auto">+ Register Org</a>
+    </div>
+
+    <!-- Column headers -->
+    <div style="display:grid;grid-template-columns:44px 1.8fr 110px 140px 160px 80px 90px;gap:0 8px;padding:6px 16px;background:var(--surface-2,#F8FAFC);border-bottom:1px solid var(--border,#E2E8F0)">
+      <div></div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase">ORGANISATION &amp; ACTIONS</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">TYPE</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">CITY / STATE</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">CLINICS</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--tx-3);text-transform:uppercase;text-align:center">STATUS</div>
+    </div>
+
+    @if (loading)
+    { <div class="ap-placeholder"><div class="ap-placeholder-icon">⏳</div><p>Loading organizations…</p></div> }
+    else if (filtered.Count == 0)
+    {
+      <div class="ap-table-empty">
+        <div class="ap-table-empty-icon">🏢</div>
+        <p class="ap-table-empty-title">No organizations found</p>
+        <a href="/admin/orgs/new" class="btn-primary btn-sm">+ Register First Organization</a>
+      </div>
+    }
+    else
+    {
+      @foreach (var o in filtered)
+      {
+        var oid = o.Id;
+        <div class="ul-row ul-status-@o.Status" style="display:grid;grid-template-columns:44px 1.8fr 110px 140px 160px 80px 90px;gap:0 8px;padding:10px 16px;align-items:center">
+
+          <div class="ul-avatar ul-avatar-@OrgColor(o.OrgType)" style="border-radius:10px;font-size:14px;font-weight:700">
+            @GetOrgInitials(o.LegalName)
+          </div>
+
+          <div class="ul-info">
+            <div class="ul-name-row">
+              <a href="/admin/orgs/@oid/edit" class="ul-username">@o.LegalName</a>
+            </div>
+            @if (!string.IsNullOrEmpty(o.TradingName))
+            { <div class="ul-email" style="font-style:italic">aka @o.TradingName</div> }
+            <div class="ul-email">
+              @o.CountryCode
+              @if (!string.IsNullOrEmpty(o.Pan))   { <span style="margin-left:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--tx-3)">PAN: @o.Pan</span> }
+              @if (!string.IsNullOrEmpty(o.Gstin)) { <span style="margin-left:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--tx-3)">GST: @o.Gstin[..Math.Min(12,o.Gstin.Length)]</span> }
+            </div>
+            @{ var _osa = o.Status == "suspended" ? "activate" : "suspend"; var _oid = oid; }
+            <div class="ul-actions">
+              <a href="/admin/orgs/@oid/edit" class="ul-act ul-act-edit" title="Edit">✏</a>
+              <button type="button" class="ul-act ul-act-susp"
+                      title="@(o.Status=="suspended"?"Activate":"Suspend")"
+                      @onclick="() => PromptAction(_oid, _osa)">
+                @(o.Status=="suspended" ? "▶" : "⏸")
+              </button>
+              <button type="button" class="ul-act ul-act-del" title="Delete"
+                      @onclick="() => PromptAction(_oid, DeleteAction)">🗑</button>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:center">
+            <span class="cl-type-badge" style="background:#EEF2FF;color:#3730A3;border-color:#C7D2FE;font-size:10px">@FormatOrgType(o.OrgType)</span>
+          </div>
+
+          <div style="font-size:11px;color:var(--tx-2);display:flex;align-items:center;justify-content:center">
+            @GetCityState(o.RegisteredAddress)
+          </div>
+
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div style="font-size:18px;font-weight:700;color:var(--tx)">@o.Clinics.Count</div>
+            <div style="font-size:9px;color:var(--tx-3)">@(o.Clinics.Count==1?"clinic":"clinics")</div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:center">
+            <span class="ul-role-pill @StatusPill(o.Status)">@o.Status</span>
+          </div>
+
+        </div>
+      }
+      <div class="ul-footer-count">Showing @filtered.Count of @allOrgs.Count organization(s)</div>
+    }
+  </div>
+</div>
+
+<!-- Confirmation modal -->
+@if (confirmId != Guid.Empty)
+{
+  <div class="ue-confirm-backdrop" @onclick="CloseConfirm">
+    <div class="ue-confirm-card" @onclick:stopPropagation>
+      <div class="ue-confirm-title">@confirmTitle</div>
+      <div class="ue-confirm-body">@confirmBody</div>
+      @if (!string.IsNullOrEmpty(actionError))
+      { <div style="font-size:11px;color:#DC2626;background:#FEF2F2;border-radius:6px;padding:6px 10px;margin-top:8px">⚠ @actionError</div> }
+      <div class="ue-confirm-btns">
+        <button type="button" class="btn-secondary" @onclick="CloseConfirm">Cancel</button>
+        <button type="button" class="@confirmBtnClass" disabled="@actionBusy" @onclick="ExecuteAction">
+          @(actionBusy ? "Working…" : confirmBtnLabel)
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@code {
+  [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private const string DeleteAction = "delete";
+  private bool loading=true;
+  private string searchTerm=string.Empty, sf="All";
+  private List<Organization> allOrgs=new(), filtered=new();
+
+  private Guid   confirmId     = Guid.Empty;
+  private string confirmAction = string.Empty, confirmTitle=string.Empty;
+  private string confirmBody   = string.Empty, confirmBtnLabel=string.Empty, confirmBtnClass=string.Empty;
+  private string actionError   = string.Empty;
+  private bool   actionBusy;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var role = (await AuthState).User.Claims.Where(c=>c.Type==ClaimTypes.Role).Select(c=>c.Value).FirstOrDefault();
+    if (role != "global_admin")
+    { Nav.NavigateTo("/admin", forceLoad:true); return; }
+    await LoadAsync();
+    loading=false;
+  }
+
+  private async Task LoadAsync()
+  {
+    await using var db = await DbFactory.CreateDbContextAsync();
+    allOrgs = await db.Organizations
+      .Include(o=>o.Clinics)
+      .Where(o=>o.DeletedAt==null)
+      .OrderBy(o=>o.LegalName).ToListAsync();
+    ApplyFilter();
+  }
+
+  private void OnSearchInput(ChangeEventArgs e) { searchTerm=e.Value?.ToString()??string.Empty; ApplyFilter(); }
+  private void FilterAll()     { sf="All";        ApplyFilter(); }
+  private void FilterActive()  { sf="active";     ApplyFilter(); }
+  private void FilterOnboard() { sf="onboarding"; ApplyFilter(); }
+  private void FilterSusp()    { sf="suspended";  ApplyFilter(); }
+
+  private void ApplyFilter()
+  {
+    filtered = allOrgs
+      .Where(o => sf=="All" || o.Status==sf)
+      .Where(o => string.IsNullOrWhiteSpace(searchTerm)
+               || o.LegalName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+               || (o.TradingName??string.Empty).Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+               || (o.OrgType??string.Empty).Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+               || (o.CountryCode??string.Empty).Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+      .ToList();
+  }
+
+  private void PromptAction(Guid id, string action)
+  {
+    var o = allOrgs.First(x=>x.Id==id);
+    confirmId=id; confirmAction=action; actionError=string.Empty;
+    (confirmTitle, confirmBody, confirmBtnLabel, confirmBtnClass) = action switch
+    {
+      "suspend"  => ("Suspend Organization",
+                     $"Suspend '{o.LegalName}'? All associated clinics will also be suspended.",
+                     "Suspend", "ue-dz-btn ue-dz-warn"),
+      "activate" => ("Activate Organization",
+                     $"Reactivate '{o.LegalName}'? Clinics will need to be reactivated individually.",
+                     "Activate", "ue-dz-btn ue-dz-ok"),
+      "delete"   => ("Delete Organization",
+                     $"Delete '{o.LegalName}'? The record is retained per HIPAA. All linked clinics must be deleted first. This cannot be undone.",
+                     "Delete", "ue-dz-btn ue-dz-danger"),
+      _ => (string.Empty,string.Empty,string.Empty,string.Empty),
+    };
+  }
+
+  private void CloseConfirm() { confirmId=Guid.Empty; confirmAction=string.Empty; }
+
+  private async Task ExecuteAction()
+  {
+    actionBusy=true; actionError=string.Empty; StateHasChanged();
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var org = await db.Organizations.Include(o=>o.Clinics).FirstOrDefaultAsync(o=>o.Id==confirmId);
+      if (org==null) { actionError="Organization not found."; return; }
+      switch (confirmAction)
+      {
+        case "suspend":
+          org.Status="suspended"; org.UpdatedAt=DateTimeOffset.UtcNow;
+          foreach (var c in org.Clinics) { c.Status="suspended"; c.UpdatedAt=DateTimeOffset.UtcNow; }
+          break;
+        case "activate":
+          org.Status="active"; org.UpdatedAt=DateTimeOffset.UtcNow; break;
+        case "delete":
+          if (org.Clinics.Any(c=>c.DeletedAt==null))
+          { actionError="Delete all linked clinics first before deleting the organization."; return; }
+          org.DeletedAt=DateTimeOffset.UtcNow; org.UpdatedAt=DateTimeOffset.UtcNow; break;
+      }
+      await db.SaveChangesAsync();
+      await LoadAsync();
+      CloseConfirm();
+    }
+    catch (Exception ex) { actionError=ex.InnerException?.Message??ex.Message; Log.LogError(ex,"Org action failed"); }
+    finally { actionBusy=false; }
+  }
+
+  private static string GetCityState(string addressJson)
+  {
+    try
+    {
+      var j = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(addressJson);
+      var city  = j.TryGetProperty("city",  out var c) ? c.GetString() : null;
+      var state = j.TryGetProperty("state", out var s) ? s.GetString() : null;
+      if (!string.IsNullOrEmpty(city) && !string.IsNullOrEmpty(state)) return $"{city}, {state}";
+      if (!string.IsNullOrEmpty(city))  return city;
+      if (!string.IsNullOrEmpty(state)) return state;
+    }
+    catch { }
+    return "—";
+  }
+
+  private static string GetOrgInitials(string name)
+  {
+    var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    if (words.Length >= 2) return $"{words[0][0]}{words[1][0]}".ToUpper();
+    return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+  }
+  private static string OrgColor(string type) => type switch
+  {
+    "hospital_chain" => "blue", "government" => "navy", "academic" => "purple",
+    "trust" => "green", "single_clinic" => "teal", _ => "slate",
+  };
+  private static string FormatOrgType(string t)
+    => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(t.Replace("_"," "));
+  private static string StatusPill(string s) => s switch
+  {
+    "active"=>"ul-role-green","suspended"=>"ul-role-red",
+    "onboarding"=>"ul-role-amber",_=>"ul-role-slate",
+  };
+}

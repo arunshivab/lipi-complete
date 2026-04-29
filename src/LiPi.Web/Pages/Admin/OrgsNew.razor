@@ -1,0 +1,374 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/orgs/new"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using System.Security.Claims
+@using System.Text.Json
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject IDbContextFactory<MasterDbContext> DbFactory
+@inject IJSRuntime JS
+@inject ILogger<OrgsNew> Log
+
+<PageTitle>Register Organisation – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Register Organisation</div>
+    <div class="tn-pt-sub">Add a new organisation</div>
+</SectionContent>
+
+<div class="pg-body">
+
+  <div class="pg-bc">
+    <a href="/admin">Administration</a><span>›</span>
+    <a href="/admin/orgs">Organisations</a><span>›</span>
+    <span>Register Organisation</span>
+    <a href="/admin/orgs" class="pg-bc-back">← All Organisations</a>
+  </div>
+
+  <fieldset disabled="@saved" style="border:none;padding:0;margin:0">
+  @if (!string.IsNullOrEmpty(errorMsg))   { <div class="pg-alert err">⚠ @errorMsg</div> }
+
+  <!-- ① Legal Identity -->
+  <div class="pg-card" style="border-left-color:#1565C0">
+    <div class="pg-ch"><div class="pg-num" style="background:#1565C0">1</div><span class="pg-ct">Legal Identity</span></div>
+    <div class="pg-cb">
+      <div class="pg-g3" style="margin-bottom:8px">
+        <div class="pg-fg pg-s2">
+          <label class="pg-lbl" for="on-lname">Legal / Registered Name <span class="pg-req">*</span></label>
+          <input id="on-lname" name="legalName" autocomplete="organization" class="pg-inp @eCss("lname")"
+                 value="@m.LegalName" placeholder="As per registration / MCA"
+                 @oninput="OnLnameInput" @onblur="OnBlurLname" />
+          @Err("lname")
+          <span class="pg-note">Use the exact name as it appears on legal documents</span>
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-tname">Trading / Brand Name</label>
+          <input id="on-tname" name="tradingName" autocomplete="organization" class="pg-inp"
+                 value="@m.TradingName" placeholder="Known by…"
+                 @oninput="OnTnameInput" />
+          <span class="pg-note">Optional — shown to users</span>
+        </div>
+      </div>
+      <div class="pg-g3">
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-type">Organisation Type <span class="pg-req">*</span></label>
+          <select id="on-type" name="orgType" autocomplete="off" class="pg-sel @eCss("type")" @onchange="OnTypeChange">
+            <option value="">Select type…</option>
+            <option value="single_clinic">Single Clinic</option>
+            <option value="hospital_chain">Hospital Chain / Group</option>
+            <option value="clinic_group">Clinic Group</option>
+            <option value="government">Government / PSU</option>
+            <option value="academic">Academic / Teaching Hospital</option>
+            <option value="trust">Trust / NGO</option>
+          </select>
+          @Err("type")
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-country">Country <span class="pg-req">*</span></label>
+          <select id="on-country" name="country" autocomplete="country" class="pg-sel" @onchange="OnCountryChange">
+            <option value="IN">India</option>
+            <option value="AE">UAE</option>
+            <option value="US">USA</option>
+            <option value="GB">UK</option>
+            <option value="AU">Australia</option>
+          </select>
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-status">Status</label>
+          <select id="on-status" name="status" autocomplete="off" class="pg-sel" @onchange="OnStatusChange">
+            <option value="active">Active</option>
+            <option value="onboarding">Onboarding</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② Registration & Tax -->
+  <div class="pg-card" style="border-left-color:#BF360C">
+    <div class="pg-ch"><div class="pg-num" style="background:#BF360C">2</div><span class="pg-ct">Registration &amp; Tax Numbers</span></div>
+    <div class="pg-cb">
+      <div class="pg-info-note" style="margin-bottom:10px">
+        Used for invoicing, NABH submissions and government reporting. Store only — LiPi does not validate these automatically.
+      </div>
+      <div class="pg-g3">
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-pan">PAN</label>
+          <input id="on-pan" name="pan" autocomplete="off" class="pg-inp @eCss("pan")"
+                 value="@m.Pan" placeholder="AAAAA0000A" maxlength="10"
+                 style="font-family:'DM Mono',monospace;letter-spacing:.5px"
+                 @oninput="OnPanInput" @onblur="OnBlurPan" />
+          @Err("pan")
+          <span class="pg-note">10-char alphanumeric · Income Tax</span>
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-gstin">GSTIN</label>
+          <input id="on-gstin" name="gstin" autocomplete="off" class="pg-inp @eCss("gstin")"
+                 value="@m.Gstin" placeholder="22AAAAA0000A1Z5" maxlength="15"
+                 style="font-family:'DM Mono',monospace;letter-spacing:.5px"
+                 @oninput="OnGstinInput" @onblur="OnBlurGstin" />
+          @Err("gstin")
+          <span class="pg-note">15-char GST Identification Number</span>
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-cin">CIN</label>
+          <input id="on-cin" name="cin" autocomplete="off" class="pg-inp @eCss("cin")"
+                 value="@m.Cin" placeholder="U85110MH2020PTC123456" maxlength="21"
+                 style="font-family:'DM Mono',monospace;letter-spacing:.5px"
+                 @oninput="OnCinInput" @onblur="OnBlurCin" />
+          @Err("cin")
+          <span class="pg-note">21-char Company ID · MCA21</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ Address & Contact -->
+  <div class="pg-card" style="border-left-color:#00695C">
+    <div class="pg-ch"><div class="pg-num" style="background:#00695C">3</div><span class="pg-ct">Registered Address &amp; Primary Contact</span></div>
+    <div class="pg-cb">
+      <AddressBlock
+          AddressLine="@m.AddressLine"  AddressLineChanged="OnAddrChanged"
+          City="@m.City"               CityChanged="OnCityChanged"
+          State="@m.State"             StateChanged="OnStateChanged"
+          PinCode="@m.PinCode"         PinCodeChanged="OnPinChanged"
+          PinCodeBlurred="OnPinBlurred"
+          Required="true"
+          AddressLineError="@(_t.GetValueOrDefault("addr") && !string.IsNullOrEmpty(_e.GetValueOrDefault("addr")))"
+          AddressLineErrorMsg="@_e.GetValueOrDefault("addr")"
+          PinError="@(_t.GetValueOrDefault("pin") && !string.IsNullOrEmpty(_e.GetValueOrDefault("pin")))"
+          PinErrorMsg="@_e.GetValueOrDefault("pin")"
+          CityError="@(_t.GetValueOrDefault("city") && !string.IsNullOrEmpty(_e.GetValueOrDefault("city")))"
+          CityErrorMsg="@_e.GetValueOrDefault("city")"
+          StateError="@(_t.GetValueOrDefault("state") && !string.IsNullOrEmpty(_e.GetValueOrDefault("state")))"
+          StateErrorMsg="@_e.GetValueOrDefault("state")" />
+      <div class="pg-g3" style="margin-top:10px">
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-cname">Contact Name <span class="pg-req">*</span></label>
+          <input id="on-cname" name="contactName" autocomplete="name" class="pg-inp @eCss("cname")"
+                 value="@m.ContactName" placeholder="Full name"
+                 @oninput="OnCnameInput" @onblur="OnBlurCname" />
+          @Err("cname")
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-cphone">Mobile Phone <span class="pg-req">*</span></label>
+          <div style="display:flex;gap:4px">
+            <select id="on-cphone-cc" name="contactPhoneCC" autocomplete="tel-country-code" aria-label="Country code" class="pg-sel"
+                    style="width:120px;flex-shrink:0" @onchange="OnCphoneCcChange">
+              <option value="+91">+91 India</option>
+              <option value="+1">+1 US/CA</option>
+              <option value="+44">+44 UK</option>
+              <option value="+971">+971 UAE</option>
+              <option value="+65">+65 SG</option>
+              <option value="+61">+61 AU</option>
+            </select>
+            <input id="on-cphone" name="contactPhone" autocomplete="tel-national" class="pg-inp @eCss("cphone")"
+                   value="@m.ContactPhone" inputmode="numeric"
+                   placeholder="@(m.ContactPhoneCC=="+91"?"10 digits":"Mobile number")"
+                   @oninput="OnCphoneInput" @onblur="OnBlurCphone" />
+          </div>
+          @Err("cphone")
+        </div>
+        <div class="pg-fg">
+          <label class="pg-lbl" for="on-cemail">Contact Email <span class="pg-req">*</span></label>
+          <input id="on-cemail" name="contactEmail" autocomplete="email" type="email" class="pg-inp @eCss("cemail")"
+                 value="@m.ContactEmail" placeholder="admin@org.com"
+                 @oninput="OnCemailInput" @onblur="OnBlurCemail" />
+          @Err("cemail")
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </fieldset>
+
+  @if (!string.IsNullOrEmpty(formError))
+  { <div class="pg-form-err">⚠ @formError</div> }
+
+  <div class="pg-actions">
+    @if (!saved)
+    { <button type="button" class="btn-primary" disabled="@saving" @onclick="HandleSubmit">
+        @(saving ? "Creating…" : "Register Organisation")
+      </button> }
+    <a href="/admin/orgs" class="btn-secondary">@(saved ? "Close" : "Cancel")</a>
+    @if (saved) { <span class="pg-success-msg">✓ @successMsg</span> }
+  </div>
+</div>
+
+@code {
+  [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private sealed class OrgForm
+  {
+    public string LegalName = string.Empty, TradingName = string.Empty;
+    public string OrgType = string.Empty, CountryCode = "IN", Status = "active";
+    public string Pan = string.Empty, Gstin = string.Empty, Cin = string.Empty;
+    public string AddressLine = string.Empty, PinCode = string.Empty;
+    public string City = string.Empty, State = string.Empty;
+    public string ContactName = string.Empty, ContactPhone = string.Empty, ContactEmail = string.Empty;
+    public string ContactPhoneCC = "+91";
+  }
+
+  private OrgForm m = new();
+  private string successMsg = string.Empty, errorMsg = string.Empty, formError = string.Empty;
+  private bool saving, saved;
+
+  private readonly Dictionary<string, bool>   _t = new();
+  private readonly Dictionary<string, string> _e = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    var user = (await AuthState).User;
+    var role = user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).FirstOrDefault();
+    if (role is not ("global_admin" or "sys_admin"))
+    { Nav.NavigateTo("/dashboard", forceLoad: true); return; }
+
+    foreach (var k in new[] { "lname","type","pin","addr","city","state","cname","cphone","cemail","pan","gstin","cin" })
+    { _t[k] = false; _e[k] = string.Empty; }
+    await Task.CompletedTask;
+  }
+
+  // ── Input handlers ────────────────────────────────────────────────────────
+  private static string OnlyLetters(string? s) =>
+    string.IsNullOrEmpty(s) ? string.Empty : System.Text.RegularExpressions.Regex.Replace(s, @"[^a-zA-Z\s\-\.]", string.Empty);
+
+  private void OnLnameInput(ChangeEventArgs e)   { m.LegalName    = e.Value?.ToString() ?? string.Empty; if (_t.GetValueOrDefault("lname"))  Validate("lname");  }
+  private void OnTnameInput(ChangeEventArgs e)   => m.TradingName  = e.Value?.ToString() ?? string.Empty;
+  private void OnTypeChange(ChangeEventArgs e)   { m.OrgType      = e.Value?.ToString() ?? string.Empty; Touch("type"); }
+  private void OnCountryChange(ChangeEventArgs e)=> m.CountryCode  = e.Value?.ToString() ?? "IN";
+  private void OnStatusChange(ChangeEventArgs e) => m.Status       = e.Value?.ToString() ?? "active";
+  private void OnPanInput(ChangeEventArgs e)     { m.Pan   = (e.Value?.ToString() ?? string.Empty).ToUpperInvariant(); if (_t.GetValueOrDefault("pan"))   Validate("pan");   }
+  private void OnGstinInput(ChangeEventArgs e)   { m.Gstin = (e.Value?.ToString() ?? string.Empty).ToUpperInvariant(); if (_t.GetValueOrDefault("gstin")) Validate("gstin"); }
+  private void OnCinInput(ChangeEventArgs e)     { m.Cin   = (e.Value?.ToString() ?? string.Empty).ToUpperInvariant(); if (_t.GetValueOrDefault("cin"))   Validate("cin");   }
+  private void OnAddrChanged(string v)           { m.AddressLine  = v; if (_t.GetValueOrDefault("addr")) Validate("addr"); }
+
+  private void OnPinBlurred() { Touch("pin"); }
+  private void OnCityChanged(string v)           { m.City    = v; Touch("city"); }
+  private void OnStateChanged(string v)          { m.State   = v; Touch("state"); }
+  private void OnPinChanged(string v)            { m.PinCode = v; if (v.Length == 6) Touch("pin"); else if (_t.GetValueOrDefault("pin")) Validate("pin"); }
+  private void OnCnameInput(ChangeEventArgs e)   { m.ContactName = OnlyLetters(e.Value?.ToString()); if (_t.GetValueOrDefault("cname")) Validate("cname"); StateHasChanged(); }
+  private void OnCphoneCcChange(ChangeEventArgs e) => m.ContactPhoneCC = e.Value?.ToString() ?? "+91";
+  private void OnCphoneInput(ChangeEventArgs e)
+  {
+    m.ContactPhone = System.Text.RegularExpressions.Regex.Replace(e.Value?.ToString() ?? string.Empty, @"\D", string.Empty);
+    if (_t.GetValueOrDefault("cphone")) Validate("cphone");
+  }
+  private void OnCemailInput(ChangeEventArgs e)  { m.ContactEmail = e.Value?.ToString() ?? string.Empty; if (_t.GetValueOrDefault("cemail")) Validate("cemail"); }
+
+  // Blur handlers
+  private void OnBlurLname()  => Touch("lname");
+  private void OnBlurCname()  => Touch("cname");
+  private void OnBlurCphone() => Touch("cphone");
+  private void OnBlurCemail() { Touch("cemail"); }
+  private void OnBlurPan()    { if (!string.IsNullOrEmpty(m.Pan))          Touch("pan");   }
+  private void OnBlurGstin()  { if (!string.IsNullOrEmpty(m.Gstin))        Touch("gstin"); }
+  private void OnBlurCin()    { if (!string.IsNullOrEmpty(m.Cin))          Touch("cin");   }
+
+  // ── Validation ────────────────────────────────────────────────────────────
+  private void Touch(string f) { _t[f] = true; Validate(f); StateHasChanged(); }
+  private string eCss(string f) => _t.GetValueOrDefault(f) && !string.IsNullOrEmpty(_e.GetValueOrDefault(f)) ? "err" : string.Empty;
+  private RenderFragment Err(string f) => b =>
+  {
+    if (_t.GetValueOrDefault(f) && !string.IsNullOrEmpty(_e.GetValueOrDefault(f)))
+    { b.OpenElement(0, "span"); b.AddAttribute(1, "class", "pg-err"); b.AddContent(2, _e[f]); b.CloseElement(); }
+  };
+
+  private void Validate(string f)
+  {
+    _e[f] = f switch
+    {
+      "lname"  => string.IsNullOrWhiteSpace(m.LegalName)    ? "Legal name required"       : string.Empty,
+      "type"   => string.IsNullOrWhiteSpace(m.OrgType)      ? "Organisation type required": string.Empty,
+      "pin"    => string.IsNullOrWhiteSpace(m.PinCode)                                   ? "PIN code required"
+                : !System.Text.RegularExpressions.Regex.IsMatch(m.PinCode, @"^\d{6}$")   ? "Must be 6 digits"     : string.Empty,
+      "addr"   => string.IsNullOrWhiteSpace(m.AddressLine)  ? "Address required"          : string.Empty,
+      "city"   => string.IsNullOrWhiteSpace(m.City)         ? "District/City required"    : string.Empty,
+      "state"  => string.IsNullOrWhiteSpace(m.State)        ? "State required"            : string.Empty,
+      "cname"  => string.IsNullOrWhiteSpace(m.ContactName)  ? "Contact name required"     : string.Empty,
+      "cphone" => string.IsNullOrWhiteSpace(m.ContactPhone) ? "Mobile phone required"     :
+                  m.ContactPhoneCC == "+91" && !System.Text.RegularExpressions.Regex.IsMatch(m.ContactPhone, @"^[6-9]\d{9}$")
+                    ? "India: 10 digits starting 6–9"
+                  : m.ContactPhoneCC != "+91" && !System.Text.RegularExpressions.Regex.IsMatch(m.ContactPhone, @"^\d{7,15}$")
+                    ? "Enter a valid mobile number" : string.Empty,
+      "cemail" => string.IsNullOrWhiteSpace(m.ContactEmail) ? "Contact email required" :
+                  !string.IsNullOrEmpty(m.ContactEmail) &&
+                  !System.Text.RegularExpressions.Regex.IsMatch(m.ContactEmail, @"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
+                                                             ? "Enter a valid email"        : string.Empty,
+      "pan"    => !string.IsNullOrEmpty(m.Pan) &&
+                  !System.Text.RegularExpressions.Regex.IsMatch(m.Pan, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$")
+                                                             ? "Format: AAAAA0000A"         : string.Empty,
+      "gstin"  => !string.IsNullOrEmpty(m.Gstin) && m.Gstin.Length != 15
+                                                             ? "GSTIN must be 15 characters": string.Empty,
+      "cin"    => !string.IsNullOrEmpty(m.Cin) && m.Cin.Length != 21
+                                                             ? "CIN must be 21 characters"  : string.Empty,
+      _        => string.Empty,
+    };
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  private async Task HandleSubmit()
+  {
+    m.ContactName = OnlyLetters(m.ContactName); StateHasChanged();
+    foreach (var k in new[] { "lname","type","pin","addr","city","state","cname","cphone" }) Touch(k);
+    foreach (var k in new[] { "cemail","pan","gstin","cin" })
+    {
+      var val = k switch { "cemail"=>m.ContactEmail,"pan"=>m.Pan,"gstin"=>m.Gstin,"cin"=>m.Cin,_=>string.Empty };
+      if (!string.IsNullOrEmpty(val)) Touch(k);
+    }
+
+    if (_e.Values.Any(e => e != string.Empty))
+    {
+      formError = "Please fix the highlighted errors.";
+      await JS.InvokeVoidAsync("eval",
+        "setTimeout(()=>{var el=document.querySelector('.pg-inp.err,.pg-sel.err,.ab-inp.err');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();}},50)");
+      return;
+    }
+
+    formError = string.Empty; saving = true; errorMsg = string.Empty; StateHasChanged();
+    try
+    {
+      var actor   = (await AuthState).User;
+      var actorId = Guid.TryParse(actor.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var aid) ? aid : (Guid?)null;
+
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var org = new Organization
+      {
+        Id               = Guid.NewGuid(),
+        LegalName        = m.LegalName.Trim(),
+        TradingName      = string.IsNullOrWhiteSpace(m.TradingName) ? null : m.TradingName.Trim(),
+        OrgType          = m.OrgType,
+        CountryCode      = m.CountryCode,
+        Status           = m.Status,
+        Pan              = string.IsNullOrWhiteSpace(m.Pan)   ? null : m.Pan,
+        Gstin            = string.IsNullOrWhiteSpace(m.Gstin) ? null : m.Gstin,
+        Cin              = string.IsNullOrWhiteSpace(m.Cin)   ? null : m.Cin,
+        RegisteredAddress= JsonSerializer.Serialize(new { line=m.AddressLine, city=m.City, state=m.State, pinCode=m.PinCode, country=m.CountryCode }),
+        PrimaryContact   = JsonSerializer.Serialize(new { name=m.ContactName, phone=m.ContactPhone, email=m.ContactEmail }),
+        ExtensionData    = "{}",
+        OnboardedAt      = DateTimeOffset.UtcNow,
+        CreatedAt        = DateTimeOffset.UtcNow,
+        UpdatedAt        = DateTimeOffset.UtcNow,
+        CreatedBy        = actorId,
+      };
+
+      db.Organizations.Add(org);
+      await db.SaveChangesAsync();
+      saved      = true;
+      successMsg = $"Organisation '{org.LegalName}' registered successfully.";
+    }
+    catch (Exception ex)
+    {
+      errorMsg = ex.InnerException?.Message ?? ex.Message;
+      Log.LogError(ex, "Org registration failed");
+    }
+    finally { saving = false; }
+  }
+}

@@ -1,0 +1,427 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/users/{UserId:guid}/roles"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using LiPi.Clinic.Identity
+@using LiPi.Clinic.Identity.Entities
+@using Microsoft.EntityFrameworkCore
+@using LiPi.Web.Services
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+@inject IDbContextFactory<MasterDbContext> _masterFactory
+@inject IDbContextFactory<IdentityDbContext> _dbFactory
+@inject IAuditService _audit
+
+<PageTitle>Assign Roles – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+  <div class="tn-pt-title">Assign Roles</div>
+  <div class="tn-pt-sub">Doctor, Nurse, Physicist…</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:900px;margin:0 auto;padding:20px 24px 60px">
+
+  <nav style="font-size:12px;color:#64748B;margin-bottom:16px">
+    <a href="/admin" style="color:#1565C0;text-decoration:none">Administration</a>
+    <span style="margin:0 6px">›</span>
+    <a href="/admin/users" style="color:#1565C0;text-decoration:none">Users</a>
+    <span style="margin:0 6px">›</span>
+    <span>Assign Roles</span>
+    <a href="/admin/users" class="btn-secondary btn-sm" style="margin-left:auto">← User List</a>
+  </nav>
+
+  @if (_loading)
+  {
+    <div style="text-align:center;padding:60px;color:#64748B">Loading…</div>
+  }
+  else if (_user == null)
+  {
+    <div class="ap-alert error"><span class="ap-alert-icon">⚠</span><div>User not found.</div></div>
+  }
+  else
+  {
+    @* User context *@
+    <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px">
+      <div style="width:44px;height:44px;border-radius:50%;background:#0B2545;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;flex-shrink:0">
+        @(_user.FirstName?[..1].ToUpper())@(_user.LastName?[..1].ToUpper())
+      </div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:600;color:#0F2D5E">@_user.DisplayName</div>
+        <div style="font-size:11px;color:#64748B">@_user.Username · @_user.Status</div>
+      </div>
+      @if (_currentRoles.Count > 0)
+      {
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          @foreach (var r in _currentRoles)
+          {
+            <span style="background:#EDE7F6;color:#4A148C;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:500">@RoleLabel(r)</span>
+          }
+        </div>
+      }
+    </div>
+
+    <fieldset disabled="@_saved" style="border:none;padding:0;margin:0">
+    @* ── MUTUALLY EXCLUSIVE ────────────────────────────── *@
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.5px">
+        Primary Role Group — select one, or leave blank for Operations/RSO only
+      </div>
+      @if (!string.IsNullOrEmpty(_primaryGroup))
+      {
+        <button type="button" @onclick="() => { _primaryGroup=string.Empty; _primaryRole=string.Empty; }"
+          style="font-size:11px;color:#64748B;background:none;border:none;cursor:pointer;padding:0">
+          × Clear selection
+        </button>
+      }
+    </div>
+
+    @foreach (var grp in _primaryGroups)
+    {
+      var g = grp;
+      bool isSelected = _primaryGroup == g.Code;
+      <div style="background:#fff;border:@(isSelected?"2px solid #1565C0":"0.5px solid #E2E8F0");border-radius:10px;padding:12px 16px;margin-bottom:8px;cursor:pointer;transition:all .1s"
+           @onclick="() => SelectGroup(g.Code)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:@(isSelected?"10px":"0")">
+          <div style="width:18px;height:18px;border-radius:50%;border:2px solid @(isSelected?"#1565C0":"#CBD5E1");background:@(isSelected?"#1565C0":"transparent");display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            @if (isSelected) { <span style="color:#fff;font-size:10px;font-weight:700">✓</span> }
+          </div>
+          <div style="font-size:13px;font-weight:600;color:@(isSelected?"#1565C0":"#0F2D5E")">@g.Name</div>
+          @if (!isSelected)
+          {
+            <div style="font-size:11px;color:#94A3B8;margin-left:4px">@string.Join(" · ", g.Roles.Select(r => r.Label))</div>
+          }
+        </div>
+        @if (isSelected)
+        {
+          <div style="display:flex;flex-wrap:wrap;gap:8px;padding-left:28px">
+            @foreach (var role in g.Roles)
+            {
+              var rc = role.Code;
+              bool picked = _primaryRole == rc;
+              <button type="button"
+                style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid @(picked?"#1565C0":"#E2E8F0");background:@(picked?"#EFF6FF":"#fff");color:@(picked?"#1565C0":"#475569");transition:all .1s"
+                @onclick:stopPropagation="true"
+                @onclick="() => SelectRole(rc)">
+                @role.Label
+              </button>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @* ── ADD-ONS ───────────────────────────────────────── *@
+    <div style="font-size:11px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.5px;margin:20px 0 10px">
+      Operations &amp; RSO — standalone primary OR add-on to any group above
+    </div>
+
+    @* Operations *@
+    <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:10px;padding:12px 16px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:600;color:#0F2D5E;margin-bottom:10px">Operations</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        @foreach (var role in _opsRoles)
+        {
+          var rc = role.Code;
+          bool picked = _opsSelected == rc;
+          <button type="button"
+            style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid @(picked?"#00695C":"#E2E8F0");background:@(picked?"#ECFDF5":"#fff");color:@(picked?"#00695C":"#475569");transition:all .1s"
+            @onclick="() => SelectOps(rc)">
+            @role.Label
+          </button>
+        }
+        @if (!string.IsNullOrEmpty(_opsSelected))
+        {
+          <button type="button"
+            style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:0.5px solid #E2E8F0;background:#F8FAFC;color:#94A3B8"
+            @onclick="() => _opsSelected = string.Empty">
+            × Clear
+          </button>
+        }
+      </div>
+    </div>
+
+    @* RSO *@
+    <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:10px;padding:12px 16px;margin-bottom:20px">
+      <div style="font-size:13px;font-weight:600;color:#0F2D5E;margin-bottom:4px">Radiation Safety Officer (RSO)</div>
+      <div style="font-size:11px;color:#64748B;margin-bottom:10px">One user can hold one RSO level</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        @foreach (var role in _rsoRoles)
+        {
+          var rc = role.Code;
+          bool picked = _rsoSelected == rc;
+          <button type="button"
+            style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid @(picked?"#BF360C":"#E2E8F0");background:@(picked?"#FFF3E0":"#fff");color:@(picked?"#BF360C":"#475569");transition:all .1s"
+            @onclick="() => SelectRso(rc)">
+            @role.Label
+          </button>
+        }
+        @if (!string.IsNullOrEmpty(_rsoSelected))
+        {
+          <button type="button"
+            style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:0.5px solid #E2E8F0;background:#F8FAFC;color:#94A3B8"
+            @onclick="() => _rsoSelected = string.Empty">
+            × Clear
+          </button>
+        }
+      </div>
+    </div>
+
+    </fieldset>
+
+    @* Summary + Actions *@
+    <div style="background:#F8FAFC;border:0.5px solid #E2E8F0;border-radius:10px;padding:14px 18px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Selected roles</div>
+      @{ var summary = GetSummary(); }
+      @if (summary.Count == 0)
+      {
+        <div style="font-size:12px;color:#94A3B8">No roles selected yet</div>
+      }
+      else
+      {
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          @foreach (var s in summary)
+          {
+            <span style="background:#EDE7F6;color:#4A148C;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500">@s</span>
+          }
+        </div>
+      }
+    </div>
+
+    @if (!string.IsNullOrEmpty(_roleErr))
+    {
+      <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#991B1B">
+        ⚠ @_roleErr
+      </div>
+    }
+    @if (!string.IsNullOrEmpty(_savedMsg))
+    {
+      <div style="background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#065F46">
+        ✓ @_savedMsg
+      </div>
+    }
+
+    <div style="display:flex;gap:10px;align-items:center">
+      @if (_saved)
+      {
+        <a href="/admin/users" class="btn-secondary">Close</a>
+        <a href="/admin/users/@UserId/rights" class="btn-primary">Assign Rights →</a>
+      }
+      else
+      {
+        <button type="button" class="btn-primary" disabled="@_saving" @onclick="SaveRoles">
+          @(_saving ? "Saving…" : "Save Role Assignment")
+        </button>
+        <a href="/admin/users/@UserId/edit"   class="btn-secondary">Edit User</a>
+        <a href="/admin/users/@UserId/rights" class="btn-secondary">Assign Rights →</a>
+        <a href="/admin/users"                class="btn-secondary">← User List</a>
+      }
+    </div>
+  }
+</div>
+
+@code {
+  [Parameter] public Guid UserId { get; set; }
+  [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private PlatformUser? _user;
+  private bool _loading = true, _saving, _saved;
+  private string _savedMsg = string.Empty, _roleErr = string.Empty;
+  private List<string> _currentRoles = new();
+  private Guid _clinicId;
+
+  // Selection state
+  private string _primaryGroup = string.Empty;
+  private string _primaryRole  = string.Empty;
+  private string _opsSelected = string.Empty;
+  private string _rsoSelected = string.Empty;
+
+  // Role definitions
+  private record RoleDef(string Code, string Label);
+  private record GroupDef(string Code, string Name, List<RoleDef> Roles);
+
+  private readonly List<GroupDef> _primaryGroups = new()
+  {
+    new("clinician",  "Clinician",              new(){ new("consultant","Consultant"), new("visiting_consultant","Visiting Consultant"), new("medical_officer","Medical Officer"), new("senior_resident","Senior Resident"), new("junior_resident","Junior Resident") }),
+    new("nursing",    "Nursing",                new(){ new("chief_nurse","Chief Nurse"), new("nurse_manager","Nurse Manager"), new("nurse_supervisor","Nurse Supervisor"), new("staff_nurse","Staff Nurse"), new("trainee_nurse","Trainee Nurse") }),
+    new("physicist",  "Physicist",              new(){ new("chief_physicist","Chief Physicist"), new("senior_physicist","Senior Physicist"), new("medical_physicist","Medical Physicist"), new("resident_physicist","Resident Physicist"), new("trainee_physicist","Trainee Physicist") }),
+    new("dosimetrist","Dosimetrist",            new(){ new("senior_dosimetrist","Senior Dosimetrist"), new("dosimetrist","Dosimetrist") }),
+    new("rtt",        "Radiation Therapist",    new(){ new("chief_rtt","Chief RTT"), new("senior_rtt","Senior RTT"), new("rtt","RTT"), new("trainee_rtt","Trainee RTT") }),
+    new("rad_tech",   "Radiology Technician",   new(){ new("chief_rad_tech","Chief Rad Tech"), new("senior_rad_tech","Senior Rad Tech"), new("rad_tech","Rad Tech"), new("trainee_rad_tech","Trainee Rad Tech") }),
+    new("lab_tech",   "Lab Technician",         new(){ new("chief_lab_tech","Chief Lab Tech"), new("senior_lab_tech","Senior Lab Tech"), new("lab_tech","Lab Tech"), new("trainee_lab_tech","Trainee Lab Tech") }),
+    new("nm_tech",    "Nuclear Medicine Tech",   new(){ new("chief_nm_tech","Chief NM Tech"), new("senior_nm_tech","Senior NM Tech"), new("nm_tech","NM Tech"), new("trainee_nm_tech","Trainee NM Tech") }),
+    new("ot_tech",    "OT Technician",          new(){ new("ot_incharge","OT In-charge"), new("ot_tech","OT Tech"), new("trainee_ot_tech","Trainee OT Tech") }),
+    new("cssd_tech",  "CSSD Technician",        new(){ new("cssd_incharge","CSSD In-charge"), new("cssd_tech","CSSD Tech"), new("trainee_cssd_tech","Trainee CSSD Tech") }),
+    new("billing",    "Billing",                new(){ new("head_billing","Head Billing"), new("billing_manager","Billing Manager"), new("billing_supervisor","Billing Supervisor"), new("billing_executive","Billing Executive"), new("billing_trainee","Billing Trainee") }),
+    new("pharmacy",      "Pharmacy",             new(){ new("chief_pharmacist","Chief Pharmacist"), new("senior_pharmacist","Senior Pharmacist"), new("pharmacist","Pharmacist"), new("trainee_pharmacist","Trainee Pharmacist") }),
+    new("dietician",     "Dietician",            new(){ new("chief_dietician","Chief Dietician"), new("senior_dietician","Senior Dietician"), new("dietician","Dietician"), new("trainee_dietician","Trainee Dietician") }),
+    new("physiotherapist","Physiotherapist",     new(){ new("chief_physio","Chief Physiotherapist"), new("senior_physio","Senior Physiotherapist"), new("physiotherapist","Physiotherapist"), new("trainee_physio","Trainee Physiotherapist") }),
+    new("counsellor",    "Counsellor",           new(){ new("senior_counsellor","Senior Counsellor"), new("counsellor","Counsellor"), new("social_worker","Social Worker"), new("trainee_counsellor","Trainee Counsellor") }),
+  };
+
+  private readonly List<RoleDef> _opsRoles = new()
+  {
+    new("coo","COO"), new("facility_director","Facility Director"), new("administrator","Administrator"),
+    new("mro","MRO"), new("front_desk_manager","Front Desk Manager"),
+    new("front_desk_executive","Front Desk Executive"), new("help_desk","Help Desk"),
+  };
+
+  private readonly List<RoleDef> _rsoRoles = new()
+  {
+    new("rso_1","RSO Level I"), new("rso_2","RSO Level II"), new("rso_3","RSO Level III"),
+  };
+
+  private void SelectGroup(string code)
+  {
+    if (_primaryGroup == code) { _primaryGroup = string.Empty; _primaryRole = string.Empty; }
+    else { _primaryGroup = code; _primaryRole = string.Empty; }
+  }
+
+  private void SelectRole(string code)  => _primaryRole  = _primaryRole  == code ? string.Empty : code;
+  private void SelectRso(string code)   => _rsoSelected  = _rsoSelected  == code ? string.Empty : code;
+  private void SelectOps(string code)   => _opsSelected = _opsSelected == code ? string.Empty : code;
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      await using var masterDb = await _masterFactory.CreateDbContextAsync();
+      _user = await masterDb.PlatformUsers.FindAsync(UserId);
+      if (_user == null) { _loading = false; return; }
+
+      var mem = await masterDb.ClinicMemberships
+        .FirstOrDefaultAsync(cm => cm.PlatformUserId == UserId && cm.Status == "active");
+      if (mem != null) _clinicId = mem.ClinicId;
+
+      if (_clinicId != Guid.Empty)
+      {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var roles = await db.UserRoles
+          .Include(ur => ur.Role)
+          .Where(ur => ur.UserId == UserId && ur.ValidTo == null)
+          .ToListAsync();
+
+        _currentRoles = roles.Select(r => r.Role?.Code ?? string.Empty)
+          .Where(c => !string.IsNullOrEmpty(c)).ToList();
+
+        // Restore state from saved roles
+        foreach (var rc in _currentRoles)
+        {
+          // Check primary groups
+          foreach (var grp in _primaryGroups)
+          {
+            if (grp.Roles.Any(r => r.Code == rc))
+            {
+              _primaryGroup = grp.Code;
+              _primaryRole  = rc;
+              break;
+            }
+          }
+          // Check ops
+          if (_opsRoles.Any(r => r.Code == rc)) _opsSelected = rc;
+          // Check RSO
+          if (_rsoRoles.Any(r => r.Code == rc)) _rsoSelected = rc;
+        }
+      }
+    }
+    catch { }
+    finally { _loading = false; }
+  }
+
+  private async Task SaveRoles()
+  {
+    _roleErr = string.Empty;
+
+    // Must have at least one role (primary OR ops OR RSO)
+    bool hasAny = !string.IsNullOrEmpty(_primaryRole)
+               || !string.IsNullOrEmpty(_opsSelected)
+               || !string.IsNullOrEmpty(_rsoSelected);
+    if (!hasAny)
+    { _roleErr = "Please select at least one role."; return; }
+    if (!string.IsNullOrEmpty(_primaryGroup) && string.IsNullOrEmpty(_primaryRole))
+    { _roleErr = $"Please select a role within {_primaryGroups.First(g => g.Code == _primaryGroup).Name}."; return; }
+
+    _saving = true;
+    try
+    {
+      var actor = (await AuthState).User;
+      await using var db = await _dbFactory.CreateDbContextAsync();
+
+      // Expire all existing roles — SaveChanges FIRST before inserting new ones
+      // (PostgreSQL unique constraint is checked before batch completes)
+      var existing = await db.UserRoles
+        .Where(ur => ur.UserId == UserId && ur.ValidTo == null)
+        .ToListAsync();
+      foreach (var ur in existing) ur.ValidTo = DateTime.UtcNow;
+      await db.SaveChangesAsync(); // ← commit expiry first
+
+      // Build new role list
+      var newRoles = new List<string>();
+      if (!string.IsNullOrEmpty(_primaryRole)) newRoles.Add(_primaryRole);
+      if (!string.IsNullOrEmpty(_opsSelected)) newRoles.Add(_opsSelected);
+      if (!string.IsNullOrEmpty(_rsoSelected)) newRoles.Add(_rsoSelected);
+
+      // Add roles (create if not in DB yet)
+      foreach (var rc in newRoles)
+      {
+        var roleEntity = await db.Roles
+          .FirstOrDefaultAsync(r => r.ClinicId == _clinicId && r.Code == rc);
+
+        if (roleEntity == null)
+        {
+          roleEntity = new Role
+          {
+            Id        = Guid.NewGuid(),
+            ClinicId  = _clinicId,
+            Code      = rc,
+            Name      = RoleLabel(rc),
+            IsActive  = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+          };
+          db.Roles.Add(roleEntity);
+          await db.SaveChangesAsync();
+        }
+
+        db.UserRoles.Add(new UserRole
+        {
+          Id         = Guid.NewGuid(),
+          UserId     = UserId,
+          RoleId     = roleEntity.Id,
+          AssignedAt = DateTime.UtcNow,
+          ValidFrom  = DateTime.UtcNow,
+        });
+      }
+      await db.SaveChangesAsync();
+
+      _currentRoles = newRoles;
+      _savedMsg = $"Roles saved for {_user?.DisplayName}.";
+      _saved = true;
+
+      try { await _audit.LogAsync(_clinicId, actor, AuditActions.UserRolesChanged,
+        "user", UserId, _user?.Username ?? string.Empty, null,
+        new { roles = newRoles }); }
+      catch { }
+    }
+    catch (Exception ex) { _roleErr = $"Error: {ex.Message}"; }
+    finally { _saving = false; }
+  }
+
+  private List<string> GetSummary()
+  {
+    var list = new List<string>();
+    if (!string.IsNullOrEmpty(_primaryRole))  list.Add(RoleLabel(_primaryRole));
+    if (!string.IsNullOrEmpty(_opsSelected))  list.Add(RoleLabel(_opsSelected));
+    if (!string.IsNullOrEmpty(_rsoSelected))  list.Add(RoleLabel(_rsoSelected));
+    return list;
+  }
+
+  private string RoleLabel(string code) =>
+    _primaryGroups.SelectMany(g => g.Roles)
+      .Concat(_opsRoles).Concat(_rsoRoles)
+      .FirstOrDefault(r => r.Code == code)?.Label ?? code;
+}

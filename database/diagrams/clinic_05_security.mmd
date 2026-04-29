@@ -1,0 +1,161 @@
+erDiagram
+    ENCRYPTION_KEYS ||--o{ SECURITY_EVENTS : "rotated"
+    DATA_CLASSIFICATIONS ||--o{ DPDP_CONSENTS : "maps_to"
+    DPDP_CONSENTS ||--o{ DPDP_SUBJECT_REQUESTS : "referenced_by"
+    DPDP_SUBJECT_REQUESTS ||--o{ DPDP_ERASURE_TASKS : "decomposes"
+    SECURITY_EVENTS ||--o{ BREAK_GLASS_SESSIONS : "triggers_review"
+    IP_ALLOWLIST ||--o{ SECURITY_EVENTS : "enforces"
+
+    ENCRYPTION_KEYS {
+        uuid id PK
+        uuid clinic_id FK
+        text key_purpose "phi_field, attachment, dicom, audit_log, mfa_secret, backup"
+        int key_version
+        bytea wrapped_dek "KMS-encrypted Data Encryption Key"
+        text kms_cmk_arn "AWS KMS CMK ARN"
+        text algorithm "AES-256-GCM"
+        boolean is_active
+        datetime activated_at
+        datetime retired_at
+        datetime rotation_due_at
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    DATA_CLASSIFICATIONS {
+        text code PK "public, internal, confidential, restricted, phi, spi"
+        text name
+        text description
+        text dpdp_category "personal, sensitive_personal, critical_personal"
+        int retention_days
+        boolean encryption_required
+        boolean audit_required
+    }
+
+    DPDP_CONSENTS {
+        uuid id PK
+        uuid clinic_id FK
+        text data_principal_type "patient, staff, visitor, vendor"
+        uuid data_principal_id FK
+        text purpose_code "treatment, billing, research, marketing"
+        text purpose_text
+        text lawful_basis "consent, legitimate_use, legal_obligation, medical_emergency"
+        text[] data_categories "identity, contact, health, biometric, financial"
+        boolean granted
+        datetime granted_at
+        datetime valid_from
+        datetime valid_to
+        text withdrawal_channel "app, email, sms, paper, in_person"
+        datetime withdrawn_at
+        text language_used "en, hi"
+        text proof_s3_key "signed/verified consent artefact"
+        text notice_version "which notice was shown"
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    DPDP_SUBJECT_REQUESTS {
+        uuid id PK
+        uuid clinic_id FK
+        text request_type "access, correction, erasure, portability, grievance, consent_withdrawal"
+        text data_principal_type "patient, staff"
+        uuid data_principal_id FK
+        text request_channel "app, email, paper, in_person, phone"
+        datetime requested_at
+        datetime sla_deadline "30 days from request"
+        text status "received, identity_verified, in_progress, fulfilled, partial, rejected"
+        uuid assigned_to FK "DPO or delegate"
+        text identity_verification_method
+        datetime identity_verified_at
+        datetime fulfilled_at
+        text response_artefact_s3_key
+        text rejection_reason
+        text dpo_notes
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    DPDP_ERASURE_TASKS {
+        uuid id PK
+        uuid dpdp_subject_request_id FK
+        text target_system "oltp, warehouse, s3_attachments, dicom, backup, abdm_hie"
+        text status "pending, running, completed, failed, skipped_legal_hold"
+        bigint rows_affected
+        datetime executed_at
+        text error_detail
+        text legal_hold_reference "if retention-obligated"
+    }
+
+    SECURITY_EVENTS {
+        uuid id PK
+        uuid clinic_id FK
+        datetime occurred_at
+        text event_category "auth_anomaly, privilege_escalation, data_exfiltration, malware, dlp, ids_ips, break_glass, key_rotation"
+        text severity "info, low, medium, high, critical"
+        uuid actor_user_id FK
+        inet actor_ip
+        text source_host
+        text signature "rule/IOC id"
+        jsonb detail "enriched context"
+        text status "open, investigating, resolved, false_positive, suppressed"
+        uuid triaged_by FK
+        datetime triaged_at
+        text resolution_notes
+    }
+
+    BREAK_GLASS_SESSIONS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid user_id FK
+        uuid patient_id FK
+        datetime activated_at
+        datetime expires_at "max 4 hours typical"
+        text reason_code "life_threatening, unconscious_patient, no_consenting_kin, statutory"
+        text justification
+        uuid approved_by FK
+        datetime approval_at
+        uuid reviewed_by FK
+        datetime reviewed_at
+        text review_outcome "appropriate, inappropriate, training_required, disciplinary"
+    }
+
+    IP_ALLOWLIST {
+        uuid id PK
+        uuid clinic_id FK
+        cidr cidr
+        text scope "admin_console, api, abdm_ingress, dicom_ingress, hl7_ingress"
+        text description
+        boolean is_active
+        datetime created_at
+        uuid created_by FK
+        datetime expires_at
+    }
+
+    RATE_LIMIT_BUCKETS {
+        uuid id PK
+        uuid clinic_id FK
+        text bucket_key "user:<uuid>, apikey:<id>, ip:<cidr>"
+        datetime window_start
+        int request_count
+        int rejected_count
+    }
+
+    DATA_LOCALIZATION_POLICIES {
+        uuid id PK
+        uuid clinic_id FK
+        text data_category "phi, financial, employee, imaging, backup"
+        text storage_region "ap-south-1, ap-south-2"
+        text[] replication_regions
+        boolean cross_border_allowed
+        char[] cross_border_countries "ISO 3166-1 alpha-2"
+        text policy_version
+        date effective_from
+        date effective_to
+        uuid approved_by FK
+        datetime approved_at
+        datetime created_at
+        datetime updated_at
+    }

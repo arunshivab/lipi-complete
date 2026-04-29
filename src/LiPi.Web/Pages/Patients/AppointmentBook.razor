@@ -1,0 +1,282 @@
+@namespace LiPi.Web.Pages.PatientPages
+@page "/appointments/book"
+@page "/appointments/{PatientId}/book"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+
+<PageTitle>Book Appointment – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Book Appointment</div>
+    <div class="tn-pt-sub">OPD · Schedule a patient slot</div>
+</SectionContent>
+
+<div class="ab-body">
+
+  <div class="pr-kpi-strip">
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#0B2545"></div><div class="pr-kpi-lbl">Today's Registrations</div><div class="pr-kpi-val">38</div><div class="pr-kpi-sub">↑ 6 vs yesterday</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#F59E0B"></div><div class="pr-kpi-lbl">OPD Queue</div><div class="pr-kpi-val">12</div><div class="pr-kpi-sub">avg wait 18 min</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#1B4DA0"></div><div class="pr-kpi-lbl">Appointments Today</div><div class="pr-kpi-val">47</div><div class="pr-kpi-sub">3 unconfirmed</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#4A9BD4"></div><div class="pr-kpi-lbl">Active Patients</div><div class="pr-kpi-val">1,284</div><div class="pr-kpi-sub">↑ 5.1% MoM</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#EF4444"></div><div class="pr-kpi-lbl">Pending Consents</div><div class="pr-kpi-val">3</div><div class="pr-kpi-sub">action required</div></div>
+    <div class="pr-kpi-tile"><div class="pr-kpi-accent" style="background:#10B981"></div><div class="pr-kpi-lbl">Empty Slots Today</div><div class="pr-kpi-val">9</div><div class="pr-kpi-sub">across all doctors</div></div>
+  </div>
+
+  @if (!string.IsNullOrEmpty(_successMsg)) { <div class="pr-success-bar">✓ @_successMsg</div> }
+  @if (!string.IsNullOrEmpty(_errorMsg))   { <div class="pr-error-bar">⚠ @_errorMsg</div>   }
+
+  <div class="pr-panel">
+    <div class="pr-header">
+      <div><div class="pr-kicker">&#9711; OPD · APPOINTMENT BOOKING</div>
+        <div class="pr-title">Book appointment</div>
+        <div class="pr-sub">Select patient, doctor, date and slot</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0">
+        <button type="button" class="pr-btn-ghost" @onclick="HandleCancel">Cancel</button>
+        @if (!_saved)
+        { <button type="button" class="pr-btn-save" disabled="@(!CanSubmit() || _saving)" @onclick="HandleSubmit">@(_saving?"Booking…":"✓ Confirm Appointment")</button> }
+        else { <button type="button" class="pr-btn-ghost" @onclick="HandleCancel">Close</button> }
+      </div>
+    </div>
+
+    <div class="pq-layout">
+      <div>
+        <div class="pr-sh"><span class="pr-sh-num">01</span><span class="pr-sh-title">Patient</span><div class="pr-sh-line"></div></div>
+        @if (_patientChosen)
+        {
+          <div class="pq-patient-row">
+            <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#4A9BD4,#1B4DA0);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;flex-shrink:0">@_patientInitials</div>
+            <div style="flex:1;min-width:0"><div class="pq-patient-name">@_patientName</div><div class="pq-patient-mrn">@_patientMrn</div></div>
+            @if (string.IsNullOrEmpty(PatientId)) { <button type="button" class="pq-change-btn" @onclick="ClearPatient">Change ×</button> }
+          </div>
+        }
+        else
+        {
+          <div class="ps-search-wrap">
+            <span class="ps-search-icon">&#9740;</span>
+            <input id="ab-pt-search" name="patientSearch" autocomplete="off" class="ps-search-input"
+                   style="border-width:1px;font-size:13px;padding:11px 12px 11px 44px"
+                   value="@_ptQuery" placeholder="Search patient by name or MRN…"
+                   @oninput="OnPtSearch" />
+          </div>
+          @if (_ptResults.Count > 0)
+          { <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px">
+              @foreach (var pt in _ptResults.Take(5))
+              { var pid = pt.Id; var pn = pt.Name; var pm = pt.Mrn;
+                <div class="ps-pt-card" style="padding:8px 11px" @onclick="() => SelectPatient(pid,pn,pm)">
+                  <span class="ps-pt-arrow">&#8250;</span>
+                  <div class="ps-pt-card-top" style="margin-bottom:3px">
+                    <div class="ps-pt-avatar" style="width:28px;height:28px;font-size:10px">@pt.Initials</div>
+                    <div><div class="ps-pt-name" style="font-size:12px">@pt.Name</div><div class="ps-pt-mrn" style="font-size:9px">@pt.Mrn</div></div>
+                  </div>
+                </div>
+              }
+            </div> }
+        }
+        <div class="pr-sh" style="margin-top:4px"><span class="pr-sh-num">02</span><span class="pr-sh-title">Doctor &amp; Date</span><div class="pr-sh-line"></div></div>
+        <div class="pr-g2">
+          <label class="pr-float"><div class="pr-flabel">Attending Doctor *</div>
+            <select id="ab-doctor" name="attendingDoctor" autocomplete="off"
+                    class="pr-sel @(_doctorErr?"err":_empty)" value="@_doctor" @onchange="OnDoctorChange">
+              <option value="">Select doctor…</option>
+              @foreach (var d in _doctors) { <option value="@d">@d</option> }
+            </select>
+            @if (_doctorErr) { <span class="pr-err-msg">Doctor is required</span> }</label>
+          <label class="pr-float"><div class="pr-flabel">Date *</div>
+            <input id="ab-date" name="apptDate" type="date" autocomplete="off"
+                   class="pr-inp @(_dateErr?"err":_empty)"
+                   value="@_apptDate" min="@DateTime.Today.ToString("yyyy-MM-dd")"
+                   @onchange="OnDateChange" />
+            @if (_dateErr) { <span class="pr-err-msg">Date is required</span> }</label>
+        </div>
+        @if (!string.IsNullOrEmpty(_doctor) && !string.IsNullOrEmpty(_apptDate))
+        {
+          <div class="pr-sh"><span class="pr-sh-num">03</span><span class="pr-sh-title">Available Slots</span><div class="pr-sh-line"></div>
+            <span class="pr-note" style="font-size:10px;white-space:nowrap">@_slots.Count(s=>!s.Booked) available</span></div>
+          <div class="ab-slot-grid">
+            @foreach (var slot in _slots)
+            { var st = slot.Time;
+              if (slot.Booked)
+              { <div class="ab-slot ab-slot-booked"><div class="ab-slot-time">@slot.Time</div><div class="ab-slot-dr">Booked</div></div> }
+              else
+              { <div class="ab-slot @(_selectedSlot==st?_slotSel:_empty2)" @onclick="() => SelectSlot(st)">
+                  <div class="ab-slot-time">@slot.Time</div><div class="ab-slot-dr">@slot.DrShort</div>
+                </div> }
+            }
+          </div>
+          @if (_slotErr) { <span class="pr-err-msg" style="display:block;margin-bottom:8px">Please select a time slot</span> }
+        }
+        <div class="sc-tog-row" style="margin-top:6px">
+          <div><div class="sc-tog-lbl">Recurring series</div><div class="sc-tog-sub">Book multiple sessions (max 99)</div></div>
+          <div class="sc-toggle @(_recurring?_togOn:_togOff)" @onclick="() => _recurring=!_recurring"></div>
+        </div>
+        @if (_recurring)
+        {
+          <div class="pr-g3" style="margin-top:8px">
+            <label class="pr-float"><div class="pr-flabel">Frequency</div>
+              <select id="ab-freq" name="frequency" autocomplete="off" class="pr-sel"
+                      value="@_frequency" @onchange="e => _frequency = e.Value?.ToString() ?? string.Empty">
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Biweekly</option>
+                <option value="daily_weekdays">Daily (weekdays)</option>
+              </select></label>
+            <label class="pr-float"><div class="pr-flabel">Sessions (max 99)</div>
+              <input id="ab-sessions" name="sessions" type="number" autocomplete="off" class="pr-inp"
+                     min="2" max="99" value="@_sessions"
+                     @onchange="e => { if(int.TryParse(e.Value?.ToString(),out var n)&&n>=2&&n<=99) _sessions=n; }" /></label>
+            <label class="pr-float"><div class="pr-flabel">Est. end date</div>
+              <input type="date" class="pr-inp" value="@_estEndDate" disabled style="opacity:.5" /></label>
+          </div>
+        }
+      </div>
+
+      <div>
+        <div class="pr-sh"><span class="pr-sh-num">04</span><span class="pr-sh-title">Priority &amp; Notes</span><div class="pr-sh-line"></div></div>
+        <div class="ab-prio-row">
+          <button type="button" class="ab-prio ab-prio-n @(_priority==_prioN?_prioOn:_empty2)" @onclick="SetPrioNormal">&#9679; Normal</button>
+          <button type="button" class="ab-prio ab-prio-u @(_priority==_prioU?_prioOn:_empty2)" @onclick="SetPrioUrgent">&#9650; Urgent</button>
+          <button type="button" class="ab-prio ab-prio-e @(_priority==_prioE?_prioOn:_empty2)" @onclick="SetPrioEmergency">&#9888; Emergency</button>
+        </div>
+        <label class="pr-float" style="display:block;margin-bottom:10px"><div class="pr-flabel">Visit Type</div>
+          <select id="ab-visit-type" name="visitType" autocomplete="off" class="pr-sel"
+                  value="@_visitType" @onchange="e => _visitType = e.Value?.ToString() ?? string.Empty">
+            <option value="first_visit">First Visit</option>
+            <option value="follow_up">Follow-Up</option>
+            <option value="review">Review</option>
+            <option value="emergency">Emergency</option>
+            <option value="procedure">Procedure</option>
+          </select></label>
+        <label class="pr-float" style="display:block;margin-bottom:12px"><div class="pr-flabel">Chief Complaint / Notes</div>
+          <textarea id="ab-notes" name="chiefComplaint" autocomplete="off"
+                    class="pr-inp" style="padding-top:22px;height:80px;resize:none"
+                    placeholder="Optional clinical notes for the doctor"
+                    @oninput="e => _notes = e.Value?.ToString() ?? string.Empty"></textarea></label>
+        <div class="pr-sh"><span class="pr-sh-num">05</span><span class="pr-sh-title">Confirm</span><div class="pr-sh-line"></div></div>
+        <div class="pq-confirm-box">
+          <div class="pq-confirm-row"><span class="pq-confirm-key">Patient</span><span class="pq-confirm-val">@(_patientChosen?_patientName:"—")</span></div>
+          <div class="pq-confirm-row"><span class="pq-confirm-key">Doctor</span><span class="pq-confirm-val">@(string.IsNullOrEmpty(_doctor)?"—":_doctor)</span></div>
+          <div class="pq-confirm-row"><span class="pq-confirm-key">Date &amp; Slot</span><span class="pq-confirm-val" style="font-family:'DM Mono',monospace;font-size:12px">@_apptDate@(string.IsNullOrEmpty(_selectedSlot)?string.Empty:" · "+_selectedSlot)</span></div>
+          <div class="pq-confirm-row"><span class="pq-confirm-key">Visit type</span><span class="pq-confirm-val">@_visitType.Replace("_"," ")</span></div>
+          <div class="pq-confirm-row"><span class="pq-confirm-key">Priority</span><span class="pq-confirm-val" style="color:@PriorityColor()">@_priority</span></div>
+          @if (_recurring) { <div class="pq-confirm-row"><span class="pq-confirm-key">Series</span><span class="pq-confirm-val">@_sessions sessions · @_frequency.Replace("_"," ")</span></div> }
+        </div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button type="button" class="pr-btn-ghost" @onclick="HandleCancel">Cancel</button>
+          <button type="button" class="pr-btn-save" style="flex:1" disabled="@(!CanSubmit()||_saving)" @onclick="HandleSubmit">
+            @(_saving?"Booking…":(_saved?"✓ Booked":"✓ Confirm Appointment"))
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@code {
+    [Parameter] public string? PatientId { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name="date")] public string? InitDate { get; set; }
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private const string _prioN = "normal", _prioU = "urgent", _prioE = "emergency";
+    private const string _prioOn = "ab-prio-on", _empty = "pr-sel", _empty2 = "";
+    private const string _slotSel = "ab-slot ab-slot-sel";
+    private const string _togOn = "sc-toggle sc-toggle-on", _togOff = "sc-toggle";
+
+    private bool   _saving       = false;
+    private bool   _saved        = false;
+    private string _successMsg   = string.Empty;
+    private string _errorMsg     = string.Empty;
+
+    private bool   _patientChosen   = false;
+    private string _patientName     = string.Empty;
+    private string _patientMrn      = string.Empty;
+    private string _patientInitials = string.Empty;
+    private string _ptQuery         = string.Empty;
+
+    private string _doctor       = string.Empty;
+    private string _apptDate     = string.Empty;
+    private string _selectedSlot = string.Empty;
+    private string _priority     = "normal";
+    private string _visitType    = "first_visit";
+    private string _notes        = string.Empty;
+    private bool   _recurring    = false;
+    private string _frequency    = "weekly";
+    private int    _sessions     = 6;
+    private string _estEndDate   = string.Empty;
+
+    private bool _doctorErr = false;
+    private bool _dateErr   = false;
+    private bool _slotErr   = false;
+
+    private static readonly string[] _doctors = ["Dr. Sharma","Dr. Patel","Dr. Rao","Dr. Nair"];
+
+    private sealed class SlotDef { public string Time = string.Empty; public string DrShort = string.Empty; public bool Booked; }
+    private List<SlotDef> _slots = new();
+
+    private sealed class PtResult { public string Id = string.Empty; public string Name = string.Empty; public string Mrn = string.Empty; public string Initials = string.Empty; }
+    private static readonly PtResult[] _ptSeed = [
+        new(){Id="1",Name="Rajesh Kumar Sharma",Mrn="PT-2026-003421",Initials="RK"},
+        new(){Id="2",Name="Priya Sharma",Mrn="PT-2026-003419",Initials="PS"},
+        new(){Id="3",Name="Arjun Mehta",Mrn="PT-2026-003418",Initials="AM"},
+    ];
+    private List<PtResult> _ptResults = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _apptDate = InitDate ?? DateTime.Today.ToString("yyyy-MM-dd");
+        if (!string.IsNullOrEmpty(PatientId))
+        {
+            var found = _ptSeed.FirstOrDefault(p => p.Id == PatientId);
+            if (found is not null) SelectPatient(found.Id, found.Name, found.Mrn);
+        }
+        await Task.CompletedTask;
+    }
+
+    private void SelectPatient(string id, string name, string mrn)
+    { _patientName = name; _patientMrn = mrn; _patientChosen = true;
+      _patientInitials = string.Concat(name.Split(' ').Where(p=>p.Length>0).Take(2).Select(p=>p[0].ToString().ToUpperInvariant()));
+      _ptQuery = string.Empty; _ptResults = new(); }
+    private void ClearPatient() { _patientChosen=false; _patientName=string.Empty; _patientMrn=string.Empty; }
+
+    private void OnPtSearch(ChangeEventArgs e)
+    { _ptQuery = e.Value?.ToString() ?? string.Empty;
+      if (_ptQuery.Length < 2) { _ptResults=new(); return; }
+      var q = _ptQuery.ToLowerInvariant();
+      _ptResults = _ptSeed.Where(p => p.Name.ToLowerInvariant().Contains(q)||p.Mrn.ToLowerInvariant().Contains(q)).ToList(); }
+
+    private void OnDoctorChange(ChangeEventArgs e) { _doctor=e.Value?.ToString()??string.Empty; _doctorErr=string.IsNullOrEmpty(_doctor); GenerateSlots(); }
+    private void OnDateChange(ChangeEventArgs e)   { _apptDate=e.Value?.ToString()??string.Empty; _dateErr=string.IsNullOrEmpty(_apptDate); _selectedSlot=string.Empty; GenerateSlots(); RecalcEndDate(); }
+    private void SelectSlot(string time)           { _selectedSlot=time; _slotErr=false; }
+    private void SetPrioNormal()    => _priority = _prioN;
+    private void SetPrioUrgent()    => _priority = _prioU;
+    private void SetPrioEmergency() => _priority = _prioE;
+
+    private void GenerateSlots()
+    { if (string.IsNullOrEmpty(_doctor)||string.IsNullOrEmpty(_apptDate)) { _slots=new(); return; }
+      var dr = _doctor.Replace("Dr. ",string.Empty)[..Math.Min(3,_doctor.Replace("Dr. ",string.Empty).Length)];
+      var rng = new Random(_apptDate.GetHashCode()+_doctor.GetHashCode());
+      var times = new[]{"09:00","09:15","09:30","09:45","10:00","10:15","10:30","11:00","11:15","11:30","12:00","12:15"};
+      _slots = times.Select(t=>new SlotDef{Time=t,DrShort=dr,Booked=rng.Next(4)==0}).ToList(); }
+
+    private void RecalcEndDate()
+    { if (!DateOnly.TryParse(_apptDate,out var d)||!_recurring) return;
+      var end = _frequency switch { "weekly"=>d.AddDays(7*_sessions), "biweekly"=>d.AddDays(14*_sessions), _=>d.AddDays(_sessions) };
+      _estEndDate = end.ToString("yyyy-MM-dd"); }
+
+    private bool CanSubmit() => _patientChosen && !string.IsNullOrEmpty(_doctor) && !string.IsNullOrEmpty(_apptDate) && !string.IsNullOrEmpty(_selectedSlot) && !_saved;
+
+    private async Task HandleSubmit()
+    { _doctorErr=string.IsNullOrEmpty(_doctor); _dateErr=string.IsNullOrEmpty(_apptDate); _slotErr=string.IsNullOrEmpty(_selectedSlot);
+      if(_doctorErr||_dateErr||_slotErr||!_patientChosen) return;
+      _saving=true; _errorMsg=string.Empty; StateHasChanged();
+      try { await Task.Delay(600); // TODO: insert into clinic appointments table
+            _saved=true; _successMsg=$"{_patientName} booked with {_doctor} on {_apptDate} at {_selectedSlot}"; }
+      catch(Exception ex){_errorMsg=ex.Message;}
+      finally{_saving=false;} }
+
+    private void HandleCancel() => Nav.NavigateTo("/appointments/calendar");
+    private string PriorityColor() => _priority switch { "urgent"=>"#C2410C", "emergency"=>"#991B1B", _=>"#10B981" };
+}

@@ -1,0 +1,546 @@
+@page "/admin/sysadmins"
+@namespace LiPi.Web.Pages.AdminPages
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Sections
+@using System.Security.Claims
+@using System.Text.Json
+@using System.Text.RegularExpressions
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using LiPi.Web.Services
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject IDbContextFactory<MasterDbContext> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Manage Admins – LiPi</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Manage Admins</div>
+    <div class="tn-pt-sub">Admin user management</div>
+</SectionContent>
+
+@if (loading)
+{
+    <div class="ap-body" style="padding:40px;text-align:center;color:#94A3B8">Loading…</div>
+}
+else if (!canAccess)
+{
+    <div class="ap-body">
+        <div class="ap-placeholder">
+            <div class="ap-placeholder-icon">🔒</div>
+            <p>You do not have access to this page.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="ap-body" style="max-width:960px;margin:0 auto;padding:20px 24px 60px">
+
+        @if (!string.IsNullOrEmpty(successMsg))
+        { <div class="pg-alert ok" style="margin-bottom:14px">✓ @successMsg</div> }
+        @if (!string.IsNullOrEmpty(errorMsg))
+        { <div class="pg-alert err" style="margin-bottom:14px">⚠ @errorMsg</div> }
+
+        @* ── Tabs ── *@
+        @if (isGlobalAdmin)
+        {
+            <div style="display:flex;gap:0;border-bottom:2px solid #E2E8F0;margin-bottom:20px">
+                <button class="ma-tab @(tab=="global"?"act":"")" @onclick='()=>tab="global"'>Global Admins</button>
+                <button class="ma-tab @(tab=="sys"?"act":"")"    @onclick='()=>tab="sys"'>Sys Admins</button>
+                <button class="ma-tab @(tab=="site"?"act":"")"   @onclick='()=>tab="site"'>Site Admins</button>
+            </div>
+        }
+
+        @* ── CREATE FORM (GlobalAdmin = SysAdmin+SiteAdmin; SysAdmin = SiteAdmin only) ── *@
+        @if (isGlobalAdmin || isSysAdmin)
+        {
+            var canCreateSys = isGlobalAdmin;
+            var createTitle  = canCreateSys ? "Create Sys Admin / Site Admin" : "Create Site Admin";
+            var cardColor    = canCreateSys ? "#6A1B9A" : "#1565C0";
+            <div class="af-card" style="border-left-color:@cardColor;margin-bottom:18px">
+                <div class="af-card-header">
+                    <div class="af-card-num" style="background:@cardColor">+</div>
+                    <span class="af-card-title">@createTitle</span>
+                </div>
+                <div class="af-card-body">
+                    @if (canCreateSys)
+                    {
+                        <div class="af-grid" style="grid-template-columns:160px 1fr;gap:10px;margin-bottom:14px">
+                            <div class="af-fgroup">
+                                <label class="af-flabel">Admin Type *</label>
+                                <select class="af-fselect" @onchange="OnNewTypeChange">
+                                    <option value="sys_admin">Sys Admin</option>
+                                    <option value="site_admin">Site Admin</option>
+                                </select>
+                            </div>
+                            @if (newType == "site_admin")
+                            {
+                                <div class="af-fgroup">
+                                    <div class="af-flabel">Clinics * <span style="font-weight:400;color:#94A3B8">(@newClinicIds.Count selected)</span></div>
+                                    @if (newClinicIds.Any())
+                                    {
+                                        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;padding:5px 8px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:6px">
+                                            @foreach (var id in newClinicIds.ToList())
+                                            {
+                                                var cname = allClinics.FirstOrDefault(c => c.Id == id).Name ?? string.Empty;
+                                                var rid = id;
+                                                <span style="display:flex;align-items:center;gap:4px;background:#DBEAFE;color:#1E40AF;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:500">
+                                                    @cname
+                                                    <button type="button" style="background:none;border:none;color:#1E40AF;cursor:pointer;padding:0;font-size:11px;line-height:1" @onclick="() => ToggleClinic(rid)">×</button>
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                    <input class="af-finput" style="margin-bottom:6px" placeholder="Search clinics by name or code…"
+                                           value="@clinicSearch" @oninput="e => clinicSearch = e.Value?.ToString() ?? string.Empty" />
+                                    <div style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;border:1px solid #E2E8F0;border-radius:6px;padding:4px">
+                                        @{ var filtered = allClinics.Where(c =>
+                                               string.IsNullOrEmpty(clinicSearch) ||
+                                               c.Name.Contains(clinicSearch, StringComparison.OrdinalIgnoreCase) ||
+                                               c.Code.Contains(clinicSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                                        @if (!filtered.Any())
+                                        {
+                                            <div style="padding:10px;text-align:center;font-size:11px;color:#94A3B8">No clinics found</div>
+                                        }
+                                        @foreach (var c in filtered)
+                                        {
+                                            var cid = c.Id; var sel = newClinicIds.Contains(cid);
+                                            <button type="button" @onclick="() => ToggleClinic(cid)"
+                                                    style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:none;border-radius:5px;background:@(sel?"#EFF6FF":"transparent");cursor:pointer;text-align:left;width:100%">
+                                                <input type="checkbox" checked="@sel" style="pointer-events:none;flex-shrink:0" />
+                                                <div style="flex:1;min-width:0">
+                                                    <div style="font-size:12px;font-weight:@(sel?"600":"400");color:#0F2D5E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@c.Name</div>
+                                                </div>
+                                                <span style="font-size:9px;background:#EEF2FF;color:#3730A3;border-radius:3px;padding:1px 5px;font-family:monospace;flex-shrink:0">@c.Code</span>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if (isSysAdmin)
+                    {
+                        <div class="af-fgroup" style="margin-bottom:14px">
+                            <div class="af-flabel">Clinics * <span style="font-weight:400;color:#94A3B8">(@newClinicIds.Count selected)</span></div>
+                            @if (newClinicIds.Any())
+                            {
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;padding:5px 8px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:6px">
+                                    @foreach (var id in newClinicIds.ToList())
+                                    {
+                                        var cname = allClinics.FirstOrDefault(c => c.Id == id).Name ?? string.Empty;
+                                        var rid = id;
+                                        <span style="display:flex;align-items:center;gap:4px;background:#DBEAFE;color:#1E40AF;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:500">
+                                            @cname
+                                            <button type="button" style="background:none;border:none;color:#1E40AF;cursor:pointer;padding:0;font-size:11px;line-height:1" @onclick="() => ToggleClinic(rid)">×</button>
+                                        </span>
+                                    }
+                                </div>
+                            }
+                            <input class="af-finput" style="margin-bottom:6px" placeholder="Search clinics by name or code…"
+                                   value="@clinicSearch" @oninput="e => clinicSearch = e.Value?.ToString() ?? string.Empty" />
+                            <div style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;border:1px solid #E2E8F0;border-radius:6px;padding:4px">
+                                @{ var filtered2 = allClinics.Where(c =>
+                                       string.IsNullOrEmpty(clinicSearch) ||
+                                       c.Name.Contains(clinicSearch, StringComparison.OrdinalIgnoreCase) ||
+                                       c.Code.Contains(clinicSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                                @foreach (var c in filtered2)
+                                {
+                                    var cid = c.Id; var sel = newClinicIds.Contains(cid);
+                                    <button type="button" @onclick="() => ToggleClinic(cid)"
+                                            style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:none;border-radius:5px;background:@(sel?"#EFF6FF":"transparent");cursor:pointer;text-align:left;width:100%">
+                                        <input type="checkbox" checked="@sel" style="pointer-events:none;flex-shrink:0" />
+                                        <div style="flex:1;min-width:0">
+                                            <div style="font-size:12px;font-weight:@(sel?"600":"400");color:#0F2D5E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@c.Name</div>
+                                        </div>
+                                        <span style="font-size:9px;background:#EEF2FF;color:#3730A3;border-radius:3px;padding:1px 5px;font-family:monospace;flex-shrink:0">@c.Code</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div class="af-grid" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+                        <div class="af-fgroup">
+                            <label class="af-flabel">First Name *</label>
+                            <input class="af-finput" value="@newFirst" @oninput="e=>{newFirst=OnlyLetters(e.Value?.ToString());AutoUsername();StateHasChanged();}" placeholder="First name" />
+                        </div>
+                        <div class="af-fgroup">
+                            <label class="af-flabel">Last Name *</label>
+                            <input class="af-finput" value="@newLast" @oninput="e=>{newLast=OnlyLetters(e.Value?.ToString());AutoUsername();StateHasChanged();}" placeholder="Last name" />
+                        </div>
+                        <div class="af-fgroup">
+                            <label class="af-flabel">Username *</label>
+                            <input class="af-finput" value="@newUsername" @oninput="OnNewUsername" placeholder="auto" />
+                        </div>
+                        <div class="af-fgroup">
+                            <label class="af-flabel">Email *</label>
+                            <input class="af-finput" type="email" value="@newEmail" @oninput="OnNewEmail" placeholder="email@domain.com" />
+                        </div>
+                        <div class="af-fgroup">
+                            <label class="af-flabel">Mobile</label>
+                            <input class="af-finput @(_phoneTouched&&!string.IsNullOrEmpty(_phoneErr)?"err":"")" value="@newPhone" @oninput="OnNewPhone" @onblur="OnNewPhoneBlur" placeholder="10 digits (required)" />
+                        @if (_phoneTouched && !string.IsNullOrEmpty(_phoneErr)) { <span class="af-ferr">@_phoneErr</span> }
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(createError))
+                    { <div style="color:#EF4444;font-size:11px;margin-bottom:8px">⚠ @createError</div> }
+                    <button class="btn-primary" disabled="@creating" @onclick="CreateAdmin">
+                        @(creating ? "Creating…" : "Create Admin")
+                    </button>
+                    <span style="font-size:10px;color:#94A3B8;margin-left:12px">A temporary password will be generated and shown once.</span>
+                </div>
+            </div>
+        }
+
+        @* ── GLOBAL ADMINS tab ── *@
+        @if (isGlobalAdmin && tab == "global")
+        {
+            <AdminList Title="Global Admins" Color="#0B2545" Rows="globalAdmins"
+                       IsGodMode="true" AllClinics="allClinics"
+                       OnSave="SaveRow" OnResetPwd="ResetPassword" />
+        }
+
+        @* ── SYS ADMINS tab ── *@
+        @if (isGlobalAdmin && tab == "sys")
+        {
+            <AdminList Title="Sys Admins" Color="#6A1B9A" Rows="sysAdmins"
+                       IsGodMode="false" AllClinics="allClinics"
+                       OnSave="SaveRow" OnResetPwd="ResetPassword"
+                       OnLock="LockUser" OnUnlock="UnlockUser"
+                       OnSuspend="SuspendUser" OnTerminate="TerminateUser" OnReactivate="ReactivateUser" />
+        }
+
+        @* ── SITE ADMINS tab (GlobalAdmin) ── *@
+        @if (isGlobalAdmin && tab == "site")
+        {
+            <AdminList Title="Site Admins" Color="#00695C" Rows="siteAdmins"
+                       IsGodMode="false" AllClinics="allClinics"
+                       OnSave="SaveRow" OnResetPwd="ResetPassword"
+                       OnLock="LockUser" OnUnlock="UnlockUser"
+                       OnSuspend="SuspendUser" OnTerminate="TerminateUser" OnReactivate="ReactivateUser" />
+        }
+
+        @* ── SYS ADMIN view: only Site Admins ── *@
+        @if (isSysAdmin)
+        {
+            <AdminList Title="Site Admins" Color="#00695C" Rows="siteAdmins"
+                       IsGodMode="false" AllClinics="allClinics"
+                       OnSave="SaveRow" OnResetPwd="ResetPassword"
+                       OnLock="LockUser" OnUnlock="UnlockUser"
+                       OnSuspend="SuspendUser" OnTerminate="TerminateUser" OnReactivate="ReactivateUser" />
+        }
+
+        @* ── SITE ADMIN view: only themselves ── *@
+        @if (isSiteAdmin)
+        {
+            <AdminList Title="My Admin Account" Color="#00695C" Rows="siteAdmins.Where(r => r.Id == ownId).ToList()"
+                       IsGodMode="false" AllClinics="allClinics"
+                       OnSave="SaveRow" OnResetPwd="ResetPassword" />
+        }
+
+        @if (!string.IsNullOrEmpty(tempPassword))
+        {
+            <div class="pg-alert ok" style="margin-top:16px;font-family:monospace">
+                🔑 Temporary password for <strong>@tempForUser</strong>: <strong style="letter-spacing:2px">@tempPassword</strong>
+                — Share this securely. It will not be shown again.
+            </div>
+        }
+    </div>
+}
+
+<style>
+.ma-tab{padding:8px 18px;font-size:12px;font-weight:500;cursor:pointer;color:#475569;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;background:none;font-family:inherit;transition:all .15s}
+.ma-tab.act{color:#1565C0;border-bottom-color:#1565C0;font-weight:600}
+.ma-row{display:grid;align-items:center;padding:9px 14px;border-bottom:0.5px solid #E2E8F0;gap:8px}
+.ma-row:last-child{border-bottom:none}
+.ma-th{display:grid;align-items:center;padding:7px 14px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;gap:8px}
+.ma-th div{font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.5px}
+.ma-inp{background:#F8FAFC;border:1px solid #BFDBFE;border-radius:5px;padding:4px 7px;font-size:11px;color:#0F2D5E;width:100%;font-family:inherit}
+.ma-inp:focus{outline:none;border-color:#3B82F6}
+</style>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private bool loading=true, canAccess, isGlobalAdmin, isSysAdmin, isSiteAdmin;
+    private Guid ownId;
+    private string tab = "global";
+    private string successMsg=string.Empty, errorMsg=string.Empty, tempPassword=string.Empty, tempForUser=string.Empty;
+
+    // Lists
+    private List<AdminRow> globalAdmins=new(), sysAdmins=new(), siteAdmins=new();
+    private List<(Guid Id, string Name, string Code)> allClinics = new();
+
+    // Create form
+    private string newType="sys_admin", newFirst=string.Empty, newLast=string.Empty;
+    private string newUsername=string.Empty, newEmail=string.Empty, newPhone=string.Empty;
+    private bool newUsernameEdited, creating;
+    private string createError=string.Empty;
+    private bool _phoneTouched;
+    private string _phoneErr=string.Empty;
+    private HashSet<Guid> newClinicIds = new();
+    private string clinicSearch = string.Empty;
+
+    // Inline edit
+    private Guid? editingId;
+    private string editFirst=string.Empty, editLast=string.Empty, editEmail=string.Empty, editPhone=string.Empty;
+
+    public record AdminRow(Guid Id, string Username, string DisplayName, string FirstName, string LastName,
+        string? Email, string? Phone, string Status, string UserType, List<string> Clinics, List<Guid> ClinicIds);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        var role = user.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+        isGlobalAdmin = role == "global_admin";
+        isSysAdmin    = role == "sys_admin";
+        isSiteAdmin   = role == "site_admin";
+        canAccess     = isGlobalAdmin || isSysAdmin || isSiteAdmin;
+        Guid.TryParse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out ownId);
+
+        if (!canAccess) { loading = false; return; }
+
+        if (!isGlobalAdmin) tab = isSysAdmin ? "site" : "site";
+        await LoadAll();
+        loading = false;
+    }
+
+    private async Task LoadAll()
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            allClinics = await db.Clinics
+                .Where(c => c.DeletedAt == null && (c.Status == "active" || c.Status == "provisioning"))
+                .OrderBy(c => c.Name)
+                .Select(c => new { c.Id, c.Name, c.Code })
+                .AsAsyncEnumerable()
+                .Select(c => (c.Id, c.Name, c.Code))
+                .ToListAsync();
+
+            var allUsers = await db.PlatformUsers
+                .Include(u => u.ClinicMemberships).ThenInclude(cm => cm.Clinic)
+                .Where(u => u.DeletedAt == null &&
+                    (u.UserType == "global_admin" || u.UserType == "sys_admin" || u.UserType == "site_admin"))
+                .OrderBy(u => u.DisplayName)
+                .ToListAsync();
+
+            globalAdmins = allUsers.Where(u => u.UserType == "global_admin").Select(ToRow).ToList();
+            sysAdmins    = allUsers.Where(u => u.UserType == "sys_admin").Select(ToRow).ToList();
+
+            // SiteAdmin sees only their own clinic
+            if (isSiteAdmin)
+            {
+                var myClinics = await db.ClinicMemberships
+                    .Where(cm => cm.PlatformUserId == ownId && cm.Status == "active")
+                    .Select(cm => cm.ClinicId).ToListAsync();
+                siteAdmins = allUsers.Where(u => u.UserType == "site_admin" &&
+                    u.ClinicMemberships.Any(cm => myClinics.Contains(cm.ClinicId))).Select(ToRow).ToList();
+            }
+            else
+            {
+                siteAdmins = allUsers.Where(u => u.UserType == "site_admin").Select(ToRow).ToList();
+            }
+        }
+        catch (Exception ex) { errorMsg = $"Load error: {ex.Message}"; }
+    }
+
+
+    private void OnNewFirst(ChangeEventArgs e)    { newFirst=OnlyLetters(e.Value?.ToString()); AutoUsername(); StateHasChanged(); }
+    private void OnNewLast(ChangeEventArgs e)     { newLast=OnlyLetters(e.Value?.ToString()); AutoUsername(); StateHasChanged(); }
+    private void OnNewEmail(ChangeEventArgs e)    { newEmail=e.Value?.ToString()??string.Empty; }
+    private void OnNewPhone(ChangeEventArgs e)    { newPhone=System.Text.RegularExpressions.Regex.Replace(e.Value?.ToString()??string.Empty,@"\D",string.Empty); if(_phoneTouched) ValidatePhone(); }
+    private void OnNewPhoneBlur()  { _phoneTouched=true; ValidatePhone(); }
+    private void ValidatePhone()   { _phoneErr = string.IsNullOrWhiteSpace(newPhone) ? "Mobile required" : newPhone.Length!=10 ? "Must be 10 digits" : string.Empty; StateHasChanged(); }
+    private void OnNewUsername(ChangeEventArgs e) { newUsernameEdited=true; newUsername=e.Value?.ToString()??string.Empty; }
+
+    private static AdminRow ToRow(PlatformUser u) => new(
+        u.Id, u.Username, u.DisplayName ?? u.Username,
+        u.FirstName ?? string.Empty, u.LastName ?? string.Empty,
+        u.Email, u.Phone, u.Status, u.UserType,
+        u.ClinicMemberships.Where(cm => cm.Status == "active" && cm.Clinic != null)
+            .Select(cm => cm.Clinic!.Name).ToList(),
+        u.ClinicMemberships.Where(cm => cm.Status == "active")
+            .Select(cm => cm.ClinicId).ToList()
+    );
+
+    // ── Inline Edit ─────────────────────────────────────────────
+    private void EditRow(AdminRow r)
+    {
+        editingId = r.Id; editFirst = r.FirstName; editLast = r.LastName;
+        editEmail = r.Email ?? string.Empty; editPhone = r.Phone ?? string.Empty;
+        errorMsg = string.Empty;
+    }
+    private void CancelEdit() { editingId = null; }
+
+    private async Task SaveRow((Guid Id, string First, string Last, string Email, string Phone, HashSet<Guid> ClinicIds) args)
+    {
+        if (string.IsNullOrWhiteSpace(args.First) || string.IsNullOrWhiteSpace(args.Last))
+        { errorMsg = "First and last name required."; return; }
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var u = await db.PlatformUsers.FindAsync(args.Id);
+            if (u == null) return;
+            u.FirstName   = OnlyLetters(args.First);
+            u.LastName    = OnlyLetters(args.Last);
+            u.DisplayName = $"{u.FirstName} {u.LastName}".Trim();
+            u.Email       = string.IsNullOrWhiteSpace(args.Email) ? string.Empty : args.Email.Trim();
+            u.Phone       = string.IsNullOrWhiteSpace(args.Phone) ? (string?)null : args.Phone.Trim();
+            u.UpdatedAt   = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+
+            // Update clinic memberships for SiteAdmin
+            if (u.UserType == "site_admin" && args.ClinicIds.Any())
+            {
+                var existing = await db.ClinicMemberships
+                    .Where(cm => cm.PlatformUserId == u.Id).ToListAsync();
+                // Remove memberships not in new set
+                foreach (var cm in existing.Where(cm => !args.ClinicIds.Contains(cm.ClinicId)))
+                    db.ClinicMemberships.Remove(cm);
+                // Add new memberships
+                foreach (var cid in args.ClinicIds.Where(cid => !existing.Any(cm => cm.ClinicId == cid)))
+                    db.ClinicMemberships.Add(new LiPi.Master.Entities.ClinicMembership
+                    { Id = Guid.NewGuid(), PlatformUserId = u.Id, ClinicId = cid, Status = "active", CreatedAt = DateTime.UtcNow });
+                await db.SaveChangesAsync();
+            }
+
+            successMsg = $"'{u.Username}' updated.";
+            await LoadAll();
+        }
+        catch (Exception ex) { errorMsg = $"Save error: {ex.Message}"; }
+    }
+
+    // ── Status Actions ───────────────────────────────────────────
+    private async Task LockUser(Guid id)       => await SetStatus(id, "locked");
+    private async Task UnlockUser(Guid id)     => await SetStatus(id, "active");
+    private async Task SuspendUser(Guid id)    => await SetStatus(id, "suspended");
+    private async Task ReactivateUser(Guid id) => await SetStatus(id, "active");
+    private async Task TerminateUser(Guid id)  => await SetStatus(id, "terminated");
+
+    private async Task SetStatus(Guid id, string status)
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var u = await db.PlatformUsers.FindAsync(id);
+            if (u == null) return;
+            u.Status = status; u.UpdatedAt = DateTime.UtcNow;
+            if (status == "active") { u.FailedLoginCount = 0; u.LockedUntil = (DateTime?)null; }
+            await db.SaveChangesAsync();
+            successMsg = $"'{u.Username}' → {status}.";
+            await LoadAll();
+        }
+        catch (Exception ex) { errorMsg = $"Error: {ex.Message}"; }
+    }
+
+    // ── Reset Password ───────────────────────────────────────────
+    private async Task ResetPassword(Guid id)
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var u = await db.PlatformUsers.FindAsync(id);
+            if (u == null) return;
+            var tmp = $"LiPi@{Random.Shared.Next(10000, 99999)}";
+            u.PasswordHash        = Isopoh.Cryptography.Argon2.Argon2.Hash(tmp);
+            u.MustChangePassword  = true;
+            u.UpdatedAt           = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            tempPassword = tmp; tempForUser = u.Username;
+            successMsg = $"Password reset for '{u.Username}'.";
+        }
+        catch (Exception ex) { errorMsg = $"Error: {ex.Message}"; }
+    }
+
+    // ── Create Admin ─────────────────────────────────────────────
+    private void OnNewTypeChange(ChangeEventArgs e) { newType = e.Value?.ToString() ?? "sys_admin"; newClinicIds.Clear(); }
+    private void ToggleClinic(Guid id) { if (!newClinicIds.Remove(id)) newClinicIds.Add(id); }
+
+    private void AutoUsername()
+    {
+        if (newUsernameEdited) return;
+        var fn = Regex.Replace(newFirst.ToLower(), @"[^a-z]", string.Empty);
+        var ln = Regex.Replace(newLast.ToLower(),  @"[^a-z]", string.Empty);
+        newUsername = string.IsNullOrEmpty(ln) ? fn : $"{fn}.{ln}";
+    }
+
+    private async Task CreateAdmin()
+    {
+        createError = string.Empty;
+        if (string.IsNullOrWhiteSpace(newFirst) || string.IsNullOrWhiteSpace(newLast))
+        { createError = "First and last name required."; return; }
+        _phoneTouched=true; ValidatePhone();
+        if (string.IsNullOrWhiteSpace(newEmail) || !newEmail.Contains('@'))
+        { createError = "Valid email required."; return; }
+        if (!string.IsNullOrEmpty(_phoneErr))
+        { createError = "Fix highlighted errors."; return; }
+        var targetType = isGlobalAdmin ? newType : "site_admin";
+        if (targetType == "site_admin" && newClinicIds.Count == 0)
+        { createError = "Select at least one clinic for Site Admin."; return; }
+
+        creating = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var uname = string.IsNullOrWhiteSpace(newUsername)
+                ? $"{Regex.Replace(newFirst.ToLower(), @"[^a-z]", "")}.{Regex.Replace(newLast.ToLower(), @"[^a-z]", "")}"
+                : newUsername.Trim().ToLowerInvariant();
+
+            if (await db.PlatformUsers.AnyAsync(u => u.Username == uname && u.DeletedAt == null))
+            { createError = "Username already exists."; creating = false; return; }
+
+            var tmp  = $"LiPi@{Random.Shared.Next(10000, 99999)}";
+            var fn   = OnlyLetters(newFirst); var ln = OnlyLetters(newLast);
+            var user = new PlatformUser
+            {
+                Id                = Guid.NewGuid(),
+                Username          = uname,
+                PasswordHash      = Isopoh.Cryptography.Argon2.Argon2.Hash(tmp),
+                FirstName         = fn, LastName = ln,
+                DisplayName       = $"{fn} {ln}".Trim(),
+                Email             = newEmail.Trim(),
+                Phone             = string.IsNullOrWhiteSpace(newPhone) ? null : newPhone.Trim(),
+                UserType          = targetType,
+                Status            = "active",
+                MustChangePassword= true,
+                CreatedAt         = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow,
+            };
+            db.PlatformUsers.Add(user);
+            await db.SaveChangesAsync();
+
+            if (targetType == "site_admin")
+            {
+                foreach (var cid in newClinicIds)
+                {
+                    db.ClinicMemberships.Add(new ClinicMembership
+                    {
+                        Id = Guid.NewGuid(), PlatformUserId = user.Id, ClinicId = cid,
+                        Status = "active", CreatedAt = DateTime.UtcNow,
+                    });
+                }
+                await db.SaveChangesAsync();
+            }
+
+            tempPassword = tmp; tempForUser = uname;
+            successMsg = $"{(targetType == "sys_admin" ? "Sys" : "Site")} Admin '{uname}' created.";
+            newFirst=string.Empty; newLast=string.Empty; newUsername=string.Empty;
+            newEmail=string.Empty; newPhone=string.Empty; newUsernameEdited=false; newClinicIds.Clear();
+            _phoneTouched=false; _phoneErr=string.Empty; clinicSearch=string.Empty;
+            await LoadAll();
+            tab = targetType == "sys_admin" ? "sys" : "site";
+        }
+        catch (Exception ex) { createError = $"Error: {ex.Message}"; }
+        finally { creating = false; }
+    }
+
+    private static string OnlyLetters(string? s) =>
+        string.IsNullOrEmpty(s) ? string.Empty :
+        Regex.Replace(s, @"[^a-zA-Z\s\-\.]", string.Empty);
+}

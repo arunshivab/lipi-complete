@@ -1,0 +1,285 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/audit"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using LiPi.Clinic.Identity
+@using LiPi.Clinic.Identity.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Navigation
+@inject IDbContextFactory<IdentityDbContext> IdDbFactory
+
+<PageTitle>Audit Log – LiPi Admin</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Audit Log</div>
+    <div class="tn-pt-sub">HIPAA-compliant access log</div>
+</SectionContent>
+
+<div class="ap-header">
+  <div style="flex:1">
+    <h1 class="ap-title">Audit Log</h1>
+    <p style="font-size:11px;color:var(--tx-3);margin-top:2px">HIPAA-compliant immutable record of all system events</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn-secondary" style="font-size:11px" @onclick="ExportCsv">⬇ Export CSV</button>
+  </div>
+</div>
+
+<div class="ap-body">
+  <!-- Filters -->
+  <div class="pg-card" style="margin-bottom:10px;padding:12px 14px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="pg-fg" style="min-width:180px">
+        <label class="pg-lbl" for="aud-search">Search</label>
+        <input id="aud-search" name="search" type="search" class="pg-inp" autocomplete="off"
+               value="@searchTerm" placeholder="Username, action, entity…"
+               @oninput="OnSearch" />
+      </div>
+      <div class="pg-fg">
+        <label class="pg-lbl" for="aud-outcome">Outcome</label>
+        <select id="aud-outcome" name="outcome" class="pg-sel" @onchange="OnOutcomeChange">
+          <option value="">All</option>
+          <option value="success">Success</option>
+          <option value="bad_password">Bad Password</option>
+          <option value="unknown_user">Unknown User</option>
+          <option value="mfa_failed">MFA Failed</option>
+          <option value="locked">Account Locked</option>
+          <option value="rate_limited">Rate Limited</option>
+        </select>
+      </div>
+      <div class="pg-fg">
+        <label class="pg-lbl" for="aud-from">From</label>
+        <input id="aud-from" name="from" type="date" class="pg-inp"
+               value="@dateFrom" @onchange="OnDateFromChange" />
+      </div>
+      <div class="pg-fg">
+        <label class="pg-lbl" for="aud-to">To</label>
+        <input id="aud-to" name="to" type="date" class="pg-inp"
+               value="@dateTo" @onchange="OnDateToChange" />
+      </div>
+      <button class="btn-secondary" style="font-size:11px;align-self:flex-end" @onclick="ApplyFilter">Filter</button>
+      <button class="btn-secondary" style="font-size:11px;align-self:flex-end" @onclick="ClearFilter">Clear</button>
+    </div>
+  </div>
+
+  <!-- Summary cards -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
+    <div class="aud-stat-card">
+      <div class="aud-stat-val">@totalAttempts</div>
+      <div class="aud-stat-lbl">Total Attempts</div>
+    </div>
+    <div class="aud-stat-card aud-stat-green">
+      <div class="aud-stat-val">@successCount</div>
+      <div class="aud-stat-lbl">Successful Logins</div>
+    </div>
+    <div class="aud-stat-card aud-stat-red">
+      <div class="aud-stat-val">@failCount</div>
+      <div class="aud-stat-lbl">Failed Attempts</div>
+    </div>
+    <div class="aud-stat-card aud-stat-amber">
+      <div class="aud-stat-val">@uniqueIps</div>
+      <div class="aud-stat-lbl">Unique IPs</div>
+    </div>
+  </div>
+
+  <!-- Tab: Login Attempts | Sessions -->
+  <div class="aud-tabs">
+    <button class="aud-tab @(activeTab=="login"?"active":"")" @onclick="ShowLogin">Login Attempts</button>
+    <button class="aud-tab @(activeTab=="sessions"?"active":"")" @onclick="ShowSessions">Active Sessions</button>
+  </div>
+
+  <div class="ap-card" style="padding:0;overflow:hidden">
+    @if (loading)
+    { <div class="ap-placeholder"><div class="ap-placeholder-icon">⏳</div><p>Loading…</p></div> }
+    else if (activeTab == "login")
+    {
+      @if (attempts.Count == 0)
+      { <div class="ap-table-empty"><div class="ap-table-empty-icon">📋</div><p class="ap-table-empty-title">No login attempts found</p></div> }
+      else
+      {
+        <table class="aud-table">
+          <thead><tr>
+            <th>Time (UTC)</th>
+            <th>Username</th>
+            <th>Outcome</th>
+            <th>IP Address</th>
+            <th>User Agent</th>
+            <th>Clinic</th>
+          </tr></thead>
+          <tbody>
+            @foreach (var a in attempts)
+            {
+              <tr class="aud-row aud-row-@(a.Outcome=="success"?"ok":"err")">
+                <td class="aud-mono">@a.AttemptedAt.ToString("dd MMM yyyy HH:mm:ss")</td>
+                <td><strong>@(a.Username ?? "—")</strong></td>
+                <td><span class="aud-outcome aud-@a.Outcome">@FormatOutcome(a.Outcome)</span></td>
+                <td class="aud-mono">@(a.ClientIp?.ToString() ?? "—")</td>
+                <td class="aud-ua">@TruncateUa(a.UserAgent)</td>
+                <td class="aud-mono" style="font-size:10px">@(a.ClinicId == Guid.Empty ? "global" : a.ClinicId.ToString()[..8])…</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <div class="ul-footer-count">
+          Showing @attempts.Count of @totalAttempts entries
+          @if (attempts.Count < totalAttempts)
+          { <button class="btn-secondary" style="margin-left:8px;font-size:10px;padding:2px 10px" @onclick="LoadMore">Load more</button> }
+        </div>
+      }
+    }
+    else
+    {
+      @if (sessions.Count == 0)
+      { <div class="ap-table-empty"><div class="ap-table-empty-icon">🔐</div><p class="ap-table-empty-title">No active sessions</p></div> }
+      else
+      {
+        <table class="aud-table">
+          <thead><tr>
+            <th>User</th>
+            <th>Issued (UTC)</th>
+            <th>Expires (UTC)</th>
+            <th>Last Active</th>
+            <th>IP</th>
+            <th>Device</th>
+          </tr></thead>
+          <tbody>
+            @foreach (var s in sessions)
+            {
+              <tr class="aud-row aud-row-ok">
+                <td><strong>@(s.User?.Username ?? s.UserId.ToString()[..8])</strong></td>
+                <td class="aud-mono">@s.IssuedAt.ToString("dd MMM yyyy HH:mm")</td>
+                <td class="aud-mono">@s.ExpiresAt.ToString("dd MMM yyyy HH:mm")</td>
+                <td class="aud-mono">@s.LastActiveAt.ToString("dd MMM HH:mm")</td>
+                <td class="aud-mono">@(s.ClientIp?.ToString() ?? "—")</td>
+                <td class="aud-ua">@TruncateUa(s.UserAgent)</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <div class="ul-footer-count">@sessions.Count active session(s)</div>
+      }
+    }
+  </div>
+</div>
+
+<style>
+.aud-stat-card{background:#fff;border:1px solid var(--border,#E2E8F0);border-radius:12px;padding:14px 16px;text-align:center}
+.aud-stat-val{font-size:28px;font-weight:700;color:var(--tx,#0F2D5E)}
+.aud-stat-lbl{font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
+.aud-stat-green .aud-stat-val{color:#065F46}.aud-stat-green{border-color:#6EE7B7}
+.aud-stat-red   .aud-stat-val{color:#991B1B}.aud-stat-red{border-color:#FCA5A5}
+.aud-stat-amber .aud-stat-val{color:#92400E}.aud-stat-amber{border-color:#FDE68A}
+.aud-tabs{display:flex;gap:2px;margin-bottom:-1px;position:relative;z-index:1}
+.aud-tab{padding:8px 18px;font-size:12px;font-weight:500;border:1px solid var(--border,#E2E8F0);border-bottom:none;border-radius:8px 8px 0 0;background:#F8FAFC;color:var(--tx-3);cursor:pointer;font-family:inherit}
+.aud-tab.active{background:#fff;color:var(--tx,#0F2D5E);font-weight:600;border-color:var(--border,#E2E8F0)}
+.aud-table{width:100%;border-collapse:collapse;font-size:12px}
+.aud-table thead th{padding:8px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.3px;color:var(--tx-3);text-transform:uppercase;background:#F8FAFC;border-bottom:2px solid var(--border,#E2E8F0)}
+.aud-row td{padding:8px 12px;border-bottom:1px solid var(--border,#E2E8F0)}
+.aud-row-ok{border-left:3px solid #10B981}
+.aud-row-err{border-left:3px solid #EF4444}
+.aud-mono{font-family:'DM Mono',monospace;font-size:11px;color:var(--tx-2)}
+.aud-ua{font-size:10px;color:var(--tx-3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aud-outcome{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid}
+.aud-success{background:#D1FAE5;color:#065F46;border-color:#6EE7B7}
+.aud-bad_password,.aud-unknown_user,.aud-mfa_failed,.aud-rate_limited{background:#FEE2E2;color:#991B1B;border-color:#FCA5A5}
+.aud-locked{background:#FEF3C7;color:#92400E;border-color:#FDE68A}
+</style>
+
+@code {
+  [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private bool   loading     = true;
+  private string activeTab   = "login";
+  private string searchTerm  = string.Empty;
+  private string outcomeFilter= string.Empty;
+  private string dateFrom    = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd");
+  private string dateTo      = DateTime.UtcNow.ToString("yyyy-MM-dd");
+  private int    pageSize    = 50, totalAttempts, successCount, failCount, uniqueIps;
+
+  private List<LoginAttempt> attempts = new();
+  private List<Session>      sessions = new();
+
+  private Guid siteAdminClinicId;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var role = (await AuthState).User.Claims.Where(c=>c.Type==ClaimTypes.Role).Select(c=>c.Value).FirstOrDefault();
+    var isSiteAdmin = role == "site_admin";
+    if (role is not ("global_admin" or "sys_admin" or "site_admin"))
+    { Navigation.NavigateTo("/admin", forceLoad:true); return; }
+    // For SiteAdmin, filter by their clinic
+    if (isSiteAdmin)
+    {
+        var cid = (await AuthState).User.FindFirst("clinicId")?.Value;
+        if (Guid.TryParse(cid, out var sid)) siteAdminClinicId = sid;
+    }
+    await LoadDataAsync();
+  }
+
+  private async Task LoadDataAsync()
+  {
+    loading = true; StateHasChanged();
+    try
+    {
+      await using var db = await IdDbFactory.CreateDbContextAsync();
+
+      // Date bounds
+      DateTime from = DateTime.TryParse(dateFrom, out var f) ? f : DateTime.UtcNow.AddDays(-7);
+      DateTime to   = DateTime.TryParse(dateTo,   out var t) ? t.AddDays(1) : DateTime.UtcNow;
+
+      var q = db.LoginAttempts.Where(a => a.AttemptedAt >= from && a.AttemptedAt <= to);
+      if (siteAdminClinicId != Guid.Empty)
+          q = q.Where(a => a.ClinicId == siteAdminClinicId);
+      if (!string.IsNullOrEmpty(outcomeFilter)) q = q.Where(a => a.Outcome == outcomeFilter);
+      if (!string.IsNullOrEmpty(searchTerm))
+        q = q.Where(a => (a.Username ?? "").Contains(searchTerm));
+
+      totalAttempts = await q.CountAsync();
+      successCount  = await q.CountAsync(a => a.Outcome == "success");
+      failCount     = totalAttempts - successCount;
+      uniqueIps     = await q.Select(a => a.ClientIp).Distinct().CountAsync();
+
+      attempts = await q.OrderByDescending(a => a.AttemptedAt).Take(pageSize).ToListAsync();
+
+      sessions = await db.Sessions
+        .Include(s => s.User)
+        .Where(s => s.RevokedAt == null && s.ExpiresAt > DateTime.UtcNow)
+        .OrderByDescending(s => s.LastActiveAt)
+        .ToListAsync();
+    }
+    catch { /* DB may not be seeded */ }
+    finally { loading = false; }
+  }
+
+  private void OnSearch(ChangeEventArgs e)       { searchTerm   = e.Value?.ToString()??string.Empty; }
+  private void OnOutcomeChange(ChangeEventArgs e){ outcomeFilter = e.Value?.ToString()??string.Empty; }
+  private void OnDateFromChange(ChangeEventArgs e){ dateFrom     = e.Value?.ToString()??string.Empty; }
+  private void OnDateToChange(ChangeEventArgs e)  { dateTo       = e.Value?.ToString()??string.Empty; }
+  private async Task ApplyFilter()  => await LoadDataAsync();
+  private async Task ClearFilter()  { searchTerm=string.Empty; outcomeFilter=string.Empty; dateFrom=DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd"); dateTo=DateTime.UtcNow.ToString("yyyy-MM-dd"); await LoadDataAsync(); }
+  private async Task ShowLogin()    { activeTab="login";    await LoadDataAsync(); }
+  private async Task ShowSessions() { activeTab="sessions"; await LoadDataAsync(); }
+  private async Task LoadMore()     { pageSize+=50; await LoadDataAsync(); }
+
+  private void ExportCsv()
+  {
+    // TODO: wire JS download — data is in `attempts` list
+  }
+
+  private static string FormatOutcome(string o) => o switch
+  {
+    "success"      => "✓ Success",
+    "bad_password" => "Bad Password",
+    "unknown_user" => "Unknown User",
+    "mfa_failed"   => "MFA Failed",
+    "locked"       => "Account Locked",
+    "rate_limited" => "Rate Limited",
+    _              => o,
+  };
+  private static string TruncateUa(string? ua)
+    => string.IsNullOrEmpty(ua) ? "—" : ua.Length > 60 ? ua[..60]+"…" : ua;
+}

@@ -1,0 +1,10 @@
+@page "/admin"
+@using Microsoft.AspNetCore.Authorization
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+        => Nav.NavigateTo("/admin/settings", replace: true);
+}

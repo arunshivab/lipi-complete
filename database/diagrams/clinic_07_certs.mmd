@@ -1,0 +1,235 @@
+erDiagram
+    CREDENTIAL_TYPES ||--o{ STAFF_CREDENTIALS : "classifies"
+    CREDENTIAL_TYPES ||--o{ BOARD_REGISTRATIONS : "references"
+    STAFF_CREDENTIALS ||--o{ CREDENTIAL_HOLDS : "subject_of"
+    BOARD_REGISTRATIONS ||--o{ CREDENTIAL_HOLDS : "subject_of"
+    STAFF_CREDENTIALS ||--o{ CME_REQUIREMENTS : "fulfills"
+    CME_CREDITS ||--o{ CME_REQUIREMENTS : "contributes_to"
+    COMPETENCY_ASSESSMENTS ||--o{ TRAINING_RECORDS : "requires_followup"
+    TRAINING_RECORDS ||--o{ CME_REQUIREMENTS : "counts_toward"
+    PUBLICATIONS ||--o{ CREDENTIAL_VERIFICATION_CHECKLIST : "supports"
+    AWARDS ||--o{ CREDENTIAL_VERIFICATION_CHECKLIST : "supports"
+
+    CREDENTIAL_TYPES {
+        text code PK "mbbs, md, ms, dnb, frcs, fams, bls, acls"
+        text credential_name
+        text credential_level "basic, intermediate, advanced, specialist"
+        text category "medical_degree, nursing_degree, specialist_board, support_services"
+        text issuing_authority "MCI, NMC, INC, IBPS"
+        char issuing_country "ISO 3166-1 alpha-2"
+        int validity_years "NULL if perpetual"
+        text[] mandatory_for_roles
+        boolean mci_recognised
+        text international_equiv
+        text description
+    }
+
+    STAFF_CREDENTIALS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        text credential_type_code FK UK
+        text credential_number UK
+        date issued_date
+        text issued_by
+        date valid_from
+        date valid_to
+        char country_issued "ISO"
+        text discipline_specialisation "Diagnostic Radiology"
+        text sub_specialisation "Interventional Radiology"
+        text verification_status "unverified, verification_pending, verified, expired"
+        text verification_method "manual_review, online_portal, api"
+        datetime verified_at
+        uuid verified_by FK
+        text certificate_s3_key
+        text portal_url
+        boolean renewal_required
+        date renewal_due_date
+        boolean is_primary
+        text scope_limitations
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    BOARD_REGISTRATIONS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        text board_code FK UK "nmc_doctor, nmc_nurse"
+        text board_name
+        text registration_number UK
+        text registration_state
+        date registered_date
+        date valid_from
+        date valid_to
+        date renewal_date
+        text registration_status "active, lapsed, renewed, suspended, revoked"
+        text suspension_reason
+        date suspension_from
+        date suspension_to
+        text certificate_s3_key
+        text online_verify_url
+        boolean is_primary
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    CME_CREDITS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        text credit_type "conference, workshop, online_course, journal_club, publication"
+        text credit_provider "IMA, NMC, ASCO"
+        numeric credit_points
+        date credit_date
+        text activity_title
+        text activity_location
+        text certificate_s3_key
+        text credit_identifier "from provider"
+        boolean approved
+        uuid approved_by FK
+        text notes
+        datetime created_at
+        int row_version
+    }
+
+    CME_REQUIREMENTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        int year UK
+        text requirement_type "cme, cpd, specialty_maintenance"
+        numeric required_credits
+        numeric earned_credits
+        date deadline_date
+        text status "in_progress, completed, partial, overdue, exempted"
+        text exemption_reason
+        uuid exempted_by FK
+        datetime exempted_at
+        text comments
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    COMPETENCY_ASSESSMENTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        date assessment_date
+        text assessment_type "clinical_skills, procedural_competency, communication, teaching"
+        uuid assessor_id FK
+        text competency_level "novice, beginner, competent, proficient, expert, needs_remediation"
+        numeric score
+        numeric max_score
+        text comments
+        text[] evidence_documents
+        text action_plan "if needs_remediation"
+        date followup_date
+        datetime created_at
+        int row_version
+    }
+
+    TRAINING_RECORDS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        text training_code "INDUCTION_2026"
+        text training_name
+        text training_category "induction, onboarding, mandatory_annual, role_specific, safety_drill"
+        date start_date
+        date end_date
+        numeric duration_hours
+        text trainer_name
+        text trainer_org
+        text training_mode "in_person, online, hybrid, self_paced"
+        text completion_status "in_progress, completed, cancelled, deferred"
+        numeric test_score
+        boolean test_required
+        boolean test_passed
+        text certificate_s3_key
+        boolean competency_verified
+        uuid verified_by FK
+        text notes
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    CREDENTIAL_HOLDS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        text hold_reason "criminal_investigation, malpractice_suit, integrity_concern"
+        datetime held_from
+        datetime held_until
+        text hold_details
+        uuid imposed_by FK
+        boolean appeal_filed
+        date appeal_date
+        text appeal_outcome
+        datetime lifted_at
+        uuid lifted_by FK
+        text notes
+        datetime created_at
+        int row_version
+    }
+
+    PUBLICATIONS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        date publication_date
+        text publication_type "peer_reviewed_journal, conference_paper, book_chapter"
+        text journal_name
+        text conference_name
+        text title
+        text authors "comma-separated"
+        int author_position
+        text doi
+        text pmid
+        text url
+        numeric impact_factor
+        text[] keywords
+        text abstract
+        boolean is_corresponding_author
+        int citation_count
+        datetime created_at
+        int row_version
+    }
+
+    AWARDS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        date award_date
+        text award_name
+        text awarding_organization
+        text award_category "clinical_excellence, research, teaching"
+        text award_level "departmental, institutional, state, national"
+        text certificate_s3_key
+        text notes
+        datetime created_at
+        int row_version
+    }
+
+    CREDENTIAL_VERIFICATION_CHECKLIST {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK
+        date checklist_date
+        boolean medical_degree_verified
+        boolean board_registration_verified
+        boolean liability_insurance_verified
+        boolean background_check_verified
+        boolean references_verified
+        boolean previous_employment_verified
+        boolean disciplinary_history_checked
+        boolean all_verified
+        uuid verified_by FK
+        text notes
+        datetime created_at
+        int row_version
+    }

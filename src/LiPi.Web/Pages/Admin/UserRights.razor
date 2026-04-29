@@ -1,0 +1,319 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/users/{UserId:guid}/rights"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using System.Text.Json
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using LiPi.Clinic.Identity
+@using LiPi.Clinic.Identity.Entities
+@using Microsoft.EntityFrameworkCore
+@using LiPi.Web.Services
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IDbContextFactory<MasterDbContext> _masterFactory
+@inject IDbContextFactory<IdentityDbContext> _dbFactory
+@inject NavigationManager Nav
+@inject IAuditService _audit
+
+<PageTitle>Assign Rights – LiPi Admin</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Assign Rights</div>
+    <div class="tn-pt-sub">Module access control</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:860px;margin:0 auto;padding:20px 24px 60px">
+
+  <nav style="font-size:12px;color:#64748B;margin-bottom:16px">
+    <a href="/admin" style="color:#1565C0;text-decoration:none">Administration</a>
+    <span style="margin:0 6px">›</span>
+    <a href="/admin/users" style="color:#1565C0;text-decoration:none">Users</a>
+    <span style="margin:0 6px">›</span>
+    <span>Assign Rights</span>
+    <a href="/admin/users" class="btn-secondary btn-sm" style="margin-left:auto">← User List</a>
+  </nav>
+
+  @if (_loading)
+  {
+    <div style="text-align:center;padding:60px;color:#64748B">Loading…</div>
+  }
+  else if (_user == null)
+  {
+    <div class="ap-alert error"><span class="ap-alert-icon">⚠</span><div>User not found.</div></div>
+  }
+  else
+  {
+    @* User context *@
+    <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px">
+      <div style="width:44px;height:44px;border-radius:50%;background:#0B2545;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;flex-shrink:0">
+        @(_user.FirstName?[..1].ToUpper())@(_user.LastName?[..1].ToUpper())
+      </div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:600;color:#0F2D5E">@_user.DisplayName</div>
+        <div style="font-size:11px;color:#64748B">@_user.Username · @_designation</div>
+      </div>
+      @if (_assignedRoles.Count > 0)
+      {
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          @foreach (var r in _assignedRoles)
+          {
+            <span style="background:#EDE7F6;color:#4A148C;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:500">@r</span>
+          }
+        </div>
+      }
+    </div>
+
+    @if (!string.IsNullOrEmpty(_savedMsg))
+    { <div class="ap-alert success" style="margin-bottom:16px"><span class="ap-alert-icon">✓</span><div>@_savedMsg</div></div> }
+
+    @* Legend *@
+    <div style="display:flex;gap:16px;align-items:center;margin-bottom:16px;font-size:11px;color:#64748B">
+      <span>Legend:</span>
+      <span style="display:flex;align-items:center;gap:5px">
+        <span style="width:14px;height:14px;background:#D1FAE5;border:1px solid #6EE7B7;border-radius:3px;display:inline-block"></span>
+        From role (default)
+      </span>
+      <span style="display:flex;align-items:center;gap:5px">
+        <span style="width:14px;height:14px;background:#DBEAFE;border:1px solid #93C5FD;border-radius:3px;display:inline-block"></span>
+        Manually granted
+      </span>
+      <span style="display:flex;align-items:center;gap:5px">
+        <span style="width:14px;height:14px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:3px;display:inline-block"></span>
+        Manually restricted
+      </span>
+    </div>
+
+    @* Module groups *@
+    @foreach (var group in _moduleGroups)
+    {
+      <div class="af-card" style="border-left:4px solid @group.Color;margin-bottom:14px">
+        <div class="af-card-header">
+          <div class="af-card-num" style="background:@group.Color">@group.Icon</div>
+          <span class="af-card-title">@group.Name</span>
+        </div>
+        <div class="af-card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+            @foreach (var mod in group.Modules)
+            {
+              var m = mod;
+              var state  = GetState(m.Code);
+              var bgColor = state == RightState.FromRole      ? "#D1FAE5"
+                          : state == RightState.GrantedManual ? "#DBEAFE"
+                          : state == RightState.DeniedManual  ? "#FEE2E2"
+                          : "#F8FAFC";
+              var borderColor = state == RightState.FromRole      ? "#6EE7B7"
+                              : state == RightState.GrantedManual ? "#93C5FD"
+                              : state == RightState.DeniedManual  ? "#FCA5A5"
+                              : "#E2E8F0";
+              <div style="background:@bgColor;border:1px solid @borderColor;border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#0F2D5E">@m.Label</div>
+                  <div style="font-size:10px;color:#64748B;margin-top:1px">@m.Code</div>
+                  @if (state == RightState.FromRole)
+                  { <div style="font-size:9px;color:#059669;margin-top:2px">From role</div> }
+                  else if (state == RightState.GrantedManual)
+                  { <div style="font-size:9px;color:#1D4ED8;margin-top:2px">Manually granted</div> }
+                  else if (state == RightState.DeniedManual)
+                  { <div style="font-size:9px;color:#DC2626;margin-top:2px">Manually restricted</div> }
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <button type="button" title="Grant access"
+                    style="width:28px;height:24px;border-radius:4px;border:1px solid #E2E8F0;background:@(state==RightState.GrantedManual||state==RightState.FromRole?"#16A34A":"#fff");color:@(state==RightState.GrantedManual||state==RightState.FromRole?"#fff":"#64748B");font-size:11px;cursor:pointer;font-weight:700"
+                    @onclick="() => SetRight(m.Code, true)">✓</button>
+                  <button type="button" title="Restrict access"
+                    style="width:28px;height:24px;border-radius:4px;border:1px solid #E2E8F0;background:@(state==RightState.DeniedManual?"#DC2626":"#fff");color:@(state==RightState.DeniedManual?"#fff":"#64748B");font-size:11px;cursor:pointer;font-weight:700"
+                    @onclick="() => SetRight(m.Code, false)">✕</button>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    @* Actions *@
+    <div style="display:flex;gap:10px;align-items:center;padding:8px 0">
+      <button type="button" class="btn-primary" disabled="@_saving" @onclick="SaveRights">
+        @(_saving ? "Saving…" : "Save Rights")
+      </button>
+      <button type="button" class="btn-secondary" @onclick="ResetToRoleDefaults">Reset to Role Defaults</button>
+      <a href="/admin/users/@UserId/roles"  class="btn-secondary">← Roles</a>
+      <a href="/admin/users/@UserId/edit"   class="btn-secondary">Edit User</a>
+    </div>
+  }
+</div>
+
+@code {
+  [Parameter] public Guid UserId { get; set; }
+  [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+  private PlatformUser? _user;
+  private bool _loading = true, _saving;
+  private string _savedMsg = string.Empty, _designation = string.Empty;
+  private List<string> _assignedRoles = new();
+  private Guid _clinicId;
+
+  // Rights state: null=no override, true=granted, false=denied
+  private Dictionary<string, bool?> _overrides = new();
+  // Modules granted by role
+  private HashSet<string> _roleModules = new();
+
+  private enum RightState { None, FromRole, GrantedManual, DeniedManual }
+
+  private RightState GetState(string code)
+  {
+    if (_overrides.TryGetValue(code, out var ov))
+      return ov == true ? RightState.GrantedManual : RightState.DeniedManual;
+    return _roleModules.Contains(code) ? RightState.FromRole : RightState.None;
+  }
+
+  private void SetRight(string code, bool grant)
+  {
+    // If clicking same state that's already set, remove override
+    var cur = GetState(code);
+    if (grant && cur == RightState.GrantedManual)       { _overrides.Remove(code); return; }
+    if (!grant && cur == RightState.DeniedManual)       { _overrides.Remove(code); return; }
+    if (grant && cur == RightState.FromRole)            { _overrides.Remove(code); return; }
+    _overrides[code] = grant;
+  }
+
+  private void ResetToRoleDefaults() => _overrides.Clear();
+
+  // Module definitions
+  private record ModuleDef(string Code, string Label);
+  private record ModuleGroup(string Name, string Color, string Icon, List<ModuleDef> Modules);
+
+  private readonly List<ModuleGroup> _moduleGroups = new()
+  {
+    new("Clinical", "#4A9BD4", "🏥", new()
+    {
+      new("op",  "Outpatient (OP)"),
+      new("ip",  "Inpatient (IP)"),
+      new("ro",  "Radiation Oncology (RO)"),
+      new("mo",  "Medical Oncology (MO)"),
+      new("sx",  "Surgical Oncology (Sx)"),
+      new("cv",  "Cardiovascular (CV)"),
+      new("ot",  "Operation Theatre (OT)"),
+    }),
+    new("Diagnostics", "#22C55E", "🔬", new()
+    {
+      new("ph",  "Physiotherapy"),
+      new("lab", "Laboratory"),
+      new("rad", "Radiology"),
+      new("nm",  "Nuclear Medicine"),
+      new("dia", "Dialysis"),
+      new("den", "Dental"),
+    }),
+    new("Support Services", "#F59E0B", "⚙", new()
+    {
+      new("nu",  "Nutrition & Dietetics"),
+      new("cs",  "Counselling & Support"),
+      new("ad",  "Administration"),
+      new("bil", "Billing"),
+      new("rep", "Reports"),
+      new("audit","Audit Logs"),
+    }),
+  };
+
+  // Default modules per role
+  private static readonly Dictionary<string, string[]> RoleModuleDefaults = new()
+  {
+    ["physician"]    = ["op","ip","ro","mo","sx","cv","rep"],
+    ["consultant"]   = ["op","ip","rep"],
+    ["resident"]     = ["op","ip"],
+    ["charge_nurse"] = ["ip","op","rep"],
+    ["nurse"]        = ["ip","op"],
+    ["physicist"]    = ["ro","rep"],
+    ["dosimetrist"]  = ["ro","rep"],
+    ["radiographer"] = ["ro","rad","rep"],
+    ["pharmacist"]   = ["op","ip","ad"],
+    ["lab_tech"]     = ["lab","rep"],
+    ["radiologist"]  = ["rad","nm","rep"],
+    ["billing_staff"]= ["bil","rep"],
+    ["reception"]    = ["op","ad"],
+    ["data_entry"]   = ["op","ip","rep"],
+    ["director"]     = ["op","ip","ro","mo","sx","cv","ph","lab","rad","nm","dia","nu","cs","ad","bil","rep","audit"],
+    ["dept_manager"] = ["op","ip","ro","mo","sx","cv","rep","audit"],
+  };
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      await using var masterDb = await _masterFactory.CreateDbContextAsync();
+      _user = await masterDb.PlatformUsers.FindAsync(UserId);
+      if (_user == null) { _loading=false; return; }
+
+      // Designation from extension_data
+      try
+      {
+        var ext = JsonSerializer.Deserialize<JsonElement>(_user.ExtensionData ?? "{}");
+        if (ext.TryGetProperty("designation", out var d)) _designation = d.GetString() ?? string.Empty;
+      }
+      catch { }
+
+      // Get clinic
+      var mem = await masterDb.ClinicMemberships
+        .FirstOrDefaultAsync(cm => cm.PlatformUserId == UserId && cm.Status == "active");
+      if (mem != null) _clinicId = mem.ClinicId;
+
+      // Load roles from identity DB
+      if (_clinicId != Guid.Empty)
+      {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var roles = await db.UserRoles
+          .Include(ur => ur.Role)
+          .Where(ur => ur.UserId == UserId && ur.ValidTo == null)
+          .ToListAsync();
+        _assignedRoles = roles.Select(r => r.Role?.Code ?? string.Empty)
+          .Where(c => !string.IsNullOrEmpty(c)).ToList();
+      }
+
+      // Compute role defaults
+      foreach (var r in _assignedRoles)
+        if (RoleModuleDefaults.TryGetValue(r, out var mods))
+          foreach (var m in mods) _roleModules.Add(m);
+
+      // Load saved overrides from extension_data
+      try
+      {
+        var ext = JsonSerializer.Deserialize<JsonElement>(_user.ExtensionData ?? "{}");
+        if (ext.TryGetProperty("rightOverrides", out var ov) && ov.ValueKind == JsonValueKind.Object)
+          foreach (var prop in ov.EnumerateObject())
+            _overrides[prop.Name] = prop.Value.GetBoolean();
+      }
+      catch { }
+    }
+    catch { }
+    finally { _loading=false; }
+  }
+
+  private async Task SaveRights()
+  {
+    _saving = true;
+    try
+    {
+      var actor = (await AuthState).User;
+      await using var db = await _masterFactory.CreateDbContextAsync();
+      var pu = await db.PlatformUsers.FindAsync(UserId);
+      if (pu == null) return;
+
+      var ext = JsonSerializer.Deserialize<Dictionary<string,object?>>(pu.ExtensionData ?? "{}") ?? new();
+      ext["rightOverrides"] = _overrides;
+      pu.ExtensionData = JsonSerializer.Serialize(ext);
+      pu.UpdatedAt = DateTime.UtcNow;
+      await db.SaveChangesAsync();
+
+      try { await _audit.LogAsync(_clinicId, actor, AuditActions.UserRolesChanged,
+        "user", UserId, _user?.Username ?? string.Empty, null,
+        new { rightOverrides = _overrides }); }
+      catch { }
+
+      _savedMsg = $"Rights saved for {_user?.DisplayName}.";
+    }
+    catch (Exception ex) { _savedMsg = $"Error: {ex.Message}"; }
+    finally { _saving=false; }
+  }
+}

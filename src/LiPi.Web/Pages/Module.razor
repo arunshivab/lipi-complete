@@ -1,0 +1,52 @@
+@page "/module/{Code}"
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using LiPi.Web.Services
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Navigation
+
+<PageTitle>@ModuleMeta.Name – LiPi HIS</PageTitle>
+
+<div class="tn-module">
+    <div class="tn-module-header" style="--mod-color: @ModuleMeta.Color">
+        <div class="tn-module-code">@ModuleMeta.Code</div>
+        <div class="tn-module-head-text">
+            <h1 class="tn-module-title">@ModuleMeta.Name</h1>
+            <p class="tn-module-sub">Queue, appointments and module workspace</p>
+        </div>
+        <div class="tn-module-actions">
+            <a href="/patients/register?m=@Code.ToLower()" class="btn-primary">+ Register Patient</a>
+        </div>
+    </div>
+
+    <div class="tn-module-body">
+        <div class="tn-module-placeholder">
+            <div class="tn-placeholder-icon">📋</div>
+            <p class="tn-placeholder-title">@ModuleMeta.Name workspace</p>
+            <p class="tn-placeholder-sub">
+                Module content will appear here. Use the Register Patient button to add patients to this queue.
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Code { get; set; } = "";
+
+    private AdminData.ModuleDef ModuleMeta
+    {
+        get
+        {
+            var code = (Code ?? "").ToLower();
+            var all = AdminData.ClinicalModules.Concat(AdminData.SupportModules);
+            var match = all.FirstOrDefault(m =>
+                m.Code.Equals(code, StringComparison.OrdinalIgnoreCase));
+            return match ?? new AdminData.ModuleDef(
+                Code?.ToUpper() ?? "?",
+                string.IsNullOrEmpty(Code) ? "Module" : char.ToUpper(Code[0]) + Code[1..],
+                "#4A9BD4",
+                $"/module/{code}");
+        }
+    }
+}

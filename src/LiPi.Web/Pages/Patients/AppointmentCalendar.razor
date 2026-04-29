@@ -1,0 +1,159 @@
+@namespace LiPi.Web.Pages.PatientPages
+@page "/appointments/calendar"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+
+<PageTitle>Appointment Calendar – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Appointment Calendar</div>
+    <div class="tn-pt-sub">@_viewLabel &middot; @_monthLabel</div>
+</SectionContent>
+
+<div class="cal-body">
+
+  <div class="cal-toolbar">
+    <button type="button" class="pr-btn-ghost" @onclick="PrevMonth">‹ @_prevMonthLabel</button>
+    <span class="cal-month">@_monthLabel</span>
+    <label class="pr-float" style="max-width:180px"><div class="pr-flabel">Doctor</div>
+      <select id="cal-doctor" name="calDoctor" autocomplete="off" class="pr-sel"
+              value="@_filterDoctor" @onchange="e => { _filterDoctor = e.Value?.ToString() ?? string.Empty; StateHasChanged(); }">
+        <option value="">All Doctors</option>
+        @foreach (var d in _doctors)
+        { <option value="@d">@d</option> }
+      </select></label>
+    <div style="display:flex;gap:3px">
+      <button type="button" class="pr-btn-ghost @(_view==_vDay?_viewOn:_empty)" @onclick="SetViewDay">Day</button>
+      <button type="button" class="pr-btn-ghost @(_view==_vWeek?_viewOn:_empty)" @onclick="SetViewWeek">Week</button>
+      <button type="button" class="pr-btn-ghost @(_view==_vMonth?_viewOn:_empty)" @onclick="SetViewMonth">Month</button>
+    </div>
+    <button type="button" class="pr-btn-save" @onclick="GoBook">+ Book slot</button>
+    <button type="button" class="pr-btn-ghost" @onclick="NextMonth">@_nextMonthLabel ›</button>
+  </div>
+
+  <div class="af-card">
+    <div class="af-card-body" style="padding:12px">
+
+    @if (_view == _vMonth)
+    {
+      <div class="cal-header">
+        <div class="cal-dow">Mon</div>
+        <div class="cal-dow">Tue</div>
+        <div class="cal-dow">Wed</div>
+        <div class="cal-dow">Thu</div>
+        <div class="cal-dow">Fri</div>
+        <div class="cal-dow">Sat</div>
+        <div class="cal-dow">Sun</div>
+      </div>
+      <div class="cal-grid">
+        @foreach (var cell in _cells)
+        {
+          var cellDate = cell.Date;
+          <div class="cal-cell @cell.CssClass" @onclick="() => OnDayClick(cellDate)">
+            <div class="cal-day-num">
+              @if (cell.IsToday) { <span class="cal-today-pip">@cell.Date.Day</span> }
+              else { @cell.Date.Day }
+            </div>
+            @foreach (var ev in cell.Events.Take(3))
+            { <div class="cal-evt @ev.Css">@ev.Label</div> }
+            @if (cell.Events.Count > 3) { <div class="cal-evt-more">+@(cell.Events.Count-3) more</div> }
+          </div>
+        }
+      </div>
+    }
+    @if (_view == _vWeek || _view == _vDay)
+    {
+      <div style="text-align:center;padding:40px;color:#94A3B8;font-size:13px">
+        @_view == _vWeek ? "Week view" : "Day view" coming soon — switch to Month view
+      </div>
+    }
+
+    <div class="cal-legend">
+      <span class="cal-leg-item"><span class="cal-leg-dot" style="background:#E3F2FD"></span>Scheduled appt.</span>
+      <span class="cal-leg-item"><span class="cal-leg-dot" style="background:#ECFDF5"></span>Walk-in</span>
+      <span class="cal-leg-item"><span class="cal-leg-dot" style="background:#FEF2F2"></span>Blocked / leave</span>
+      <span class="cal-leg-item"><span class="cal-leg-dot" style="background:#FFF3E0"></span>Holiday</span>
+    </div>
+
+    </div>
+  </div>
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private const string _vDay = "day", _vWeek = "week", _vMonth = "month";
+    private const string _viewOn = "pr-btn-ghost", _empty = "pr-btn-ghost";
+
+    private string _view        = "month";
+    private string _filterDoctor= string.Empty;
+    private DateOnly _current   = DateOnly.FromDateTime(DateTime.Today);
+    private string _monthLabel  = string.Empty;
+    private string _viewLabel   = "Month view";
+    private string _prevMonthLabel = string.Empty;
+    private string _nextMonthLabel = string.Empty;
+    private static readonly string[] _doctors = ["Dr. Sharma", "Dr. Patel", "Dr. Rao"]; // TODO: from DB
+
+    private sealed class CalCell
+    { public DateOnly Date; public bool IsToday; public bool IsOtherMonth; public string CssClass = string.Empty;
+      public List<(string Label, string Css)> Events = new(); }
+    private List<CalCell> _cells = new();
+
+    protected override void OnInitialized() => BuildCalendar();
+
+    private void BuildCalendar()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        _monthLabel     = _current.ToString("MMMM yyyy");
+        _prevMonthLabel = _current.AddMonths(-1).ToString("MMM");
+        _nextMonthLabel = _current.AddMonths(1).ToString("MMM");
+        _cells = new();
+
+        var firstDay = new DateOnly(_current.Year, _current.Month, 1);
+        var lastDay  = firstDay.AddMonths(1).AddDays(-1);
+
+        // Start from Monday of the week containing firstDay
+        var startDow  = (int)firstDay.DayOfWeek; // 0=Sun
+        var startOffset = startDow == 0 ? 6 : startDow - 1; // shift to Mon=0
+        var gridStart = firstDay.AddDays(-startOffset);
+
+        for (var i = 0; i < 42; i++)
+        {
+            var d = gridStart.AddDays(i);
+            if (i > 27 && d.Month != _current.Month) break; // stop early if 5-row month
+
+            var isOther   = d.Month != _current.Month;
+            var isToday   = d == today;
+            var isWeekend = d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            var css = new System.Text.StringBuilder("cal-cell");
+            if (isToday)   css.Append(" cal-today");
+            if (isOther)   css.Append(" cal-other");
+            if (isWeekend) css.Append(" cal-weekend");
+
+            // TODO: replace with real appointment queries
+            var events = new List<(string, string)>();
+            if (!isOther && !isWeekend)
+            {
+                var rng = new Random(d.DayNumber);
+                if (rng.Next(3) != 0) events.Add(($"09:00 Dr. Sharma", "cal-evt-opd"));
+                if (rng.Next(4) == 0) events.Add(($"Walk-in ×{rng.Next(1,5)}", "cal-evt-walk"));
+                if (rng.Next(8) == 0) events.Add(("Leave", "cal-evt-block"));
+            }
+
+            _cells.Add(new CalCell { Date = d, IsToday = isToday, IsOtherMonth = isOther,
+                CssClass = css.ToString(), Events = events });
+        }
+    }
+
+    private void PrevMonth() { _current = _current.AddMonths(-1); BuildCalendar(); }
+    private void NextMonth() { _current = _current.AddMonths(1);  BuildCalendar(); }
+    private void SetViewDay()   { _view = _vDay;   _viewLabel = "Day view";   }
+    private void SetViewWeek()  { _view = _vWeek;  _viewLabel = "Week view";  }
+    private void SetViewMonth() { _view = _vMonth; _viewLabel = "Month view"; }
+    private void OnDayClick(DateOnly d) => Nav.NavigateTo($"/appointments/book?date={d:yyyy-MM-dd}");
+    private void GoBook() => Nav.NavigateTo("/appointments/book");
+}

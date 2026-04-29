@@ -1,0 +1,196 @@
+erDiagram
+    ABHA_PROFILES ||--o{ LINK_REQUESTS : "initiates"
+    ABHA_PROFILES ||--o{ CARE_CONTEXTS : "exposes"
+    ABHA_PROFILES ||--o{ CONSENT_REQUESTS : "grants"
+    ABHA_PROFILES ||--o{ SUBSCRIPTION_CALLBACKS : "subscribes"
+    CONSENT_REQUESTS ||--o{ CONSENT_ARTEFACTS : "issues"
+    CONSENT_ARTEFACTS ||--o{ HI_EXCHANGE_SESSIONS : "authorizes"
+    HI_EXCHANGE_SESSIONS ||--o{ HI_CARE_BUNDLE_LOG : "bundles"
+
+    FACILITY_REGISTRY {
+        uuid id PK
+        uuid clinic_id FK UK
+        uuid facility_id FK
+        text hfr_facility_id UK "ABDM national registry ID"
+        text hfr_facility_name
+        text ownership "government, private, trust, corporate"
+        text hfr_status "pending, verified, suspended, delisted"
+        datetime registered_at
+        datetime last_sync_at
+        jsonb registry_payload "full HFR response"
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    PROFESSIONAL_REGISTRY {
+        uuid id PK
+        uuid clinic_id FK
+        uuid staff_id FK UK
+        text hpr_id UK "ABDM Healthcare Professional Registry"
+        text hpr_name
+        text council_name "Medical Council of India, etc."
+        text council_reg_no
+        text qualification
+        text hpr_status "pending, verified, suspended, revoked"
+        datetime verified_at
+        datetime last_sync_at
+        jsonb registry_payload
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    ABHA_PROFILES {
+        uuid id PK
+        uuid clinic_id FK
+        uuid patient_id FK
+        text abha_number UK "XX-XXXX-XXXX-XXXX"
+        text abha_address UK "user@abdm"
+        text name
+        text gender
+        date date_of_birth
+        boolean mobile_verified
+        boolean email_verified
+        boolean kyc_verified
+        text kyc_method "aadhaar_otp, aadhaar_biometric, driving_licence, demographic"
+        text abha_qr_s3_key
+        jsonb profile_payload
+        datetime linked_at
+        datetime revoked_at
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    LINK_REQUESTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid abha_profile_id FK
+        uuid patient_id FK
+        text link_token UK
+        text link_type "user_initiated, hip_initiated"
+        text auth_mode "demographic, mobile_otp, aadhaar_otp, password, direct"
+        text status "requested, otp_sent, verified, linked, failed, expired"
+        datetime requested_at
+        datetime verified_at
+        datetime linked_at
+        text error_code
+        text error_detail
+    }
+
+    CARE_CONTEXTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid abha_profile_id FK
+        text reference_id "encounter_id, report_id, etc."
+        text context_type "opd_visit, ipd_admission, discharge_summary, prescription, lab_report"
+        text display "human-readable name"
+        datetime linked_at
+        datetime unlinked_at
+        boolean visible
+    }
+
+    CONSENT_REQUESTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid abha_profile_id FK
+        text requester_type "hip, hiu"
+        text consent_manager_request_id "from CM"
+        text purpose_code "CAREMGT, PATRQT, PUBHLTH"
+        text purpose_text
+        text[] hi_types "DiagnosticReport, Prescription, Immunization"
+        date date_range_from
+        date date_range_to
+        datetime expires_at
+        text fetch_mode "VIEW, STORE"
+        text frequency_unit "HOUR, DAY, WEEK, MONTH, YEAR"
+        int frequency_value
+        text status "requested, granted, denied, revoked, expired"
+        datetime raised_at
+        datetime granted_at
+        datetime denied_at
+        datetime revoked_at
+        jsonb consent_payload
+    }
+
+    CONSENT_ARTEFACTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid consent_request_id FK
+        text artefact_id UK "issued by CM"
+        text signature "CM signature"
+        text schema_version
+        jsonb artefact_payload "full signed artefact"
+        datetime issued_at
+        datetime valid_from
+        datetime valid_to
+        datetime revoked_at
+        text revocation_reason
+    }
+
+    HI_EXCHANGE_SESSIONS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid consent_artefact_id FK
+        text role "HIP, HIU"
+        text transaction_id UK
+        jsonb key_material "ECDH public key + nonce"
+        datetime requested_at
+        datetime completed_at
+        text status "initiated, ciphered, delivered, acknowledged, failed"
+        text error_code
+        text error_detail
+    }
+
+    HI_CARE_BUNDLE_LOG {
+        uuid id PK
+        uuid clinic_id FK
+        uuid hi_exchange_session_id FK
+        text care_context_ref
+        bytea bundle_sha256 "hash only; raw FHIR streamed to S3"
+        text bundle_s3_key
+        datetime sent_at
+    }
+
+    GATEWAY_REQUESTS {
+        uuid id PK
+        uuid clinic_id FK
+        datetime requested_at "partitioned monthly"
+        text api_path "/v0.5/users/auth/init"
+        text http_method "GET, POST, etc."
+        uuid correlation_id FK
+        jsonb request_body
+        int response_status
+        jsonb response_body
+        int duration_ms
+        text outcome "success, gateway_error, timeout, validation_error"
+    }
+
+    AADHAAR_EKYC_REQUESTS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid patient_id FK "nullable"
+        uuid staff_id FK "nullable"
+        bytea aadhaar_reference_hash "HMAC(aadhaar, salt) - never raw"
+        text txn_id UK "UIDAI transaction id"
+        text auth_mode "otp, biometric_fp, biometric_iris, demographic"
+        text status "initiated, otp_sent, verified, failed, expired"
+        datetime requested_at
+        datetime verified_at
+        bytea ekyc_payload_encrypted "KMS envelope-encrypted response"
+        text error_code
+        text error_detail
+    }
+
+    SUBSCRIPTION_CALLBACKS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid abha_profile_id FK
+        text subscription_id UK
+        text subscriber_hiu_id
+        text[] hi_types
+        text status "active, paused, revoked, expired"
+        datetime created_at
+        datetime updated_at
+    }

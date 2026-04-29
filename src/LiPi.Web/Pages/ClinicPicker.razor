@@ -1,0 +1,251 @@
+@page "/pick-clinic"
+@using LiPi.Web.Services
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@layout LiPi.Web.Components.EmptyLayout
+@inject IAuthService AuthService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Nav
+
+<PageTitle>Select Clinic – LiPi HIS</PageTitle>
+
+<div class="cp-root">
+  <div class="cp-panel">
+
+    <div class="cp-brand">
+      <div class="cp-logo">L</div>
+      <div>
+        <div class="cp-title">LiPi HIS</div>
+        <div class="cp-sub">Armoki Healthcare</div>
+      </div>
+    </div>
+
+    <div class="cp-heading">Select your clinic</div>
+    <div class="cp-hint">You have access to @clinics.Count clinic@(clinics.Count != 1 ? "s" : ""). Choose one to continue.</div>
+
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="cp-error">⚠ @error</div>
+    }
+
+    @* Search box — JS filters list *@
+    @if (clinics.Count > 1)
+    {
+        <div class="cp-search-wrap">
+            <span class="cp-search-icon">⌕</span>
+            <input id="cp-search" class="cp-search-input" type="search"
+                   placeholder="Search by name, city or code…"
+                   autocomplete="off" oninput="cpFilter(this.value)" />
+        </div>
+        <div id="cp-count" class="cp-count">Showing all @clinics.Count clinics</div>
+    }
+
+    <div class="cp-list" id="cp-list">
+        @foreach (var c in clinics)
+        {
+            var clinic = c;
+            <form method="post" @formname='@($"clinic-{c.ClinicId}")' style="margin:0"
+                  data-name="@c.ClinicName.ToLower()"
+                  data-city="@c.ClinicCity.ToLower()"
+                  data-code="@c.ClinicCode.ToLower()">
+                <AntiforgeryToken />
+                <button type="submit" class="cp-clinic-btn" disabled="@busy">
+                    <div class="cp-av cp-av-@ClinicColor(c.ClinicCode)">
+                        @Initials(c.ClinicName)
+                    </div>
+                    <div class="cp-info">
+                        <div class="cp-clinic-name">@c.ClinicName</div>
+                        <div class="cp-clinic-meta">
+                            @c.ClinicCity
+                            <span class="cp-code">@c.ClinicCode</span>
+                            <span class="cp-role">@FormatRole(c.AdminLevel)</span>
+                        </div>
+                    </div>
+                    <span class="cp-arrow">›</span>
+                </button>
+            </form>
+        }
+        <div id="cp-empty" class="cp-empty" style="display:none">No clinics match your search.</div>
+    </div>
+
+    <div class="cp-footer">
+        <a href="/" class="cp-back">← Back to login</a>
+    </div>
+  </div>
+</div>
+
+<style>
+.cp-root{min-height:100dvh;background:#F0F4F8;display:flex;align-items:center;justify-content:center;padding:20px}
+.cp-panel{background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(11,37,69,.1);padding:32px;width:460px;max-width:100%}
+.cp-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.cp-logo{width:44px;height:44px;background:#0B2545;color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex-shrink:0}
+.cp-title{font-size:18px;font-weight:700;color:#0B2545}
+.cp-sub{font-size:11px;color:#94A3B8}
+.cp-heading{font-size:17px;font-weight:700;color:#0B2545;margin-bottom:3px}
+.cp-hint{font-size:12px;color:#64748B;margin-bottom:14px}
+.cp-error{background:#FEF2F2;border:1px solid #FCA5A5;color:#991B1B;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:14px}
+
+.cp-search-wrap{display:flex;align-items:center;gap:8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:8px 12px;margin-bottom:6px;transition:border-color .15s}
+.cp-search-wrap:focus-within{border-color:#1565C0;background:#fff}
+.cp-search-icon{font-size:15px;color:#94A3B8;flex-shrink:0}
+.cp-search-input{border:none;background:none;outline:none;font-size:13px;color:#0F2D5E;width:100%;font-family:inherit}
+.cp-count{font-size:11px;color:#94A3B8;margin-bottom:8px}
+
+.cp-list{display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto;margin-bottom:14px;padding-right:2px}
+.cp-list::-webkit-scrollbar{width:4px}
+.cp-list::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:4px}
+
+.cp-clinic-btn{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid #E2E8F0;border-radius:10px;background:#fff;cursor:pointer;text-align:left;transition:all .14s;width:100%}
+.cp-clinic-btn:hover:not(:disabled){border-color:#0B2545;background:#F8FAFC}
+.cp-clinic-btn:disabled{opacity:.5;cursor:wait}
+.cp-av{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;text-transform:uppercase}
+.cp-av-navy{background:#0B2545}.cp-av-blue{background:#1B4DA0}
+.cp-av-teal{background:#00695C}.cp-av-amber{background:#D97706}
+.cp-av-red{background:#C62828}.cp-av-purple{background:#6A1B9A}
+.cp-info{flex:1;min-width:0}
+.cp-clinic-name{font-size:13px;font-weight:600;color:#0B2545;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-clinic-meta{display:flex;align-items:center;gap:6px;margin-top:2px;font-size:11px;color:#64748B}
+.cp-code{background:#EEF2FF;color:#3730A3;border-radius:4px;padding:1px 5px;font-family:monospace;font-size:9px;font-weight:700}
+.cp-arrow{font-size:18px;color:#94A3B8;flex-shrink:0}
+.cp-empty{padding:20px;text-align:center;font-size:12px;color:#94A3B8}
+.cp-footer{border-top:1px solid #F1F5F9;padding-top:12px}
+.cp-back{font-size:12px;color:#64748B;text-decoration:none}
+.cp-back:hover{color:#0B2545}
+</style>
+
+<script>
+function cpFilter(q) {
+    q = q.toLowerCase().trim();
+    const forms = document.querySelectorAll('#cp-list form');
+    let visible = 0;
+    forms.forEach(f => {
+        const match = !q ||
+            f.dataset.name.includes(q) ||
+            f.dataset.city.includes(q) ||
+            f.dataset.code.includes(q);
+        f.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    const total = forms.length;
+    const countEl = document.getElementById('cp-count');
+    if (countEl) countEl.textContent = q
+        ? `${visible} of ${total} clinic${total !== 1 ? 's' : ''} match`
+        : `${total} clinic${total !== 1 ? 's' : ''}`;
+    const emptyEl = document.getElementById('cp-empty');
+    if (emptyEl) emptyEl.style.display = visible === 0 ? '' : 'none';
+}
+</script>
+
+@code {
+    private List<ClinicAccess> clinics = new();
+    private string error = string.Empty;
+    private bool busy;
+
+    protected override void OnInitialized()
+    {
+        var ctx = HttpContextAccessor.HttpContext;
+        var raw = ctx?.Session.GetString("clinic_choices");
+        if (!string.IsNullOrEmpty(raw))
+        {
+            try
+            {
+                clinics = System.Text.Json.JsonSerializer.Deserialize<List<ClinicAccessDto>>(raw)!
+                    .Select(d => new ClinicAccess(d.ClinicId, d.ClinicCode, d.ClinicName, d.ClinicCity,
+                                                  d.UserId, d.UserStatus, d.Roles, d.AdminLevel))
+                    .ToList();
+            }
+            catch { }
+        }
+        if (!clinics.Any()) Nav.NavigateTo("/", forceLoad: true);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var ctx = HttpContextAccessor.HttpContext;
+        if (ctx?.Request.Method != "POST") return;
+
+        busy = true;
+        var username = ctx.Session.GetString("picker_username") ?? string.Empty;
+        var password = ctx.Session.GetString("picker_password") ?? string.Empty;
+        if (string.IsNullOrEmpty(username)) { Nav.NavigateTo("/", forceLoad: true); return; }
+
+        // Blazor SSR posts form name as _handler field
+        Guid clinicId = Guid.Empty;
+        var handler = ctx.Request.Form["_handler"].ToString();
+        if (handler.StartsWith("clinic-"))
+            Guid.TryParse(handler["clinic-".Length..], out clinicId);
+
+        if (clinicId == Guid.Empty) { error = "Could not identify clinic. Try again."; busy = false; return; }
+
+        var result = await AuthService.SignInWithClinicAsync(username, password, clinicId,
+            ctx.Connection.RemoteIpAddress?.ToString(),
+            ctx.Request.Headers.UserAgent.ToString());
+
+        if (!result.Success) { error = result.Error ?? "Login failed."; busy = false; return; }
+
+        ctx.Session.Remove("clinic_choices");
+        ctx.Session.Remove("picker_username");
+        ctx.Session.Remove("picker_password");
+
+        await SignInAsync(result, ctx);
+    }
+
+    private async Task SignInAsync(AuthResult result, Microsoft.AspNetCore.Http.HttpContext ctx)
+    {
+        var clinicName = result.ClinicCode ?? string.Empty;
+        try
+        {
+            using var scope = ctx.RequestServices.CreateScope();
+            var masterFactory = scope.ServiceProvider
+                .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<LiPi.Master.MasterDbContext>>();
+            await using var db = await masterFactory.CreateDbContextAsync();
+            var cn = await db.Clinics
+                .Where(c => c.Code == result.ClinicCode && c.DeletedAt == null)
+                .Select(c => c.Name).FirstOrDefaultAsync();
+            if (!string.IsNullOrEmpty(cn)) clinicName = cn;
+        }
+        catch { }
+
+        var claims = new List<System.Security.Claims.Claim>
+        {
+            new(System.Security.Claims.ClaimTypes.NameIdentifier, result.UserId?.ToString() ?? Guid.NewGuid().ToString()),
+            new(System.Security.Claims.ClaimTypes.Name,           result.Username!),
+            new("clinic",      result.ClinicCode ?? string.Empty),
+            new("clinicId",    result.ClinicId?.ToString() ?? string.Empty),
+            new("clinicName",  clinicName),
+            new("adminLevel",  result.AdminLevel),
+            new("displayName", result.DisplayName ?? result.Username!),
+        };
+        foreach (var role in result.Roles)
+            claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, role));
+
+        var principal = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(claims, "Cookies"));
+        await ctx.SignInAsync("Cookies", principal,
+            new AuthenticationProperties { IsPersistent = false });
+        Nav.NavigateTo("/dashboard", forceLoad: true);
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? $"{parts[0][0]}{parts[1][0]}" :
+               name.Length >= 2  ? name[..2] : name;
+    }
+
+    private static string ClinicColor(string code) => (code.GetHashCode() % 6) switch
+    {
+        0 => "blue", 1 => "teal", 2 => "red", 3 => "amber", 4 => "purple", _ => "navy"
+    };
+
+    private static string FormatRole(string level) => level switch
+    {
+        "global_admin" => "Global Admin",
+        "sys_admin"    => "Sys Admin",
+        "site_admin"   => "Site Admin",
+        _              => "Staff"
+    };
+
+    private record ClinicAccessDto(Guid ClinicId, string ClinicCode, string ClinicName, string ClinicCity,
+        Guid UserId, string UserStatus, string[] Roles, string AdminLevel);
+}

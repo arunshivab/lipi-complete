@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiPi - Option 2: Sky Blue & Coral</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #F0F8FF;
+            color: #001F3F;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #ADD8E6 0%, #F08080 100%);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #001F3F;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo-icon {
+            width: 45px;
+            height: 45px;
+            background: #F08080;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .clinic-selector {
+            background: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 25px;
+            border: 2px solid #ADD8E6;
+            font-size: 0.9rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .user-avatar {
+            width: 45px;
+            height: 45px;
+            background: #F08080;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: calc(100vh - 70px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: white;
+            border-right: 2px solid #ADD8E6;
+            padding: 1.5rem 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 1rem 0;
+            border-bottom: 1px solid #F0F0F0;
+        }
+
+        .sidebar-section-title {
+            padding: 0.5rem 1.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #BDBDBD;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-item {
+            padding: 0.8rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-size: 0.95rem;
+        }
+
+        .sidebar-item:hover {
+            background: #F0F8FF;
+            border-left-color: #ADD8E6;
+            color: #ADD8E6;
+        }
+
+        .sidebar-item.active {
+            background: #ADD8E620;
+            border-left-color: #ADD8E6;
+            color: #ADD8E6;
+            font-weight: 600;
+        }
+
+        .sidebar-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        /* Content */
+        .content {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .welcome-section {
+            background: linear-gradient(135deg, #ADD8E6 0%, #F08080 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            color: #001F3F;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .welcome-text h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-text p {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        .welcome-time {
+            font-size: 2.5rem;
+            font-weight: bold;
+            opacity: 0.8;
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .kpi-card {
+            background: white;
+            padding: 1.8rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border-top: 5px solid #ADD8E6;
+            transition: all 0.3s ease;
+        }
+
+        .kpi-card:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            transform: translateY(-4px);
+        }
+
+        .kpi-card.warning {
+            border-top-color: #FFE4B5;
+        }
+
+        .kpi-card.danger {
+            border-top-color: #FFB6C1;
+        }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .kpi-title {
+            font-size: 0.9rem;
+            color: #BDBDBD;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .kpi-icon {
+            width: 50px;
+            height: 50px;
+            background: #ADD8E620;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+        }
+
+        .kpi-card.warning .kpi-icon {
+            background: #FFE4B520;
+        }
+
+        .kpi-card.danger .kpi-icon {
+            background: #FFB6C120;
+        }
+
+        .kpi-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #001F3F;
+            margin-bottom: 0.5rem;
+        }
+
+        .kpi-change {
+            font-size: 0.85rem;
+            color: #98FB98;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .kpi-change.negative {
+            color: #FFB6C1;
+        }
+
+        /* Alerts */
+        .alerts-section {
+            background: white;
+            padding: 1.8rem;
+            border-radius: 15px;
+            border-left: 5px solid #FFE4B5;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .alert-item {
+            padding: 1rem 0;
+            border-bottom: 1px solid #F0F0F0;
+            display: flex;
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .alert-item:last-child {
+            border-bottom: none;
+        }
+
+        .alert-icon {
+            width: 45px;
+            height: 45px;
+            background: #FFE4B520;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #FFE4B5;
+            flex-shrink: 0;
+            font-size: 1.5rem;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            color: #001F3F;
+            margin-bottom: 0.2rem;
+        }
+
+        .alert-message {
+            font-size: 0.9rem;
+            color: #BDBDBD;
+        }
+
+        /* Modules */
+        .modules-section {
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #001F3F;
+            padding-bottom: 0.7rem;
+            border-bottom: 3px solid #ADD8E6;
+        }
+
+        .module-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 1rem;
+        }
+
+        .module-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .module-card:hover {
+            border-color: #ADD8E6;
+            transform: translateY(-6px);
+            box-shadow: 0 6px 20px rgba(173, 216, 230, 0.3);
+        }
+
+        .module-icon {
+            font-size: 2.8rem;
+            margin-bottom: 0.8rem;
+            display: block;
+        }
+
+        .module-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #001F3F;
+        }
+
+        .module-badge {
+            display: inline-block;
+            background: #ADD8E6;
+            color: #001F3F;
+            padding: 0.25rem 0.7rem;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            margin-top: 0.5rem;
+            font-weight: bold;
+        }
+
+        .module-badge.new {
+            background: #F08080;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="logo">
+            <div class="logo-icon">L</div>
+            <span>LiPi</span>
+        </div>
+        <div class="user-menu">
+            <select class="clinic-selector">
+                <option>Apollo Delhi</option>
+                <option>Fortis Bangalore</option>
+                <option>Max Mumbai</option>
+            </select>
+            <div class="user-avatar">RK</div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Clinical</div>
+                <div class="sidebar-item active">
+                    <span class="sidebar-icon">🏥</span>
+                    <span>Dashboard</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">👥</span>
+                    <span>OPD</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">🛏️</span>
+                    <span>In-Patient</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">🔬</span>
+                    <span>Pathology</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">🖼️</span>
+                    <span>Radiology</span>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Oncology</div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">🔴</span>
+                    <span>Med Onco</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">⚕️</span>
+                    <span>Surg Onco</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">⚡</span>
+                    <span>Rad Onco</span>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Support</div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">💊</span>
+                    <span>Pharmacy</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">📋</span>
+                    <span>Compliance</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">👤</span>
+                    <span>Staff Certs</span>
+                </div>
+                <div class="sidebar-item">
+                    <span class="sidebar-icon">📊</span>
+                    <span>Reports</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+            <!-- Welcome Section -->
+            <div class="welcome-section">
+                <div class="welcome-text">
+                    <h1>Welcome back, Dr. Rajesh! 👋</h1>
+                    <p>You have 3 pending approvals and 2 compliance alerts today</p>
+                </div>
+                <div class="welcome-time">10:45 AM</div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">Today's OPD</span>
+                        <div class="kpi-icon">👥</div>
+                    </div>
+                    <div class="kpi-value">145</div>
+                    <div class="kpi-change">↑ 12% from yesterday</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">In-Patients</span>
+                        <div class="kpi-icon">🛏️</div>
+                    </div>
+                    <div class="kpi-value">38</div>
+                    <div class="kpi-change">↓ 2% from yesterday</div>
+                </div>
+
+                <div class="kpi-card warning">
+                    <div class="kpi-header">
+                        <span class="kpi-title">Pending Approvals</span>
+                        <div class="kpi-icon">⏳</div>
+                    </div>
+                    <div class="kpi-value">3</div>
+                    <div class="kpi-change negative">Urgent attention needed</div>
+                </div>
+
+                <div class="kpi-card danger">
+                    <div class="kpi-header">
+                        <span class="kpi-title">Compliance Alerts</span>
+                        <div class="kpi-icon">⚠️</div>
+                    </div>
+                    <div class="kpi-value">2</div>
+                    <div class="kpi-change negative">License expiry warning</div>
+                </div>
+            </div>
+
+            <!-- Alerts Section -->
+            <div class="alerts-section">
+                <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: #001F3F;">⚠️ Important Alerts</div>
+                <div class="alert-item">
+                    <div class="alert-icon">📄</div>
+                    <div class="alert-content">
+                        <div class="alert-title">CDSCO License Expiring in 15 Days</div>
+                        <div class="alert-message">Hospital's CDSCO license expires on May 30, 2026. Renewal process should start immediately.</div>
+                    </div>
+                </div>
+                <div class="alert-item">
+                    <div class="alert-icon">🔥</div>
+                    <div class="alert-content">
+                        <div class="alert-title">Fire Safety Certificate Due for Renewal</div>
+                        <div class="alert-message">Fire safety audit and certificate renewal is due by June 30, 2026.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modules Section -->
+            <div class="modules-section">
+                <div class="section-title">Clinical Modules</div>
+                <div class="module-grid">
+                    <div class="module-card">
+                        <span class="module-icon">👥</span>
+                        <div class="module-name">OPD</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">🛏️</span>
+                        <div class="module-name">In-Patient</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">💊</span>
+                        <div class="module-name">Pharmacy</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">🔬</span>
+                        <div class="module-name">Pathology</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">🖼️</span>
+                        <div class="module-name">Radiology</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">🏥</span>
+                        <div class="module-name">ED</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Oncology Modules -->
+            <div class="modules-section">
+                <div class="section-title">Oncology Modules</div>
+                <div class="module-grid">
+                    <div class="module-card">
+                        <span class="module-icon">🔴</span>
+                        <div class="module-name">Med Onco</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">⚕️</span>
+                        <div class="module-name">Surg Onco</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">⚡</span>
+                        <div class="module-name">Rad Onco</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">☢️</span>
+                        <div class="module-name">Nuc Med</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compliance & Support -->
+            <div class="modules-section">
+                <div class="section-title">Compliance & Support</div>
+                <div class="module-grid">
+                    <div class="module-card">
+                        <span class="module-icon">📋</span>
+                        <div class="module-name">Compliance</div>
+                        <span class="module-badge new">NEW</span>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">👥</span>
+                        <div class="module-name">Staff Certs</div>
+                        <span class="module-badge new">NEW</span>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">📦</span>
+                        <div class="module-name">Inventory</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">💰</span>
+                        <div class="module-name">Billing</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">📊</span>
+                        <div class="module-name">Reports</div>
+                    </div>
+                    <div class="module-card">
+                        <span class="module-icon">🎫</span>
+                        <div class="module-name">Tickets</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

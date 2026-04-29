@@ -1,0 +1,177 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/settings"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+
+<PageTitle>System Settings – LiPi Admin</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">System Settings</div>
+    <div class="tn-pt-sub">Administration &amp; configuration</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:860px;margin:0 auto;padding:20px 24px 60px">
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+    @* ── Registry ──────────────────────────────────────── *@
+    <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:14px;overflow:hidden">
+      <div style="background:#EFF6FF;padding:16px 18px;border-bottom:0.5px solid #BFDBFE">
+        <div style="width:36px;height:36px;background:#1565C0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px">🗄</div>
+        <div style="font-size:14px;font-weight:600;color:#1E3A5F">Registry</div>
+        <div style="font-size:11px;color:#3B82F6;margin-top:3px">Users, Clinics &amp; Organisations</div>
+      </div>
+      <div style="padding:6px 0">
+
+        <a href="/admin/users" class="sc-row">
+          <div class="sc-icon" style="background:#EFF6FF">👥</div>
+          <div>
+            <div class="sc-title">User Management</div>
+            <div class="sc-sub">Register, assign roles &amp; rights</div>
+          </div>
+          <span class="sc-arrow">›</span>
+        </a>
+
+        @if (!isSiteAdmin) {
+        <a href="/admin/clinics" class="sc-row">
+          <div class="sc-icon" style="background:#ECFDF5">🏥</div>
+          <div>
+            <div class="sc-title">Clinic Management</div>
+            <div class="sc-sub">Register &amp; manage facilities</div>
+          </div>
+          <span class="sc-arrow">›</span>
+        </a>
+
+        <a href="/admin/orgs" class="sc-row" style="border-bottom:none">
+          <div class="sc-icon" style="background:#F0FDF4">🏢</div>
+          <div>
+            <div class="sc-title">Organisation Management</div>
+            <div class="sc-sub">Register &amp; manage healthcare orgs</div>
+          </div>
+          <span class="sc-arrow">›</span>
+        </a>
+        }
+
+      </div>
+    </div>
+
+    @* ── Clinic Configuration (all admins) ── *@
+    @if (_isAdmin)
+    {
+      <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:14px;overflow:hidden;margin-top:16px">
+        <div style="background:#F0FDF4;padding:16px 18px;border-bottom:0.5px solid #DCFCE7">
+          <div style="width:36px;height:36px;background:#16A34A;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px">⚙</div>
+          <div style="font-size:14px;font-weight:600;color:#14532D">Clinic Configuration</div>
+          <div style="font-size:11px;color:#16A34A;margin-top:3px">Aadhaar · ICD version · per clinic</div>
+        </div>
+        <div style="padding:6px 0">
+          <a href="/admin/clinic-config" class="sc-row">
+            <div class="sc-icon" style="background:#F0FDF4">⚙</div>
+            <div>
+              <div class="sc-title">Clinic Configuration</div>
+              <div class="sc-sub">Aadhaar · ICD version · settings</div>
+            </div>
+            <span class="sc-arrow">›</span>
+          </a>
+          @if (!isSiteAdmin) {
+          <a href="/admin/uhid-settings" class="sc-row" style="border-bottom:none">
+            <div class="sc-icon" style="background:#EFF6FF">&#9670;</div>
+            <div>
+              <div class="sc-title">UHID Settings</div>
+              <div class="sc-sub">Format builder · Luhn · import sequence</div>
+            </div>
+            <span class="sc-arrow">›</span>
+          </a>
+          }
+        </div>
+      </div>
+    }
+
+    @* ── System Administration ─────────────────────────── *@
+    @if (_isAdmin)
+    {
+      <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:14px;overflow:hidden">
+        <div style="background:#FFF1F2;padding:16px 18px;border-bottom:0.5px solid #FECDD3">
+          <div style="width:36px;height:36px;background:#BE123C;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px">🛡</div>
+          <div style="font-size:14px;font-weight:600;color:#881337">System Administration</div>
+          <div style="font-size:11px;color:#E11D48;margin-top:3px">Admin access</div>
+        </div>
+        <div style="padding:6px 0">
+
+          @if (!isSiteAdmin) {
+          <a href="/admin/sysadmins" class="sc-row">
+            <div class="sc-icon" style="background:#FFF1F2">🛡</div>
+            <div>
+              <div class="sc-title">Manage Admins</div>
+              <div class="sc-sub">Global, Sys &amp; Site admins</div>
+            </div>
+            <span class="sc-arrow">›</span>
+          </a>
+          }
+
+          <a href="/admin/security-policy" class="sc-row">
+            <div class="sc-icon" style="background:#FFF7ED">🔒</div>
+            <div>
+              <div class="sc-title">Security Policy</div>
+              <div class="sc-sub">8+ chars · 90-day expiry</div>
+            </div>
+            <span class="sc-arrow">›</span>
+          </a>
+
+
+
+          <a href="/admin/audit" class="sc-row" style="border-bottom:none">
+            <div class="sc-icon" style="background:#EFF6FF">📋</div>
+            <div>
+              <div class="sc-title">Audit Log</div>
+              <div class="sc-sub">System audit trail &amp; PHI log</div>
+            </div>
+            <span class="sc-arrow">›</span>
+          </a>
+
+        </div>
+      </div>
+    }
+
+  </div>
+</div>
+
+<style>
+.sc-row {
+  display:flex;align-items:center;gap:12px;
+  padding:12px 18px;text-decoration:none;
+  border-bottom:0.5px solid #F1F5F9;
+  transition:background .1s;
+}
+.sc-row:hover { background:#F8FAFC; }
+.sc-icon {
+  width:32px;height:32px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;
+}
+.sc-title { font-size:13px;font-weight:600;color:#0F2D5E; }
+.sc-sub   { font-size:11px;color:#64748B;margin-top:2px; }
+.sc-arrow { margin-left:auto;font-size:16px;color:#CBD5E1;flex-shrink:0; }
+</style>
+
+@code {
+    private bool isSiteAdmin;
+
+  [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+  private bool _isAdmin;
+
+  protected override async Task OnInitializedAsync()
+  {
+        var _role = (await AuthState).User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+        isSiteAdmin = _role == "site_admin";
+    var auth = await AuthState;
+    var role = auth.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+    if (role is not ("global_admin" or "sys_admin" or "site_admin"))
+    { Nav.NavigateTo("/dashboard", forceLoad: true); return; }
+    _isAdmin = role is "global_admin" or "sys_admin" or "site_admin";
+  }
+}

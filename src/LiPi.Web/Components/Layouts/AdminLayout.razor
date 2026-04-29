@@ -1,0 +1,162 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using LiPi.Web.Services
+@inject NavigationManager Nav
+
+<div class="al-shell">
+
+    <!-- ── Top Bar ── -->
+    <header class="al-topbar">
+        <div class="al-brand">
+            <div class="al-logo">L</div>
+            <div class="al-brand-text">
+                <span class="al-brand-name">LiPi</span>
+                <span class="al-brand-sub">Administration</span>
+            </div>
+        </div>
+
+        <a href="/dashboard" class="al-home-link" title="Go to Dashboard" style="margin-left:16px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9,22 9,12 15,12 15,22"/>
+            </svg>
+        </a>
+
+        <div class="al-topbar-right">
+            <div class="al-user-info">
+                <span class="al-user-name">@username</span>
+                <span class="al-user-meta">@clinicName</span>
+            </div>
+            <span class="al-role-badge al-role-@roleBadgeClass">@roleDisplay</span>
+            <form method="post" action="/logout" style="margin:0">
+                <button type="submit" class="al-signout">Sign Out</button>
+            </form>
+        </div>
+    </header>
+
+    <!-- ── Sidebar ── -->
+    <nav class="al-sidebar">
+        <ul style="list-style:none; margin:0; padding:0">
+
+            <li class="al-nav-category">Staff</li>
+            <li>
+                <a href="/admin/users" class="al-nav-item @(IsActive("/admin/users") ? "active" : "")">
+                    👥 &nbsp;User Management
+                </a>
+            </li>
+            <li>
+                <a href="/admin/users/new" class="al-nav-item al-nav-sub @(IsActive("/admin/users/new") ? "active" : "")">
+                    + New User
+                </a>
+            </li>
+
+            <li class="al-nav-category">Access Control</li>
+            <li>
+                <a href="/admin/roles" class="al-nav-item @(IsActive("/admin/roles") ? "active" : "")">
+                    🔑 &nbsp;Roles &amp; Permissions
+                </a>
+            </li>
+
+            <li class="al-nav-category">System</li>
+            <li>
+                <a href="/admin/settings" class="al-nav-item @(IsActive("/admin/settings") ? "active" : "")">
+                    ⚙ &nbsp;System Settings
+                </a>
+            </li>
+
+            @if (isGlobalOrSysAdmin)
+            {
+                <li class="al-nav-category">Infrastructure</li>
+                @if (isGlobalAdmin)
+                {
+                    <li>
+                        <a href="/admin/orgs" class="al-nav-item @(IsActive("/admin/orgs") ? "active" : "")">
+                            🏢 &nbsp;Organizations
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/admin/orgs/new" class="al-nav-item al-nav-sub @(IsActive("/admin/orgs/new") ? "active" : "")">
+                            + New Organization
+                        </a>
+                    </li>
+                }
+                <li>
+                    <a href="/admin/clinics" class="al-nav-item @(IsActive("/admin/clinics") ? "active" : "")">
+                        🏥 &nbsp;Clinic Management
+                    </a>
+                </li>
+                @if (isGlobalAdmin)
+                {
+                    <li>
+                        <a href="/admin/clinics/new" class="al-nav-item al-nav-sub @(IsActive("/admin/clinics/new") ? "active" : "")">
+                            + New Clinic
+                        </a>
+                    </li>
+                }
+                <li>
+                    <a href="/admin/audit" class="al-nav-item @(IsActive("/admin/audit") ? "active" : "")">
+                        📋 &nbsp;Audit Log
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+
+    <!-- ── Content ── -->
+    <main class="al-content">
+        @Body
+    </main>
+
+    <!-- ── Footer ── -->
+    <footer class="al-footer">
+        <a href="/dashboard" class="al-footer-btn">← Dashboard</a>
+        <a href="/admin" class="al-footer-btn">⌂ Admin Home</a>
+    </footer>
+
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private string username        = "";
+    private string clinicName      = "";
+    private string roleDisplay     = "";
+    private string roleBadgeClass  = "staff";
+    private bool   isGlobalAdmin;
+    private bool   isGlobalOrSysAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState;
+        var user = auth.User;
+
+        username    = user.Identity?.Name ?? "User";
+        var clinic  = user.FindFirst("clinic")?.Value ?? "";
+        clinicName  = string.IsNullOrEmpty(clinic) ? "—" : clinic;
+
+        var role = user.Claims.Where(c => c.Type == ClaimTypes.Role)
+                              .Select(c => c.Value).FirstOrDefault() ?? "";
+
+        isGlobalAdmin      = role == "global_admin";
+        isGlobalOrSysAdmin = role is "global_admin" or "sys_admin";
+
+        (roleDisplay, roleBadgeClass) = role switch
+        {
+            "global_admin" => ("Global Admin", "global-admin"),
+            "sys_admin"    => ("Sys Admin",    "sys-admin"),
+            "site_admin"   => ("Site Admin",   "site-admin"),
+            var r          => (r ?? "Staff",   "staff"),
+        };
+    }
+
+    private bool IsActive(string path)
+    {
+        var rel = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimEnd('/').ToLower();
+        path = path.ToLower().TrimEnd('/');
+        // exact match first, then prefix (but don't let /admin/users match /admin/users/new)
+        return rel == path || (rel.StartsWith(path + "/") && path != "/admin/users");
+    }
+}

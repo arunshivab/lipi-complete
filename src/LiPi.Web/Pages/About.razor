@@ -1,0 +1,166 @@
+@page "/about"
+
+<PageTitle>About LiPi - HIPAA Compliant Healthcare Information System</PageTitle>
+
+<div class="about-container">
+    <section class="about-hero">
+        <div class="container">
+            <h1>About LiPi</h1>
+            <p class="lead">Enterprise Healthcare Information System for Modern Clinics and Hospitals</p>
+        </div>
+    </section>
+
+    <section class="about-content">
+        <div class="container">
+            <div class="about-section">
+                <h2>Our Mission</h2>
+                <p>
+                    LiPi is designed to empower healthcare organizations with a comprehensive, compliant, and user-friendly
+                    healthcare information system. We believe that quality healthcare management software should be accessible,
+                    secure, and built with the latest technology standards.
+                </p>
+            </div>
+
+            <div class="about-section">
+                <h2>Compliance & Security</h2>
+                <p>
+                    LiPi is built from the ground up with regulatory compliance in mind. Our platform meets the requirements of:
+                </p>
+                <ul style="list-style: none; padding-left: 1rem;">
+                    <li>✓ <strong>HIPAA</strong> - Health Insurance Portability and Accountability Act</li>
+                    <li>✓ <strong>DPDP Act 2023</strong> - Digital Personal Data Protection Act</li>
+                    <li>✓ <strong>ABDM</strong> - Ayushman Bharat Digital Mission Integration</li>
+                    <li>✓ <strong>ISO 27001</strong> - Information Security Management Standard</li>
+                    <li>✓ <strong>CDSCO, AERB, NABH</strong> - Regulatory Body Compliances</li>
+                </ul>
+            </div>
+
+            <div class="about-section">
+                <h2>Key Features</h2>
+                <div class="features-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="feature-box">
+                        <h3>🔐 Enterprise Security</h3>
+                        <p>End-to-end encryption with AWS KMS, envelope encryption for PHI</p>
+                    </div>
+                    <div class="feature-box">
+                        <h3>📋 Clinical Management</h3>
+                        <p>Complete patient records, consultations, prescriptions, procedures</p>
+                    </div>
+                    <div class="feature-box">
+                        <h3>🔗 ABDM Integration</h3>
+                        <p>ABHA linking, FHIR R4 bundles, Consent Manager integration</p>
+                    </div>
+                    <div class="feature-box">
+                        <h3>📊 Quality Control</h3>
+                        <p>SPC, FMEA, DMAIC, Kaizen, and compliance tracking</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="about-section">
+                <h2>Technology Stack</h2>
+                <p>Built with modern, scalable technology:</p>
+                <ul style="list-style: none; padding-left: 1rem;">
+                    <li>🔹 <strong>Backend:</strong> .NET 8/10 with C# and ASP.NET Core</li>
+                    <li>🔹 <strong>Frontend:</strong> Blazor Server with Razor Components</li>
+                    <li>🔹 <strong>Database:</strong> PostgreSQL 16 with Entity Framework Core</li>
+                    <li>🔹 <strong>Cloud:</strong> AWS (EC2, RDS, KMS, S3)</li>
+                </ul>
+            </div>
+
+            <div class="about-section">
+                <h2>Multi-Tenant Architecture</h2>
+                <p>
+                    LiPi supports multiple clinics and healthcare organizations on a single platform, with complete data
+                    isolation and per-clinic customization. Each organization maintains full control over their data with
+                    row-level security and audit trails.
+                </p>
+            </div>
+
+            <div class="about-cta" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 1rem; padding: 2rem; margin-top: 3rem; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1);">
+                <h3>Ready to Transform Your Healthcare Organization?</h3>
+                <p>Join leading clinics and hospitals already using LiPi for HIPAA-compliant digital health management.</p>
+                <a href="/signup" class="btn btn-primary btn-lg glass-btn" style="margin-top: 1.5rem;">
+                    Start Your Free Trial
+                </a>
+            </div>
+        </div>
+    </section>
+</div>
+
+<style>
+    .about-container {
+        min-height: calc(100vh - 80px);
+    }
+
+    .about-hero {
+        background: linear-gradient(135deg, #06b6d4 0%, #8b5cf6 100%);
+        padding: 4rem 2rem;
+        color: white;
+        text-align: center;
+    }
+
+    .about-hero h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .about-hero .lead {
+        font-size: 1.25rem;
+        opacity: 0.9;
+    }
+
+    .about-content {
+        padding: 3rem 2rem;
+    }
+
+    .about-section {
+        margin-bottom: 3rem;
+    }
+
+    .about-section h2 {
+        font-size: 1.75rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .about-section p {
+        line-height: 1.8;
+        opacity: 0.9;
+    }
+
+    .about-section ul {
+        line-height: 2;
+    }
+
+    .about-section li {
+        margin-bottom: 0.5rem;
+    }
+
+    .features-grid {
+        display: grid;
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .feature-box {
+        background: rgba(6, 182, 212, 0.05);
+        border: 1px solid rgba(6, 182, 212, 0.1);
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        backdrop-filter: blur(10px);
+    }
+
+    .feature-box h3 {
+        margin-bottom: 0.5rem;
+        color: #06b6d4;
+    }
+
+    .feature-box p {
+        font-size: 0.9rem;
+        opacity: 0.8;
+    }
+</style>

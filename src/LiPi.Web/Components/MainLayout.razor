@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+
+<div class="page">
+    <header class="navbar">
+        <nav class="navbar-nav">
+            <a href="/" class="navbar-brand">
+                <span class="logo-text">LiPi</span>
+                <span class="logo-subtitle">Healthcare Information System</span>
+            </a>
+            <div class="navbar-items">
+                <a href="/" class="nav-item">Home</a>
+                <a href="/about" class="nav-item">About</a>
+                <a href="/login" class="nav-item btn-primary">Login</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        @Body
+    </main>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <p>&copy; 2026 LiPi Healthcare Information System. HIPAA & DPDP Compliant.</p>
+        </div>
+    </footer>
+</div>

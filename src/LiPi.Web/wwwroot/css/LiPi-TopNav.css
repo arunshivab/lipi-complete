@@ -1,0 +1,228 @@
+/* ═════════════════════════════════════════════════════════════
+   LiPi — Top Navigation Bar
+   Navy bar with mirrored S-curve transitions flanking a cream
+   centre panel that carries the current page title.
+   Drop this CSS into your Blazor layout's scoped stylesheet
+   (e.g. TopNavLayout.razor.css) or a global site.css.
+   ═════════════════════════════════════════════════════════════ */
+
+.tn-topbar {
+  --tn-navy:          #0F2D5E;
+  --tn-navy-deep:     #0A2246;
+  --tn-cream:         #F5F1EA;
+  --tn-cream-border:  #E5DFD3;
+  --tn-radius:        12px;
+  --tn-cream-w:       260px;  /* width of flat cream area */
+  --tn-curve-w:       110px;  /* width of each S-curve zone */
+
+  position: relative;
+  height: 72px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  font-family: 'DM Sans', sans-serif;
+  filter: drop-shadow(0 4px 14px rgba(15, 45, 94, 0.12));
+}
+
+/* ─── Navy base layer ────────────────────────────────────── */
+.tn-bar-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--tn-navy);
+  border-radius: var(--tn-radius);
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.12) 100%),
+    linear-gradient(180deg, var(--tn-navy), var(--tn-navy-deep));
+  overflow: hidden;
+}
+
+/* ─── Centre panel (S-curves + cream flat) ───────────────── */
+.tn-center-panel {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(var(--tn-cream-w) + var(--tn-curve-w) * 2);
+  height: 100%;
+  z-index: 3;
+  display: flex;
+  align-items: stretch;
+  pointer-events: none;
+}
+
+.tn-s-left,
+.tn-s-right {
+  width: var(--tn-curve-w);
+  height: 100%;
+  flex-shrink: 0;
+  display: block;
+}
+
+.tn-center-flat {
+  flex: 1;
+  background: var(--tn-cream);
+  border-top: 1px solid var(--tn-cream-border);
+  border-bottom: 1px solid var(--tn-cream-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 12px 20px 14px;
+  pointer-events: auto;
+  position: relative;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(15, 45, 94, 0.04);
+}
+
+.tn-pt-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0F2D5E;
+  letter-spacing: -0.2px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.tn-pt-sub {
+  font-size: 11px;
+  color: #6B7A92;
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+/* ─── Content row (overlays navy area) ───────────────────── */
+.tn-row {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto auto;
+  align-items: center;
+  height: 100%;
+  padding: 0 20px 0 12px;
+}
+
+/* Brand */
+.tn-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.18s;
+}
+.tn-brand:hover { background: rgba(255, 255, 255, 0.05); }
+
+.tn-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2B67C4 0%, #1B4DA0 100%);
+  box-shadow:
+    0 2px 8px rgba(43, 103, 196, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+
+.tn-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.tn-brand-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: -0.3px;
+}
+.tn-brand-sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 1px;
+}
+
+/* Divider + greeting */
+.tn-div {
+  width: 1px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.14);
+  margin: 0 18px;
+}
+.tn-greeting {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.tn-greet-line1 {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.88);
+}
+.tn-greet-name {
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-left: 2px;
+}
+.tn-greet-clinic {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.50);
+  margin-top: 3px;
+}
+
+.tn-center-spacer { min-width: 0; }
+
+/* Clock */
+.tn-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+  margin-right: 14px;
+}
+.tn-clock-time {
+  font-family: 'DM Mono', monospace;
+  font-size: 20px;
+  font-weight: 500;
+  color: #FFFFFF;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.tn-clock-date {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: 'DM Mono', monospace;
+  margin-top: 3px;
+}
+
+/* Admin pill button */
+.tn-admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-decoration: none;
+}
+.tn-admin-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.32);
+  transform: translateY(-1px);
+}
+.tn-admin-btn:active { transform: translateY(0); }

@@ -1,0 +1,438 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/scheduler-settings"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using LiPi.Master
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject IDbContextFactory<MasterDbContext> MasterDb
+@inject LiPi.Web.Services.ClinicDbFactory ClinicDbFactory
+
+<PageTitle>Scheduler Settings – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Scheduler Settings</div>
+    <div class="tn-pt-sub">Doctor templates · Holidays · Queue &amp; Policy</div>
+</SectionContent>
+
+<div class="sc-body">
+
+  @if (_templateModalOpen)
+  {
+    <div class="sc-modal-backdrop" @onclick="CloseTemplateModal">
+      <div class="sc-modal-box" @onclick:stopPropagation="true">
+        <div class="sc-modal-head">
+          <span class="sc-modal-title">@(_editingTemplate == null ? "New Schedule Template" : "Edit Template")</span>
+          <button type="button" class="sc-modal-close" @onclick="CloseTemplateModal">✕ Close</button>
+        </div>
+        <div class="sc-modal-body">
+          <div class="pr-g2">
+            <label class="pr-float"><div class="pr-flabel">Doctor / Staff</div>
+              <select id="tm-staff" name="templateStaff" autocomplete="off" class="pr-sel"
+                      value="@_tmStaff" @onchange="e => _tmStaff = e.Value?.ToString() ?? string.Empty">
+                <option value="">Select doctor…</option>
+                @foreach (var d in _doctors)
+                { <option value="@d.Id.ToString()">@d.DisplayName</option> }
+              </select></label>
+            <label class="pr-float"><div class="pr-flabel">Template name</div>
+              <input id="tm-name" name="templateName" autocomplete="off" class="pr-inp"
+                     value="@_tmName" @oninput="e => _tmName = e.Value?.ToString() ?? string.Empty" /></label>
+          </div>
+          <div class="pr-g2">
+            <label class="pr-float"><div class="pr-flabel">Start time</div>
+              <input id="tm-start" name="startTime" type="time" autocomplete="off" class="pr-inp"
+                     value="@_tmStartTime" @onchange="e => _tmStartTime = e.Value?.ToString() ?? string.Empty" /></label>
+            <label class="pr-float"><div class="pr-flabel">End time</div>
+              <input id="tm-end" name="endTime" type="time" autocomplete="off" class="pr-inp"
+                     value="@_tmEndTime" @onchange="e => _tmEndTime = e.Value?.ToString() ?? string.Empty" /></label>
+          </div>
+          <div class="pr-g2">
+            <label class="pr-float"><div class="pr-flabel">Slot duration (minutes)</div>
+              <select id="tm-slot" name="slotDuration" autocomplete="off" class="pr-sel"
+                      value="@_tmSlotMins" @onchange="OnTmSlotChange">
+                <option value="10">10 min</option>
+                <option value="15">15 min</option>
+                <option value="20">20 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+              </select></label>
+            <label class="pr-float"><div class="pr-flabel">Max patients per session</div>
+              <input id="tm-max" name="maxPatients" type="number" autocomplete="off" class="pr-inp"
+                     min="1" max="100" value="@_tmMaxPts"
+                     @onchange="e => { if (int.TryParse(e.Value?.ToString(),out var n) && n>0) _tmMaxPts=n; }" /></label>
+          </div>
+          <div class="pr-label" style="margin-bottom:6px;font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:.1em;color:#94A3B8;text-transform:uppercase">Active days</div>
+          <div style="display:flex;gap:4px;margin-bottom:12px">
+            <button type="button" class="sc-day-dot @(_tmDays[0]?_dayOn:_dayOff)" @onclick="() => ToggleTmDay(0)">M</button>
+            <button type="button" class="sc-day-dot @(_tmDays[1]?_dayOn:_dayOff)" @onclick="() => ToggleTmDay(1)">T</button>
+            <button type="button" class="sc-day-dot @(_tmDays[2]?_dayOn:_dayOff)" @onclick="() => ToggleTmDay(2)">W</button>
+            <button type="button" class="sc-day-dot @(_tmDays[3]?_dayOn:_dayOff)" @onclick="() => ToggleTmDay(3)">T</button>
+            <button type="button" class="sc-day-dot @(_tmDays[4]?_dayOn:_dayOff)" @onclick="() => ToggleTmDay(4)">F</button>
+            <button type="button" class="sc-day-dot @(_tmDays[5]?_dayOn:_dayOff)" @onclick="() => ToggleTmDay(5)">S</button>
+            <button type="button" class="sc-day-dot @(_tmDays[6]?_dayOn:_dayOff)" @onclick="() => ToggleTmDay(6)">S</button>
+          </div>
+          <div style="margin-bottom:8px">
+            <div class="sc-tog-row">
+              <div><div class="sc-tog-lbl">Allow overbooking</div><div class="sc-tog-sub">Accept more bookings than max slots</div></div>
+              <div class="sc-toggle @(_tmOverbook?_togOn:_empty)" @onclick="() => _tmOverbook=!_tmOverbook"></div>
+            </div>
+          </div>
+          @if (!string.IsNullOrEmpty(_tmError)) { <div class="sc-error">⚠ @_tmError</div> }
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button type="button" class="pr-btn-ghost" @onclick="CloseTemplateModal">Cancel</button>
+            <button type="button" class="pr-btn-primary" @onclick="SaveTemplate">Save Template</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (_holidayModalOpen)
+  {
+    <div class="sc-modal-backdrop" @onclick="CloseHolidayModal">
+      <div class="sc-modal-box" style="max-width:380px" @onclick:stopPropagation="true">
+        <div class="sc-modal-head"><span class="sc-modal-title">Add Holiday</span>
+          <button type="button" class="sc-modal-close" @onclick="CloseHolidayModal">✕ Close</button>
+        </div>
+        <div class="sc-modal-body">
+          <label class="pr-float" style="display:block;margin-bottom:8px"><div class="pr-flabel">Date</div>
+            <input id="hd-date" name="holidayDate" type="date" autocomplete="off" class="pr-inp"
+                   value="@_hdDate" @onchange="e => _hdDate = e.Value?.ToString() ?? string.Empty" /></label>
+          <label class="pr-float" style="display:block;margin-bottom:8px"><div class="pr-flabel">Name</div>
+            <input id="hd-name" name="holidayName" autocomplete="off" class="pr-inp"
+                   value="@_hdName" @oninput="e => _hdName = e.Value?.ToString() ?? string.Empty" /></label>
+          <label class="pr-float" style="display:block;margin-bottom:12px"><div class="pr-flabel">Type</div>
+            <select id="hd-type" name="holidayType" autocomplete="off" class="pr-sel"
+                    value="@_hdType" @onchange="e => _hdType = e.Value?.ToString() ?? string.Empty">
+              <option value="national">National</option>
+              <option value="state">State</option>
+              <option value="clinic">Clinic / Optional</option>
+            </select></label>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button type="button" class="pr-btn-ghost" @onclick="CloseHolidayModal">Cancel</button>
+            <button type="button" class="pr-btn-primary" @onclick="AddHoliday">Add Holiday</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (!string.IsNullOrEmpty(_saveSuccess)) { <div class="sc-success">✓ @_saveSuccess</div> }
+  @if (!string.IsNullOrEmpty(_errorMsg))    { <div class="sc-error">⚠ @_errorMsg</div>   }
+
+  <div class="sc-layout">
+    <div>
+      <div class="af-card" style="border-left-color:#0B2545;margin-bottom:12px">
+        <div class="af-card-header"><div class="af-card-num" style="background:#0B2545">1</div>
+          <span class="af-card-title">Scheduling Coordinators</span>
+          <span style="font-size:9px;color:#64748B;margin-left:auto">Assigned by SiteAdmin</span>
+        </div>
+        <div class="af-card-body">
+          <div class="sc-coord-wrap">
+            @foreach (var c in _coordinators)
+            {
+              var cId = c.StaffId;
+              <div class="sc-coord-chip">
+                <div class="sc-coord-av">@c.Initials</div>
+                <span>@c.Name</span>
+                <span class="tag" style="font-size:9px;padding:1px 5px;border-radius:5px;background:#EFF6FF;color:#1D4ED8;margin-left:4px">@c.Scope</span>
+                <button type="button" class="sc-coord-rm" @onclick="() => RemoveCoordinator(cId)">✕</button>
+              </div>
+            }
+          </div>
+          <div class="pr-g2" style="margin-bottom:0">
+            <label class="pr-float"><div class="pr-flabel">Add coordinator</div>
+              <select id="sc-coord-sel" name="coordStaff" autocomplete="off" class="pr-sel"
+                      value="@_newCoordId" @onchange="e => _newCoordId = e.Value?.ToString() ?? string.Empty">
+                <option value="">Select staff…</option>
+                @foreach (var d in _doctors)
+                { <option value="@d.Id.ToString()">@d.DisplayName</option> }
+              </select></label>
+            <label class="pr-float"><div class="pr-flabel">Scope</div>
+              <select id="sc-coord-scope" name="coordScope" autocomplete="off" class="pr-sel"
+                      value="@_newCoordScope" @onchange="e => _newCoordScope = e.Value?.ToString() ?? string.Empty">
+                <option value="Doctor schedule">Doctor schedule</option>
+                <option value="Nurse schedule">Nurse schedule</option>
+                <option value="All schedules">All schedules</option>
+              </select></label>
+          </div>
+          <div style="text-align:right;margin-top:8px">
+            <button type="button" class="pr-btn-primary" @onclick="AddCoordinator">+ Add coordinator</button>
+          </div>
+        </div>
+      </div>
+      <div class="af-card" style="border-left-color:#1B4DA0;margin-bottom:12px">
+        <div class="af-card-header"><div class="af-card-num" style="background:#1B4DA0">2</div>
+          <span class="af-card-title">Doctor Schedule Templates</span>
+          <button type="button" class="pr-btn-primary" style="font-size:11px;padding:5px 10px;margin-left:auto" @onclick="OpenNewTemplate">+ New template</button>
+        </div>
+        <div class="af-card-body">
+          @if (_templates.Count == 0)
+          { <div style="font-size:11px;color:#94A3B8;text-align:center;padding:16px">No templates yet. Click + New template to add.</div> }
+          @foreach (var t in _templates)
+          {
+            var tid = t.Id;
+            <div class="sc-tmpl-row">
+              <div class="sc-tmpl-info">
+                <div class="sc-tmpl-name">@t.DoctorName · @t.Name</div>
+                <div class="sc-tmpl-sub">@t.StartTime–@t.EndTime · @t.SlotMins min · max @t.MaxPatients</div>
+              </div>
+              <div class="sc-tmpl-days">
+                @for (var d = 0; d < 7; d++)
+                { var di = d;
+                  <div class="sc-day-dot @(t.ActiveDays[di]?_dayOn:_dayOff)">@_dayLetters[di]</div>
+                }
+              </div>
+              <button type="button" class="sc-tmpl-edit" @onclick="() => OpenEditTemplate(tid)">Edit</button>
+              <button type="button" class="sc-tmpl-edit" style="color:#EF4444;border-color:#FCA5A5" @onclick="() => RemoveTemplate(tid)">Remove</button>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="af-card" style="border-left-color:#0F6E56;margin-bottom:12px">
+        <div class="af-card-header"><div class="af-card-num" style="background:#0F6E56">3</div>
+          <span class="af-card-title">Holiday Calendar</span>
+          <button type="button" class="pr-btn-ghost" style="font-size:11px;padding:5px 10px;margin-left:auto" @onclick="TriggerCsvUpload">↑ CSV</button>
+          <button type="button" class="pr-btn-primary" style="font-size:11px;padding:5px 10px;margin-left:4px" @onclick="OpenHolidayModal">+ Add</button>
+          <InputFile id="hd-csv" OnChange="OnHolidayCsv" accept=".csv" style="display:none" />
+        </div>
+        <div class="af-card-body">
+          @if (_holidays.Count == 0)
+          { <div style="font-size:11px;color:#94A3B8;text-align:center;padding:16px">No holidays added. Upload a CSV or add manually.</div> }
+          @foreach (var h in _holidays.OrderBy(h => h.Date))
+          {
+            var hid = h.Id;
+            <div class="sc-hol-row">
+              <span class="sc-hol-date">@h.Date.ToString("dd MMM yyyy")</span>
+              <span class="sc-hol-name">@h.Name</span>
+              <span class="tag" style="font-size:9px;padding:1px 6px;border-radius:6px;background:#FFF3E0;color:#E65100">@h.HolType</span>
+              <button type="button" class="sc-hol-rm" @onclick="() => RemoveHoliday(hid)">✕</button>
+            </div>
+          }
+          <div class="note" style="margin-top:4px">CSV format: date (YYYY-MM-DD), name, type (national/state/clinic)</div>
+        </div>
+      </div>
+      <div class="af-card" style="border-left-color:#6A1B9A">
+        <div class="af-card-header"><div class="af-card-num" style="background:#6A1B9A">4</div>
+          <span class="af-card-title">Queue &amp; Policy</span>
+        </div>
+        <div class="af-card-body">
+          <div class="pr-sh"><span class="pr-sh-num">Q</span><span class="pr-sh-title">Queue mode</span><div class="pr-sh-line"></div></div>
+          <div class="sc-seg-row">
+            <button type="button" class="sc-seg @(_queueMode==_qFifo?_segOn:_empty)" @onclick="SetQueueFifo">FIFO</button>
+            <button type="button" class="sc-seg @(_queueMode==_qAppt?_segOn:_empty)" @onclick="SetQueueAppt">Appt-first</button>
+            <button type="button" class="sc-seg @(_queueMode==_qBlend?_segOn:_empty)" @onclick="SetQueueBlend">Blended</button>
+          </div>
+          @if (_queueMode == _qBlend)
+          {
+            <label class="pr-float" style="display:block;margin-bottom:10px"><div class="pr-flabel">Blended rule</div>
+              <select id="sc-blend-rule" name="blendedRule" autocomplete="off" class="pr-sel"
+                      value="@_blendedRule" @onchange="e => _blendedRule = e.Value?.ToString() ?? string.Empty">
+              <option value="time_based">Time-based — appointments at slot time, walk-ins fill gaps</option>
+              <option value="token_ratio">Token ratio — every N walk-ins, 1 appointment</option>
+              <option value="staff_manual">Staff manual — calling board shows both, staff decides</option>
+            </select></label>
+          }
+          <div class="pr-g2">
+            <label class="pr-float"><div class="pr-flabel">Cancellation window (hours)</div>
+              <input id="sc-cancel-win" name="cancellationWindow" type="number" autocomplete="off" class="pr-inp"
+                     min="0" max="72" value="@_cancelWindowHrs"
+                     @onchange="OnCancelWindowChange" />
+              <div class="note">Default: 2 hours</div></label>
+            <label class="pr-float"><div class="pr-flabel">Waitlist timeout (minutes)</div>
+              <input id="sc-wait-timeout" name="waitlistTimeout" type="number" autocomplete="off" class="pr-inp"
+                     min="5" max="1440" value="@_waitlistTimeoutMins"
+                     @onchange="OnWaitlistTimeoutChange" />
+              <div class="note">Default: 30 minutes</div></label>
+          </div>
+          <div class="sc-tog-row">
+            <div><div class="sc-tog-lbl">Calling board — public URL</div><div class="sc-tog-sub">TV screen in waiting area, no login needed</div></div>
+            <div class="sc-toggle @(_callingBoardPublic?_togOn:_empty)" @onclick="() => _callingBoardPublic=!_callingBoardPublic"></div>
+          </div>
+          <div class="sc-tog-row">
+            <div><div class="sc-tog-lbl">Show clinic slots on portal</div><div class="sc-tog-sub">Patients can book clinic slots via portal</div></div>
+            <div class="sc-toggle @(_showClinicSlotsPortal?_togOn:_empty)" @onclick="() => _showClinicSlotsPortal=!_showClinicSlotsPortal"></div>
+          </div>
+          <div class="sc-tog-row">
+            <div><div class="sc-tog-lbl">Overbooking by default</div><div class="sc-tog-sub">New doctors created with overbooking enabled</div></div>
+            <div class="sc-toggle @(_overbookingDefault?_togOn:_empty)" @onclick="() => _overbookingDefault=!_overbookingDefault"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+    <button type="button" class="pr-btn-ghost" @onclick="ResetDefaults">Reset to defaults</button>
+    <button type="button" class="pr-btn-save" disabled="@_saving" @onclick="HandleSave">
+      @(_saving ? "Saving…" : "Save Scheduler Settings")
+    </button>
+  </div>
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    // Constants — no string literals in Razor attributes
+    private const string _qFifo = "fifo", _qAppt = "appointment_first", _qBlend = "blended";
+    private const string _dayOn = "sc-day-dot sc-day-on", _dayOff = "sc-day-dot sc-day-off";
+    private const string _togOn = "sc-toggle sc-toggle-on", _empty = "sc-toggle";
+    private const string _segOn = "sc-seg sc-seg-on";
+    private static readonly string[] _dayLetters = ["M","T","W","T","F","S","S"];
+
+    private bool   _saving      = false;
+    private string _saveSuccess = string.Empty;
+    private string _errorMsg    = string.Empty;
+
+    private string _queueMode          = "fifo";
+    private string _blendedRule        = "time_based";
+    private int    _cancelWindowHrs    = 2;
+    private int    _waitlistTimeoutMins= 30;
+    private bool   _callingBoardPublic = true;
+    private bool   _showClinicSlotsPortal = true;
+    private bool   _overbookingDefault = true;
+
+    private sealed class CoordEntry
+    { public Guid StaffId; public string Name = string.Empty; public string Initials = string.Empty; public string Scope = string.Empty; }
+    private List<CoordEntry> _coordinators = new();
+    private string _newCoordId    = string.Empty;
+    private string _newCoordScope = "Doctor schedule";
+
+    private sealed class TemplateEntry
+    { public Guid Id = Guid.NewGuid(); public string DoctorName = string.Empty; public string Name = string.Empty;
+      public string StartTime = string.Empty; public string EndTime = string.Empty;
+      public int SlotMins = 15; public int MaxPatients = 20;
+      public bool[] ActiveDays = new bool[7]; public bool Overbook = true; }
+    private List<TemplateEntry> _templates = new();
+
+    private bool   _templateModalOpen = false;
+    private Guid?  _editingTemplate   = null;
+    private string _tmStaff     = string.Empty;
+    private string _tmName      = string.Empty;
+    private string _tmStartTime = string.Empty;
+    private string _tmEndTime   = string.Empty;
+    private string _tmSlotMins  = string.Empty;
+    private int    _tmMaxPts    = 20;
+    private bool[] _tmDays      = new bool[7];
+    private bool   _tmOverbook  = true;
+    private string _tmError     = string.Empty;
+
+    private sealed class HolidayEntry
+    { public Guid Id = Guid.NewGuid(); public DateOnly Date; public string Name = string.Empty; public string HolType = string.Empty; }
+    private List<HolidayEntry> _holidays = new();
+    private bool   _holidayModalOpen = false;
+    private string _hdDate = string.Empty;
+    private string _hdName = string.Empty;
+    private string _hdType = "national";
+
+    private sealed class DoctorEntry { public Guid Id = Guid.NewGuid(); public string DisplayName = string.Empty; }
+    private List<DoctorEntry> _doctors = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // TODO: load from ClinicCoreDbContext.Staff where StaffType == doctor
+        _doctors = [
+            new() { Id = Guid.NewGuid(), DisplayName = "Dr. Sharma" },
+            new() { Id = Guid.NewGuid(), DisplayName = "Dr. Patel" },
+            new() { Id = Guid.NewGuid(), DisplayName = "Dr. Rao" },
+        ];
+        // TODO: load coordinator, template, holiday config from clinic DB
+        await Task.CompletedTask;
+    }
+
+    // Queue handlers
+    private void SetQueueFifo()  => _queueMode = _qFifo;
+    private void SetQueueAppt()  => _queueMode = _qAppt;
+    private void SetQueueBlend() => _queueMode = _qBlend;
+    private void OnCancelWindowChange(ChangeEventArgs e)    { if (int.TryParse(e.Value?.ToString(), out var n) && n >= 0) _cancelWindowHrs = n; }
+    private void OnWaitlistTimeoutChange(ChangeEventArgs e) { if (int.TryParse(e.Value?.ToString(), out var n) && n >= 5) _waitlistTimeoutMins = n; }
+
+    // Coordinator handlers
+    private void AddCoordinator()
+    {
+        if (string.IsNullOrEmpty(_newCoordId)) return;
+        if (!Guid.TryParse(_newCoordId, out var sid)) return;
+        if (_coordinators.Any(c => c.StaffId == sid)) return;
+        var d = _doctors.FirstOrDefault(x => x.Id == sid);
+        if (d == null) return;
+        var initials = string.Concat(d.DisplayName.Split(' ').Where(p => p.Length > 0).Take(2).Select(p => p[0].ToString().ToUpperInvariant()));
+        _coordinators.Add(new CoordEntry { StaffId = sid, Name = d.DisplayName, Initials = initials, Scope = _newCoordScope });
+        _newCoordId = string.Empty;
+    }
+    private void RemoveCoordinator(Guid id) => _coordinators.RemoveAll(c => c.StaffId == id);
+
+    // Template modal handlers
+    private void OpenNewTemplate()
+    { _editingTemplate = null; _tmStaff = string.Empty; _tmName = string.Empty;
+      _tmStartTime = "09:00"; _tmEndTime = "13:00"; _tmSlotMins = "15";
+      _tmMaxPts = 20; _tmDays = [true,true,false,true,true,false,false]; _tmOverbook = true;
+      _tmError = string.Empty; _templateModalOpen = true; }
+    private void OpenEditTemplate(Guid id)
+    { var t = _templates.FirstOrDefault(x => x.Id == id); if (t == null) return;
+      _editingTemplate = id; _tmName = t.Name; _tmStartTime = t.StartTime; _tmEndTime = t.EndTime;
+      _tmSlotMins = t.SlotMins.ToString(); _tmMaxPts = t.MaxPatients;
+      _tmDays = (bool[])t.ActiveDays.Clone(); _tmOverbook = t.Overbook; _templateModalOpen = true; }
+    private void CloseTemplateModal() => _templateModalOpen = false;
+    private void OnTmSlotChange(ChangeEventArgs e) => _tmSlotMins = e.Value?.ToString() ?? string.Empty;
+    private void ToggleTmDay(int i) => _tmDays[i] = !_tmDays[i];
+    private void SaveTemplate()
+    {
+        _tmError = string.Empty;
+        if (string.IsNullOrEmpty(_tmName))      { _tmError = "Template name is required."; return; }
+        if (string.IsNullOrEmpty(_tmStartTime)) { _tmError = "Start time is required."; return; }
+        if (string.IsNullOrEmpty(_tmEndTime))   { _tmError = "End time is required."; return; }
+        if (!int.TryParse(_tmSlotMins, out var slotMins)) { _tmError = "Slot duration is required."; return; }
+        var doctorName = _doctors.FirstOrDefault(d => d.Id.ToString() == _tmStaff)?.DisplayName ?? "Doctor";
+        if (_editingTemplate.HasValue)
+        { var t = _templates.FirstOrDefault(x => x.Id == _editingTemplate.Value); if (t != null)
+          { t.Name = _tmName; t.DoctorName = doctorName; t.StartTime = _tmStartTime; t.EndTime = _tmEndTime;
+            t.SlotMins = slotMins; t.MaxPatients = _tmMaxPts; t.ActiveDays = (bool[])_tmDays.Clone(); t.Overbook = _tmOverbook; } }
+        else
+        { _templates.Add(new TemplateEntry { DoctorName = doctorName, Name = _tmName, StartTime = _tmStartTime,
+            EndTime = _tmEndTime, SlotMins = slotMins, MaxPatients = _tmMaxPts, ActiveDays = (bool[])_tmDays.Clone(), Overbook = _tmOverbook }); }
+        _templateModalOpen = false;
+    }
+    private void RemoveTemplate(Guid id) => _templates.RemoveAll(t => t.Id == id);
+
+    // Holiday handlers
+    private void OpenHolidayModal()   => _holidayModalOpen = true;
+    private void CloseHolidayModal()  => _holidayModalOpen = false;
+    private async Task TriggerCsvUpload() => await Task.CompletedTask; // JS trigger for InputFile
+    private async Task OnHolidayCsv(InputFileChangeEventArgs e)
+    {
+        try
+        { await using var stream = e.File.OpenReadStream(maxAllowedSize: 1024 * 1024);
+          using var reader = new System.IO.StreamReader(stream);
+          string? line;
+          while ((line = await reader.ReadLineAsync()) != null)
+          { var parts = line.Split(',');
+            if (parts.Length >= 2 && DateOnly.TryParse(parts[0].Trim(), out var date))
+              _holidays.Add(new HolidayEntry { Date = date, Name = parts[1].Trim(),
+                HolType = parts.Length >= 3 ? parts[2].Trim() : "national" }); } }
+        catch (Exception ex) { _errorMsg = $"CSV error: {ex.Message}"; }
+    }
+    private void AddHoliday()
+    { if (!DateOnly.TryParse(_hdDate, out var d) || string.IsNullOrEmpty(_hdName)) return;
+      _holidays.Add(new HolidayEntry { Date = d, Name = _hdName, HolType = _hdType });
+      _holidayModalOpen = false; _hdDate = string.Empty; _hdName = string.Empty; }
+    private void RemoveHoliday(Guid id) => _holidays.RemoveAll(h => h.Id == id);
+
+    private void ResetDefaults()
+    { _queueMode="fifo"; _blendedRule="time_based"; _cancelWindowHrs=2; _waitlistTimeoutMins=30;
+      _callingBoardPublic=true; _showClinicSlotsPortal=true; _overbookingDefault=true;
+      _saveSuccess=string.Empty; _errorMsg=string.Empty; }
+
+    private async Task HandleSave()
+    { _saving=true; _errorMsg=string.Empty; StateHasChanged();
+      try { await Task.Delay(600); // TODO: persist to clinic DB
+            _saveSuccess = "Scheduler settings saved."; }
+      catch (Exception ex) { _errorMsg = ex.Message; }
+      finally { _saving=false; } }
+}

@@ -1,0 +1,92 @@
+@page "/signup"
+
+<PageTitle>Sign Up - LiPi Healthcare Information System</PageTitle>
+
+<div class="signup-container">
+    <div class="signup-card glass-card">
+        <div class="signup-header">
+            <h1>Get Started with LiPi</h1>
+            <p>Enterprise Healthcare Information System</p>
+        </div>
+
+        <form @onsubmit="HandleSignup" class="signup-form">
+            <div class="form-group">
+                <label for="clinic-name">Clinic/Hospital Name</label>
+                <input type="text" id="clinic-name" @bind="clinicName" class="form-control" placeholder="Enter your clinic name" required />
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" @bind="email" class="form-control" placeholder="Enter your email" required />
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input type="tel" id="phone" @bind="phone" class="form-control" placeholder="Enter your phone number" required />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" @bind="password" class="form-control" placeholder="Create a password" required />
+            </div>
+
+            <div class="form-group">
+                <label for="confirm-password">Confirm Password</label>
+                <input type="password" id="confirm-password" @bind="confirmPassword" class="form-control" placeholder="Confirm your password" required />
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">
+                    @errorMessage
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success">
+                    @successMessage
+                </div>
+            }
+
+            <button type="submit" class="btn btn-primary btn-lg glass-btn" style="width: 100%; margin-top: 1.5rem;">
+                Start Free Trial
+            </button>
+
+            <div class="signup-footer">
+                <p>Already have an account? <a href="/login" class="link">Sign in here</a></p>
+                <p><a href="/" class="link">Back to Home</a></p>
+            </div>
+        </form>
+
+        <div class="signup-info">
+            <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); text-align: center; margin-top: 2rem;">
+                ✓ HIPAA Compliant | ✓ DPDP Compliant | ✓ ABDM Ready | ✓ ISO 27001
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string clinicName = "";
+    private string email = "";
+    private string phone = "";
+    private string password = "";
+    private string confirmPassword = "";
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    private async Task HandleSignup()
+    {
+        // Placeholder for actual signup logic
+        // In production, this would create a new clinic and user in the database
+        if (password != confirmPassword)
+        {
+            errorMessage = "Passwords do not match.";
+            return;
+        }
+
+        successMessage = "Signup functionality coming soon. You will receive an email to verify your account.";
+        errorMessage = "";
+    }
+}

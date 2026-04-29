@@ -1,0 +1,218 @@
+@page "/"
+@page "/login"
+@using LiPi.Web.Components.Machines
+@using LiPi.Web.Services
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@layout LiPi.Web.Components.EmptyLayout
+@inject IAuthService AuthService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Navigation
+
+<PageTitle>Sign In - LiPi Healthcare Information System</PageTitle>
+
+<div class="login-page">
+    <!-- Machine Scene Container (Left 60%) -->
+    <div class="machine-scene-container">
+        <!-- Scene Overlays -->
+        <div class="scene-overlay-top"></div>
+        <div class="scene-overlay-bottom"></div>
+        <div class="scene-overlay-left"></div>
+        <div class="scene-overlay-right"></div>
+        <div class="scan-line"></div>
+
+        <!-- All 7 Machine Scenes — JS cycles visibility -->
+        <div class="machine-scene-slot"><MachineCT /></div>
+        <div class="machine-scene-slot"><MachineMRI /></div>
+        <div class="machine-scene-slot"><MachineLinac /></div>
+        <div class="machine-scene-slot"><MachinePETCT /></div>
+        <div class="machine-scene-slot"><MachineCathlab /></div>
+        <div class="machine-scene-slot"><MachineOT /></div>
+        <div class="machine-scene-slot"><MachineBrachy /></div>
+
+        <!-- Machine Label — IDs allow JS to update text -->
+        <div class="machine-label">
+            <div id="machine-dept" class="machine-label-dept">Computed Tomography</div>
+            <div id="machine-name" class="machine-label-name">CT Scanner</div>
+        </div>
+
+        <!-- Scene Ticker — 7 dots, JS toggles .active -->
+        <div class="scene-ticker">
+            <div class="ticker-mark active"><span class="ticker-label">CT</span></div>
+            <div class="ticker-mark"><span class="ticker-label"></span></div>
+            <div class="ticker-mark"><span class="ticker-label"></span></div>
+            <div class="ticker-mark"><span class="ticker-label"></span></div>
+            <div class="ticker-mark"><span class="ticker-label"></span></div>
+            <div class="ticker-mark"><span class="ticker-label"></span></div>
+            <div class="ticker-mark"><span class="ticker-label"></span></div>
+        </div>
+    </div>
+
+    <!-- Login Panel (Right 40%, 460px) -->
+    <div class="login-panel-wrapper">
+        <div class="login-panel">
+            <!-- Branding -->
+            <div class="login-branding">
+                <div class="login-logo">L</div>
+                <div class="login-brand-text">
+                    <h3>LiPi</h3>
+                    <p>Armoki HIS</p>
+                </div>
+            </div>
+            <div class="login-divider"></div>
+
+            <!-- Login Form -->
+            <EditForm Model="@loginModel" OnValidSubmit="@HandleLogin" FormName="login">
+                <DataAnnotationsValidator />
+
+                <!-- Username Field -->
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <div class="form-input-wrapper">
+                        <InputText class="form-input"
+                                   @bind-Value="loginModel.Username"
+                                   placeholder="Enter your username" />
+                        <span class="form-input-icon">👤</span>
+                    </div>
+                    <ValidationMessage For="@(() => loginModel.Username)" />
+                </div>
+
+                <!-- Password Field -->
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <div class="form-input-wrapper">
+                        <InputText type="password" class="form-input"
+                                   @bind-Value="loginModel.Password"
+                                   placeholder="Enter your password" />
+                        <span class="form-input-icon">🔒</span>
+                    </div>
+                    <ValidationMessage For="@(() => loginModel.Password)" />
+                </div>
+
+                <!-- Forgot Password -->
+                <div style="text-align:right;margin-bottom:10px">
+                  <a href="/forgot-password" style="font-size:11px;color:#64748B;text-decoration:none">Forgot password?</a>
+                </div>
+
+                <!-- Submit Button -->
+                <button id="submit-btn" type="submit" class="submit-btn">Sign In</button>
+
+
+
+                <!-- Error Message -->
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div style="color: #EF4444; font-size: 12px; margin-top: 12px; text-align: center;">
+                        @ErrorMessage
+                    </div>
+                }
+            </EditForm>
+
+            <!-- Footer -->
+            <div class="login-footer">
+                HIPAA Compliant · Oncology HIS · v2.4.1
+            </div>
+        </div>
+    </div>
+</div>
+
+@using System.Text.Json
+@code {
+    [SupplyParameterFromForm(FormName = "login")]
+    private LoginModel loginModel { get; set; } = default!;
+
+    private string ErrorMessage = "";
+
+    private class LoginModel
+    {
+        [Required(ErrorMessage = "Username is required")]
+        public string Username { get; set; } = "";
+
+        [Required(ErrorMessage = "Password is required")]
+        public string Password { get; set; } = "";
+
+
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        loginModel ??= new LoginModel();
+
+    }
+
+
+    private async Task HandleLogin()
+    {
+        var ctx = HttpContextAccessor.HttpContext;
+        var ip  = ctx?.Connection.RemoteIpAddress?.ToString();
+        var ua  = ctx?.Request.Headers.UserAgent.ToString();
+
+        var result = await AuthService.SignInAsync(
+            loginModel.Username, loginModel.Password, null, ip, ua);
+
+        if (!result.Success)
+        {
+            ErrorMessage = result.Error ?? "Invalid credentials.";
+            return;
+        }
+
+        // Multi-clinic user — send to clinic picker
+        if (result.ClinicChoices != null && result.ClinicChoices.Any())
+        {
+            // Store choices + credentials in session for picker
+            var dto = result.ClinicChoices.Select(c => new
+            {
+                c.ClinicId, c.ClinicCode, c.ClinicName, c.ClinicCity,
+                c.UserId, c.UserStatus, c.Roles, c.AdminLevel
+            });
+            ctx!.Session.SetString("clinic_choices",
+                System.Text.Json.JsonSerializer.Serialize(dto));
+            ctx.Session.SetString("picker_username", loginModel.Username);
+            ctx.Session.SetString("picker_password", loginModel.Password);
+            Navigation.NavigateTo("/pick-clinic", forceLoad: true);
+            return;
+        }
+
+        // Single clinic — build claims and sign in
+        await CompleteSignIn(result, ctx!);
+    }
+
+    private async Task CompleteSignIn(AuthResult result, Microsoft.AspNetCore.Http.HttpContext ctx)
+    {
+        // Get clinic full name from master (best-effort)
+        string clinicName = result.ClinicCode ?? string.Empty;
+        try
+        {
+            var masterDb = ctx.RequestServices
+                .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<LiPi.Master.MasterDbContext>>();
+            await using var db = await masterDb.CreateDbContextAsync();
+            var cn = await db.Clinics
+                .Where(c => c.Code == result.ClinicCode && c.DeletedAt == null)
+                .Select(c => c.Name).FirstOrDefaultAsync();
+            if (!string.IsNullOrEmpty(cn)) clinicName = cn;
+        }
+        catch { }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, result.UserId?.ToString() ?? Guid.NewGuid().ToString()),
+            new(ClaimTypes.Name,           result.Username!),
+            new("clinic",                  result.ClinicCode ?? string.Empty),
+            new("clinicId",                result.ClinicId?.ToString() ?? string.Empty),
+            new("clinicName",              clinicName),
+            new("adminLevel",              result.AdminLevel),
+            new("displayName",             result.DisplayName ?? result.Username!),
+        };
+        foreach (var role in result.Roles)
+            claims.Add(new Claim(ClaimTypes.Role, role));
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "Cookies"));
+        await ctx.SignInAsync("Cookies", principal,
+            new AuthenticationProperties { IsPersistent = false });
+
+        // Redirect to password change if required
+        var dest = result.MustChangePassword ? "/change-password" : "/dashboard";
+        Navigation.NavigateTo(dest, forceLoad: true);
+    }
+}

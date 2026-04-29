@@ -1,0 +1,234 @@
+@page "/admin/clinic-config"
+@namespace LiPi.Web.Pages.AdminPages
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Sections
+@using System.Security.Claims
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject IDbContextFactory<MasterDbContext> DbFactory
+
+<PageTitle>Clinic Configuration – LiPi</PageTitle>
+
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Clinic Configuration</div>
+    <div class="tn-pt-sub">Aadhaar · ICD version · and more</div>
+</SectionContent>
+
+<div class="ap-body" style="max-width:780px;margin:0 auto;padding:20px 24px 60px">
+
+    @* ── Clinic Picker ── *@
+    <div class="af-card" style="border-left-color:#0B2545;margin-bottom:20px">
+        <div class="af-card-header">
+            <div class="af-card-num" style="background:#0B2545">🏥</div>
+            <span class="af-card-title">Select Clinic</span>
+        </div>
+        <div class="af-card-body">
+            @if (_clinics.Count > 1)
+            {
+                <div style="display:flex;gap:12px;align-items:center">
+                    <select class="af-fselect" style="max-width:380px" @onchange="OnClinicChange">
+                        <option value="">— Choose a clinic —</option>
+                        @foreach (var c in _clinics)
+                        { <option value="@c.Id" selected="@(_clinicId == c.Id)">@c.Name (@c.Code)</option> }
+                    </select>
+                    @if (_loading) { <span style="font-size:11px;color:#94A3B8">Loading…</span> }
+                </div>
+            }
+            else if (_clinics.Count == 1)
+            {
+                <div style="font-size:13px;font-weight:600;color:#0B2545">@_clinics[0].Name</div>
+                <div style="font-size:11px;color:#94A3B8">@_clinics[0].Code · @_clinics[0].City</div>
+            }
+        </div>
+    </div>
+
+    @if (_clinic != null)
+    {
+        @if (!string.IsNullOrEmpty(_errorMsg))
+        { <div class="pg-alert err" style="margin-bottom:14px">⚠ @_errorMsg</div> }
+
+        <fieldset disabled="@_saved" style="border:none;padding:0;margin:0">
+
+        @* ── ① Aadhaar Settings ── *@
+        <div class="af-card" style="border-left-color:#1565C0;margin-bottom:14px">
+            <div class="af-card-header">
+                <div class="af-card-num" style="background:#1565C0">1</div>
+                <span class="af-card-title">Aadhaar Settings</span>
+            </div>
+            <div class="af-card-body">
+                <div style="display:flex;flex-direction:column;gap:14px">
+                    <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer">
+                        <input type="checkbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0"
+                               checked="@_clinic.AadhaarMandatory"
+                               @onchange="e => _clinic.AadhaarMandatory = (bool)(e.Value ?? false)" />
+                        <div>
+                            <div style="font-size:13px;font-weight:500;color:#0F2D5E">Aadhaar card mandatory</div>
+                            <div style="font-size:11px;color:#94A3B8;margin-top:2px">
+                                Patient registration requires Aadhaar number. Without it, registration cannot proceed.
+                            </div>
+                        </div>
+                    </label>
+
+                    <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;
+                                  @(!_clinic.AadhaarMandatory ? "opacity:.5;pointer-events:none" : "")">
+                        <input type="checkbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0"
+                               checked="@_clinic.AadhaarValidationMandatory"
+                               disabled="@(!_clinic.AadhaarMandatory)"
+                               @onchange="e => _clinic.AadhaarValidationMandatory = (bool)(e.Value ?? false)" />
+                        <div>
+                            <div style="font-size:13px;font-weight:500;color:#0F2D5E">Aadhaar validation mandatory</div>
+                            <div style="font-size:11px;color:#94A3B8;margin-top:2px">
+                                Aadhaar number must be verified via UIDAI before patient registration is complete.
+                                Requires Aadhaar to be mandatory first.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        @* ── ② ICD Version ── *@
+        <div class="af-card" style="border-left-color:#00695C;margin-bottom:14px">
+            <div class="af-card-header">
+                <div class="af-card-num" style="background:#00695C">2</div>
+                <span class="af-card-title">ICD Code Version</span>
+            </div>
+            <div class="af-card-body">
+                <div style="font-size:12px;color:#64748B;margin-bottom:14px">
+                    Select the ICD classification system used for diagnosis coding in this clinic.
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    @foreach (var (val, label, desc) in IcdOptions)
+                    {
+                        var v = val;
+                        <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border:1.5px solid @(_clinic.IcdVersion==v?"#00695C":"#E2E8F0");border-radius:10px;cursor:pointer;background:@(_clinic.IcdVersion==v?"#F0FDF4":"#fff");transition:all .15s">
+                            <input type="radio" name="icdVersion" value="@v" style="margin-top:3px;flex-shrink:0;accent-color:#00695C"
+                                   checked="@(_clinic.IcdVersion == v)"
+                                   @onchange="() => _clinic.IcdVersion = v" />
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:#0F2D5E">@label</div>
+                                <div style="font-size:11px;color:#64748B;margin-top:2px">@desc</div>
+                            </div>
+                            @if (_clinic.IcdVersion == v)
+                            { <span style="margin-left:auto;font-size:10px;background:#D1FAE5;color:#065F46;border-radius:10px;padding:2px 8px;font-weight:600;white-space:nowrap;align-self:center">Active</span> }
+                        </label>
+                    }
+                </div>
+                <div style="margin-top:12px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:11px;color:#92400E">
+                    ⚠ Changing ICD version affects new diagnosis entries only. Existing coded diagnoses retain their original version.
+                    Data migration between versions must be planned separately.
+                </div>
+            </div>
+        </div>
+
+        @* ── Actions ── *@
+        <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn-primary" disabled="@(_saving || _saved)" @onclick="Save">
+                @(_saving ? "Saving…" : _saved ? "✓ Saved" : "Save Configuration")
+            </button>
+            @if (_saved)
+            {
+                <a href="/admin/settings" class="btn-secondary">Close</a>
+                <span style="font-size:12px;color:#10B981;font-weight:500;margin-left:4px">✓ @_successMsg</span>
+            }
+        </div>
+
+        </fieldset>
+    }
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private List<ClinicItem> _clinics = new();
+    private Guid     _clinicId;
+    private Clinic?  _clinic;
+    private bool     _loading, _saving, _saved;
+    private string   _successMsg = string.Empty, _errorMsg = string.Empty;
+
+    private record ClinicItem(Guid Id, string Name, string Code, string City);
+
+    private static readonly (string Val, string Label, string Desc)[] IcdOptions =
+    [
+        ("ICD-9M",  "ICD-9-CM",  "International Classification of Diseases, 9th Revision, Clinical Modification. Legacy system, still used by some older facilities."),
+        ("ICD-10",  "ICD-10",    "10th Revision. Current standard for most countries including India. Recommended for all new clinics."),
+        ("ICD-11",  "ICD-11",    "11th Revision (2022). WHO's latest release with improved structure and digital-first design. Future standard."),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        var role = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? string.Empty;
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        if (role is "global_admin" or "sys_admin")
+        {
+            _clinics = await db.Clinics
+                .Where(c => c.DeletedAt == null && (c.Status == "active" || c.Status == "provisioning"))
+                .OrderBy(c => c.Name)
+                .Select(c => new ClinicItem(c.Id, c.Name, c.Code, c.City))
+                .ToListAsync();
+        }
+        else // site_admin
+        {
+            Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid);
+            _clinics = await db.ClinicMemberships
+                .Include(cm => cm.Clinic)
+                .Where(cm => cm.PlatformUserId == uid && cm.Status == "active" && cm.Clinic != null)
+                .Select(cm => new ClinicItem(cm.Clinic!.Id, cm.Clinic.Name, cm.Clinic.Code, cm.Clinic.City))
+                .ToListAsync();
+        }
+
+        if (_clinics.Count == 1)
+        {
+            _clinicId = _clinics[0].Id;
+            await LoadClinic();
+        }
+    }
+
+    private async Task OnClinicChange(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var id)) return;
+        _clinicId = id; _saved = false; _successMsg = string.Empty; _errorMsg = string.Empty;
+        await LoadClinic();
+    }
+
+    private async Task LoadClinic()
+    {
+        _loading = true; StateHasChanged();
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _clinic = await db.Clinics.FindAsync(_clinicId);
+        }
+        catch (Exception ex) { _errorMsg = $"Load error: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private async Task Save()
+    {
+        if (_clinic == null) return;
+        // If Aadhaar not mandatory, validation also can't be mandatory
+        if (!_clinic.AadhaarMandatory) _clinic.AadhaarValidationMandatory = false;
+        _saving = true; _errorMsg = string.Empty; StateHasChanged();
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var existing = await db.Clinics.FindAsync(_clinic.Id);
+            if (existing == null) { _errorMsg = "Clinic not found."; return; }
+            existing.AadhaarMandatory            = _clinic.AadhaarMandatory;
+            existing.AadhaarValidationMandatory  = _clinic.AadhaarValidationMandatory;
+            existing.IcdVersion                  = _clinic.IcdVersion;
+            await db.SaveChangesAsync();
+            _successMsg = $"Configuration saved for {existing.Name}.";
+            _saved = true;
+        }
+        catch (Exception ex) { _errorMsg = $"Save error: {ex.Message}"; }
+        finally { _saving = false; }
+    }
+}

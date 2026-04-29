@@ -1,0 +1,172 @@
+erDiagram
+    USERS ||--o{ USER_ROLES : "holds"
+    USERS ||--o{ SESSIONS : "establishes"
+    USERS ||--o{ MFA_METHODS : "configures"
+    USERS ||--o{ PASSWORD_HISTORY : "maintains"
+    USERS ||--o{ LOGIN_ATTEMPTS : "makes"
+    USERS ||--o{ SERVICE_ACCOUNTS : "backs"
+    ROLES ||--o{ ROLE_PERMISSIONS : "grants"
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : "assigned_to"
+    USER_ROLES }o--|| ROLES : "assigned"
+    SERVICE_ACCOUNTS ||--o{ API_KEYS : "issues"
+
+    USERS {
+        uuid id PK "UUIDv7"
+        uuid clinic_id FK "tenant"
+        citext username UK "LDAP sAMAccountName or email local"
+        text email "normalized"
+        text phone "E.164"
+        uuid staff_id FK "optional, NULL for service accts"
+        text password_hash "Argon2id"
+        string status "invited, active, suspended, locked, terminated"
+        boolean is_ad_managed "true if sourced from AD/LDAP"
+        text ad_object_guid "GUID for re-sync stability"
+        boolean is_mfa_enforced
+        datetime last_login_at
+        inet last_login_ip
+        int failed_login_count
+        datetime locked_until
+        jsonb extension_data
+        datetime created_at
+        datetime updated_at
+        int row_version "optimistic lock"
+    }
+
+    ROLES {
+        uuid id PK
+        uuid clinic_id FK
+        text code UK "e.g., oncologist, opd_nurse"
+        text name
+        text description
+        boolean is_system_role
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+        int row_version
+    }
+
+    PERMISSIONS {
+        uuid id PK
+        text permission_code UK "e.g., opd.encounter.create"
+        text module "opd, ipd, rtqa, compliance"
+        text action "read, create, update, delete, sign, export"
+        text description
+        boolean is_phi_sensitive "triggers phi_access_log"
+    }
+
+    ROLE_PERMISSIONS {
+        uuid role_id FK PK
+        uuid permission_id FK PK
+        datetime granted_at
+        uuid granted_by FK "user who granted"
+    }
+
+    USER_ROLES {
+        uuid user_id FK PK
+        uuid role_id FK PK
+        uuid scope_department_id FK "optional: role scoped to dept"
+        datetime assigned_at
+        uuid assigned_by FK
+        datetime valid_from
+        datetime valid_to
+    }
+
+    SESSIONS {
+        uuid id PK
+        uuid clinic_id FK "tenant"
+        uuid user_id FK
+        bytea refresh_token_hash "SHA-256"
+        uuid jwt_jti "JWT id for revocation"
+        inet client_ip
+        text user_agent
+        text device_fingerprint
+        datetime issued_at
+        datetime expires_at
+        datetime last_active_at
+        datetime revoked_at
+        text revocation_reason
+    }
+
+    MFA_METHODS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid user_id FK
+        text method_type "totp, webauthn, sms_otp, email_otp, backup_codes"
+        text label "e.g., iPhone 15"
+        bytea secret_encrypted "KMS envelope-encrypted TOTP"
+        bytea webauthn_credential_id
+        bytea webauthn_public_key
+        bigint webauthn_counter
+        boolean is_primary
+        boolean is_verified
+        datetime created_at
+        datetime last_used_at
+        datetime revoked_at
+    }
+
+    PASSWORD_HISTORY {
+        uuid id PK
+        uuid user_id FK
+        text password_hash
+        datetime set_at
+    }
+
+    LOGIN_ATTEMPTS {
+        uuid id PK
+        uuid clinic_id FK
+        datetime attempted_at "partitioned monthly"
+        citext username
+        uuid user_id FK "nullable"
+        inet client_ip
+        text user_agent
+        text auth_method "password, ad, saml, oidc, api_key, service, mfa"
+        text outcome "success, bad_password, mfa_failed, locked, rate_limited"
+        text failure_detail
+        char geo_country "ISO 3166-1"
+        text geo_city
+    }
+
+    SERVICE_ACCOUNTS {
+        uuid id PK
+        uuid clinic_id FK
+        text name UK
+        text description
+        uuid user_id FK "backed by a user row"
+        text purpose "modality_bridge, lab_analyser, hl7_ingest, esapi_sync"
+        inet[] allowed_ip_cidrs
+        boolean is_active
+        datetime created_at
+        uuid created_by FK
+    }
+
+    API_KEYS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid service_account_id FK
+        text key_prefix UK "first 8 chars for display"
+        bytea key_hash "SHA-256(key)"
+        text[] scopes "permission codes"
+        datetime expires_at
+        datetime last_used_at
+        inet last_used_ip
+        datetime revoked_at
+        text revocation_reason
+        datetime created_at
+        uuid created_by FK
+    }
+
+    AD_SYNC_RUNS {
+        uuid id PK
+        uuid clinic_id FK
+        uuid identity_provider_id FK "to master.identity_providers"
+        datetime started_at
+        datetime finished_at
+        text status "running, success, failed, partial"
+        int users_created
+        int users_updated
+        int users_disabled
+        int users_unchanged
+        int error_count
+        jsonb error_details
+        text high_water_mark "last processed AD uSNChanged"
+    }
