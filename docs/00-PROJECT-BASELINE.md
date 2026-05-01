@@ -8,13 +8,18 @@
 
 ## PROJECT OVERVIEW
 
-**LiPi HIS** is a comprehensive Hospital Information System modelled after Varian ARIA, built for Indian cancer hospitals. Brand: **LiPi** by Armoki.
+**LiPi HIS** is a comprehensive Hospital Information System modelled after Varian ARIA, built for Indian cancer hospitals. **LiPi** is a SaaS HIS product by **imagiQa**. **Armoki** is the first expected enterprise client and serves as the design reference for v1.0 features.
 
+- **Product**: LiPi HIS
+- **Brand Owner**: imagiQa
+- **First Expected Client**: Armoki (cancer hospital)
 - **Stack**: .NET 10, Blazor Web App (InteractiveServer only), PostgreSQL + EF Core 10 + Npgsql
 - **Auth**: Cookie-based, Argon2id hashing
 - **Design**: Navy (#0B2545) + Gold (#C49A22), white cards on soft blue-gray background
 - **Compliance**: HIPAA + Six Sigma quality standards
 - **Developer Env**: Visual Studio (Windows), pgAdmin 4, PowerShell
+
+> **Important distinction**: The v1.0 baseline represents the **core LiPi product** (owned by imagiQa), not Armoki-specific customizations. Future clients may have client-specific configurations, but the locked decisions in this document apply to the LiPi product itself.
 
 ---
 

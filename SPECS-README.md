@@ -156,7 +156,9 @@ Total files: 79
 
 ## CONTACT / OWNERSHIP
 
-- **Project**: LiPi HIS by Armoki
+- **Product**: LiPi HIS
+- **Brand Owner**: imagiQa
+- **First Expected Client**: Armoki
 - **Lead Developer**: Arun Shiva
 - **Architecture**: Multi-tenant Blazor + PostgreSQL
 - **Compliance**: HIPAA + Six Sigma
