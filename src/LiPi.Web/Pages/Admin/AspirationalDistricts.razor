@@ -1,0 +1,420 @@
+@namespace LiPi.Web.Pages.AdminPages
+@page "/admin/aspirational-districts"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using LiPi.Master
+@using LiPi.Master.Entities
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@inject IDbContextFactory<MasterDbContext> DbFactory
+@inject ILogger<AspirationalDistricts> Log
+
+<PageTitle>Aspirational Districts – LiPi Admin</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Aspirational Districts</div>
+    <div class="tn-pt-sub">NITI Aayog · Govt. of India programme</div>
+</SectionContent>
+
+<div class="ap-body">
+
+  <div class="af-breadcrumb">
+    <a href="/admin">Administration</a>
+    <span class="af-breadcrumb-sep">›</span>
+    <span class="af-breadcrumb-current">Aspirational Districts</span>
+  </div>
+
+  @if (!_authorised)
+  {
+    <div class="ap-alert error"><span class="ap-alert-icon">⚠</span><div>Access restricted to Global Admin and System Admin.</div></div>
+  }
+  else
+  {
+    @* Info banner *@
+    <div class="ap-alert info" style="margin-bottom:14px">
+      <span class="ap-alert-icon">ℹ</span>
+      <div>
+        <strong>NITI Aayog Aspirational Districts Programme (ADP)</strong> — launched 5 Jan 2018 for 112 districts across India.
+        Districts are <strong>never deleted</strong> — use the toggle to retire a district.
+        <strong>Announcement date</strong> matters for patient reports: visit date vs announcement date determines if a visit counts as "during aspirational period."
+        Districts with <span style="font-family:'DM Mono',monospace;font-size:11px;background:#FFF7ED;padding:1px 4px;border-radius:3px;color:#C2410C">seed</span> source need verification against official gazette — update source to <span style="font-family:'DM Mono',monospace;font-size:11px;background:#ECFDF5;padding:1px 4px;border-radius:3px;color:#065F46">gazette</span> once confirmed.
+      </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMsg)) { <div class="ap-alert success"><span class="ap-alert-icon">✓</span><div>@_successMsg</div></div> }
+    @if (!string.IsNullOrEmpty(_errorMsg))   { <div class="ap-alert error"><span class="ap-alert-icon">⚠</span><div>@_errorMsg</div></div> }
+
+    @* Summary strip *@
+    <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:8px;padding:10px 16px;min-width:120px">
+        <div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.4px">Total</div>
+        <div style="font-size:22px;font-weight:500;color:#0F2D5E">@_districts.Count</div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:8px;padding:10px 16px;min-width:120px">
+        <div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.4px">Active</div>
+        <div style="font-size:22px;font-weight:500;color:#059669">@_districts.Count(d => d.IsActive)</div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:8px;padding:10px 16px;min-width:120px">
+        <div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.4px">Inactive</div>
+        <div style="font-size:22px;font-weight:500;color:#94A3B8">@_districts.Count(d => !d.IsActive)</div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:8px;padding:10px 16px;min-width:140px">
+        <div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.4px">Needs Verification</div>
+        <div style="font-size:22px;font-weight:500;color:#D97706">@_districts.Count(d => d.DataSource == "seed")</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center">
+        <button class="btn-primary" @onclick="OpenAdd">+ Add District</button>
+      </div>
+    </div>
+
+    @* Filters *@
+    <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:end">
+      <div class="af-fgroup" style="min-width:180px">
+        <label class="af-flabel">State</label>
+        <select class="af-fselect" @bind="_filterState">
+          <option value="">All states</option>
+          @foreach (var s in _states)
+          { <option value="@s">@s</option> }
+        </select>
+      </div>
+      <div class="af-fgroup" style="min-width:160px">
+        <label class="af-flabel">Status</label>
+        <select class="af-fselect" @bind="_filterStatus">
+          <option value="">All</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+      </div>
+      <div class="af-fgroup" style="min-width:180px">
+        <label class="af-flabel">Source</label>
+        <select class="af-fselect" @bind="_filterSource">
+          <option value="">All sources</option>
+          <option value="seed">Seed (needs verification)</option>
+          <option value="gazette">Gazette verified</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
+      <div class="af-fgroup" style="flex:1;min-width:200px">
+        <label class="af-flabel">Search</label>
+        <input class="af-finput" placeholder="District name…" @bind="_search" @bind:event="oninput" />
+      </div>
+    </div>
+
+    @* Table *@
+    <div class="af-card">
+      <div class="af-card-body" style="padding:0">
+        @if (_loading)
+        { <div style="padding:24px;text-align:center;color:#94A3B8">Loading…</div> }
+        else
+        {
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="background:#F8FAFC;border-bottom:1px solid #E2E8F0">
+                <th style="padding:9px 13px;text-align:left;font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.4px">District</th>
+                <th style="padding:9px 13px;text-align:left;font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.4px">State</th>
+                <th style="padding:9px 13px;text-align:center;font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.4px">Announced</th>
+                <th style="padding:9px 13px;text-align:center;font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.4px">Source</th>
+                <th style="padding:9px 13px;text-align:center;font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.4px">Status</th>
+                <th style="padding:9px 13px;text-align:left;font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.4px">Notes</th>
+                <th style="padding:9px 13px;text-align:right;font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.4px">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach (var d in Filtered)
+              {
+                <tr style="border-bottom:0.5px solid #F1F5F9;@(d.IsActive?"":"opacity:0.55;background:#FAFAFA")">
+                  <td style="padding:9px 13px;color:#0F2D5E;font-weight:500">@d.DistrictName</td>
+                  <td style="padding:9px 13px;color:#475569">@d.StateName</td>
+                  <td style="padding:9px 13px;text-align:center;font-family:'DM Mono',monospace;color:#475569">
+                    @d.AnnouncementDate.ToString("dd MMM yyyy")
+                    @if (d.AnnouncementDate == new DateOnly(2018, 1, 5) && d.DataSource == "seed")
+                    { <span title="Default programme date — verify against gazette" style="color:#D97706;font-size:10px;margin-left:3px">*</span> }
+                  </td>
+                  <td style="padding:9px 13px;text-align:center">
+                    <span style="font-family:'DM Mono',monospace;font-size:10px;padding:2px 7px;border-radius:4px;background:@SourceBg(d.DataSource);color:@SourceFg(d.DataSource)">@d.DataSource</span>
+                  </td>
+                  <td style="padding:9px 13px;text-align:center">
+                    @if (d.IsActive)
+                    { <span style="background:#DCFCE7;color:#166534;font-size:10px;padding:2px 8px;border-radius:20px">Active</span> }
+                    else
+                    { <span style="background:#F1F5F9;color:#64748B;font-size:10px;padding:2px 8px;border-radius:20px">Inactive</span> }
+                  </td>
+                  <td style="padding:9px 13px;color:#64748B;font-size:11px;max-width:200px">@(d.Notes ?? "—")</td>
+                  <td style="padding:9px 13px;text-align:right">
+                    <button class="btn-secondary btn-sm" style="margin-right:4px" @onclick="() => OpenEdit(d)">Edit</button>
+                    @if (d.IsActive)
+                    { <button class="btn-secondary btn-sm" style="color:#C2410C;border-color:#FCA5A5"
+                              @onclick="() => ConfirmToggle(d)">Disable</button> }
+                    else
+                    { <button class="btn-secondary btn-sm" style="color:#059669;border-color:#6EE7B7"
+                              @onclick="() => ConfirmToggle(d)">Enable</button> }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          @if (!Filtered.Any())
+          { <div style="padding:24px;text-align:center;color:#94A3B8">No districts match the current filter.</div> }
+        }
+      </div>
+    </div>
+
+    @* Add / Edit modal *@
+    @if (_editing != null)
+    {
+      <div style="position:fixed;inset:0;background:rgba(11,37,69,.45);z-index:1000;display:flex;align-items:center;justify-content:center" @onclick="CloseModal">
+        <div style="background:#fff;border-radius:12px;padding:24px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.2)" @onclick:stopPropagation="true">
+          <div style="font-size:14px;font-weight:600;color:#0F2D5E;margin-bottom:16px">
+            @(_isNew ? "Add District" : "Edit District")
+          </div>
+          <fieldset disabled="@_saving" style="border:none;padding:0;margin:0">
+            <div class="af-grid2" style="margin-bottom:10px">
+              <div class="af-fgroup">
+                <label class="af-flabel" for="asp-dist">District Name <span class="af-req">*</span></label>
+                <input id="asp-dist" class="af-finput" @bind="_editing.DistrictName" placeholder="e.g. Washim" />
+              </div>
+              <div class="af-fgroup">
+                <label class="af-flabel" for="asp-state">State <span class="af-req">*</span></label>
+                <select id="asp-state" class="af-fselect" @bind="_editing.StateName">
+                  <option value="">Select…</option>
+                  @foreach (var s in _allIndianStates) { <option value="@s">@s</option> }
+                </select>
+              </div>
+            </div>
+            <div class="af-grid2" style="margin-bottom:10px">
+              <div class="af-fgroup">
+                <label class="af-flabel" for="asp-date">Announcement Date <span class="af-req">*</span></label>
+                <input id="asp-date" type="date" class="af-finput"
+                       value="@_editing.AnnouncementDate.ToString("yyyy-MM-dd")"
+                       @onchange="OnDateChange" />
+                <span class="af-fhint">* Default 05 Jan 2018 = programme launch (update when gazette verified)</span>
+              </div>
+              <div class="af-fgroup">
+                <label class="af-flabel" for="asp-src">Data Source</label>
+                <select id="asp-src" class="af-fselect" @bind="_editing.DataSource">
+                  <option value="seed">seed (unverified)</option>
+                  <option value="gazette">gazette (verified)</option>
+                  <option value="manual">manual</option>
+                </select>
+              </div>
+            </div>
+            <div class="af-fgroup" style="margin-bottom:16px">
+              <label class="af-flabel" for="asp-notes">Notes</label>
+              <input id="asp-notes" class="af-finput" @bind="_editing.Notes" placeholder="e.g. Renamed from Osmanabad 2023" />
+            </div>
+            @if (!string.IsNullOrEmpty(_modalErr))
+            { <div class="af-ferr" style="margin-bottom:10px">@_modalErr</div> }
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn-secondary" @onclick="CloseModal">Cancel</button>
+              <button class="btn-primary" disabled="@_saving" @onclick="SaveDistrict">
+                @(_saving ? "Saving…" : (_isNew ? "Add District" : "Save Changes"))
+              </button>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+    }
+
+    @* Toggle confirm modal *@
+    @if (_toggling != null)
+    {
+      <div style="position:fixed;inset:0;background:rgba(11,37,69,.45);z-index:1000;display:flex;align-items:center;justify-content:center">
+        <div style="background:#fff;border-radius:12px;padding:24px;width:400px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+          <div style="font-size:14px;font-weight:600;color:#0F2D5E;margin-bottom:10px">
+            @(_toggling.IsActive ? "Disable" : "Enable") District
+          </div>
+          <p style="font-size:12px;color:#475569;margin-bottom:16px">
+            @if (_toggling.IsActive)
+            { <span>Disabling <strong>@_toggling.DistrictName</strong> will hide it from patient registration lookups. Historical patient records are not affected. You can re-enable at any time.</span> }
+            else
+            { <span>Enabling <strong>@_toggling.DistrictName</strong> will make it active for patient registration lookups.</span> }
+          </p>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn-secondary" @onclick="() => _toggling=null">Cancel</button>
+            <button class="btn-primary" style="@(_toggling.IsActive?"background:#EF4444;border-color:#EF4444":"")"
+                    @onclick="ExecuteToggle">
+              @(_toggling.IsActive ? "Disable" : "Enable")
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+  }
+
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private bool   _authorised = false;
+    private bool   _loading    = true;
+    private bool   _saving     = false;
+    private string _successMsg = string.Empty;
+    private string _errorMsg   = string.Empty;
+
+    private List<AspirationalDistrict> _districts = new();
+    private AspirationalDistrict? _editing  = null;
+    private AspirationalDistrict? _toggling = null;
+    private bool   _isNew    = false;
+    private string _modalErr = string.Empty;
+
+    private string _filterState  = string.Empty;
+    private string _filterStatus = string.Empty;
+    private string _filterSource = string.Empty;
+    private string _search       = string.Empty;
+
+    private IEnumerable<string> _states => _districts
+        .Select(d => d.StateName).Distinct().OrderBy(s => s);
+
+    private IEnumerable<AspirationalDistrict> Filtered => _districts
+        .Where(d => string.IsNullOrEmpty(_filterState)  || d.StateName   == _filterState)
+        .Where(d => string.IsNullOrEmpty(_filterStatus) ||
+                   (_filterStatus == "active"   &&  d.IsActive) ||
+                   (_filterStatus == "inactive" && !d.IsActive))
+        .Where(d => string.IsNullOrEmpty(_filterSource) || d.DataSource  == _filterSource)
+        .Where(d => string.IsNullOrEmpty(_search)       ||
+                    d.DistrictName.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                    d.StateName.Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(d => d.StateName).ThenBy(d => d.DistrictName);
+
+    private static readonly string[] _allIndianStates = [
+        "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat",
+        "Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh",
+        "Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan",
+        "Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
+        "Andaman & Nicobar Islands","Chandigarh","Dadra & Nagar Haveli and Daman & Diu",
+        "Delhi","Jammu & Kashmir","Ladakh","Lakshadweep","Puducherry",
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        var role = user.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+        _authorised = role is "global_admin" or "sys_admin";
+        if (!_authorised) { _loading = false; return; }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _districts = await db.AspirationalDistricts
+                .OrderBy(d => d.StateName).ThenBy(d => d.DistrictName)
+                .ToListAsync();
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private void OpenAdd()
+    {
+        _editing = new AspirationalDistrict
+        {
+            Id = Guid.NewGuid(),
+            AnnouncementDate = new DateOnly(2018, 1, 5),
+            DataSource = "manual",
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        _isNew = true; _modalErr = string.Empty;
+    }
+
+    private void OpenEdit(AspirationalDistrict d)
+    {
+        _editing = new AspirationalDistrict
+        {
+            Id               = d.Id,
+            DistrictName     = d.DistrictName,
+            StateName        = d.StateName,
+            AnnouncementDate = d.AnnouncementDate,
+            IsActive         = d.IsActive,
+            Notes            = d.Notes,
+            DataSource       = d.DataSource,
+            CreatedAt        = d.CreatedAt,
+            UpdatedAt        = d.UpdatedAt,
+            UpdatedByUserId  = d.UpdatedByUserId,
+        };
+        _isNew = false; _modalErr = string.Empty;
+    }
+
+    private void CloseModal() { _editing = null; _modalErr = string.Empty; }
+
+    private void OnDateChange(ChangeEventArgs e)
+    {
+        if (_editing == null) return;
+        if (DateOnly.TryParse(e.Value?.ToString(), out var d))
+            _editing.AnnouncementDate = d;
+    }
+
+    private async Task SaveDistrict()
+    {
+        if (_editing == null) return;
+        if (string.IsNullOrWhiteSpace(_editing.DistrictName)) { _modalErr = "District name is required."; return; }
+        if (string.IsNullOrWhiteSpace(_editing.StateName))    { _modalErr = "State is required."; return; }
+        _saving = true; _modalErr = string.Empty;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var user = (await AuthState).User;
+            var userId = Guid.TryParse(
+                user.Claims.FirstOrDefault(c => c.Type == "sub")?.Value, out var uid) ? uid : (Guid?)null;
+
+            if (_isNew)
+            {
+                _editing.UpdatedByUserId = userId;
+                db.AspirationalDistricts.Add(_editing);
+            }
+            else
+            {
+                var existing = await db.AspirationalDistricts.FindAsync(_editing.Id);
+                if (existing == null) { _modalErr = "Record not found."; return; }
+                existing.DistrictName     = _editing.DistrictName;
+                existing.StateName        = _editing.StateName;
+                existing.AnnouncementDate = _editing.AnnouncementDate;
+                existing.Notes            = _editing.Notes;
+                existing.DataSource       = _editing.DataSource;
+                existing.UpdatedAt        = DateTimeOffset.UtcNow;
+                existing.UpdatedByUserId  = userId;
+            }
+            await db.SaveChangesAsync();
+            _successMsg = _isNew
+                ? $"{_editing.DistrictName} added successfully."
+                : $"{_editing.DistrictName} updated.";
+            _editing = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _modalErr = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private void ConfirmToggle(AspirationalDistrict d) => _toggling = d;
+
+    private async Task ExecuteToggle()
+    {
+        if (_toggling == null) return;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var existing = await db.AspirationalDistricts.FindAsync(_toggling.Id);
+            if (existing == null) return;
+            existing.IsActive  = !existing.IsActive;
+            existing.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            _successMsg = $"{existing.DistrictName} {(existing.IsActive ? "enabled" : "disabled")}.";
+            _toggling = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _errorMsg = ex.Message; _toggling = null; }
+    }
+
+    private static string SourceBg(string src) => src switch
+    { "gazette" => "#DCFCE7", "manual" => "#EFF6FF", _ => "#FFF7ED" };
+    private static string SourceFg(string src) => src switch
+    { "gazette" => "#166534", "manual" => "#1D4ED8", _ => "#C2410C" };
+}

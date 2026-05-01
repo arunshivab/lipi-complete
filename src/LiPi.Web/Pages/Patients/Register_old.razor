@@ -1,0 +1,25 @@
+@* ─────────────────────────────────────────────────────────────────────
+   This file is superseded by PatientNew.razor which now handles both:
+     /patients/new
+     /patients/register
+   
+   ACTION REQUIRED: Delete this file from your project.
+   Route "/patients/register-legacy" below prevents a build error until
+   you delete it.
+   ───────────────────────────────────────────────────────────────────── *@
+@page "/patients/register-legacy"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
+<div style="padding:40px 24px;text-align:center;color:#475569;font-family:'DM Sans',sans-serif">
+    <div style="font-size:32px;margin-bottom:12px">🗑</div>
+    <div style="font-size:16px;font-weight:600;color:#0B2545;margin-bottom:8px">This page has been replaced</div>
+    <div style="font-size:13px;margin-bottom:20px">Patient registration is now at <strong>/patients/register</strong></div>
+    <a href="/patients/register" style="background:#0B2545;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
+        Go to Register Patient →
+    </a>
+    <div style="margin-top:20px;font-size:11px;color:#94A3B8">
+        Delete <code>Register.razor</code> from your project — it is no longer needed.
+    </div>
+</div>

@@ -25,16 +25,16 @@
     <div class="tn-pt-sub">Update clinic details</div>
 </SectionContent>
 
-<div class="pg-body">
-  <div class="pg-bc">
+<div class="ap-body">
+  <div class="af-breadcrumb">
     <a href="/admin/settings">Administration</a><span>›</span>
     <a href="/admin/clinics">Clinics</a><span>›</span>
     <span>@(loading ? "Loading…" : m.Name)</span>
-    <a href="/admin/clinics" class="pg-bc-back">← All Clinics</a>
+    <a href="/admin/clinics" class="btn-secondary btn-sm">← All Clinics</a>
   </div>
 
-  @if (!string.IsNullOrEmpty(successMsg)) { <div class="pg-alert ok">✓ @successMsg</div> }
-  @if (!string.IsNullOrEmpty(errorMsg))   { <div class="pg-alert err">⚠ @errorMsg</div> }
+  @if (!string.IsNullOrEmpty(successMsg)) { <div class="ap-alert ok">✓ @successMsg</div> }
+  @if (!string.IsNullOrEmpty(errorMsg))   { <div class="ap-alert err">⚠ @errorMsg</div> }
 
   @if (loading)
   { <div class="ap-placeholder"><div class="ap-placeholder-icon">⏳</div><p>Loading clinic…</p></div> }
@@ -45,27 +45,27 @@
   <fieldset disabled="@saved" style="border:none;padding:0;margin:0">
 
   <!-- ① Identity -->
-  <div class="pg-card" style="border-left-color:#1565C0">
-    <div class="pg-ch"><div class="pg-num" style="background:#1565C0">1</div><span class="pg-ct">Clinic Identity</span></div>
-    <div class="pg-cb">
-      <div class="pg-g3" style="margin-bottom:8px">
-        <div class="pg-fg pg-s2">
-          <label class="pg-lbl" for="ce-name">Clinic / Facility Name <span class="pg-req">*</span></label>
-          <input id="ce-name" name="clinicName" class="pg-inp" autocomplete="organization"
+  <div class="af-card" style="border-left-color:#1565C0">
+    <div class="af-card-header"><div class="af-card-num" style="background:#1565C0">1</div><span class="af-card-title">Clinic Identity</span></div>
+    <div class="af-card-body">
+      <div class="af-grid3" style="margin-bottom:8px">
+        <div class="af-fgroup af-span2">
+          <label class="af-flabel" for="ce-name">Clinic / Facility Name <span class="af-req">*</span></label>
+          <input id="ce-name" name="clinicName" class="af-finput" autocomplete="organization"
                  value="@m.Name" @oninput="OnNameInput" @onblur='() => CTouch("name")' />
           @CEMsg("name")
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-code">Short Code</label>
-          <input id="ce-code" autocomplete="off" name="clinicCode" class="pg-inp" value="@m.Code"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-code">Short Code</label>
+          <input id="ce-code" autocomplete="off" name="clinicCode" class="af-finput" value="@m.Code"
                  disabled style="opacity:.6;cursor:not-allowed" />
-          <span class="pg-note">Code cannot be changed after registration</span>
+          <span class="af-fhint">Code cannot be changed after registration</span>
         </div>
       </div>
-      <div class="pg-g3">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-type">Clinic Type</label>
-          <select id="ce-type" autocomplete="off" name="clinicType" class="pg-sel" @onchange="OnTypeChange">
+      <div class="af-grid3">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-type">Clinic Type</label>
+          <select id="ce-type" autocomplete="off" name="clinicType" class="af-fselect" @onchange="OnTypeChange">
             <option value="cancer_centre"  selected="@(m.ClinicType=="cancer_centre")">Cancer Centre</option>
             <option value="hospital"       selected="@(m.ClinicType=="hospital")">Hospital (Multi-Specialty)</option>
             <option value="day_care"       selected="@(m.ClinicType=="day_care")">Day Care Centre</option>
@@ -74,18 +74,18 @@
             <option value="clinic"         selected="@(m.ClinicType=="clinic")">Single Specialty Clinic</option>
           </select>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-tz">Timezone</label>
-          <select id="ce-tz" autocomplete="off" name="timezone" class="pg-sel" @onchange="OnTzChange">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-tz">Timezone</label>
+          <select id="ce-tz" autocomplete="off" name="timezone" class="af-fselect" @onchange="OnTzChange">
             <option value="Asia/Kolkata"    selected="@(m.Timezone=="Asia/Kolkata")">Asia/Kolkata (IST +5:30)</option>
             <option value="Asia/Dubai"      selected="@(m.Timezone=="Asia/Dubai")">Asia/Dubai (GST +4)</option>
             <option value="America/New_York"selected="@(m.Timezone=="America/New_York")">America/New_York (EST)</option>
             <option value="Europe/London"   selected="@(m.Timezone=="Europe/London")">Europe/London (GMT)</option>
           </select>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-beds">Bed Count</label>
-          <input id="ce-beds" autocomplete="off" name="bedCount" type="number" class="pg-inp"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-beds">Bed Count</label>
+          <input id="ce-beds" autocomplete="off" name="bedCount" type="number" class="af-finput"
                  value="@m.BedCount" min="0" @oninput="OnBedsInput" />
         </div>
       </div>
@@ -93,25 +93,25 @@
   </div>
 
   <!-- ② Status & Go-Live -->
-  <div class="pg-card" style="border-left-color:#E65100">
-    <div class="pg-ch"><div class="pg-num" style="background:#E65100">2</div><span class="pg-ct">Status &amp; Go-Live</span></div>
-    <div class="pg-cb">
-      <div class="pg-g3">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-status">Status</label>
-          <select id="ce-status" autocomplete="off" name="status" class="pg-sel" @onchange="OnStatusChange">
+  <div class="af-card" style="border-left-color:#E65100">
+    <div class="af-card-header"><div class="af-card-num" style="background:#E65100">2</div><span class="af-card-title">Status &amp; Go-Live</span></div>
+    <div class="af-card-body">
+      <div class="af-grid3">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-status">Status</label>
+          <select id="ce-status" autocomplete="off" name="status" class="af-fselect" @onchange="OnStatusChange">
             <option value="provisioning" selected="@(m.Status=="provisioning")">Provisioning</option>
             <option value="active"       selected="@(m.Status=="active")">Active</option>
             <option value="suspended"    selected="@(m.Status=="suspended")">Suspended</option>
           </select>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-golive">Go-Live Date</label>
-          <input id="ce-golive" autocomplete="off" name="goLiveDate" type="date" class="pg-inp"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-golive">Go-Live Date</label>
+          <input id="ce-golive" autocomplete="off" name="goLiveDate" type="date" class="af-finput"
                  value="@m.GoLiveDate" @onchange="OnGoLiveChange" />
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl">Accreditation</label>
+        <div class="af-fgroup">
+          <label class="af-flabel">Accreditation</label>
           <div style="display:flex;gap:8px;margin-top:4px">
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
               <input id="ce-nabh" autocomplete="off" name="nabh" type="checkbox" checked="@m.Nabh" @onchange="OnNabhChange" style="accent-color:#1B4DA0" /> NABH
@@ -129,9 +129,9 @@
   </div>
 
   <!-- ③ Location & Contact -->
-  <div class="pg-card" style="border-left-color:#00695C">
-    <div class="pg-ch"><div class="pg-num" style="background:#00695C">3</div><span class="pg-ct">Location &amp; Contact</span></div>
-    <div class="pg-cb">
+  <div class="af-card" style="border-left-color:#00695C">
+    <div class="af-card-header"><div class="af-card-num" style="background:#00695C">3</div><span class="af-card-title">Location &amp; Contact</span></div>
+    <div class="af-card-body">
       <AddressBlock
           AddressLine="@m.Street"    AddressLineChanged="OnStreetChanged"
           City="@m.City"            CityChanged="OnCityChanged"
@@ -147,29 +147,29 @@
           CityErrorMsg="@_ce.GetValueOrDefault("city")"
           StateError="@(_ct.GetValueOrDefault("state") && !string.IsNullOrEmpty(_ce.GetValueOrDefault("state")))"
           StateErrorMsg="@_ce.GetValueOrDefault("state")" />
-      <div class="pg-g3" style="margin-top:10px">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-phone">Mobile Phone</label>
+      <div class="af-grid3" style="margin-top:10px">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-phone">Mobile Phone</label>
           <div style="display:flex;gap:4px">
-            <select id="ce-phone-cc" autocomplete="tel-country-code" name="phoneCC" class="pg-sel" style="width:110px;flex-shrink:0"
+            <select id="ce-phone-cc" autocomplete="tel-country-code" name="phoneCC" class="af-fselect" style="width:110px;flex-shrink:0"
                     aria-label="Country code" @onchange="OnPhoneCcChange">
               <option value="+91">+91 India</option>
               <option value="+1">+1 US/CA</option>
               <option value="+44">+44 UK</option>
               <option value="+971">+971 UAE</option>
             </select>
-            <input id="ce-phone" autocomplete="tel-national" name="phone" class="pg-inp" inputmode="numeric"
+            <input id="ce-phone" autocomplete="tel-national" name="phone" class="af-finput" inputmode="numeric"
                    value="@m.Phone" @oninput="OnPhoneInput" />
           </div>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-email">Email</label>
-          <input id="ce-email" autocomplete="email" name="email" type="email" class="pg-inp"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-email">Email</label>
+          <input id="ce-email" autocomplete="email" name="email" type="email" class="af-finput"
                  value="@m.Email" @oninput="OnEmailInput" />
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="ce-web">Website</label>
-          <input id="ce-web" autocomplete="url" name="website" class="pg-inp"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="ce-web">Website</label>
+          <input id="ce-web" autocomplete="url" name="website" class="af-finput"
                  value="@m.Website" @oninput="OnWebInput" />
         </div>
       </div>
@@ -177,10 +177,10 @@
   </div>
 
   <!-- ④ Clinical Modules -->
-  <div class="pg-card" style="border-left-color:#6A1B9A">
-    <div class="pg-ch"><div class="pg-num" style="background:#6A1B9A">4</div><span class="pg-ct">Clinical Modules</span></div>
-    <div class="pg-cb">
-      <p class="pg-note" style="margin-bottom:10px">Enable or disable modules. Disabling hides from staff — data is retained.</p>
+  <div class="af-card" style="border-left-color:#6A1B9A">
+    <div class="af-card-header"><div class="af-card-num" style="background:#6A1B9A">4</div><span class="af-card-title">Clinical Modules</span></div>
+    <div class="af-card-body">
+      <p class="af-fhint" style="margin-bottom:10px">Enable or disable modules. Disabling hides from staff — data is retained.</p>
       <div style="display:flex;flex-wrap:wrap;gap:7px">
         @foreach (var mod in Modules)
         {
@@ -197,9 +197,9 @@
   </fieldset>
 
   @if (!string.IsNullOrEmpty(formError))
-  { <div class="pg-form-err">⚠ @formError</div> }
+  { <div class="ap-alert error">⚠ @formError</div> }
 
-  <div class="pg-actions">
+  <div class="af-card-body">
     @if (!saved)
     {
       <button type="button" class="btn-primary" disabled="@saving" @onclick="HandleSave">
@@ -280,7 +280,7 @@
   private readonly Dictionary<string,bool>   _ct = new();
   private readonly Dictionary<string,string> _ce = new();
   private string CECss(string f) => _ct.GetValueOrDefault(f) && !string.IsNullOrEmpty(_ce.GetValueOrDefault(f)) ? "err" : string.Empty;
-  private RenderFragment CEMsg(string f) => b => { if (_ct.GetValueOrDefault(f) && !string.IsNullOrEmpty(_ce.GetValueOrDefault(f))) { b.OpenElement(0,"span"); b.AddAttribute(1,"class","pg-err"); b.AddContent(2,_ce[f]); b.CloseElement(); } };
+  private RenderFragment CEMsg(string f) => b => { if (_ct.GetValueOrDefault(f) && !string.IsNullOrEmpty(_ce.GetValueOrDefault(f))) { b.OpenElement(0,"span"); b.AddAttribute(1,"class","af-ferr"); b.AddContent(2,_ce[f]); b.CloseElement(); } };
   private void CTouch(string f) { _ct[f]=true; CValidate(f); }
   private void CValidate(string f) { _ce[f] = f switch { "name" => string.IsNullOrWhiteSpace(m.Name) ? "Clinic name required" : string.Empty, "type" => string.IsNullOrWhiteSpace(m.ClinicType) ? "Clinic type required" : string.Empty, _ => string.Empty }; }
 

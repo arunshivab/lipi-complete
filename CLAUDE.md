@@ -373,6 +373,54 @@ that have nothing to do with div structure.
 
 **The symptom:** CS1525, CS1002, CS1513 errors pointing at a `)` or `}` — always check for nested `""` first.
 
+## PatientNew.razor — reg-* Design System (LOCKED — Session 19)
+
+PatientNew.razor uses a **completely separate CSS class system** from all other pages.
+Do NOT use `af-*` form field classes in PatientNew. Do NOT use `reg-*` in any other page.
+
+### reg-* classes (PatientNew only)
+
+| Class | Purpose |
+|---|---|
+| `reg-g4` / `reg-g3` / `reg-g2` | 4/3/2-column grid, `align-items:end` |
+| `reg-span2` / `reg-span4` | Grid span helpers |
+| `reg-fg` | Field group — flex column, `gap:4px` |
+| `reg-lbl` | Label — 10px, 700 weight, uppercase, tracking .5px |
+| `reg-req` | Required asterisk — red |
+| `reg-lhint` | Inline label hint — 9px, muted, normal weight |
+| `reg-err` | Error span — 10px red, `min-height:1em`, always rendered |
+| `reg-inp` | Plain text input — 34px height, 1px solid #CBD5E1, 7px radius |
+| `reg-sel` | Select — same styling as reg-inp |
+| `reg-split` | Compound field wrapper — border on wrapper, `overflow:hidden` |
+| `reg-split-l` | Left segment of split (Title, ISD) — border-right only |
+| `reg-split-isd` | Width modifier for ISD selects — 72px |
+| `reg-split-title` | Width modifier for Title select — 64px |
+| `reg-split-r` | Right segment of split (flex:1) — no border |
+| `reg-split-end` | Right narrow end (Age) — border-left only |
+| `reg-split-mid` | Middle segment (STD) — border-right only |
+
+### Key design values
+- Border: `1px solid #CBD5E1` (slightly darker than af-* #E2E8F0, clearly visible)
+- Height: `34px` (2px taller than af-* 32px)
+- Radius: `7px`
+- Focus ring: `border-color:#4A9BD4` + `box-shadow:0 0 0 3px rgba(74,155,212,.12)`
+- `reg-split` uses `overflow:hidden` — border is on wrapper, children have `border:none; height:100%`
+
+### Every reg-fg MUST have reg-err
+Every field group must have `<span class="reg-err">&nbsp;</span>` (or error text).
+Without it, grid rows misalign when another field in the row shows an error.
+The error span has `min-height:1em` so it reserves space even when empty.
+
+### Hints go in labels
+Dynamic hints (age, pincode status, BMI) are inline in the label using `reg-lhint`:
+```razor
+<label class="reg-lbl">DOB / Age <span class="reg-req">*</span>
+  @if(!string.IsNullOrEmpty(_ageNote)){<span class="reg-lhint"> · @_ageNote</span>}
+</label>
+```
+
+---
+
 ### ⛔ Rule 9 (CRITICAL — most recurring issue): EVERY page with @onclick, @oninput, @onchange MUST have @rendermode InteractiveServer
 
 This is the #1 silent failure in Blazor Server. Without it, the page renders as static HTML —
@@ -401,15 +449,311 @@ buttons do nothing, inputs don't respond, no error is shown anywhere.
 
 This has been the most recurring build/runtime issue in the entire project. Check for it on EVERY new page before writing any other code.
 
+
+
+
+## Clinic DB Architecture — Session 17 Decisions (LOCKED)
+
+### Schema redesign — v3
+New schema files replace `01_core.sql`:
+- `database/clinic/01_core_v3.sql`   — full patient schema, 16 tables
+- `database/clinic/02_geodata_seed.sql` — 36 states, 708 districts, 131 aspirational, 1,167 cities
+
+### Collapsed persons + patients
+`core.persons` and `core.patients` merged into single `core.patients` table.
+**Reason:** In our architecture, staff is in master DB. There is no cross-DB shared identity record.
+The original split (for staff-as-patient sharing) has no benefit when the two tables are in different DBs.
+`person_addresses` table also removed — address is its own proper table now.
+
+### Immutable / append-only records (ALL patient tables)
+No row is ever UPDATE'd or DELETE'd. Every change = new INSERT.
+
+Pattern for every patient table:
+- `id`           = UUID of THIS version (changes on every edit)
+- `entity_id`    = stable patient/record UUID (used in all FK references, never changes)
+- `previous_id`  = FK to the row this version supersedes (NULL = first version)
+- `valid_from`   = when this version became active
+- `valid_to`     = NULL if current; set when superseded
+- `changed_by`   = master DB user UUID
+- `change_reason`= mandatory on edit
+
+Current version query: `WHERE valid_to IS NULL`
+History query: `WHERE entity_id = X ORDER BY valid_from DESC`
+
+Tables with immutable pattern: patients, contact_points, addresses, patient_identifiers,
+patient_payers, emergency_contacts
+
+Tables append-only by nature: patient_flags, consents
+
+### Address table design
+`core.addresses` uses plain text city/district/state — NO UUID FKs to core.cities/states.
+**Reason:** Avoids master data dependency at save time. City/state names are well-known in India.
+`is_aspirational` is denormalised boolean — set at save time from master.aspirational_districts.
+Background job refreshes when aspirational list changes.
+
+### Reference geodata
+Seeded in `02_geodata_seed.sql`. Uses deterministic MD5-based UUIDs (reproducible).
+`core.districts.is_aspirational` is set from NITI Aayog list during seed.
+Note: aspirational count in geodata (131) differs from master.aspirational_districts (112)
+because some old districts have split or been renamed. The master DB table is the authority.
+
+### What belongs where
+
+**Clinic DB:**
+- `core.*` — all patient data (immutable)
+- `core.departments`, `core.specialties` — clinic-defined (standard mutable)
+- `core.flag_definitions`, `core.patient_flags` — clinic-configurable flags
+- `identity.roles`, `identity.permissions`, `identity.role_permissions`
+- `identity.user_roles` — user_id = master UUID, no FK
+- `identity.sessions`, `identity.mfa_methods`, `identity.password_history`
+- `identity.login_attempts`, `identity.api_keys`, `identity.service_accounts`
+- `abdm.*`, `audit.*`, `security.*`, `compliance.*`, `sigma.*`
+
+**Master DB (NOT clinic DB):**
+- `master.platform_users` — all user accounts (single source of truth)
+- `master.clinics`, `master.organizations`, `master.clinic_databases`
+- `master.aspirational_districts` — authority list for aspirational detection
+- Staff records (platform_users with user_type=staff)
+- AD/LDAP sync state (master.ad_sync_runs — to be created)
+- `certs.*` — staff credentials, CME, board registrations (clinic-agnostic)
+
+**REMOVED from clinic DB:**
+- `identity.users` — duplicate of master.platform_users. REMOVED.
+- `identity.ad_sync_runs` — platform concern. REMOVED. Move to master.
+- `core.persons` — merged into core.patients. REMOVED.
+- `core.person_addresses` — replaced by core.addresses. REMOVED.
+- `core.staff` — staff is master DB concept. Will be removed from clinic schema.
+
+### EF Core entities — PENDING UPDATE
+The EF Core entities (LiPi.Clinic.Core) still reference the OLD split schema (Person + Patient).
+They must be rewritten before the new schema can be used:
+- Remove: `Person.cs`, `PersonAddress.cs`
+- Rewrite: `Patient.cs` — add entity_id, previous_id, valid_from, valid_to, changed_by, change_reason;
+  add first_name/last_name (was given_name/family_name); add all merged identity fields
+- Rewrite: `ContactPoint.cs`, `Address.cs` (new table), `PatientPayer.cs` (new)
+- New: `FlagDefinition.cs`, `PatientFlag.cs`
+- Update: `ClinicCoreDbContext.cs` — all entity configurations
+
+### Migration steps for lipi_training (test data only — safe to reset)
+```
+psql -d lipi_training -c "DROP SCHEMA core CASCADE; DROP SCHEMA identity CASCADE;"
+psql -d lipi_training -f database/00_common/003_audit_triggers.sql
+psql -d lipi_training -f database/clinic/01_core_v3.sql
+psql -d lipi_training -f database/clinic/02_geodata_seed.sql
+psql -d lipi_training -f database/clinic/02_identity.sql
+```
+Verify: States: 36, Districts: 708, Aspirational: 131, Cities: 1167
+
+## PatientNew — What Saves vs What Doesn't (as of Session 17)
+
+### ✅ Currently saved on Register
+| Data | Table |
+|---|---|
+| Name (given/middle/family), DOB, gender, blood group, marital status, nationality | `core.persons` |
+| Preferred language | `core.persons.preferred_language` |
+| Mobile (primary), Email (primary) | `core.contact_points` |
+| Occupation, patient type, VIP flag, organ donor, referral source | `core.patients` |
+| Aadhaar last 4 (if scanned) | `core.patient_identifiers` |
+| Implied treatment consent | `core.consents` |
+
+### ❌ Collected in form but NOT saved yet
+| Data | Planned destination | Blocker |
+|---|---|---|
+| Address (Line1/2, District, City, State, PIN) | `core.addresses` + `core.person_addresses` | DB uses city_id/state_id UUID FKs — form has free text. Options: (a) store as plain text in extension_data, (b) create/lookup city+state rows on save |
+| Alternate Mobile, WhatsApp, Landline | `core.contact_points` | Not yet in HandleSubmit |
+| Secondary Email | `core.contact_points` | Not yet in HandleSubmit |
+| Education, Height, Weight, Alcohol use, Physical activity | `core.patients.extension_data` JSONB | Not yet in HandleSubmit |
+
+### Address save strategy (decided: extension_data for now)
+The `core.addresses` table uses `city_id` and `state_id` UUID FKs into `core.cities` and `core.states`.
+Those tables are empty — no seed data exists. Creating cities/states on-the-fly during registration
+is too risky (duplicate rows, inconsistent naming). Decision: store address as JSONB in
+`core.patients.extension_data` for now, under key `"address"`. Revisit when city/state master data
+is seeded. District is stored as a custom field since core schema doesn't have it.
+
+### ClinicCoreDbContext shadow property pattern (IMPORTANT — don't regress)
+EF Core generates shadow FK column names as: NavigationPropertyName + PrimaryKeyPropertyName.
+When the actual FK field doesn't match EF convention, it generates a wrong column name.
+Example: `Consent.Witness` (nav) + `Staff.Id` (PK) = EF generates `witness_id`, but actual FK is `witness_staff_id`.
+Fix: always explicitly configure non-conventional navigations in `ClinicCoreDbContext.OnModelCreating`.
+All known shadow property fixes are already in the context. Run the entity scanner script before adding new entities.
+
+### DB fixes applied to lipi_training (run these on new clinic DBs)
+1. `database/00_common/003_audit_triggers.sql` — must run before 01_core.sql
+2. `database/clinic/01_core.sql` — core schema (persons, patients, contact_points, etc.)
+3. `fix_persons_constraints.sql` (one-time):
+   - Seed `core.countries` with India + common countries
+   - Add `Miss`, `Baby`, `Master` to `persons.title` CHECK constraint
+4. `patients.patient_type` — uses `general` not `walk_in`
+5. `persons.title` CHECK allows: Mr, Mrs, Ms, Miss, Dr, Prof, Mx, Rev, Baby, Master
+
+## ⚠ Aspirational Districts — Data Uncertainty Notice
+
+**Table:** `master.aspirational_districts`
+**Admin page:** `/admin/aspirational-districts` (GlobalAdmin / SysAdmin only)
+**Migration:** `database/master/002_aspirational_districts.sql`
+
+### What we know with confidence
+- The NITI Aayog Aspirational Districts Programme (ADP) was launched **5 January 2018**
+- The programme covers **112 districts** across 21 states
+- No hard deletes — use `is_active = false` to retire a district
+- `announcement_date` is used in patient reports: **visit_date vs announcement_date**
+
+### What is uncertain (seed data marked as such)
+The seed SQL has ~112 rows but the exact count per state is uncertain for:
+- **Bihar** — exact final list unclear (seeded 8, may differ)
+- **Madhya Pradesh** — seeded 20, official number uncertain
+- **Manipur** — seeded 4, verify against gazette
+- **Telangana** — seeded 2, verify against gazette
+
+All seed rows have `data_source = 'seed'` and `announcement_date = 2018-01-05` (programme launch, not individual notification dates).
+
+### Action required
+1. Run `002_aspirational_districts.sql` to seed the table
+2. Go to `/admin/aspirational-districts`
+3. Verify each district against the official NITI Aayog PDF (https://niti.gov.in/aspirational-districts)
+4. Correct incorrect entries — disable wrong ones, add missing ones
+5. Update `announcement_date` to the actual gazette date for each district
+6. Change `data_source` from `seed` → `gazette` once verified
+
+### No public API exists
+NITI Aayog does not provide a REST API for this data. data.gov.in requires registration.
+The list changes rarely (gazette notification) — update the DB manually when changes are announced.
+
+### Special cases
+- **Osmanabad / Dharashiv (Maharashtra):** Renamed in 2023. Both rows kept active for historical query accuracy.
+- **Srikakulam (AP):** Was in old hardcoded list as separate entry — now correctly inside Andhra Pradesh.
+
+### PatientNew.razor integration
+- On page load, `OnInitializedAsync` loads active district names from master DB into `_aspDistricts` HashSet
+- Failure to load is non-fatal — badge simply won't show (graceful degradation)
+- Aspirational badge (`★ Aspirational`) appears in the District label on the Address tab
+- Works for both Current Address and Permanent Address
+
+### ⚛ Unified Design System (locked — Session 15)
+
+One design language across ALL LiPi pages. No exceptions.
+
+**Form cards:** `af-card` > `af-card-header` > (`af-card-num` + `af-card-title`) + `af-card-body`
+- Left accent: `style="border-left:3px solid #COLOUR"` — blue (#1565C0), teal (#00695C), purple (#6A1B9A), gold (#C49A22), green (#10B981)
+
+**Field pattern:** `af-fgroup` > `af-flabel` (with `for=`) + `af-finput` or `af-fselect` + optional `af-fhint` / `af-ferr`
+- Labels ABOVE inputs — never floating, never inside border
+- Input height: 32px · background: surface-2 · border: 1px solid border
+
+**Grid system:** `af-grid4` / `af-grid3` / `af-grid2` + span helpers `af-span2` / `af-span3` / `af-span4`
+
+**CC + number:** Two separate inputs with `<div class="af-tel"><select class="af-tel-cc">` — NOT compound cells
+
+**Compound cells (Title+FN, DOB+Age, Landline):** `af-cmb` flex container:
+- `af-cmb-l` — 58px narrow LEFT with border-right (Title, ISD)
+- `af-cmb-r` — flex:1 wide (First Name, DOB, Number)
+- `af-cmb-end` — 58px narrow RIGHT with border-left (Age)
+- `af-cmb-std` — 48px middle STD code with border-right (Landline STD)
+
+**Page breadcrumb:** `af-breadcrumb`
+**Alerts:** `ap-alert success` / `ap-alert error` / `ap-alert info`
+**Back link:** `btn-secondary btn-sm`
+
+**Patient page structure (pn-* classes):**
+- Outer: `pn-body` > `pn-shell` (flex row)
+- Left tabs: `pn-tab-strip` > `pn-tab-item` (button with SVG icon + data-label tooltip)
+- Main: `pn-main` > `pn-toolbar` + `pn-content` (grid: 1fr 194px)
+- Right panel: `pn-right` > patient card + `pn-id-tiles` + `pn-flags-panel` + `pn-hint` + `pn-min-note`
+
+**NEVER use:**
+- `pg-*` classes — all 5 pages migrated to `af-*` in Session 15
+- `pr-float`, `pr-inp`, `pr-sel`, `pr-g3`, `pr-dual` in new form markup
+- Floating labels inside inputs
+- Compound cells with pseudo-element dividers
+- Any new CSS prefix outside `af-*`, `pn-*`, `pr-*` (modals/KPI only), `ap-*`
+
 ### Rule 8: `IDbContextFactory` only — never `AddDbContext` + `AddDbContextFactory` for same context
 
 In .NET 10, `AddDbContext` registers `DbContextOptions` as Scoped. `AddDbContextFactory` is Singleton.
 A singleton cannot consume scoped services — DI validation crashes at startup.
 Use only `AddDbContextFactory<T>()` and inject `IDbContextFactory<T>` everywhere.
 
+### ⛔ Rule 11 (RECURRING — causes RZ1010): Never use `@{ }` blocks inside an existing code block
+
+Razor alternates between HTML and C# but you CANNOT open a new `@{ }` code block inside an already-open code block such as `@if { }`, `@foreach { }`, or `@{ }`.
+
+**WRONG — triggers RZ1010 "Unexpected { after @":**
+```razor
+@if (_tab == 0)
+{
+    @{
+        bool someFlag = ComputeFlag();   ❌  nested @{} inside @if{}
+        string display = GetDisplay();
+    }
+    <div>@someFlag</div>
+}
+```
+
+**CORRECT — declare computed values as private properties or methods in `@code`:**
+```razor
+@if (_tab == 0)
+{
+    <div>@_someFlag</div>   ✅  reference a @code property
+}
+
+@code {
+    private bool _someFlag => ComputeFlag();
+    private string _display => GetDisplay();
+}
+```
+
+**Rule:** Any local variable that would live inside an `@if`, `@foreach`, or similar markup-level block must instead be:
+- A **private property** (expression-bodied `=>` for simple values), OR
+- A **private method** called inline with `@MethodName()`, OR
+- Computed inline inside the Razor expression itself: `@(ComputeFlag() ? "yes" : "no")`
+
+Never try to "declare then use" with an `@{ }` block inside markup control flow.
+
+
+## PatientNew — Business Rules (Session 19, LOCKED)
+
+### Patient Type (4 options only)
+- General / Walk-In
+- Staff Patient
+- Charity / CGS
+- Research / Trial
+
+VIP and International are **alert flags** (set via the flag panel), NOT patient types.
+
+### Referral Source
+Default: **Self / Walk-In** (`RefSrc = "self"` in model initialisation)
+Values match DB constraint: `doctor` | `self` | `emergency` | `camp` | `transfer` | `online` | `other`
+
+### "How did you hear about us?" logic
+- Enabled ONLY when Referral Source = `self`
+- Disabled (greyed out) for all other referral sources
+- Clears automatically when RefSrc changes away from `self`
+- No "Doctor Referral" option here (it's a Referral Source, not a channel)
+- Values match DB `referral_channel` constraint: `friend` | `social_media` | `google` | `advertisement` | `camp` | `hospital_website` | `other`
+
+### "Referred By" mandatory validation
+- Mandatory ONLY when Referral Source = Doctor Referral (`doctor`)
+- Label shows `*` dynamically only when doctor is selected
+- Validated in `ValidTab(3)` — blocks Next if RefSrc=doctor and RefBy empty
+- Error: "Referred by is required when Doctor Referral is selected"
+
+### Address field order
+Pincode → City / Town → District → State
+(Pincode first triggers auto-fill of City+District+State)
+
+
 ---
 
 ## Deploy Script Rule (deploy-downloads.ps1)
+
+**Simple copy-only script. No appending. No sentinels. No stripping.**
+
+Drop a file in `Downloads\LiPi\` and run the script — it copies directly to the project.
+Every file listed in the map gets `Copy-Item` called. That's it.
+
+**CSS rule: admin.css is always delivered as a COMPLETE file — never patched/appended.**
+Working file: `/home/claude/lipi/admin_fresh.css` — always sync to project before output.
 
 **Every new file I create MUST be added to `deploy-downloads.ps1` immediately — in the same response.**
 

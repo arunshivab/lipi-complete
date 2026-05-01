@@ -2,66 +2,61 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace LiPi.Clinic.Core.Entities;
 
+// Reference geodata — seeded from 02_geodata_seed.sql
+// These are read-only lookup tables — no patient data here.
+
 [Table("countries", Schema = "core")]
 public class Country
 {
-    public string Code { get; set; } = default!;             // ISO-3166 alpha-2
-    public string Name { get; set; } = default!;
-    public string Iso3 { get; set; } = default!;
+    public string Code     { get; set; } = default!;   // ISO 3166-1 alpha-2
+    public string Name     { get; set; } = default!;
+    public string Iso3     { get; set; } = default!;
     public string DialCode { get; set; } = default!;
+    public bool   IsActive { get; set; } = true;
 }
 
 [Table("states", Schema = "core")]
-public class State
+public class GeoState
 {
-    public Guid Id { get; set; }
-    public string CountryCode { get; set; } = default!;
-    public string Name { get; set; } = default!;
-    public string Code { get; set; } = default!;
+    public Guid   Id       { get; set; }
+    public string Name     { get; set; } = default!;
+    public string Code     { get; set; } = default!;   // ISO 3166-2:IN e.g. IN-MH
+    public bool   IsUt     { get; set; }               // true = Union Territory
+    public bool   IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 
-    public Country Country { get; set; } = default!;
-    public ICollection<City> Cities { get; set; } = new List<City>();
+    public ICollection<GeoDistrict> Districts { get; set; } = new List<GeoDistrict>();
+}
+
+[Table("districts", Schema = "core")]
+public class GeoDistrict
+{
+    public Guid   Id             { get; set; }
+    public Guid   StateId        { get; set; }
+    public string Name           { get; set; } = default!;
+    public bool   IsAspirational { get; set; }
+    public bool   IsActive       { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public GeoState State        { get; set; } = default!;
+    public ICollection<GeoCity> Cities { get; set; } = new List<GeoCity>();
 }
 
 [Table("cities", Schema = "core")]
-public class City
+public class GeoCity
 {
-    public Guid Id { get; set; }
-    public Guid StateId { get; set; }
-    public string Name { get; set; } = default!;
-    public decimal? Latitude { get; set; }
-    public decimal? Longitude { get; set; }
-
-    public State State { get; set; } = default!;
-    public ICollection<Pincode> Pincodes { get; set; } = new List<Pincode>();
-}
-
-[Table("pincodes", Schema = "core")]
-public class Pincode
-{
-    public Guid Id { get; set; }
-    public Guid CityId { get; set; }
-    public string Value { get; set; } = default!;            // mapped to 'pincode' column
-    public string? Area { get; set; }
-
-    public City City { get; set; } = default!;
-}
-
-[Table("addresses", Schema = "core")]
-public class Address
-{
-    public Guid Id { get; set; }
-    public Guid ClinicId { get; set; }
-    public string UseType { get; set; } = default!;          // home | work | temp | old | billing | emergency
-    public string Line1 { get; set; } = default!;
-    public string? Line2 { get; set; }
-    public string? Landmark { get; set; }
-    public Guid? CityId { get; set; }
-    public Guid? StateId { get; set; }
-    public string? Pincode { get; set; }
-    public string CountryCode { get; set; } = "IN";
-    public decimal? Latitude { get; set; }
-    public decimal? Longitude { get; set; }
+    public Guid   Id           { get; set; }
+    public Guid   DistrictId   { get; set; }
+    public Guid   StateId      { get; set; }
+    public string Name         { get; set; } = default!;
+    public bool   IsDistrictHq { get; set; }
+    public bool   IsActive     { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset UpdatedAt { get; set; }
+
+    public GeoDistrict District { get; set; } = default!;
 }
+
+// NOTE: Address class lives in Person.cs (new v3 immutable address table)
+// NOTE: Old Pincode entity removed — pincodes stored as plain text in Address.Pincode

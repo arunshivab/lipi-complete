@@ -29,6 +29,7 @@ public class MasterDbContext : DbContext
     public DbSet<MasterAuditEvent>            AuditEvents          => Set<MasterAuditEvent>();
     public DbSet<PlatformUser>                PlatformUsers        => Set<PlatformUser>();
     public DbSet<ClinicMembership>            ClinicMemberships    => Set<ClinicMembership>();
+    public DbSet<AspirationalDistrict>        AspirationalDistricts => Set<AspirationalDistrict>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -111,6 +112,19 @@ public class MasterDbContext : DbContext
         b.Entity<Clinic>().HasQueryFilter(x => x.DeletedAt == null);
         b.Entity<ClinicGroup>().HasQueryFilter(x => x.DeletedAt == null);
         b.Entity<GlobalUser>().HasQueryFilter(x => x.DeletedAt == null);
+
+        // ---- AspirationalDistrict ----
+        b.Entity<AspirationalDistrict>().HasKey(x => x.Id);
+        b.Entity<AspirationalDistrict>().Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+        b.Entity<AspirationalDistrict>().Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        b.Entity<AspirationalDistrict>().Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        b.Entity<AspirationalDistrict>().Property(x => x.IsActive).HasDefaultValue(true);
+        b.Entity<AspirationalDistrict>().Property(x => x.DataSource).HasDefaultValue("seed");
+        b.Entity<AspirationalDistrict>()
+            .HasIndex(x => new { x.DistrictName, x.StateName })
+            .IsUnique()
+            .HasDatabaseName("uq_aspirational_district_state");
+        // No hard-delete query filter — all rows returned (including inactive)
     }
 
     private static string ToSnakeCase(string input)

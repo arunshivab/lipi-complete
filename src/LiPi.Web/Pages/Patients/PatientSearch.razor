@@ -216,32 +216,32 @@
                     {
                         var q = _query.Trim().ToLowerInvariant();
                         var dbResults = await coreDb.Patients
-                            .Where(p => p.ClinicId == clinicId.Value && p.Person.DeletedAt == null)
-                            .Include(p => p.Person)
-                                .ThenInclude(pe => pe.ContactPoints)
+                            .Where(p => p.ClinicId == clinicId.Value)
+                            .Include(p => p.ContactPoints)
                             .Include(p => p.Identifiers)
                             .Where(p =>
-                                p.Person.GivenName.ToLower().Contains(q) ||
-                                (p.Person.FamilyName != null && p.Person.FamilyName.ToLower().Contains(q)) ||
-                                p.Person.DisplayName.ToLower().Contains(q) ||
-                                p.Mrn.ToLower().Contains(q) ||
-                                p.Person.ContactPoints.Any(cp => cp.System == "phone" && cp.Value.Contains(q)))
+                                p.FirstName.ToLower().Contains(q) ||
+                                p.LastName.ToLower().Contains(q) ||
+                                p.DisplayName.ToLower().Contains(q) ||
+                                (p.Mrn != null && p.Mrn.ToLower().Contains(q)) ||
+                                p.Uhid.ToLower().Contains(q) ||
+                                p.ContactPoints.Any(cp => cp.System == "phone" && cp.Value.Contains(q)))
                             .Take(20)
                             .AsNoTracking()
                             .ToListAsync();
 
                         _results = dbResults.Select(p =>
                         {
-                            var mobile = p.Person.ContactPoints.FirstOrDefault(cp => cp.System == "phone" && cp.IsPrimary)?.Value ?? string.Empty;
-                            var initials = string.Concat(new[]{p.Person.GivenName, p.Person.FamilyName ?? string.Empty}
+                            var mobile = p.ContactPoints.FirstOrDefault(cp => cp.System == "phone" && cp.IsPrimary)?.Value ?? string.Empty;
+                            var initials = string.Concat(new[]{p.FirstName, p.LastName}
                                 .Where(s => s.Length > 0).Select(s => s[0].ToString().ToUpperInvariant()));
                             return new PatientResult
                             {
-                                Id = p.Id.ToString(), Name = p.Person.DisplayName, Initials = initials,
-                                Mrn = p.Mrn, Sex = p.Person.Gender ?? string.Empty,
-                                Dob = p.Person.DateOfBirth?.ToString("dd MMM yyyy") ?? string.Empty,
+                                Id = p.EntityId.ToString(), Name = p.DisplayName, Initials = initials,
+                                Mrn = p.Uhid, Sex = p.Gender ?? string.Empty,
+                                Dob = p.DateOfBirth.ToString("dd MMM yyyy"),
                                 Mobile = mobile, LastEncounterType = "OPD",
-                                IsVip = p.VipFlag,
+                                IsVip = false,
                                 AvatarBg = "#E3F2FD", AvatarTx = "#1B4DA0",
                             };
                         }).ToList();

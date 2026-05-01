@@ -94,7 +94,7 @@
           var num = idx < _step ? "✓" : (idx + 1).ToString();
           <div class="@css" @onclick="() => GoStep(idx)">
             <div class="pr-tab-num">@num</div>
-            <div><div class="pr-tab-step">STEP @(idx + 1)</div><div class="pr-tab-lbl">@_tabLabels[idx]</div></div>
+            <div class="pr-tab-lbl">@_tabLabels[idx]</div>
           </div>
         }
       </div>
@@ -198,7 +198,6 @@
                 </div>
                 <div class="pr-nav">
                   <button type="button" class="pr-btn-ghost" @onclick="GoBackSearch">← Back to Search</button>
-                  <button type="button" class="pr-btn-primary" @onclick="HandleNext">Next →</button>
                 </div>
               </div>
             </fieldset>
@@ -287,7 +286,6 @@
                 @if (_kin.Count < 5) { <button type="button" class="pr-add-kin" @onclick="AddKin">+ Add another contact (@_kin.Count / 5)</button> }
                 <div class="pr-nav">
                   <button type="button" class="pr-btn-ghost" @onclick="HandleBack">← Back</button>
-                  <button type="button" class="pr-btn-primary" @onclick="HandleNext">Next →</button>
                 </div>
               </div>
             </fieldset>
@@ -384,7 +382,6 @@
                 </div>
                 <div class="pr-nav">
                   <button type="button" class="pr-btn-ghost" @onclick="HandleBack">← Back</button>
-                  <button type="button" class="pr-btn-primary" @onclick="HandleNext">Next →</button>
                 </div>
               </div>
             </fieldset>
@@ -410,16 +407,6 @@
                 <button type="button" class="pr-btn-ghost" @onclick="BackOrClose">
                   @(_saved ? "Close" : "← Back")
                 </button>
-                @if (!_saved)
-                {
-                  <button type="button" class="pr-btn-save" disabled="@_saving" @onclick="HandleSubmit">
-                    @(_saving ? "Saving…" : "✓ Save Changes")
-                  </button>
-                }
-                else
-                {
-                  <button type="button" class="pr-btn-primary" disabled>✓ Saved</button>
-                }
               </div>
             </div>
           }

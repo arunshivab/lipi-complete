@@ -1,4 +1,4 @@
-﻿/* ═══════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    LiPi Admin UI  –  Design Tokens + Light Theme
    Fonts: DM Sans (UI), DM Mono (data / numbers)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1447,100 +1447,13 @@ table.ap-table {
 .af-breadcrumb-current { color: var(--tx); font-weight: 500; }
 
 /* Numbered card section */
-.af-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-md);
-    margin-bottom: 14px;
-    overflow: hidden;
-}
-
-.af-card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--border);
-}
-
-.af-card-num {
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    background: var(--sky);
-    color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-}
-
-.af-card-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--navy);
-}
-
-.af-card-badge {
-    margin-left: auto;
-    font-size: 11px;
-    color: var(--sky);
-    font-weight: 500;
-}
-
-.af-card-body {
-    padding: 14px 16px;
-}
-
-/* 4-column form grid */
-.af-grid4 {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px 12px;
-}
+/* af-card-badge — unique utility */
+.af-card-badge { margin-left: auto; font-size: 11px; color: var(--sky); font-weight: 500; }
+/* af-span helpers */
 .af-span2 { grid-column: span 2; }
 .af-span4 { grid-column: 1 / -1; }
-
-.af-fgroup {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-.af-flabel {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--tx-2);
-    text-transform: uppercase;
-    letter-spacing: .5px;
-}
-.af-flabel .af-req { color: var(--red); }
-
-.af-finput, .af-fselect {
-    height: 32px;
-    padding: 0 9px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--tx);
-    font-size: 12px;
-    font-family: inherit;
-    width: 100%;
-    box-sizing: border-box;
-    transition: border-color .15s, box-shadow .15s;
-}
-.af-finput:focus, .af-fselect:focus {
-    outline: none;
-    border-color: var(--sky);
-    box-shadow: 0 0 0 2px rgba(74,155,212,.12);
-}
-.af-finput.err, .af-fselect.err {
-    border-color: var(--red);
-    background: var(--red-pale);
-}
+/* af-finput.ok */
 .af-finput.ok { border-color: var(--green); }
-
-.af-ferr  { font-size: 10px; color: var(--red);   line-height: 1.3; }
-.af-fhint { font-size: 10px; color: var(--tx-3);  line-height: 1.3; }
 
 /* Qual chips */
 .af-chips {
@@ -1785,16 +1698,18 @@ table.ap-table {
 .af-breadcrumb a{color:#1B4DA0;text-decoration:none}.af-breadcrumb a:hover{text-decoration:underline}
 .af-bc-back{margin-left:auto;font-size:11px;color:#1B4DA0;text-decoration:none;border:0.5px solid var(--border,#E2E8F0);padding:4px 10px;border-radius:6px}
 .af-fgroup{display:flex;flex-direction:column;gap:3px;margin-bottom:4px}
-.af-flabel{font-size:10px;font-weight:600;letter-spacing:.3px;color:var(--tx-2,#475569);text-transform:uppercase}
+.af-flabel{font-size:10px;font-weight:600;letter-spacing:.3px;color:var(--tx-2,#475569);text-transform:uppercase;display:block;line-height:1.25}
 .af-req{color:#EF4444}
-.af-finput{background:var(--surface-2,#F8FAFC);border:1px solid var(--border,#E2E8F0);border-radius:6px;padding:6px 9px;font-size:12px;color:var(--tx,#0F2D5E);width:100%;font-family:inherit;transition:border-color .15s}
+.af-lhint{font-size:9px;font-weight:400;color:var(--tx-3,#94A3B8);letter-spacing:0;text-transform:none;margin-left:2px}
+.af-req{color:#EF4444}
+.af-finput{background:var(--surface-2,#F8FAFC);border:1px solid var(--border,#E2E8F0);border-radius:6px;padding:0 9px;font-size:12px;color:var(--tx,#0F2D5E);width:100%;font-family:inherit;transition:border-color .15s;height:32px;box-sizing:border-box}
 .af-finput:focus{outline:none;border-color:#4A9BD4;box-shadow:0 0 0 3px rgba(74,155,212,.12)}
 .af-finput.err{border-color:#EF4444;background:#FFF5F5}
-.af-fselect{background:var(--surface-2,#F8FAFC);border:1px solid var(--border,#E2E8F0);border-radius:6px;padding:6px 9px;font-size:12px;color:var(--tx,#0F2D5E);width:100%;font-family:inherit}
+.af-fselect{background:var(--surface-2,#F8FAFC);border:1px solid var(--border,#E2E8F0);border-radius:6px;padding:0 9px;font-size:12px;color:var(--tx,#0F2D5E);width:100%;font-family:inherit;height:32px;box-sizing:border-box}
 .af-fselect:focus{outline:none;border-color:#4A9BD4}
 .af-fselect.err{border-color:#EF4444;background:#FFF5F5}
-.af-ferr{font-size:9px;color:#EF4444;margin-top:2px;display:block}
-.af-fhint{font-size:9px;color:var(--tx-3,#94A3B8);margin-top:2px}
+.af-ferr{font-size:9px;color:#EF4444;margin-top:2px;display:block;min-height:1em;line-height:1}
+/* .af-fhint removed — hints now shown in af-flabel text via af-lhint span */
 .af-grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
 .af-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
 .af-grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:8px}
@@ -1918,6 +1833,206 @@ table.ap-table {
 
 /* ═══════════════════════════════════════════════════════════════════
    BOTTOM NAV DOCK — Flat bar redesign (overrides circular bubble style)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
+   Sentinel:
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOTTOM NAV — dock layout adjustment only (circular style kept)
    Sentinel:
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2227,7 +2342,6 @@ table.ap-table {
 .pfab-kbd-hint.show { opacity: 1; }
 
 
-
 /* ═══════════════════════════════════════════════════════════════════
    PATIENT REGISTRATION — pr-* prefix  (compact edition)
    Sentinel: .pr-body — do not remove
@@ -2302,6 +2416,13 @@ table.ap-table {
 .pr-cc-sel   { width: 94px; flex-shrink: 0; border-radius: 7px 0 0 7px; border-right: none; padding: 16px 8px 5px; font-family: 'DM Sans',system-ui; font-size: 12px; background: #fff; border: 1px solid #B6C4D4; color: var(--tx,#0F2D5E); -webkit-appearance: none; outline: none; }
 .pr-cc-inp   { flex: 1; min-width: 0; border-radius: 0 7px 7px 0; padding: 16px 10px 5px; font-family: 'DM Mono',monospace; font-size: 12px; background: #fff; border: 1px solid #B6C4D4; border-left: none; color: var(--tx,#0F2D5E); outline: none; }
 .pr-cc-inp.err { border-color: #EF4444; background: #FFF5F5; }
+/* Dual compound cell with independent floating labels (Title+FirstName, DOB+Age) */
+.pr-dual { display: flex; min-width: 0; width: 100%; gap: 0; }
+.pr-dual > .pr-float { flex: 1; min-width: 0; position: relative; }
+.pr-dual-l { border-radius: 7px 0 0 7px !important; border-right: none !important; }
+.pr-dual-r { border-radius: 0 7px 7px 0 !important; border-left: none !important; }
+/* Full-height divider — pseudo-element on wrapper, not input. Fixes select/input native height mismatch. */
+.pr-dual > .pr-float:first-child::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 1px; background: #B6C4D4; z-index: 2; pointer-events: none; }
 
 /* ── Sex segmented button ───────────────────────────────────────── */
 .pr-seg-lbl  { font-family: 'DM Mono',monospace; font-size: 7.5px; letter-spacing: .1em; color: var(--tx-3,#94A3B8); text-transform: uppercase; margin-bottom: 3px; }
@@ -2343,27 +2464,47 @@ table.ap-table {
 .pr-card-photo:hover { background: rgba(255,255,255,.16); }
 .pr-card-photo img   { width: 52px; height: 52px; object-fit: cover; border-radius: 10px; }
 .pr-card-photo-lbl { font-size: 7px; font-family: 'DM Mono',monospace; color: rgba(255,255,255,.3); letter-spacing: .06em; text-transform: uppercase; }
-.pr-card-name   { font-size: 13px; font-weight: 700; line-height: 1.2; word-break: break-word; }
-.pr-card-uhid   { font-family: 'DM Mono',monospace; font-size: 10px; color: #E8B84B; margin-top: 2px; }
+.pr-card-name   { font-size: 13px; font-weight: 700; line-height: 1.2; word-break: break-word; text-transform: uppercase; }
+.pr-card-uhid   { font-family: 'DM Mono',monospace; font-size: 10px; color: #E8B84B; margin-top: 2px; text-transform: uppercase; letter-spacing: .06em; }
 .pr-card-divider{ height: 1px; background: rgba(255,255,255,.1); margin: 8px 0; }
 .pr-card-row    { display: grid; grid-template-columns: 52px 1fr; gap: 4px; margin-bottom: 4px; align-items: start; }
 .pr-card-lbl    { font-family: 'DM Mono',monospace; font-size: 7.5px; letter-spacing: .13em; color: rgba(255,255,255,.60); text-transform: uppercase; padding-top: 1px; }
-.pr-card-val    { font-size: 11.5px; color: rgba(255,255,255,.93); word-break: break-word; }
+.pr-card-val    { font-size: 11.5px; color: rgba(255,255,255,.93); word-break: break-word; text-transform: uppercase; }
 .pr-card-val.mono { font-family: 'DM Mono',monospace; }
 .pr-card-consent  { font-family: 'DM Mono',monospace; font-size: 8px; letter-spacing: .12em; color: rgba(255,255,255,.58); text-transform: uppercase; }
 .pr-card-consent-ok { color: #4A9BD4; }
 
 /* ── Patient Identifiers card ───────────────────────────────────── */
 /* ── Identifier strip — compact single row ─────────────────────── */
-.pr-id-card  { background: #fff; border: 0.5px solid #C8D3E0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all .15s; overflow: hidden; }
-.pr-id-card:hover { border-color: #0B2545; }
-.pr-id-strip { display: flex; align-items: center; gap: 8px; padding: 6px 10px; flex-wrap: nowrap; }
-.pr-id-strip-lbl  { font-family: 'DM Mono',monospace; font-size: 7.5px; letter-spacing: .1em; text-transform: uppercase; color: #7B8EA5; flex-shrink: 0; }
-.pr-id-entry { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.pr-id-dot   { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #C8D3E0; flex-shrink: 0; }
-.pr-id-set .pr-id-dot   { background: #10B981; border-color: #10B981; }
-.pr-id-unset .pr-id-dot { background: transparent; border-color: #C8D3E0; }
-.pr-id-code  { font-family: 'DM Mono',monospace; font-size: 8px; font-weight: 700; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; }
+/* ── Identifier strip (Option B) — below patient card, right panel ───── */
+.pr-id-card  { background:#fff; border:0.5px solid #C8D3E0; border-radius:8px; margin-bottom:8px; cursor:pointer; overflow:hidden; transition:background .15s, border-color .15s; }
+.pr-id-card:hover { background:#F0F5FB; border-color:#0B2545; }
+.pr-id-card:hover .pr-id-manage { opacity:1; }
+
+.pr-id-strip { display:flex; align-items:stretch; min-height:46px; }
+
+.pr-id-sec { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px 6px; min-width:0; }
+.pr-id-sec-inner { display:flex; align-items:center; gap:5px; }
+
+/* Status dot */
+.pr-id-ind { width:13px; height:13px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; flex-shrink:0; line-height:1; }
+.pr-id-ind-set   { background:#10B981; color:#fff; }
+.pr-id-ind-empty { background:transparent; }
+.pr-id-abdm-empty { border:1.5px solid #1565C0; }
+.pr-id-aadh-empty { border:1.5px solid #D97706; }
+.pr-id-oth-empty  { border:1.5px solid #6A1B9A; }
+
+/* Value text when filled */
+.pr-id-disp { font-family:'DM Mono',monospace; font-size:9px; color:#0B2545; letter-spacing:0.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:56px; }
+
+/* Section label */
+.pr-id-sec-lbl { font-size:7.5px; text-transform:uppercase; letter-spacing:0.07em; color:#7B8EA5; font-family:'DM Mono',monospace; }
+
+/* Vertical dividers */
+.pr-id-vdiv { width:0.5px; background:#DDE5EE; align-self:stretch; margin:6px 0; flex-shrink:0; }
+
+/* "Manage ↗" end-cap — hidden until hover */
+.pr-id-manage { font-size:9.5px; color:#3D5166; padding:0 10px; align-self:center; flex-shrink:0; opacity:0; transition:opacity .2s; font-family:'DM Mono',monospace; white-space:nowrap; }
 
 /* ── Card hint & emergency note ─────────────────────────────────── */
 .pr-card-hint  { padding: 8px 10px; background: var(--surface-2,#F8FAFC); border: 0.5px solid var(--border,#E2E8F0); border-radius: 8px; font-size: 10px; color: var(--tx-2,#475569); line-height: 1.5; margin-bottom: 8px; }
@@ -2497,6 +2638,131 @@ table.ap-table {
 .pr-sel-disabled { opacity: .45; cursor: not-allowed; background: #F4F7FB; }
 /* ── Review 2-column grid ─────────────────────────────────────────── */
 .pr-review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px; }
+
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PATIENT SEARCH  —  ps-* prefix
+
+/* ════════════════════════════════════════════════════════════════════
+   PATIENT REGISTRATION — pn-* page structure + af-cmb compound fields
+
+/* ── Field alignment overrides ─────────────────────────────────────────── */
+
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Compound field container (Title+FN, DOB+Age, Landline) */
+.af-cmb { display: flex; border: 1px solid var(--border,#E2E8F0); border-radius: 6px; overflow: hidden; background: var(--surface-2,#F8FAFC); height: 32px; }
+.af-cmb:focus-within { border-color: var(--sky,#4A9BD4); box-shadow: 0 0 0 2px rgba(74,155,212,.12); }
+/* Narrow field — LEFT (Title, ISD) — 58px, border-right */
+.af-cmb-l { width: 58px; flex-shrink: 0; height: 100%; padding: 0 7px; background: var(--surface-2,#F8FAFC); border: none; border-right: 1px solid var(--border,#E2E8F0); font-size: 11.5px; color: var(--tx,#0F2D5E); font-family: inherit; outline: none; }
+/* Wide field — flex:1 (FirstName, DOB, Landline Number) */
+.af-cmb-r { flex: 1; min-width: 0; height: 100%; padding: 0 8px; background: var(--surface-2,#F8FAFC); border: none; font-size: 11.5px; color: var(--tx,#0F2D5E); font-family: inherit; outline: none; }
+.af-cmb-r::placeholder { color: #C8D3E0; font-size: 11px; }
+.af-cmb-cc { width: 64px; flex-shrink: 0; height: 100%; padding: 0 7px; background: var(--surface-2,#F8FAFC); border: none; border-right: 1px solid var(--border,#E2E8F0); font-size: 11.5px; color: var(--tx,#0F2D5E); font-family: inherit; outline: none; }
+/* Narrow field — RIGHT (Age) — 58px, border-left */
+.af-cmb-end { width: 58px; flex-shrink: 0; height: 100%; padding: 0 7px; background: var(--surface-2,#F8FAFC); border: none; border-left: 1px solid var(--border,#E2E8F0); font-size: 11.5px; color: var(--tx,#0F2D5E); font-family: inherit; outline: none; text-align: center; }
+.af-cmb-end::placeholder { color: #C8D3E0; font-size: 11px; }
+/* STD code field — middle (48px, border-right) */
+.af-cmb-std { width: 48px; flex-shrink: 0; height: 100%; padding: 0 6px; background: var(--surface-2,#F8FAFC); border: none; border-right: 1px solid var(--border,#E2E8F0); font-size: 11px; color: var(--tx,#0F2D5E); font-family: inherit; outline: none; }
+.af-cmb-std::placeholder { color: #C8D3E0; }
+
+/* CC + number tel pattern (two separate inputs flex gap) */
+.af-tel { display: flex; gap: 5px; align-items: stretch; }
+.af-tel-cc { width: 58px; flex-shrink: 0; }
+.af-tel > select { width: 58px; max-width: 58px; flex-shrink: 0; flex-grow: 0; }
+.af-tel > input  { flex: 1; width: 0; min-width: 60px; }
+
+/* Grid span helpers */
+.af-span3 { grid-column: span 3; }
+
+/* ── Patient page body ───────────────────────────────────────────── */
+.pn-body { padding: 14px 20px 40px; background: var(--page-bg,#EBF0F7); }
+
+/* Shell = left icon tab strip + main content */
+.pn-shell { display: flex; background: #fff; border-radius: 12px; border: 0.5px solid #C8D3E0; overflow: hidden; margin-top: 12px; }
+
+/* ── Left icon tab strip ─────────────────────────────────────────── */
+.pn-tab-strip { width: 52px; background: #0B2545; display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 2px; flex-shrink: 0; }
+.pn-tab-div { width: 28px; height: 0.5px; background: rgba(255,255,255,.1); margin: 4px 0; flex-shrink: 0; }
+.pn-tab-item { width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; transition: background .15s; flex-shrink: 0; border: none; background: transparent; padding: 0; }
+.pn-tab-item svg { width: 18px; height: 18px; stroke: rgba(255,255,255,.32); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: stroke .15s; }
+.pn-tab-item:hover svg { stroke: rgba(255,255,255,.72); }
+.pn-tab-item.active { background: rgba(196,154,34,.18); }
+.pn-tab-item.active svg { stroke: #C49A22; }
+.pn-tab-item.active::before { content: ''; position: absolute; left: -1px; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0; background: #C49A22; }
+.pn-tab-item.done svg { stroke: #10B981; }
+.pn-tab-item.partial svg { stroke: #F59E0B; }
+/* Tooltip via ::after using data-label attribute */
+.pn-tab-item::after { content: attr(data-label); position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%); background: #0B2545; color: #fff; font-size: 10px; white-space: nowrap; padding: 4px 9px; border-radius: 6px; border: 0.5px solid rgba(255,255,255,.15); pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 100; font-family: 'DM Sans',system-ui,sans-serif; }
+.pn-tab-item:hover::after { opacity: 1; }
+
+/* ── Main content column ─────────────────────────────────────────── */
+.pn-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+/* Toolbar */
+.pn-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 0.5px solid var(--border,#E2E8F0); background: var(--surface-2,#F8FAFC); flex-shrink: 0; }
+.pn-tb-step { font-size: 11px; color: var(--tx-3,#94A3B8); }
+.pn-tb-step strong { color: var(--tx,#0F2D5E); font-weight: 500; }
+.pn-tb-btns { display: flex; gap: 6px; }
+
+/* Content grid */
+.pn-content { display: grid; grid-template-columns: 1fr 270px; gap: 12px; padding: 12px 14px; align-items: start; }
+.pn-form-col { min-width: 0; overflow: hidden; }
+
+/* ── Right panel ─────────────────────────────────────────────────── */
+.pn-right { display: flex; flex-direction: column; gap: 8px; }
+
+/* ID tiles */
+.pn-id-tiles { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; }
+.pn-id-tile { border-radius: 7px; padding: 7px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; border: 0.5px solid transparent; transition: border-color .15s; }
+.pn-id-tile:hover { border-color: rgba(0,0,0,.12); }
+.pn-id-tile.abdm { background: #EFF6FF; } .pn-id-tile.aadh { background: #FFFBEB; } .pn-id-tile.oth { background: #F5F3FF; }
+.pn-id-tile.set-abdm { border: 1px solid #1565C0; } .pn-id-tile.set-aadh { border: 1px solid #D97706; } .pn-id-tile.set-oth { border: 1px solid #6A1B9A; }
+.pn-id-icon { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; }
+.pn-id-icon.abdm { background: #DBEAFE; } .pn-id-icon.aadh { background: #FEF3C7; } .pn-id-icon.oth { background: #EDE9FE; }
+.pn-id-icon svg { width: 12px; height: 12px; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pn-id-icon.abdm svg { stroke: #1565C0; } .pn-id-icon.aadh svg { stroke: #D97706; } .pn-id-icon.oth svg { stroke: #6A1B9A; }
+.pn-id-name { font-family: 'DM Mono',monospace; font-size: 7px; letter-spacing: .05em; text-transform: uppercase; color: #7B8EA5; }
+.pn-id-disp { font-family: 'DM Mono',monospace; font-size: 8px; color: #10B981; font-weight: 500; }
+.pn-id-empty { font-size: 8px; color: #B6C4D4; }
+
+/* Alert flags panel (right panel) */
+.pn-flags-panel { background: var(--surface-2,#F8FAFC); border: 0.5px solid var(--border,#E2E8F0); border-radius: 8px; padding: 8px 10px; }
+.pn-flags-title { font-size: 8px; font-weight: 600; color: var(--tx-2,#475569); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.pn-flags-wrap { display: flex; flex-wrap: wrap; gap: 4px; }
+.pn-flag-pill { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border: 0.5px solid var(--border,#E2E8F0); border-radius: 20px; font-size: 9.5px; color: var(--tx-2,#475569); cursor: pointer; background: #fff; font-family: inherit; transition: all .12s; }
+.pn-flag-pill-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.pn-flag-vip-on   { background: #FEF3C7; border-color: #F59E0B; color: #92400E; }
+.pn-flag-al-on    { background: #FEE2E2; border-color: #EF4444; color: #991B1B; }
+.pn-flag-or-on    { background: #FEE2E2; border-color: #EC4899; color: #9D174D; }
+.pn-flag-res-on   { background: #EDE9FE; border-color: #8B5CF6; color: #5B21B6; }
+.pn-flag-intl-on  { background: #E0F2FE; border-color: #0EA5E9; color: #0369A1; }
+
+/* Step hint and minimum note */
+.pn-hint { font-size: 9px; color: var(--tx-3,#94A3B8); line-height: 1.5; text-align: center; }
+
+/* Aspirational district indicator */
+.pn-asp-badge { display: inline-flex; align-items: center; gap: 3px; background: #FFF7ED; border: 0.5px solid #F97316; border-radius: 4px; padding: 1px 6px; font-size: 8px; font-weight: 600; color: #C2410C; letter-spacing: .2px; white-space: nowrap; margin-left: 5px; }
+.pn-asp-note  { font-size: 9px; color: #C2410C; background: #FFF7ED; border-radius: 4px; padding: 2px 6px; border: 0.5px solid #FED7AA; line-height: 1.4; margin-top: 2px; }
+
+/* Permanent address toggle */
+.pn-perm-toggle { display: flex; gap: 6px; margin-bottom: 10px; }
+.pn-perm-btn    { padding: 5px 14px; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: inherit; border: 0.5px solid var(--border,#E2E8F0); background: var(--surface-2,#F8FAFC); color: var(--tx-2,#475569); }
+.pn-perm-btn.on { background: #EFF6FF; border-color: #93C5FD; color: #1D4ED8; font-weight: 500; }
+
+.pn-min-note { font-size: 9px; color: #92400E; text-align: center; background: #FFFBEB; border: 0.5px solid #FCD34D; border-radius: 5px; padding: 4px 8px; line-height: 1.4; }
+
+/* Inline success/error in toolbar */
+.pn-inline-ok  { font-size: 11px; color: #10B981; font-weight: 500; }
+.pn-inline-err { font-size: 11px; color: #EF4444; font-weight: 500; }
+/* ── af-* alignment overrides — last rules, always win ── */
+.af-finput:focus{outline:none;border-color:#4A9BD4;box-shadow:0 0 0 3px rgba(74,155,212,.12)}
+.af-finput.err{border-color:#EF4444;background:#FFF5F5}
+.af-finput.ok{border-color:var(--green,#22C55E)}
+.af-fselect:focus{outline:none;border-color:#4A9BD4}
+.af-fselect.err{border-color:#EF4444;background:#FFF5F5}
+
 
 
 
@@ -2902,4 +3168,39 @@ table.ap-table {
 .dup-open-btn  { padding: 8px 14px; border-radius: 7px; border: none; background: #0F6E56; color: #fff; font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 500; white-space: nowrap; }
 .dup-override-btn { padding: 8px 14px; border-radius: 7px; border: none; background: #EF4444; color: #fff; font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 500; white-space: nowrap; }
 .dup-override-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PATIENT REGISTRATION — reg-* field design system
+   Used exclusively in PatientNew.razor. No other page uses these.
+   ═══════════════════════════════════════════════════════════════════ */
+.reg-g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end}
+.reg-g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end}
+.reg-g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.reg-span2{grid-column:span 2}
+.reg-span4{grid-column:1/-1}
+.reg-fg{display:flex;flex-direction:column;gap:4px}
+.reg-lbl{font-size:10px;font-weight:700;letter-spacing:.5px;color:#475569;text-transform:uppercase;display:block;line-height:1.3}
+.reg-req{color:#EF4444;margin-left:1px}
+.reg-lhint{font-size:9px;font-weight:400;color:#94A3B8;text-transform:none;letter-spacing:0;margin-left:3px}
+.reg-err{font-size:10px;color:#EF4444;min-height:1em;display:block;line-height:1;margin-top:1px}
+.reg-inp{height:34px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:7px;padding:0 10px;font-size:12.5px;color:#0F2D5E;width:100%;font-family:inherit;transition:border-color .15s;outline:none;box-sizing:border-box}
+.reg-inp:focus{border-color:#4A9BD4;box-shadow:0 0 0 3px rgba(74,155,212,.12)}
+.reg-inp::placeholder{color:#C8D3E0}
+.reg-inp.err{border-color:#EF4444;background:#FFF5F5}
+.reg-inp.ok{border-color:#22C55E}
+.reg-sel{height:34px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:7px;padding:0 10px;font-size:12.5px;color:#0F2D5E;width:100%;font-family:inherit;outline:none;box-sizing:border-box}
+.reg-sel:focus{border-color:#4A9BD4;box-shadow:0 0 0 3px rgba(74,155,212,.12)}
+.reg-sel.err{border-color:#EF4444;background:#FFF5F5}
+.reg-split{display:flex;height:34px;border:1px solid #CBD5E1;border-radius:7px;overflow:hidden;background:#F8FAFC;transition:border-color .15s;box-sizing:border-box}
+.reg-split:focus-within{border-color:#4A9BD4;box-shadow:0 0 0 3px rgba(74,155,212,.12)}
+.reg-split-l{flex-shrink:0;height:100%;padding:0 8px;background:#F8FAFC;border:none;border-right:1px solid #CBD5E1;font-size:12px;color:#0F2D5E;font-family:inherit;outline:none}
+.reg-split-isd{width:72px}
+.reg-split-title{width:64px}
+.reg-split-r{flex:1;min-width:0;height:100%;padding:0 10px;background:#F8FAFC;border:none;font-size:12.5px;color:#0F2D5E;font-family:inherit;outline:none}
+.reg-split-r::placeholder{color:#C8D3E0}
+.reg-split-r.err{background:#FFF5F5}
+.reg-split-end{flex-shrink:0;width:52px;height:100%;padding:0 8px;background:#F8FAFC;border:none;border-left:1px solid #CBD5E1;font-size:12px;color:#0F2D5E;font-family:inherit;outline:none;text-align:center}
+.reg-split-end::placeholder{color:#C8D3E0}
+.reg-split-mid{flex-shrink:0;width:52px;height:100%;padding:0 8px;background:#F8FAFC;border:none;border-right:1px solid #CBD5E1;font-size:12px;color:#0F2D5E;font-family:inherit;outline:none}
+.reg-split-mid::placeholder{color:#C8D3E0}
 

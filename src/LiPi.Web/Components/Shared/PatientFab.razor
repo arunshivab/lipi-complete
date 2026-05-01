@@ -2,11 +2,8 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
-@using Microsoft.JSInterop
 @rendermode InteractiveServer
-@implements IAsyncDisposable
 @inject NavigationManager Nav
-@inject IJSRuntime JS
 
 @if (_visible)
 {
@@ -15,7 +12,7 @@
         <div class="pfab-overlay" @onclick="Close"></div>
     }
 
-    <div class="pfab-wrap @(_open ? "open" : "")">
+    <div class="pfab-wrap @(_open ? "open" : "")" @onclick:stopPropagation="true">
 
         @if (_open)
         {
@@ -52,18 +49,14 @@
         </button>
 
     </div>
-
-
 }
 
 @code {
     [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
-    private bool   _visible     = false;
-    private bool   _open        = false;
-
-
-    private DotNetObjectReference<PatientFab>? _selfRef;
+    private bool     _visible     = false;
+    private bool     _open        = false;
+    private DateTime _lastToggle  = DateTime.MinValue;
 
     private static readonly string[] _patientRoles =
     [
@@ -84,42 +77,24 @@
         _visible = roles.Overlaps(_patientRoles);
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private void Toggle()
     {
-        if (!firstRender || !_visible) return;
-
-        _selfRef = DotNetObjectReference.Create(this);
-        try
-        {
-            await JS.InvokeVoidAsync("lipiNav.initFab", _selfRef);
-        }
-        catch { /* ignore during SSR */ }
-
-
+        _open       = !_open;
+        _lastToggle = DateTime.UtcNow;
     }
 
-    [JSInvokable("HandleShortcut")]
-    public Task HandleShortcut(string action)
+    private void Close()
     {
-        _ = action switch
-        {
-            "new"    => InvokeAsync(() => Go("/patients/new")),
-            "search" => InvokeAsync(() => Go("/patients/search")),
-            "queue"  => InvokeAsync(() => Go("/patients/queue")),
-            "close"  => InvokeAsync(Close),
-            _        => Task.CompletedTask,
-        };
-        return Task.CompletedTask;
+        // Debounce: ignore Close fired within 300 ms of Toggle (ghost-click guard)
+        if ((DateTime.UtcNow - _lastToggle).TotalMilliseconds < 300) return;
+        _open = false;
+        StateHasChanged();
     }
 
-    private void Toggle() => _open = !_open;
-    private void Close()  { _open = false; StateHasChanged(); }
-    private void Go(string path) { _open = false; StateHasChanged(); Nav.NavigateTo(path); }
-
-    public async ValueTask DisposeAsync()
+    private void Go(string path)
     {
-        try { await JS.InvokeVoidAsync("lipiNav.disposeFab"); }
-        catch { }
-        _selfRef?.Dispose();
+        _open = false;
+        StateHasChanged();
+        Nav.NavigateTo(path);
     }
 }

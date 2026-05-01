@@ -31,17 +31,17 @@
 
 <div class="ap-body">
   <!-- Filters -->
-  <div class="pg-card" style="margin-bottom:10px;padding:12px 14px">
+  <div class="af-card" style="margin-bottom:10px;padding:12px 14px">
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-      <div class="pg-fg" style="min-width:180px">
-        <label class="pg-lbl" for="aud-search">Search</label>
-        <input id="aud-search" name="search" type="search" class="pg-inp" autocomplete="off"
+      <div class="af-fgroup" style="min-width:180px">
+        <label class="af-flabel" for="aud-search">Search</label>
+        <input id="aud-search" name="search" type="search" class="af-finput" autocomplete="off"
                value="@searchTerm" placeholder="Username, action, entity…"
                @oninput="OnSearch" />
       </div>
-      <div class="pg-fg">
-        <label class="pg-lbl" for="aud-outcome">Outcome</label>
-        <select id="aud-outcome" name="outcome" class="pg-sel" @onchange="OnOutcomeChange">
+      <div class="af-fgroup">
+        <label class="af-flabel" for="aud-outcome">Outcome</label>
+        <select id="aud-outcome" name="outcome" class="af-fselect" @onchange="OnOutcomeChange">
           <option value="">All</option>
           <option value="success">Success</option>
           <option value="bad_password">Bad Password</option>
@@ -51,14 +51,14 @@
           <option value="rate_limited">Rate Limited</option>
         </select>
       </div>
-      <div class="pg-fg">
-        <label class="pg-lbl" for="aud-from">From</label>
-        <input id="aud-from" name="from" type="date" class="pg-inp"
+      <div class="af-fgroup">
+        <label class="af-flabel" for="aud-from">From</label>
+        <input id="aud-from" name="from" type="date" class="af-finput"
                value="@dateFrom" @onchange="OnDateFromChange" />
       </div>
-      <div class="pg-fg">
-        <label class="pg-lbl" for="aud-to">To</label>
-        <input id="aud-to" name="to" type="date" class="pg-inp"
+      <div class="af-fgroup">
+        <label class="af-flabel" for="aud-to">To</label>
+        <input id="aud-to" name="to" type="date" class="af-finput"
                value="@dateTo" @onchange="OnDateToChange" />
       </div>
       <button class="btn-secondary" style="font-size:11px;align-self:flex-end" @onclick="ApplyFilter">Filter</button>

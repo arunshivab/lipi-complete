@@ -58,9 +58,8 @@ public class ClinicDbFactory
         var connStr = await _connSvc.GetConnectionStringAsync(clinicId);
         if (string.IsNullOrEmpty(connStr))
         {
-            connStr = _config.GetConnectionString("IdentityConnection");
-            _log.LogWarning("No per-clinic core connection for {ClinicId} — using IdentityConnection", clinicId);
-            if (string.IsNullOrEmpty(connStr)) return null;
+            _log.LogWarning("No per-clinic core connection for {ClinicId} — clinic database not configured", clinicId);
+            return null;
         }
 
         var opts = new DbContextOptionsBuilder<ClinicCoreDbContext>()

@@ -25,50 +25,50 @@
     <div class="tn-pt-sub">Onboard a new facility</div>
 </SectionContent>
 
-<div class="pg-body">
+<div class="ap-body">
 
   <!-- Breadcrumb -->
-  <div class="pg-bc">
+  <div class="af-breadcrumb">
     <a href="/admin">Administration</a>
     <span>›</span>
     <a href="/admin/clinics">Clinics</a>
     <span>›</span>
     <span>Register Clinic</span>
-    <a href="/admin/clinics" class="pg-bc-back">← All Clinics</a>
+    <a href="/admin/clinics" class="btn-secondary btn-sm">← All Clinics</a>
   </div>
 
   <!-- Alerts -->
   <fieldset disabled="@saved" style="border:none;padding:0;margin:0">
-  @if (!string.IsNullOrEmpty(errorMsg))   { <div class="pg-alert err">⚠ @errorMsg</div> }
+  @if (!string.IsNullOrEmpty(errorMsg))   { <div class="ap-alert err">⚠ @errorMsg</div> }
 
   <!-- ① Identity -->
-  <div class="pg-card" style="border-left-color:#1565C0">
-    <div class="pg-ch"><div class="pg-num" style="background:#1565C0">1</div><span class="pg-ct">Clinic Identity</span></div>
-    <div class="pg-cb">
-      <div class="pg-g3" style="margin-bottom:8px">
-        <div class="pg-fg pg-s2">
-          <label class="pg-lbl" for="cn-name">Clinic / Facility Name <span class="pg-req">*</span></label>
-          <input id="cn-name" name="clinicName" autocomplete="organization" class="pg-inp @eCss("name")"
+  <div class="af-card" style="border-left-color:#1565C0">
+    <div class="af-card-header"><div class="af-card-num" style="background:#1565C0">1</div><span class="af-card-title">Clinic Identity</span></div>
+    <div class="af-card-body">
+      <div class="af-grid3" style="margin-bottom:8px">
+        <div class="af-fgroup af-span2">
+          <label class="af-flabel" for="cn-name">Clinic / Facility Name <span class="af-req">*</span></label>
+          <input id="cn-name" name="clinicName" autocomplete="organization" class="af-finput @eCss("name")"
                  value="@m.Name" placeholder="e.g. Armoki Cancer Centre"
                  @oninput="OnNameInput" @onblur="OnBlurName" />
           @Err("name")
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-code">
-            Short Code <span class="pg-req">*</span>
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-code">
+            Short Code <span class="af-req">*</span>
             @if (!string.IsNullOrEmpty(m.Code)) { <span class="pg-mono-badge">@m.Code</span> }
           </label>
-          <input id="cn-code" name="clinicCode" autocomplete="off" class="pg-inp @eCss("code")"
+          <input id="cn-code" name="clinicCode" autocomplete="off" class="af-finput @eCss("code")"
                  value="@m.Code" placeholder="2–8 chars: armoki"
                  maxlength="8" @oninput="OnCodeInput" @onblur="OnBlurCode" />
           @Err("code")
-          <span class="pg-note">Used in DB names, URLs and email domains</span>
+          <span class="af-fhint">Used in DB names, URLs and email domains</span>
         </div>
       </div>
-      <div class="pg-g3">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-type">Clinic Type <span class="pg-req">*</span></label>
-          <select id="cn-type" autocomplete="off" name="clinicType" class="pg-sel @eCss("type")" @onchange="OnTypeChange">
+      <div class="af-grid3">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-type">Clinic Type <span class="af-req">*</span></label>
+          <select id="cn-type" autocomplete="off" name="clinicType" class="af-fselect @eCss("type")" @onchange="OnTypeChange">
             <option value="">Select type…</option>
             <option value="cancer_centre">Cancer Centre</option>
             <option value="hospital">Hospital (Multi-Specialty)</option>
@@ -79,15 +79,15 @@
           </select>
           @Err("type")
         </div>
-        <div class="pg-fg pg-s2">
-          <label class="pg-lbl" for="cn-org">Organisation <span class="pg-req">*</span></label>
+        <div class="af-fgroup af-span2">
+          <label class="af-flabel" for="cn-org">Organisation <span class="af-req">*</span></label>
           @if (orgsLoading)
-          { <span class="pg-note">Loading organisations…</span> }
+          { <span class="af-fhint">Loading organisations…</span> }
           else if (!orgs.Any())
-          { <div class="pg-alert err" style="margin:0;padding:6px;font-size:11px">No organisations — <a href="/admin/orgs/new">create one first</a></div> }
+          { <div class="ap-alert err" style="margin:0;padding:6px;font-size:11px">No organisations — <a href="/admin/orgs/new">create one first</a></div> }
           else
           {
-            <select id="cn-org" autocomplete="off" name="orgId" class="pg-sel @eCss("org")" @onchange="OnOrgChange">
+            <select id="cn-org" autocomplete="off" name="orgId" class="af-fselect @eCss("org")" @onchange="OnOrgChange">
               <option value="">Select organisation…</option>
               @foreach (var o in orgs)
               { <option value="@o.Id">@o.LegalName@(o.TradingName != null ? $" ({o.TradingName})" : "")</option> }
@@ -100,9 +100,9 @@
   </div>
 
   <!-- ② Location & Contact -->
-  <div class="pg-card" style="border-left-color:#00695C">
-    <div class="pg-ch"><div class="pg-num" style="background:#00695C">2</div><span class="pg-ct">Location &amp; Contact</span></div>
-    <div class="pg-cb">
+  <div class="af-card" style="border-left-color:#00695C">
+    <div class="af-card-header"><div class="af-card-num" style="background:#00695C">2</div><span class="af-card-title">Location &amp; Contact</span></div>
+    <div class="af-card-body">
       <AddressBlock
           AddressLine="@m.Street"     AddressLineChanged="OnStreetChanged"
           City="@m.City"             CityChanged="OnCityChanged"
@@ -118,11 +118,11 @@
           CityErrorMsg="@_e.GetValueOrDefault("city")"
           StateError="@(_t.GetValueOrDefault("state") && !string.IsNullOrEmpty(_e.GetValueOrDefault("state")))"
           StateErrorMsg="@_e.GetValueOrDefault("state")" />
-      <div class="pg-g3" style="margin-top:10px">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-phone">Mobile Phone <span class="af-req">*</span></label>
+      <div class="af-grid3" style="margin-top:10px">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-phone">Mobile Phone <span class="af-req">*</span></label>
           <div style="display:flex;gap:4px">
-            <select id="cn-phone-cc" name="phoneCC" autocomplete="tel-country-code" aria-label="Country code" class="pg-sel" style="width:120px;flex-shrink:0"
+            <select id="cn-phone-cc" name="phoneCC" autocomplete="tel-country-code" aria-label="Country code" class="af-fselect" style="width:120px;flex-shrink:0"
                     @onchange="OnPhoneCcChange">
               <option value="+91">+91 India</option>
               <option value="+1">+1 US/CA</option>
@@ -130,22 +130,22 @@
               <option value="+971">+971 UAE</option>
               <option value="+65">+65 SG</option>
             </select>
-            <input id="cn-phone" name="phone" autocomplete="tel-national" class="pg-inp @eCss("phone")" value="@m.Phone"
+            <input id="cn-phone" name="phone" autocomplete="tel-national" class="af-finput @eCss("phone")" value="@m.Phone"
                    inputmode="numeric" placeholder="@(m.PhoneCC=="+91"?"10 digits":"Mobile")"
                    @oninput="OnPhoneInput" @onblur="OnBlurPhone" />
           @Err("phone")
           </div>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-email">Email <span class="af-req">*</span></label>
-          <input id="cn-email" name="email" autocomplete="email" type="email" class="pg-inp @eCss("email")"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-email">Email <span class="af-req">*</span></label>
+          <input id="cn-email" name="email" autocomplete="email" type="email" class="af-finput @eCss("email")"
                  value="@m.Email" placeholder="info@clinic.com"
                  @oninput="OnEmailInput" @onblur="OnBlurEmail" />
           @Err("email")
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-web">Website</label>
-          <input id="cn-web" name="website" autocomplete="url" class="pg-inp" value="@m.Website"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-web">Website</label>
+          <input id="cn-web" name="website" autocomplete="url" class="af-finput" value="@m.Website"
                  placeholder="https://…" @oninput="OnWebInput" />
         </div>
       </div>
@@ -153,18 +153,18 @@
   </div>
 
   <!-- ③ Accreditation & Modules -->
-  <div class="pg-card" style="border-left-color:#6A1B9A">
-    <div class="pg-ch"><div class="pg-num" style="background:#6A1B9A">3</div><span class="pg-ct">Accreditation &amp; Clinical Modules</span></div>
-    <div class="pg-cb">
-      <div class="pg-g4" style="margin-bottom:12px">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-beds">Bed Count</label>
-          <input id="cn-beds" name="bedCount" autocomplete="off" type="number" class="pg-inp"
+  <div class="af-card" style="border-left-color:#6A1B9A">
+    <div class="af-card-header"><div class="af-card-num" style="background:#6A1B9A">3</div><span class="af-card-title">Accreditation &amp; Clinical Modules</span></div>
+    <div class="af-card-body">
+      <div class="af-grid4" style="margin-bottom:12px">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-beds">Bed Count</label>
+          <input id="cn-beds" name="bedCount" autocomplete="off" type="number" class="af-finput"
                  value="@m.BedCount" min="0" max="9999" @oninput="OnBedsInput" />
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-tz">Timezone</label>
-          <select id="cn-tz" autocomplete="off" name="timezone" class="pg-sel" @onchange="OnTzChange">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-tz">Timezone</label>
+          <select id="cn-tz" autocomplete="off" name="timezone" class="af-fselect" @onchange="OnTzChange">
             <option value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</option>
             <option value="Asia/Dubai">Asia/Dubai (GST +4)</option>
             <option value="America/New_York">America/New_York (EST)</option>
@@ -172,7 +172,7 @@
           </select>
         </div>
       </div>
-      <span class="pg-lbl" style="display:block;margin-bottom:6px">Accreditation</span>
+      <span class="af-flabel" style="display:block;margin-bottom:6px">Accreditation</span>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <button type="button" class="pg-accr-btn @(m.Nabh ? "on" : "")" @onclick="ToggleNabh">
           <span style="font-size:18px">🏅</span>
@@ -193,7 +193,7 @@
           <input type="checkbox" id="cn-jci" name="jci" aria-hidden="true" checked="@m.Jci" style="pointer-events:none;accent-color:#1B4DA0" />
         </button>
       </div>
-      <span class="pg-lbl" style="display:block;margin-bottom:6px">Clinical Modules to Enable</span>
+      <span class="af-flabel" style="display:block;margin-bottom:6px">Clinical Modules to Enable</span>
       <div style="display:flex;flex-wrap:wrap;gap:7px">
         @foreach (var mod in Modules)
         {
@@ -209,28 +209,28 @@
   </div>
 
   <!-- ④ System & Go-Live -->
-  <div class="pg-card" style="border-left-color:#E65100">
-    <div class="pg-ch"><div class="pg-num" style="background:#E65100">4</div><span class="pg-ct">System &amp; Go-Live</span></div>
-    <div class="pg-cb">
-      <div class="pg-g3">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-status">Initial Status</label>
-          <select id="cn-status" autocomplete="off" name="status" class="pg-sel" @onchange="OnStatusChange">
+  <div class="af-card" style="border-left-color:#E65100">
+    <div class="af-card-header"><div class="af-card-num" style="background:#E65100">4</div><span class="af-card-title">System &amp; Go-Live</span></div>
+    <div class="af-card-body">
+      <div class="af-grid3">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-status">Initial Status</label>
+          <select id="cn-status" autocomplete="off" name="status" class="af-fselect" @onchange="OnStatusChange">
             <option value="provisioning">Provisioning — admin only</option>
             <option value="active">Active — staff can log in</option>
           </select>
-          <span class="pg-note">Active = login enabled immediately</span>
+          <span class="af-fhint">Active = login enabled immediately</span>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-golive">Planned Go-Live Date</label>
-          <input id="cn-golive" autocomplete="off" name="goLiveDate" type="date" class="pg-inp"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-golive">Planned Go-Live Date</label>
+          <input id="cn-golive" autocomplete="off" name="goLiveDate" type="date" class="af-finput"
                  value="@m.GoLiveDate" @onchange="OnGoLiveChange" />
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="cn-dbhost">PostgreSQL Host</label>
-          <input id="cn-dbhost" name="dbHost" autocomplete="off" class="pg-inp" value="@m.DbHost"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="cn-dbhost">PostgreSQL Host</label>
+          <input id="cn-dbhost" name="dbHost" autocomplete="off" class="af-finput" value="@m.DbHost"
                  placeholder="localhost" @oninput="OnDbHostInput" />
-          <span class="pg-note">Server for this clinic's isolated database</span>
+          <span class="af-fhint">Server for this clinic's isolated database</span>
         </div>
       </div>
     </div>
@@ -239,9 +239,9 @@
   </fieldset>
 
   @if (!string.IsNullOrEmpty(formError))
-  { <div class="pg-form-err">⚠ @formError</div> }
+  { <div class="ap-alert error">⚠ @formError</div> }
 
-  <div class="pg-actions">
+  <div class="af-card-body">
     @if (!saved)
     { <button type="button" class="btn-primary" disabled="@saving" @onclick="HandleSubmit">
         @(saving ? "Creating Clinic…" : "Register Clinic")
@@ -366,7 +366,7 @@
   private RenderFragment Err(string f) => b =>
   {
     if (_t.GetValueOrDefault(f) && !string.IsNullOrEmpty(_e.GetValueOrDefault(f)))
-    { b.OpenElement(0, "span"); b.AddAttribute(1, "class", "pg-err"); b.AddContent(2, _e[f]); b.CloseElement(); }
+    { b.OpenElement(0, "span"); b.AddAttribute(1, "class", "af-ferr"); b.AddContent(2, _e[f]); b.CloseElement(); }
   };
 
   private void Validate(string f)
@@ -405,7 +405,7 @@
     {
       formError = "Please fix the highlighted errors.";
       await JS.InvokeVoidAsync("eval",
-        "setTimeout(()=>{var el=document.querySelector('.pg-inp.err,.pg-sel.err,.ab-inp.err');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();}},50)");
+        "setTimeout(()=>{var el=document.querySelector('.af-finput.err,.af-fselect.err,.ab-inp.err');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();}},50)");
       return;
     }
 

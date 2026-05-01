@@ -23,16 +23,16 @@
     <div class="tn-pt-sub">Update organisation details</div>
 </SectionContent>
 
-<div class="pg-body">
-  <div class="pg-bc">
+<div class="ap-body">
+  <div class="af-breadcrumb">
     <a href="/admin/settings">Administration</a><span>›</span>
     <a href="/admin/orgs">Organisations</a><span>›</span>
     <span>@(loading ? "Loading…" : m.LegalName)</span>
-    <a href="/admin/orgs" class="pg-bc-back">← All Organisations</a>
+    <a href="/admin/orgs" class="btn-secondary btn-sm">← All Organisations</a>
   </div>
 
-  @if (!string.IsNullOrEmpty(successMsg)) { <div class="pg-alert ok">✓ @successMsg</div> }
-  @if (!string.IsNullOrEmpty(errorMsg))   { <div class="pg-alert err">⚠ @errorMsg</div> }
+  @if (!string.IsNullOrEmpty(successMsg)) { <div class="ap-alert ok">✓ @successMsg</div> }
+  @if (!string.IsNullOrEmpty(errorMsg))   { <div class="ap-alert err">⚠ @errorMsg</div> }
 
   @if (loading)
   { <div class="ap-placeholder"><div class="ap-placeholder-icon">⏳</div><p>Loading…</p></div> }
@@ -43,27 +43,27 @@
   <fieldset disabled="@saved" style="border:none;padding:0;margin:0">
 
   <!-- ① Legal Identity -->
-  <div class="pg-card" style="border-left-color:#1565C0">
-    <div class="pg-ch"><div class="pg-num" style="background:#1565C0">1</div><span class="pg-ct">Legal Identity</span></div>
-    <div class="pg-cb">
-      <div class="pg-g3" style="margin-bottom:8px">
-        <div class="pg-fg pg-s2">
-          <label class="pg-lbl" for="oe-lname">Legal / Registered Name <span class="pg-req">*</span></label>
-          <input id="oe-lname" name="legalName" class="pg-inp" autocomplete="organization"
+  <div class="af-card" style="border-left-color:#1565C0">
+    <div class="af-card-header"><div class="af-card-num" style="background:#1565C0">1</div><span class="af-card-title">Legal Identity</span></div>
+    <div class="af-card-body">
+      <div class="af-grid3" style="margin-bottom:8px">
+        <div class="af-fgroup af-span2">
+          <label class="af-flabel" for="oe-lname">Legal / Registered Name <span class="af-req">*</span></label>
+          <input id="oe-lname" name="legalName" class="af-finput" autocomplete="organization"
                  value="@m.LegalName" @oninput="OnLnameInput"
                  @onblur="OnBlurLname" />
-          @if (_lnTouched && string.IsNullOrWhiteSpace(m.LegalName)) { <span class="pg-err">Legal name required</span> }
+          @if (_lnTouched && string.IsNullOrWhiteSpace(m.LegalName)) { <span class="af-ferr">Legal name required</span> }
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-tname">Trading / Brand Name</label>
-          <input id="oe-tname" name="tradingName" class="pg-inp" autocomplete="off"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-tname">Trading / Brand Name</label>
+          <input id="oe-tname" name="tradingName" class="af-finput" autocomplete="off"
                  value="@m.TradingName" @oninput="OnTnameInput" />
         </div>
       </div>
-      <div class="pg-g3">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-type">Organisation Type</label>
-          <select id="oe-type" autocomplete="off" name="orgType" class="pg-sel" @onchange="OnTypeChange">
+      <div class="af-grid3">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-type">Organisation Type</label>
+          <select id="oe-type" autocomplete="off" name="orgType" class="af-fselect" @onchange="OnTypeChange">
             <option value="single_clinic"   selected="@(m.OrgType=="single_clinic")">Single Clinic</option>
             <option value="hospital_chain"  selected="@(m.OrgType=="hospital_chain")">Hospital Chain / Group</option>
             <option value="clinic_group"    selected="@(m.OrgType=="clinic_group")">Clinic Group</option>
@@ -72,18 +72,18 @@
             <option value="trust"           selected="@(m.OrgType=="trust")">Trust / NGO</option>
           </select>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-country">Country</label>
-          <select id="oe-country" autocomplete="country" name="country" class="pg-sel" @onchange="OnCountryChange">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-country">Country</label>
+          <select id="oe-country" autocomplete="country" name="country" class="af-fselect" @onchange="OnCountryChange">
             <option value="IN" selected="@(m.CountryCode=="IN")">India</option>
             <option value="AE" selected="@(m.CountryCode=="AE")">UAE</option>
             <option value="US" selected="@(m.CountryCode=="US")">USA</option>
             <option value="GB" selected="@(m.CountryCode=="GB")">UK</option>
           </select>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-status">Status</label>
-          <select id="oe-status" autocomplete="off" name="status" class="pg-sel" @onchange="OnStatusChange">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-status">Status</label>
+          <select id="oe-status" autocomplete="off" name="status" class="af-fselect" @onchange="OnStatusChange">
             <option value="active"     selected="@(m.Status=="active")">Active</option>
             <option value="onboarding" selected="@(m.Status=="onboarding")">Onboarding</option>
             <option value="suspended"  selected="@(m.Status=="suspended")">Suspended</option>
@@ -94,29 +94,29 @@
   </div>
 
   <!-- ② Registration & Tax -->
-  <div class="pg-card" style="border-left-color:#BF360C">
-    <div class="pg-ch"><div class="pg-num" style="background:#BF360C">2</div><span class="pg-ct">Registration &amp; Tax Numbers</span></div>
-    <div class="pg-cb">
-      <div class="pg-g3">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-pan">PAN</label>
-          <input id="oe-pan" autocomplete="off" name="pan" class="pg-inp @eCss("pan")"
+  <div class="af-card" style="border-left-color:#BF360C">
+    <div class="af-card-header"><div class="af-card-num" style="background:#BF360C">2</div><span class="af-card-title">Registration &amp; Tax Numbers</span></div>
+    <div class="af-card-body">
+      <div class="af-grid3">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-pan">PAN</label>
+          <input id="oe-pan" autocomplete="off" name="pan" class="af-finput @eCss("pan")"
                  value="@m.Pan" placeholder="AAAAA0000A" maxlength="10"
                  style="font-family:'DM Mono',monospace"
                  @oninput="OnPanInput" @onblur="OnBlurPan" />
           @ErrSpan("pan")
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-gstin">GSTIN</label>
-          <input id="oe-gstin" autocomplete="off" name="gstin" class="pg-inp @eCss("gstin")"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-gstin">GSTIN</label>
+          <input id="oe-gstin" autocomplete="off" name="gstin" class="af-finput @eCss("gstin")"
                  value="@m.Gstin" placeholder="22AAAAA0000A1Z5" maxlength="15"
                  style="font-family:'DM Mono',monospace"
                  @oninput="OnGstinInput" @onblur="OnBlurGstin" />
           @ErrSpan("gstin")
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-cin">CIN</label>
-          <input id="oe-cin" autocomplete="off" name="cin" class="pg-inp @eCss("cin")"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-cin">CIN</label>
+          <input id="oe-cin" autocomplete="off" name="cin" class="af-finput @eCss("cin")"
                  value="@m.Cin" placeholder="U85110MH2020PTC123456" maxlength="21"
                  style="font-family:'DM Mono',monospace"
                  @oninput="OnCinInput" @onblur="OnBlurCin" />
@@ -127,9 +127,9 @@
   </div>
 
   <!-- ③ Address & Primary Contact -->
-  <div class="pg-card" style="border-left-color:#00695C">
-    <div class="pg-ch"><div class="pg-num" style="background:#00695C">3</div><span class="pg-ct">Registered Address &amp; Primary Contact</span></div>
-    <div class="pg-cb">
+  <div class="af-card" style="border-left-color:#00695C">
+    <div class="af-card-header"><div class="af-card-num" style="background:#00695C">3</div><span class="af-card-title">Registered Address &amp; Primary Contact</span></div>
+    <div class="af-card-body">
       <AddressBlock
           AddressLine="@m.AddressLine"  AddressLineChanged="OnAddrChanged"
           City="@m.City"               CityChanged="OnCityChanged"
@@ -145,17 +145,17 @@
           CityErrorMsg="@_e.GetValueOrDefault("city")"
           StateError="@(_t.GetValueOrDefault("state") && !string.IsNullOrEmpty(_e.GetValueOrDefault("state")))"
           StateErrorMsg="@_e.GetValueOrDefault("state")" />
-      <div class="pg-g3" style="margin-top:10px">
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-cname">Contact Name <span class="pg-req">*</span></label>
-          <input id="oe-cname" name="contactName" class="pg-inp" autocomplete="name"
+      <div class="af-grid3" style="margin-top:10px">
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-cname">Contact Name <span class="af-req">*</span></label>
+          <input id="oe-cname" name="contactName" class="af-finput" autocomplete="name"
                  value="@m.ContactName" @oninput="OnCnameInput" @onblur="OnBlurCname" />
-                @if (_t.GetValueOrDefault("cname") && !string.IsNullOrEmpty(_e.GetValueOrDefault("cname"))) { <span class="pg-err">@_e["cname"]</span> }
+                @if (_t.GetValueOrDefault("cname") && !string.IsNullOrEmpty(_e.GetValueOrDefault("cname"))) { <span class="af-ferr">@_e["cname"]</span> }
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-cphone">Mobile Phone</label>
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-cphone">Mobile Phone</label>
           <div style="display:flex;gap:4px">
-            <select id="oe-cphone-cc" autocomplete="tel-country-code" name="contactPhoneCC" class="pg-sel"
+            <select id="oe-cphone-cc" autocomplete="tel-country-code" name="contactPhoneCC" class="af-fselect"
                     style="width:110px;flex-shrink:0" aria-label="Country code"
                     @onchange="OnCphoneCcChange">
               <option value="+91">+91 India</option>
@@ -163,16 +163,16 @@
               <option value="+44">+44 UK</option>
               <option value="+971">+971 UAE</option>
             </select>
-            <input id="oe-cphone" autocomplete="tel-national" name="contactPhone" class="pg-inp"
+            <input id="oe-cphone" autocomplete="tel-national" name="contactPhone" class="af-finput"
                    value="@m.ContactPhone"
                    inputmode="numeric" @oninput="OnCphoneInput" @onblur='() => { if(!string.IsNullOrEmpty(m.ContactPhone)) Touch("mobile"); }' />
           </div>
         </div>
-        <div class="pg-fg">
-          <label class="pg-lbl" for="oe-cemail">Contact Email</label>
-          <input id="oe-cemail" autocomplete="email" name="contactEmail" type="email" class="pg-inp @eCss("cemail")"
+        <div class="af-fgroup">
+          <label class="af-flabel" for="oe-cemail">Contact Email</label>
+          <input id="oe-cemail" autocomplete="email" name="contactEmail" type="email" class="af-finput @eCss("cemail")"
                  value="@m.ContactEmail" @oninput="OnCemailInput" @onblur="OnBlurCemail" />
-          @if (_t.GetValueOrDefault("cemail") && !string.IsNullOrEmpty(_e.GetValueOrDefault("cemail"))) { <span class="pg-err">@_e["cemail"]</span> }
+          @if (_t.GetValueOrDefault("cemail") && !string.IsNullOrEmpty(_e.GetValueOrDefault("cemail"))) { <span class="af-ferr">@_e["cemail"]</span> }
         </div>
       </div>
     </div>
@@ -181,9 +181,9 @@
   </fieldset>
 
   @if (!string.IsNullOrEmpty(formError))
-  { <div class="pg-form-err">⚠ @formError</div> }
+  { <div class="ap-alert error">⚠ @formError</div> }
 
-  <div class="pg-actions">
+  <div class="af-card-body">
     @if (!saved)
     {
       <button type="button" class="btn-primary" disabled="@saving" @onclick="HandleSave">
@@ -312,7 +312,7 @@
   private RenderFragment ErrSpan(string f) => b =>
   {
     if(_t.GetValueOrDefault(f)&&!string.IsNullOrEmpty(_e.GetValueOrDefault(f)))
-    { b.OpenElement(0,"span");b.AddAttribute(1,"class","pg-err");b.AddContent(2,_e[f]);b.CloseElement(); }
+    { b.OpenElement(0,"span");b.AddAttribute(1,"class","af-ferr");b.AddContent(2,_e[f]);b.CloseElement(); }
   };
   private void Validate(string f)
   {
