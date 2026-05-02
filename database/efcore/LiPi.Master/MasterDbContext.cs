@@ -1,4 +1,4 @@
-using LiPi.Master.Entities;
+ using LiPi.Master.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiPi.Master;
@@ -30,6 +30,7 @@ public class MasterDbContext : DbContext
     public DbSet<PlatformUser>                PlatformUsers        => Set<PlatformUser>();
     public DbSet<ClinicMembership>            ClinicMemberships    => Set<ClinicMembership>();
     public DbSet<AspirationalDistrict>        AspirationalDistricts => Set<AspirationalDistrict>();
+	public DbSet<BrandTheme> BrandThemes => Set<BrandTheme>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -125,6 +126,21 @@ public class MasterDbContext : DbContext
             .IsUnique()
             .HasDatabaseName("uq_aspirational_district_state");
         // No hard-delete query filter — all rows returned (including inactive)
+		
+	
+b.Entity<BrandTheme>(e =>
+{
+    e.HasKey(x => x.BrandId);
+    e.Property(x => x.BrandId).HasMaxLength(50);
+    e.Property(x => x.DisplayName).HasMaxLength(100);
+    e.Property(x => x.CssFilePath).HasMaxLength(200);
+    e.Property(x => x.LogoLightUrl).HasMaxLength(200);
+    e.Property(x => x.LogoDarkUrl).HasMaxLength(200);
+});
+        // NOTE: BrandTheme.BrandId → "brand_theme_id" FK on Clinic is NOT configured here
+        // as a navigation property. The FK constraint lives in SQL only (migration script).
+        // EF will track the Clinic.BrandThemeId scalar property for reads/writes.
+
     }
 
     private static string ToSnakeCase(string input)

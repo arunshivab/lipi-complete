@@ -87,6 +87,11 @@ builder.Services.AddHttpClient("IndiaPinApi", client =>
 // Always show detailed errors so we can diagnose issues
 builder.Services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors = true);
 
+// ── Theme services — Decision #12, Phase 1 ────────────────────────────
+// SPEC: docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Theme Provider Component
+builder.Services.AddScoped<IUserPreferenceService, UserPreferenceService>();
+builder.Services.AddScoped<IThemeContextService, ThemeContextService>();
+
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();

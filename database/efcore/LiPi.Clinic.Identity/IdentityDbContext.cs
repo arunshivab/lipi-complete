@@ -30,6 +30,7 @@ public class IdentityDbContext : DbContext
     // public DbSet<ApiKey> ApiKeys => Set<ApiKey>();  // table dropped
     // public DbSet<AdSyncRun> AdSyncRuns => Set<AdSyncRun>();  // table dropped
     public DbSet<ClinicProfile> ClinicProfiles => Set<ClinicProfile>();
+	public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +59,18 @@ public class IdentityDbContext : DbContext
             foreach (var index in entity.GetIndexes())
                 index.SetDatabaseName(ToSnakeCase(index.GetDatabaseName() ?? string.Empty));
         }
+		
+		
+    modelBuilder.Entity<UserPreference>(e =>
+    {
+        e.HasKey(p => p.UserId);
+        e.Property(p => p.ThemeMode).HasMaxLength(20);
+        e.Property(p => p.Density).HasMaxLength(20);
+        e.Property(p => p.FontSize).HasMaxLength(20);
+        e.Property(p => p.Language).HasMaxLength(10);
+        // HasDefaultValue not set here — defaults are enforced at DB level
+        // via SQL DEFAULT clauses in the migration script.
+    });
 
         // =========== User — REMOVED (users now in master.platform_users) ===========
         // Config below kept for reference only

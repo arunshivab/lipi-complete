@@ -1,0 +1,13 @@
+/* SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Brand: lipi-default */
+/* DECISION: docs/00-PROJECT-BASELINE.md §12.4 (Multi-Theme System)              */
+/* PHASE 1 PLACEHOLDER — populated with token values in Phase 3                  */
+/* DO NOT DELETE — referenced in App.razor CSS cascade order                     */
+/*                                                                                */
+/* Phase 3 will add:                                                              */
+/*   [data-brand="lipi-default"] { --brand-name, --brand-logo-url, hue values }  */
+/*   [data-brand="lipi-default"][data-mode="light"] { brand-specific overrides } */
+/*   [data-brand="lipi-default"][data-mode="dark"]  { brand-specific overrides } */
+
+[data-brand="lipi-default"] {
+    /* Brand identity and hue values — added in Phase 3 */
+}

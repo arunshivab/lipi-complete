@@ -108,4 +108,21 @@ public static class AuditActions
     public const string UserTerminated     = "user.terminated";      // "deleted" — soft only
     public const string UserPasswordReset  = "user.password_reset";
     public const string UserSessionRevoked = "user.session_revoked";
+	
+	    // These are NOT PHI — no phi_access_log needed. audit_events only.
+
+    /// <summary>
+    /// User changed their own theme mode, density, font size, or language.
+    /// Fired by UserPreferenceService for every write to identity.user_preferences.
+    /// entityType = "user_preference", entityId = userId
+    /// </summary>
+    public const string UserThemeChanged  = "user.theme_changed";
+
+    /// <summary>
+    /// Admin changed a clinic's brand theme (master.clinics.brand_theme_id).
+    /// Fired by ThemeContextService.SetBrandAsync.
+    /// entityType = "clinic", entityId = clinicId
+    /// Requires SiteAdmin+ — enforced in ThemeContextService before audit fires.
+    /// </summary>
+    public const string UserBrandChanged  = "user.brand_changed";
 }

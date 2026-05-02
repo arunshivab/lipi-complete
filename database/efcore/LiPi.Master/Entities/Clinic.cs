@@ -45,6 +45,12 @@ public class Clinic
     public ClinicDatabase? Database { get; set; }
     public ICollection<ClinicGroupMember> GroupMemberships { get; set; } = new List<ClinicGroupMember>();
     public ICollection<GlobalUserClinicAccess> UserAccess { get; set; } = new List<GlobalUserClinicAccess>();
+    /// <summary>
+    /// FK to master.brand_themes.brand_id.
+    /// Controls which brand CSS file is active for this clinic.
+    /// Default: 'lipi-default'. Change via ThemeContextService.SetBrandAsync().
+    /// </summary>
+    public string BrandThemeId { get; set; } = "lipi-default";
 }
 
 [Table("clinic_databases", Schema = "master")]
@@ -98,3 +104,4 @@ public class ClinicGroupMember
     public ClinicGroup ClinicGroup { get; set; } = default!;
     public Clinic Clinic { get; set; } = default!;
 }
+

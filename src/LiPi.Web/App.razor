@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.Web
+@using LiPi.Web.Components.Theme
 
 <!DOCTYPE html>
 <html lang="en">
@@ -12,13 +13,30 @@
     <meta name="description" content="LiPi: Enterprise multi-tenant SaaS Hospital Information System (HIS) with HIPAA, DPDP, ABDM, and Six Sigma compliance.">
     <meta name="theme-color" content="#06b6d4">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%2306b6d4' width='180' height='180'/><text x='50%' y='50%' font-size='100' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>L</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%2306b6d4' width='180' height='180'/><text x='50%25' y='50%25' font-size='100' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>L</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/app.css?v=20260425a"" />
-    <link rel="stylesheet" href="css/dashboard.css?v=20260425a"" />
-    <link rel="stylesheet" href="css/admin.css?v=20260425a" />
+
+    @*
+        CSS CASCADE ORDER — Decision #12 §12.4 (SPEC: 00.2-THEMING-ARCHITECTURE.md)
+        1. Existing layout/module CSS (unchanged during Phase 1-2 Modified Big Bang)
+        2. Theme: brand → mode-light → mode-dark (both mode files loaded; data-mode attr activates one)
+        3. admin.css stays during Phase 1-2; removed in Phase 3 after theme tokens verified
+
+        Version bumped 20260425a → 20260502 for CSS cache busting.
+    *@
+    <link rel="stylesheet" href="css/app.css?v=20260502" />
+    <link rel="stylesheet" href="css/dashboard.css?v=20260502" />
+
+    @* Theme CSS — Decision #12, Phase 1 — placeholder files (populated in Phase 3) *@
+    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260502" />
+    <link rel="stylesheet" href="themes/mode-light.css?v=20260502" />
+    <link rel="stylesheet" href="themes/mode-dark.css?v=20260502" />
+
+    @* admin.css: Modified Big Bang — stays loaded until Phase 3 *@
+    <link rel="stylesheet" href="css/admin.css?v=20260502" />
+
     <style>
         .loading-spinner {
             position: fixed;
@@ -36,32 +54,52 @@
             to { transform: translate(-50%, -50%) rotate(360deg); }
         }
     </style>
+
+    @*
+        FOUC PREVENTION — MUST be blocking script (no async/defer), MUST be in <head>.
+        Runs before browser paints content. Reads cookies, applies data-brand + data-mode
+        to <html> immediately. See wwwroot/js/theme-switcher.js.
+        Provides window.lipiTheme.apply(brand, mode) for ThemeProvider.razor interop.
+    *@
+    <script src="js/theme-switcher.js"></script>
+
     <HeadOutlet @rendermode="@InteractiveServer" />
 </head>
 <body>
     <CascadingAuthenticationState>
-        <Router AppAssembly="@typeof(App).Assembly">
-            <Found Context="routeData">
-                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(LiPi.Web.Components.MainLayout)">
-                    <NotAuthorized>
-                        <LiPi.Web.Components.RedirectToLogin />
-                    </NotAuthorized>
-                </AuthorizeRouteView>
-                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-            </Found>
-            <NotFound>
-                <PageTitle>Not Found</PageTitle>
-                <LayoutView Layout="@typeof(LiPi.Web.Components.MainLayout)">
-                    <div class="container text-center mt-5">
-                        <h1>Page Not Found</h1>
-                        <p>The page you're looking for doesn't exist.</p>
-                        <a href="/" class="btn btn-primary">Go Home</a>
-                    </div>
-                </LayoutView>
-            </NotFound>
-        </Router>
+        @*
+            ThemeProvider wraps Router — Decision #12 §12.4
+            Cascades:
+              CascadingValue<ThemeContext>  Name="CurrentTheme" (IsFixed=false) — data
+              CascadingValue<ThemeProvider> Name="ThemeProvider" (IsFixed=true)  — actions
+            Blazor Rule #6: CascadingAuthenticationState stays outermost. ThemeProvider inside.
+            ThemeProvider has @rendermode InteractiveServer — all pages inherit this circuit.
+        *@
+        <ThemeProvider>
+            <Router AppAssembly="@typeof(App).Assembly">
+                <Found Context="routeData">
+                    <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(LiPi.Web.Components.MainLayout)">
+                        <NotAuthorized>
+                            <LiPi.Web.Components.RedirectToLogin />
+                        </NotAuthorized>
+                    </AuthorizeRouteView>
+                    <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+                </Found>
+                <NotFound>
+                    <PageTitle>Not Found</PageTitle>
+                    <LayoutView Layout="@typeof(LiPi.Web.Components.MainLayout)">
+                        <div class="container text-center mt-5">
+                            <h1>Page Not Found</h1>
+                            <p>The page you're looking for doesn't exist.</p>
+                            <a href="/" class="btn btn-primary">Go Home</a>
+                        </div>
+                    </LayoutView>
+                </NotFound>
+            </Router>
+        </ThemeProvider>
     </CascadingAuthenticationState>
 
+    @* Body scripts — order preserved; theme-switcher.js is in <head>, not here *@
     <script src="js/lipi-login.js"></script>
     <script src="js/lipi-topnav.js"></script>
     <script src="js/lipi-shortcuts.js"></script>
