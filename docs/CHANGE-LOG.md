@@ -7,10 +7,10 @@
 
 ## v1.0 — BASE (May 2, 2026) 🔒 LOCKED
 
-All 11 design decisions finalized. See `00-PROJECT-BASELINE.md`.
+All 12 design decisions finalized. See `00-PROJECT-BASELINE.md`.
 
 ### Locked Decisions
-1. CSS Architecture: 00-baseline.css + per-module CSS
+1. CSS Architecture: 00-baseline.css + per-module CSS + theme files
 2. CLAUDE.md: Extracted to 00-PROJECT-BASELINE.md, deprecated
 3. Database Docs: Hybrid (database/ + docs/00-DATABASE/)
 4. Module Scope: All 25 modules
@@ -21,12 +21,27 @@ All 11 design decisions finalized. See `00-PROJECT-BASELINE.md`.
 9. Teleconsult: PARKED (revisit after 10+ modules)
 10. Public Calling Board: BASE FEATURE + per-module customization, multi-screen
 11. Waitlist Confirmation: Manual
+12. **Component Library + Multi-Theme** (added May 2, 2026):
+    - Custom Razor components with `Lipi` prefix
+    - 41 components total for v1.0 (P0: 15, P1: 15, P2: 11)
+    - Two-dimensional theme system (brand × mode)
+    - v1.0 ships with: 1 brand (`lipi-default`) × 2 modes (light + dark)
+    - Default mode for new users: Light
+    - Apple HIG density baseline
+    - `/admin/style-guide` page as living showcase
 
 ### Production-Ready Modules (v1.0)
 - ✅ Admin (Users, Clinics, Orgs, Settings)
 - ✅ Authentication (Login, OTP, Password Reset)
 - 🟡 Patient Registration (80%)
 - 🟡 Appointments (60%)
+
+### Component Library Status (v1.0)
+- 📋 Architecture Specs: In progress (Decision #12)
+- 📋 41 Razor Components: Build phase
+- 📋 Style Guide Page: Build phase
+- 📋 Theme System: Build phase
+- 📋 Existing pages refactored to use Lipi components: Pending
 
 ---
 
@@ -37,6 +52,10 @@ All 11 design decisions finalized. See `00-PROJECT-BASELINE.md`.
 - [ ] Auto patient identifier verification (Aadhaar, ABHA via DigiLocker)
 - [ ] Real-time bed management (IPD)
 - [ ] PACS integration (Radiology)
+- [ ] **Armoki brand theme** (after Armoki finalizes brand identity)
+- [ ] **Auto theme mode** (follows OS preference)
+- [ ] **High-contrast theme mode** (accessibility)
+- [ ] **Density toggle** (user preference: comfortable/compact/spacious)
 
 ### Pending Decisions (Not Locked)
 - [ ] Insurance TPA workflows (decision pending)

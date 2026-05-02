@@ -1,7 +1,7 @@
 # LiPi HIS — Project Baseline (v1.0)
 
-> **Last Updated**: May 2, 2026  
-> **Status**: LOCKED — All 11 design decisions finalized  
+> **Last Updated**: May 2, 2026 (Decision #12 added)  
+> **Status**: LOCKED — All 12 design decisions finalized  
 > **Next Changes**: v1.1+ decisions isolated in CHANGE-LOG.md
 
 ---
@@ -15,7 +15,7 @@
 - **First Expected Client**: Armoki (cancer hospital)
 - **Stack**: .NET 10, Blazor Web App (InteractiveServer only), PostgreSQL + EF Core 10 + Npgsql
 - **Auth**: Cookie-based, Argon2id hashing
-- **Design**: Navy (#0B2545) + Gold (#C49A22), white cards on soft blue-gray background
+- **Design**: Apple HIG density, Navy (#0B2545) + Gold (#C49A22) brand, multi-theme (light/dark)
 - **Compliance**: HIPAA + Six Sigma quality standards
 - **Developer Env**: Visual Studio (Windows), pgAdmin 4, PowerShell
 
@@ -129,36 +129,130 @@ Every input/select/textarea needs:
 
 ---
 
-## 🔒 11 LOCKED DESIGN DECISIONS (v1.0)
+## 🔒 12 LOCKED DESIGN DECISIONS (v1.0)
 
 | # | Decision | Answer | Details |
 |---|----------|--------|---------|
-| 1 | CSS Architecture | **B) Refactor to 00-baseline.css + per-module CSS** | Modular, extractable, scales to 25 modules |
-| 2 | CLAUDE.md Handling | **Extract → 00-PROJECT-BASELINE.md + Deprecate** | Clean break, specs as source of truth |
-| 3 | Database Docs | **Hybrid: Keep SQL/ER in database/, specs in docs/00-DATABASE/** | Separation: technical vs spec-focused |
-| 4 | Module Scope | **All 25 modules** | Complete roadmap, even if some empty templates |
-| 5 | DOB Confidence Tagging | **SysAdmin + SiteAdmin can override Verified DOB** | Mark overrides: "Overridden by [User] on [Date]" |
-| 6 | Duplicate Detection | **Aadhaar → ABHA → Name+DOB → Name+DOB+Mobile** | Order correct, confidence cascade locked |
-| 7 | Record Merge Cooling | **24h (basic) / 7d (staff) / 30d (SiteAdmin) / 30d+ (SysAdmin)** | Cooling-off periods by role level |
-| 8 | Scheduling Coordinator | **Standalone role, SiteAdmin-assigned, multiple per clinic** | New role for appointment coordination |
-| 9 | Teleconsult Feature | **PARKED** | Revisit after 10+ modules, likely v1.1 |
-| 10 | Public Calling Board | **BASE FEATURE + Per-module customization** | Core service, custom fields per module, multi-screen support |
-| 11 | Waitlist Confirmation | **Manual confirmation** | Staff clicks "CONFIRM ARRIVAL" to move patient to in-progress |
+| 1 | CSS Architecture | **B) 00-baseline.css + per-module CSS + theme files** | Modular, theme-aware |
+| 2 | CLAUDE.md Handling | **Extract → 00-PROJECT-BASELINE.md + Deprecate** | Specs as source of truth |
+| 3 | Database Docs | **Hybrid: Keep SQL/ER in database/, specs in docs/00-DATABASE/** | Separation: technical vs spec |
+| 4 | Module Scope | **All 25 modules** | Complete roadmap |
+| 5 | DOB Confidence Tagging | **SysAdmin + SiteAdmin can override Verified DOB** | Mark "Overridden by [User] on [Date]" |
+| 6 | Duplicate Detection | **Aadhaar → ABHA → Name+DOB → Name+DOB+Mobile** | Confidence cascade |
+| 7 | Record Merge Cooling | **24h / 7d / 30d / 30d+** | By role level |
+| 8 | Scheduling Coordinator | **Standalone role, SiteAdmin-assigned, multiple per clinic** | New role |
+| 9 | Teleconsult Feature | **PARKED → v1.1** | Revisit after 10+ modules |
+| 10 | Public Calling Board | **BASE FEATURE + Per-module customization** | Multi-screen support |
+| 11 | Waitlist Confirmation | **Manual confirmation** | Staff clicks "CONFIRM ARRIVAL" |
+| 12 | **Component Library + Multi-Theme** ⭐ NEW | **Custom Razor components + 2 themes** | See Decision #12 detail below |
+
+---
+
+## 🎨 DECISION #12 — COMPONENT LIBRARY + MULTI-THEME (LOCKED v1.0)
+
+### Sub-Decision 12.1: CSS Approach
+**Custom CSS** (NOT MudBlazor or any 3rd-party library)
+
+**Rationale**:
+- MudBlazor's Material Design doesn't fit medical/clinical UI density needs
+- MudBlazor has known compatibility issues with InteractiveServer + authentication (as of late 2025)
+- Existing `reg-*`, `uf-*`, `cf-*` CSS systems represent significant investment
+- Custom CSS gives total control for multi-theme support
+- 5-10 year medical product lifespan benefits from owning the design system
+
+### Sub-Decision 12.2: Design Density
+**Apple HIG (Human Interface Guidelines) style** — balanced density
+
+**Specifications**:
+- Form field height: 32px (admin forms), 34px (PatientNew `reg-*` system)
+- Label font: 11px uppercase, letter-spacing 0.3-0.5px
+- Section headers: 14-15px, weight 500
+- Border: 0.5-1px solid `#E2E8F0` to `#CBD5E1`
+- Border radius: 6-8px standard, 10-12px for cards
+- Generous-but-not-wasteful spacing
+
+### Sub-Decision 12.3: Component Library
+**Build custom Razor component library** with `Lipi` prefix.
+
+**Examples**: `LipiButton`, `LipiTextBox`, `LipiCombo`, `LipiCard`, `LipiTable`, `LipiModal`, `LipiDatePicker`
+
+**Location**: `src/LiPi.Web/Components/Lipi/`
+
+**Scope for v1.0**: All 41 components (P0: 15 critical, P1: 15 important, P2: 11 specialized)
+
+**See**: `docs/00-COMPONENTS/00.1-COMPONENT-INVENTORY.md` for full list
+
+### Sub-Decision 12.4: Multi-Theme System
+
+**Two-dimensional theme model**:
+1. **Brand Theme** (set by clinic admin): Determines primary/accent colors, logos
+2. **User Mode** (set by individual user): Light / Dark
+
+**Combined theme**: `[brand]-[mode]` (e.g., `lipi-default-light`, `lipi-default-dark`)
+
+**v1.0 ships with**:
+- 1 brand theme: `lipi-default` (Navy + Gold)
+- 2 modes: `light` (default) + `dark`
+
+**v1.1+ may add**:
+- `armoki` brand theme (when Armoki finalizes brand)
+- Additional client themes
+- Auto-mode (follows OS)
+- High-contrast mode
+
+**Default for new users**: **Light mode**
+
+**Implementation**:
+- CSS custom properties (variables) keyed by `data-brand` + `data-mode` attributes on `<body>`
+- Theme switching is instant (no page reload)
+- Per-user preference stored in `clinic.identity.user_preferences.theme_mode`
+- Per-clinic brand stored in `master.clinics.brand_theme_id`
+
+**See**: `docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md` for full architecture
+
+### Sub-Decision 12.5: Style Guide Page
+**Build `/admin/style-guide` page** as living component showcase.
+
+Renders every component with:
+- Visual examples (all variants)
+- Code snippets
+- Light/Dark mode toggle
+- Brand switcher (when more brands added)
+
+Becomes:
+- Developer onboarding tool
+- CSS refactoring testbed
+- Demo material for prospects (e.g., Armoki)
 
 ---
 
 ## DESIGN SYSTEM
 
-### Colors
-- **Primary**: Navy `#0B2545`, Gold `#C49A22`
-- **Background**: Soft blue-gray
-- **Cards**: White with colored left borders (4px)
-- **Status strips** (left border on table rows):
-  - Active: `#4CAF50` green
-  - Suspended: `#FF9800` orange
-  - Locked: `#F44336` red
-  - Invited: `#2196F3` blue
-  - Terminated: `#9E9E9E` grey
+### Colors (Brand: lipi-default)
+
+**Light Mode**:
+- Primary: Navy `#0B2545`
+- Accent: Gold `#C49A22`
+- Cobalt (info): `#1565C0`
+- Background: `#F4F7FB`
+- Surface (cards): `#FFFFFF`
+- Text primary: `#1a1a1a`
+- Text secondary: `#5F5E5A`
+
+**Dark Mode**:
+- Primary: `#4A9BD4` (lighter navy for contrast)
+- Accent: `#E5B847` (brighter gold)
+- Background: `#0d1117`
+- Surface (cards): `#161b22`
+- Text primary: `#e6edf3`
+- Text secondary: `#8b949e`
+
+**Status colors** (both modes):
+- Active: `#4CAF50` green
+- Suspended: `#FF9800` orange
+- Locked: `#F44336` red
+- Invited: `#2196F3` blue
+- Terminated: `#9E9E9E` grey
 
 ### Typography (TWO FONTS ONLY)
 | Font | Usage |
@@ -166,7 +260,7 @@ Every input/select/textarea needs:
 | **DM Sans** | ALL UI — headings, labels, buttons, nav, badges, forms |
 | **DM Mono** | ONLY: IDs, timestamps, dates, codes, clinical data |
 
-### Type Scale (CSS Variables)
+### Type Scale (CSS Variables — theme-agnostic)
 - `--ts-page-title`: 18px / 600 (page H1)
 - `--ts-section`: 15px / 600 (card titles)
 - `--ts-body`: 13px / 400 (general text)
@@ -176,11 +270,6 @@ Every input/select/textarea needs:
 - `--ts-badge`: 10px / 500 (badges, pills)
 - `--ts-micro`: 9px / 400 (captions, footnotes)
 - `--ts-mono-data`: 12px / 400 (DM Mono: IDs, dates)
-
-### Module Dock Colors (3 groups)
-**Clinical**: OP (#4A9BD4), IP (#3b82f6), RO (#a855f7), MO (#f97316), Sx (#ef4444), CV (#0ea5e9), OT (#f43f5e)  
-**Diagnostics**: Ph (#22c55e), Lab (#eab308), Rad (#67e8f9), NM (#f59e0b), Dia (#06b6d4), Den (#10b981)  
-**Services**: Nu (#ec4899), CS (#6366f1), Ad (gold)
 
 ---
 
@@ -251,92 +340,70 @@ Required for SSR prerender + interactive circuits.
 
 ### Duplicate Detection (CASCADE)
 Confidence order: **Aadhaar → ABHA → Name+DOB → Name+DOB+Mobile**
-- Side-by-side UI shows potential duplicates
-- Reception can override with reason
-- Marked in audit trail
 
 ### Patient Identifiers
-- Aadhaar (12 digits)
-- ABHA (optional, for ABDM)
-- Passport (optional)
-- Driver's License (optional)
+- Aadhaar (12 digits), ABHA (optional), Passport, Driver's License (optional)
 
 ### Patient Addresses
 - Current + Permanent (separate table rows)
 - Immutable versioning: `valid_to IS NULL` = current
-- `is_aspirational` denormalized from master.aspirational_districts
+- `is_aspirational` denormalized
 - Plain text city/district/state (no FK to geodata)
-
-### Contact Points
-- Multiple phones per patient (home, mobile, work)
-- Multiple emails per patient
-- Immutable versioning
-
-### Consents
-- Append-only (treatment, research, communication)
-- Dated, signed, version-tracked
-- Used in HIPAA break-glass checks
 
 ---
 
 ## APPOINTMENT MODULE (60% COMPLETE)
 
 ### Core Rules
-- **Template-required**: Every appointment must use a template
-- **Per-doctor slot duration**: Configurable (15/30/45/60 min)
-- **Overbooking**: Default ON, configurable per clinic
-- **Recurring**: Max 99 or rolling 8-week indefinite
-- **Manual waitlist**: Confirmation required (patient calls to confirm)
-- **Queue modes**: FIFO / Appointment-first / Blended (configurable)
+- Template-required, per-doctor slot duration, overbooking default ON
+- Recurring: max 99 or rolling 8-week
+- Manual waitlist confirmation
+- Queue modes: FIFO / Appointment-first / Blended
 
-### Public Calling Board (BASE FEATURE + Customization)
-- Core service (Appointment module)
-- Multi-screen support per location
-- Per-module custom fields (OPD: doctor+room, Radiology: modality+tech, Lab: test+priority)
-- Configurable display mode, font size, colors, rotation speed
+### Public Calling Board (BASE + Customization)
+- Core service, multi-screen, per-module custom fields
+- Configurable display, font, colors, rotation
 - Timezone-aware
-
-### Waitlist Confirmation (Manual)
-- Staff clicks "CONFIRM ARRIVAL"
-- Patient moves from "WAITING" to "IN PROGRESS"
-- Prevents no-shows blocking queue
-
-### Teleconsult (PARKED)
-- Not in v1.0
-- Revisit after 10+ modules
-- Likely v1.1 feature
 
 ---
 
-## SECURITY & AUDIT (PRODUCTION-GRADE, DO NOT DUPLICATE)
+## SECURITY & AUDIT (PRODUCTION-GRADE)
 
-### Hash-Chained Audit Log
-- Every `AuditEvent` has `PreviousHash` + `CurrentHash`
-- Cryptographically linked records
-- Tampering breaks chain instantly (detectable)
-
-### Blockchain Anchoring
-- Merkle roots anchored to external ledger
-- Independent tamper-proof verification
-
-### PHI Access Log (Separate)
-- Every read of patient data logged independently
-- Minimum-necessary-principle tracking
-- Consent references
-
-### Standard Action Codes
-- Use `AuditActions` static constants
-- Never raw strings
+- Hash-chained audit log (cryptographically linked, tamper-detectable)
+- Blockchain anchoring (Merkle roots, external verification)
+- PHI access log (separate, minimum-necessary tracking)
+- Standard `AuditActions` constants (never raw strings)
 - Always via `IAuditService` (injectable)
 
 ---
 
 ## DEPLOYMENT & VERSIONING
 
-### CSS Strategy (LOCKED: Option B)
-- `00-baseline.css` (extracted common, reusable)
-- Per-module CSS files: `01-user.css`, `02-clinic.css`, ... `25-pacs.css`
-- Extract existing `admin.css` into baseline + module files
+### CSS Strategy (Decision #12 LOCKED)
+```
+wwwroot/
+├── css/
+│   ├── 00-baseline.css       (structure, variables, NO colors)
+│   ├── 01-user.css           (per-module styles)
+│   ├── 02-clinic.css
+│   ├── ...25-pacs.css
+│   └── components/           (shared component CSS)
+└── themes/
+    ├── brand-lipi.css         (LiPi brand colors)
+    ├── mode-light.css         (light mode tokens)
+    └── mode-dark.css          (dark mode tokens)
+```
+
+### Component Library Location
+```
+src/LiPi.Web/Components/Lipi/
+├── LipiButton.razor
+├── LipiTextBox.razor
+├── LipiCombo.razor
+├── ...41 components total
+└── Theme/
+    └── ThemeProvider.razor
+```
 
 ### Module Build Order
 1. ✅ User Registration
@@ -344,14 +411,14 @@ Confidence order: **Aadhaar → ABHA → Name+DOB → Name+DOB+Mobile**
 3. ✅ Organization Registration
 4. ✅ Patient Registration (80%)
 5. ✅ Appointments (60%)
-6. Audit Log Infrastructure
-7-25. (Future modules follow template)
+6. **Component Library + Multi-Theme** (NEXT — Decision #12)
+7. Audit Log Infrastructure
+8-25. Future modules
 
 ### Version Management
-- **v1.0**: All 11 decisions locked in this file
+- **v1.0**: All 12 decisions locked in this file
 - **v1.1+**: Changes isolated in CHANGE-LOG.md
 - Never edit this file after launch
-- All v1.0 decisions are BASE
 
 ---
 
@@ -359,7 +426,7 @@ Confidence order: **Aadhaar → ABHA → Name+DOB → Name+DOB+Mobile**
 
 | API | Status | Notes |
 |---|---|---|
-| NMC India (doctor verify) | Manual | elora.aerb.gov.in |
+| NMC India (doctor verify) | Manual | nmr.nmc.org.in |
 | AERB (radiation licence) | Manual | elora.aerb.gov.in |
 | India Post PIN | Planned | For patient address auto-fill |
 | GSTIN verification | Planned | For clinic registration |
@@ -371,6 +438,9 @@ Confidence order: **Aadhaar → ABHA → Name+DOB → Name+DOB+Mobile**
 ## SUPPORT & REFERENCES
 
 - **Schema Docs**: `docs/00-DATABASE/00.2-Clinic-Core-Schema.md`
+- **Component Library**: `docs/00-COMPONENTS/00.0-MASTER-PLAN.md`
+- **Component Inventory**: `docs/00-COMPONENTS/00.1-COMPONENT-INVENTORY.md`
+- **Theming Architecture**: `docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md`
 - **Module Specs**: `docs/[NN]-MODULE-NAME/[NN].1-Design-Specs.md`
 - **System Prompt**: `system-prompt.md`
 - **Test Automation**: `test-automation-guide.md`
