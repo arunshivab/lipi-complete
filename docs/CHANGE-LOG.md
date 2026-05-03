@@ -206,6 +206,55 @@ A10 also implicitly supersedes the inaccurate descriptions in A6 above — A6 wa
 
 ---
 
+### A11 — LipiButton visual review color refinements
+
+**Phase**: 2.1 (LipiButton component sub-step)
+**Date**: 2026-05-03
+
+**Changed**: Two color decisions in `mode-light.css` after Phase 2.1 LipiButton deployment + browser visual review.
+
+**Tokens refined**:
+
+| Token | Phase 2.0 deployed | Phase 2.1 refined |
+|---|---|---|
+| `--color-primary-hover` | `#1B4DA0` (admin.css cobalt) | `#134E8C` (steel blue) |
+| `--color-danger` | `#EF4444` (red-500) | `#DC2626` (red-600) |
+| `--color-danger-hover` | `#DC2626` (red-600) | `#B91C1C` (red-700) |
+| `--color-danger-active` | `#B91C1C` (red-700) | `#991B1B` (red-800) |
+
+**Reasoning**:
+
+*Primary hover*: Original cobalt (`#1B4DA0`) inherited from admin.css worked well in admin pages but felt overly vibrant when applied to interactive button hover state. Steel blue (`#134E8C`) provides the same hue family with a more professional/clinical tone appropriate for healthcare software. Six options were compared side-by-side; option G (steel blue) chosen.
+
+*Danger ladder*: Tailwind red-500 (`#EF4444`) is industry standard for attention-grabbing alerts but tested as visually fatiguing in clinical contexts where staff encounter destructive action buttons throughout shifts. Shifting the entire ladder one notch deeper (red-600/700/800) preserves the "warning" semantic while reducing eye strain. Tailwind red-600 (`#DC2626`) is what enterprise products like Stripe and Linear use as base danger.
+
+*Dark mode unchanged*: Visual review confirmed dark mode danger ladder (`#F85149` base) remains appropriate. No change required for dark mode.
+
+**Note on A2 supersession**: A11's danger-ladder shift supersedes A2's light-mode values (which set the baseline at red-500/600/700). A2 is preserved as historical record; A11 is the authoritative current state for light-mode danger tokens. Dark-mode danger values from A2 remain authoritative — A11 does not touch them.
+
+**Files**:
+- `src/LiPi.Web/wwwroot/themes/mode-light.css` — 4 token values changed, A11 documented in file header
+
+---
+
+### Phase 2 Sub-step Status (May 3, 2026)
+
+- ✅ Sub-step 2.0: Foundation tokens + Style Guide bootstrap
+  - `mode-light.css` + `mode-dark.css` populated with full token set
+  - `brand-lipi.css`, `00-baseline.css` (structural tokens)
+  - `/admin/style-guide` Foundation showcase live
+- ✅ Sub-step 2.1: LipiButton component
+  - 5 variants × 3 sizes (Primary, Secondary, Danger, Ghost, Link)
+  - 29-icon Lucide starter library (`LucideIcon` component)
+  - Size-matched spinner (`LipiButtonSpinner`)
+  - Full Style Guide showcase: variant grid, states demo, icon patterns, real-world use cases
+  - Spec doc: `docs/00-COMPONENTS/01.1-Buttons.md`
+- ⏳ Sub-step 2.2: TextInputs (LipiTextBox, LipiTextArea, LipiNumberInput)
+- ⏳ Sub-step 2.3: Selectors (LipiSelect, LipiCombobox, LipiCheckbox, LipiRadio)
+- ⏳ Sub-steps 2.4–2.5: Remaining foundational components
+
+---
+
 ### Known divergences from deployed code (defer to v1.1)
 
 The amendments above bring the spec into sync with deployed Phase 2.0 work. The following divergences between spec and deployed code are **acknowledged but not addressed in Phase 2.0** to keep scope contained:

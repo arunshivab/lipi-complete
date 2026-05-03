@@ -1,7 +1,9 @@
 @*
     SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md (Foundation tokens)
+    SPEC:     docs/00-COMPONENTS/01.1-Buttons.md (LipiButton — pending)
     DECISION: docs/00-PROJECT-BASELINE.md §12.5 (Style Guide Page)
-    PHASE:    Phase 2 Sub-step 2.0 — Foundation showcase
+    PHASE:    Phase 2 Sub-step 2.0 — Foundation showcase (DEPLOYED)
+              Phase 2 Sub-step 2.1 — Buttons component showcase (NEW)
     AUTH:     SiteAdmin / SysAdmin / GlobalAdmin only
     LOCATION: src/LiPi.Web/Pages/StyleGuide.razor
               (placed directly in Pages/ — Pages/Admin.razor already
@@ -77,7 +79,7 @@
             </div>
             <div class="sg-nav-group">
                 <h3 class="sg-nav-header">Components</h3>
-                <span class="sg-nav-link sg-nav-disabled">(Coming in Phase 2.1)</span>
+                <a class="sg-nav-link" href="#buttons">Buttons</a>
             </div>
             <div class="sg-nav-group">
                 <h3 class="sg-nav-header">Patterns</h3>
@@ -191,6 +193,94 @@
                 </div>
             </section>
 
+            <!-- ====== BUTTONS (Phase 2.1) ====== -->
+            <section id="buttons" class="sg-section">
+                <h2 class="sg-h2">Buttons</h2>
+                <p class="sg-p">
+                    5 variants × 3 sizes. Icon-only mode inferred from absent <code class="sg-code">ChildContent</code>
+                    (requires <code class="sg-code">AriaLabel</code>). Loading state is parent-controlled.
+                    <code class="sg-code">ConfirmMessage</code> uses <code class="sg-code">window.confirm()</code> in v1.0.
+                </p>
+
+                @* Variants × Sizes Grid *@
+                <h3 class="sg-h3">Variants × Sizes (15 buttons)</h3>
+                <div class="sg-button-grid">
+                    @foreach (var variant in _variants)
+                    {
+                        <div class="sg-button-row">
+                            <span class="sg-button-label">@variant</span>
+                            <LipiButton Size="ButtonSize.Small"  Variant="@variant">Small</LipiButton>
+                            <LipiButton Size="ButtonSize.Medium" Variant="@variant">Medium</LipiButton>
+                            <LipiButton Size="ButtonSize.Large"  Variant="@variant">Large</LipiButton>
+                        </div>
+                    }
+                </div>
+
+                @* States Demo *@
+                <h3 class="sg-h3">States — Primary Medium</h3>
+                <div class="sg-button-row">
+                    <LipiButton Variant="ButtonVariant.Primary" Icon="save">Default</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Primary" Icon="save" Disabled="true">Disabled</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Primary" Icon="save" IsLoading="true">Loading</LipiButton>
+                    <span class="sg-state-hint">Hover, focus, and active states visible on interaction. Loading swaps icon for spinner; text stays.</span>
+                </div>
+
+                @* Icon Patterns *@
+                <h3 class="sg-h3">Icon Patterns</h3>
+                <div class="sg-button-row">
+                    <LipiButton Icon="check">Icon Left</LipiButton>
+                    <LipiButton IconRight="arrow-right">Icon Right</LipiButton>
+                    <LipiButton Icon="save" IconRight="chevron-down">Both</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Ghost" Icon="x" AriaLabel="Close" />
+                    <LipiButton Variant="ButtonVariant.Secondary" Icon="settings" AriaLabel="Settings" />
+                    <LipiButton Variant="ButtonVariant.Danger" Icon="trash" AriaLabel="Delete" />
+                </div>
+
+                @* Real-World Use Cases *@
+                <h3 class="sg-h3">Real-World Use Cases</h3>
+
+                <div class="sg-use-case">
+                    <span class="sg-use-case-label">Form actions (Save + Cancel pair):</span>
+                    <LipiButton Variant="ButtonVariant.Primary" Icon="save" OnClick="DemoSave">Save Patient</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" OnClick="DemoCancel">Cancel</LipiButton>
+                    @if (!string.IsNullOrEmpty(_lastAction))
+                    {
+                        <span class="sg-use-case-feedback">@_lastAction</span>
+                    }
+                </div>
+
+                <div class="sg-use-case">
+                    <span class="sg-use-case-label">Destructive with confirmation:</span>
+                    <LipiButton Variant="ButtonVariant.Danger"
+                                Icon="trash"
+                                ConfirmMessage="Delete this record? This cannot be undone."
+                                OnClick="DemoDelete">
+                        Delete Record
+                    </LipiButton>
+                </div>
+
+                <div class="sg-use-case">
+                    <span class="sg-use-case-label">Async save (parent toggles IsLoading):</span>
+                    <LipiButton Variant="ButtonVariant.Primary"
+                                Icon="save"
+                                IsLoading="@_isSaving"
+                                OnClick="DemoAsyncSave">
+                        Save Changes
+                    </LipiButton>
+                </div>
+
+                <div class="sg-use-case">
+                    <span class="sg-use-case-label">Full-width form submit:</span>
+                    <div class="sg-form-width">
+                        <LipiButton Variant="ButtonVariant.Primary"
+                                    FullWidth="true"
+                                    Type="submit">
+                            Sign In
+                        </LipiButton>
+                    </div>
+                </div>
+            </section>
+
         </main>
     </div>
 </div>
@@ -266,6 +356,31 @@
             // If JS interop fails, internal state still updates. UI re-renders below.
         }
         StateHasChanged();
+    }
+
+    // ---------- Phase 2.1: Buttons demo state ----------
+    private readonly ButtonVariant[] _variants =
+    {
+        ButtonVariant.Primary,
+        ButtonVariant.Secondary,
+        ButtonVariant.Danger,
+        ButtonVariant.Ghost,
+        ButtonVariant.Link
+    };
+
+    private bool _isSaving;
+    private string _lastAction = string.Empty;
+
+    private void DemoSave()    => _lastAction = "✓ Save clicked";
+    private void DemoCancel()  => _lastAction = "Cancel clicked";
+    private void DemoDelete()  => _lastAction = "✓ Delete confirmed";
+
+    private async Task DemoAsyncSave()
+    {
+        _isSaving = true;
+        StateHasChanged();   // Force immediate render so spinner appears before await
+        await Task.Delay(1500);
+        _isSaving = false;
     }
 
     // ---------- Token data tables ----------

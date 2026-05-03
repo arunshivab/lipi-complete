@@ -42,6 +42,9 @@ $files = @{
     "mode-light.css"                 = "src\LiPi.Web\wwwroot\themes\mode-light.css"
     "mode-dark.css"                  = "src\LiPi.Web\wwwroot\themes\mode-dark.css"
 
+    # -- CSS -- Phase 2.0 Foundation (Decision #12, Sub-step 2.0) -------------
+    "00-baseline.css"                = "src\LiPi.Web\wwwroot\css\00-baseline.css"
+
     # -- Layouts & shared components -------------------------------------------
     "TopNavLayout.razor"             = "src\LiPi.Web\Components\Layouts\TopNavLayout.razor"
     "TopNavLayout.razor.css"         = "src\LiPi.Web\Components\Layouts\TopNavLayout.razor.css"
@@ -58,6 +61,13 @@ $files = @{
     # -- Components -- Theme (Phase 1, Decision #12) ---------------------------
     "ThemeProvider.razor"            = "src\LiPi.Web\Components\Theme\ThemeProvider.razor"
     "ThemeContext.cs"                = "src\LiPi.Web\Components\Theme\ThemeContext.cs"
+
+    # -- Components -- Phase 2.1 (LipiButton + companions) --------------------
+    "LipiButton.razor"               = "src\LiPi.Web\Components\Shared\LipiButton.razor"
+    "LipiButton.razor.css"           = "src\LiPi.Web\Components\Shared\LipiButton.razor.css"
+    "LipiButtonTypes.cs"             = "src\LiPi.Web\Components\Shared\LipiButtonTypes.cs"
+    "LipiButtonSpinner.razor"        = "src\LiPi.Web\Components\Shared\LipiButtonSpinner.razor"
+    "LucideIcon.razor"               = "src\LiPi.Web\Components\Shared\LucideIcon.razor"
 
     # -- Pages -- Admin --------------------------------------------------------
     "Admin.razor"                    = "src\LiPi.Web\Pages\Admin.razor"
@@ -85,6 +95,10 @@ $files = @{
     "AspirationalDistricts.razor"    = "src\LiPi.Web\Pages\Admin\AspirationalDistricts.razor"
     "UhidSettings.razor"             = "src\LiPi.Web\Pages\Admin\UhidSettings.razor"
     "SchedulerSettings.razor"        = "src\LiPi.Web\Pages\Admin\SchedulerSettings.razor"
+
+    # -- Pages -- Phase 2.0 (Style Guide, Decision #12 Sub-step 2.0) ----------
+    "StyleGuide.razor"               = "src\LiPi.Web\Pages\StyleGuide.razor"
+    "StyleGuide.razor.css"           = "src\LiPi.Web\Pages\StyleGuide.razor.css"
 
     # -- Pages -- Auth ---------------------------------------------------------
     "Login.razor"                    = "src\LiPi.Web\Pages\Login.razor"
@@ -200,27 +214,10 @@ $files = @{
 
     # -- Docs -- Component Library ---------------------------------------------
     "00.2-THEMING-ARCHITECTURE.md"   = "docs\00-COMPONENTS\00.2-THEMING-ARCHITECTURE.md"
-	
-	
-	# =============================================================
-# deploy-downloads.ps1 — Phase 2 Sub-step 2.0 entries
-# Paste these entries into your existing $files hashtable.
-# =============================================================
+    "01.1-Buttons.md"                = "docs\00-COMPONENTS\01.1-Buttons.md"
 
-# CSS — Theme foundation
-"00-baseline.css"  = "src\LiPi.Web\wwwroot\css\00-baseline.css"
-
-
-# Razor — Style guide
-"StyleGuide.razor"     = "src\LiPi.Web\Pages\StyleGuide.razor"
-"StyleGuide.razor.css" = "src\LiPi.Web\Pages\StyleGuide.razor.css"
-
-# Docs — sync to repo
-"CHANGE-LOG.md"               = "docs\CHANGE-LOG.md"
-
-
-
-
+    # -- Docs -- Top-level -----------------------------------------------------
+    "CHANGE-LOG.md"                  = "docs\CHANGE-LOG.md"
 }
 
 # -- Deploy -------------------------------------------------------------------

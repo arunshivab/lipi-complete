@@ -3,6 +3,7 @@
    ============================================================
    SPEC:    docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md
    PHASE:   Phase 2 Sub-step 2.0 — Foundation showcase
+            Phase 2 Sub-step 2.1 — Buttons component showcase
    PATTERN: Blazor CSS Isolation (auto-scoped, never leaks)
 
    ZERO hardcoded colors — all values reference theme tokens.
@@ -376,4 +377,71 @@
 .sg-shadow-label {
     font-size: var(--ts-small);
     color: var(--color-text-secondary);
+}
+
+/* ============================================================
+   Phase 2.1 — Buttons section (LipiButton showcase)
+   ============================================================ */
+
+.sg-button-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-md);
+    margin: var(--sp-md) 0 var(--sp-xl) 0;
+}
+
+.sg-button-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-md);
+}
+
+.sg-button-row:last-child {
+    margin-bottom: 0;
+}
+
+.sg-button-label {
+    display: inline-block;
+    min-width: 80px;
+    font-family: var(--font-mono);
+    font-size: var(--ts-small);
+    color: var(--color-text-secondary);
+}
+
+.sg-state-hint {
+    font-size: var(--ts-small);
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+.sg-use-case {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md);
+    flex-wrap: wrap;
+    padding: var(--sp-md) 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sg-use-case:last-child {
+    border-bottom: 0;
+}
+
+.sg-use-case-label {
+    min-width: 240px;
+    font-size: var(--ts-body);
+    color: var(--color-text-secondary);
+}
+
+.sg-use-case-feedback {
+    font-family: var(--font-mono);
+    font-size: var(--ts-small);
+    color: var(--color-primary);
+}
+
+.sg-form-width {
+    width: 100%;
+    max-width: 320px;
 }

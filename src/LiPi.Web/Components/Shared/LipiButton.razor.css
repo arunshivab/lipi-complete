@@ -1,0 +1,181 @@
+/* SPEC: Phase 2.1 LipiButton design package — all variants × sizes × states.
+   Uses Phase 2.0 deployed theme tokens from mode-light.css / mode-dark.css.
+   NO hardcoded colors, NO --c-* prefix tokens (those don't exist). */
+
+/* ===================== BASE ===================== */
+.lipi-button {
+    box-sizing: border-box;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-ui);
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    border: 0;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 120ms ease,
+                color 120ms ease,
+                border-color 120ms ease,
+                box-shadow 120ms ease;
+}
+
+.lipi-button-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.lipi-button-icon-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* ===================== SIZES ===================== */
+.lipi-button-small {
+    height: 28px;
+    min-width: 64px;
+    padding: 0 12px;
+    font-size: 12px;
+    gap: 6px;
+}
+.lipi-button-medium {
+    height: 32px;
+    min-width: 80px;
+    padding: 0 16px;
+    font-size: 13px;
+    gap: 8px;
+}
+.lipi-button-large {
+    height: 40px;
+    min-width: 96px;
+    padding: 0 20px;
+    font-size: 14px;
+    gap: 10px;
+}
+
+/* ===================== ICON-ONLY (square) ===================== */
+.lipi-button-icon-only.lipi-button-small  { width: 28px; min-width: 28px; padding: 0; }
+.lipi-button-icon-only.lipi-button-medium { width: 32px; min-width: 32px; padding: 0; }
+.lipi-button-icon-only.lipi-button-large  { width: 40px; min-width: 40px; padding: 0; }
+
+/* ===================== FULL WIDTH ===================== */
+.lipi-button-full-width { width: 100%; }
+
+/* ===================== PRIMARY ===================== */
+.lipi-button-primary {
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+    box-shadow: var(--sh-sm);
+}
+.lipi-button-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+    box-shadow: var(--sh-md);
+}
+.lipi-button-primary:active:not(:disabled) {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.10);
+}
+.lipi-button-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-primary-pale);
+}
+
+/* ===================== SECONDARY ===================== */
+/* Background transparent — blends with container (card/toolbar/page).
+   Hover fills with subtle bg-hover token for affordance. */
+.lipi-button-secondary {
+    background-color: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-default);
+}
+.lipi-button-secondary:hover:not(:disabled) {
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-border-strong);
+}
+.lipi-button-secondary:active:not(:disabled) {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.10);
+}
+.lipi-button-secondary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-primary-pale);
+}
+
+/* ===================== DANGER ===================== */
+.lipi-button-danger {
+    background-color: var(--color-danger);
+    color: var(--color-text-inverse);
+    box-shadow: var(--sh-sm);
+}
+.lipi-button-danger:hover:not(:disabled) {
+    background-color: var(--color-danger-hover);
+    box-shadow: var(--sh-md);
+}
+.lipi-button-danger:active:not(:disabled) {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.10);
+}
+.lipi-button-danger:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-danger-pale);
+}
+
+/* ===================== GHOST ===================== */
+.lipi-button-ghost {
+    background-color: transparent;
+    color: var(--color-text-primary);
+}
+.lipi-button-ghost:hover:not(:disabled) {
+    background-color: var(--color-bg-hover);
+}
+.lipi-button-ghost:active:not(:disabled) {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.10);
+}
+.lipi-button-ghost:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-primary-pale);
+}
+
+/* ===================== LINK ===================== */
+.lipi-button-link {
+    background-color: transparent;
+    color: var(--color-primary);
+    min-width: 0;
+    padding: 0;
+    height: auto;
+}
+.lipi-button-link:hover:not(:disabled) {
+    text-decoration: underline;
+}
+.lipi-button-link:active:not(:disabled) {
+    color: var(--color-primary-hover);
+}
+.lipi-button-link:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-primary-pale);
+}
+
+/* ===================== DISABLED ===================== */
+.lipi-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* ===================== LOADING ===================== */
+.lipi-button-loading { cursor: wait; }
+
+/* Spinner animation — child component element via ::deep */
+.lipi-button ::deep .lipi-button-spinner {
+    animation: lipi-button-spin 0.6s linear infinite;
+}
+
+@keyframes lipi-button-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
