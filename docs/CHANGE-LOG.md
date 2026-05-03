@@ -45,6 +45,177 @@ All 12 design decisions finalized. See `00-PROJECT-BASELINE.md`.
 
 ---
 
+## v1.0 — AMENDMENTS (May 3, 2026)
+
+> **Scope**: Phase 2 Sub-step 2.0 — Theme foundation populated, style guide bootstrapped.
+> Amendments below adjust v1.0 deliverables but do NOT alter any of the 12 locked decisions.
+
+### A1 — Border radius scale shifted to admin.css production values
+
+**Changed**: `--r-sm`, `--r-md`, `--r-lg`, `--r-xl` in `00-baseline.css` and Token Naming Convention.
+
+| Token | Phase 0 draft | Phase 1 reconciled (current) |
+|-------|---------------|-------------------------------|
+| `--r-sm` | 4px | **6px** |
+| `--r-md` | 7px | **10px** |
+| `--r-lg` | 10px | **14px** |
+| `--r-xl` | 16px | 16px (unchanged) |
+
+**Reasoning**: Matches PatientNew patient card (14px) and `reg-*` form fields (legacy 7px → standardized 6px). admin.css `--r-sm: 6px / --r-md: 10px / --r-lg: 14px` is the production-deployed baseline; Phase 0 spec drafts diverged. Reconciliation aligns the spec with what is already shipping.
+
+**Status**: This was already applied in Phase 1 reconciliation (May 2, 2026). Logged here as a formal amendment record so the radius shift is traceable from the change log rather than only from inline comments in the spec.
+
+**Files**:
+- `wwwroot/css/00-baseline.css` (already deployed with reconciled values)
+- `docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md` §Token Naming Convention (inline `(was 4px in draft)` comments preserved)
+
+---
+
+### A2 — Added `--color-danger-hover` and `--color-danger-active` (both modes)
+
+**Added**: Two new semantic tokens to fill the missing hover/active ladder for the danger color.
+
+| Mode  | `--color-danger` (base) | `--color-danger-hover` (NEW) | `--color-danger-active` (NEW) |
+|-------|-------------------------|------------------------------|-------------------------------|
+| Light | `#EF4444`               | `#DC2626`                    | `#B91C1C`                     |
+| Dark  | `#F85149`               | `#FF6B63`                    | `#E03B33`                     |
+
+**Reasoning**: The Phase 2.1 LipiButton component design package requires distinct hover and active states for destructive actions (Delete, Lock, Suspend, Reset Password). Phase 1 reconciliation defined only `--color-danger` and `--color-danger-pale`, leaving no tokens for interactive states. Without these, every destructive button would use the same base color across rest/hover/active, breaking visual feedback for destructive actions — a UX rule called out in `00-PROJECT-BASELINE.md` §UX Rules.
+
+Light-mode ladder follows the natural Tailwind red-500 → red-600 → red-700 progression (darker on interaction). Dark-mode ladder follows the convention used elsewhere in dark mode (primary, accent): hover lighter for visibility, active darker for pressed feel.
+
+**Files**:
+- `wwwroot/themes/mode-light.css` — added two tokens
+- `wwwroot/themes/mode-dark.css` — added two tokens
+- `docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md` §Token Naming Convention (added entries with "added Phase 2.0 (A2)" comments)
+- `docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md` §Mode: Light + §Mode: Dark (added concrete values inline)
+
+---
+
+### A5 — Foundation theme files materialized
+
+**Changed**: Phase 1 placeholders in `wwwroot/themes/mode-light.css` and `wwwroot/themes/mode-dark.css` populated with full token values from the Phase 1 reconciled spec.
+
+**Reasoning**: Phase 1 deployed empty-shell CSS files with `[data-mode="..."] { /* Full token values — added in Phase 3 */ }` placeholders, with the actual values documented only in `00.2-THEMING-ARCHITECTURE.md` §Mode: Light and §Mode: Dark. Phase 2.0 brings the runtime CSS in line with the spec so:
+
+1. The `data-mode` attribute on `<html>` actually drives visible theme switching.
+2. Components built in Phase 2.1+ can consume `var(--color-*)` tokens immediately without waiting on Phase 3.
+3. The StyleGuide page (A6) has real tokens to showcase.
+
+The original Phase 0 plan deferred token population to Phase 3. Phase 2.0 advances this work because (a) component build (Phase 2.1+) needs tokens to consume, and (b) Phase 1 reconciliation already finalized the values. Deferring further would block Phase 2.1 and add no benefit.
+
+**Files**:
+- `wwwroot/themes/mode-light.css` — full Phase 1 reconciled values + A2 additions
+- `wwwroot/themes/mode-dark.css` — full Phase 1 reconciled values + A2 additions
+- `wwwroot/css/00-baseline.css` — populated with structural tokens (radius A1 already reconciled)
+- `wwwroot/themes/brand-lipi.css` — populated with brand identity tokens
+
+**Coordination note**: `admin.css` continues to be loaded through Phase 1-2 per the Modified Big Bang migration strategy. It is removed in Phase 3 after theme tokens are verified against the deployed UI.
+
+---
+
+### A6 — StyleGuide page bootstrapped
+
+**Added**: New page at `/admin/style-guide` (sub-decision 12.5) as the living Foundation showcase.
+
+- Route: `/admin/style-guide`
+- File: `src/LiPi.Web/Pages/Admin/StyleGuide.razor` + `StyleGuide.razor.css` (Blazor CSS Isolation)
+- Namespace: `LiPi.Web.Pages.AdminPages` (avoids collision with existing `Pages/Admin.razor`)
+- Auth: SiteAdmin / SysAdmin / GlobalAdmin only
+- Layout: `LiPi.Web.Components.Layouts.TopNavLayout`
+- Content: Foundation showcase — color tokens, typography, spacing scale, radius scale, shadow ramp. Mode toggle uses `window.lipiTheme.set` / `.get` JS interop.
+
+**Reasoning**: Sub-decision 12.5 commits to a living component showcase. Phase 2.0 builds the Foundation half (tokens) so Phase 2.1+ can incrementally append the Components section as each LipiButton, LipiTextBox, etc. is built. Bootstrapping it now also gives the user a visible verification surface for A5 — every token defined in the mode files appears on the page.
+
+**Files**:
+- `src/LiPi.Web/Pages/Admin/StyleGuide.razor`
+- `src/LiPi.Web/Pages/Admin/StyleGuide.razor.css`
+
+---
+
+### A8 — `00-baseline.css` link added to App.razor
+
+**Added**: `<link rel="stylesheet" href="css/00-baseline.css?v=20260503" />` to App.razor `<head>`, positioned FIRST in the cascade order (before `app.css` and `dashboard.css`).
+
+**Reasoning**: `00-baseline.css` was generated and deployed in Phase 2.0 Sub-step 2.0 but App.razor never had a `<link>` tag for it. Phase 1 only included theme files (`brand-lipi.css`, `mode-light.css`, `mode-dark.css`) and Phase 0 module files (`app.css`, `dashboard.css`, `admin.css`) in the cascade. The structural foundation file was orphaned at deployment — defined and shipping but not loaded by the browser, so its tokens (`--r-sm`, `--sp-md`, `--ts-body`, etc.) were never resolvable in the runtime.
+
+Discovered when StyleGuide.razor failed to render correctly during Phase 2.0 deployment verification. Network tab in F12 confirmed all theme files loading but no `00-baseline.css` request. All CSS version strings simultaneously bumped `20260502 → 20260503` for cache busting.
+
+**Files**:
+- `src/LiPi.Web/App.razor` — added structural CSS link as first entry in cascade
+
+---
+
+### A9 — Blazor CSS Isolation bundle linked in App.razor
+
+**Added**: `<link rel="stylesheet" href="LiPi.Web.styles.css" />` to App.razor `<head>`, positioned LAST in the CSS cascade (after `admin.css`).
+
+**Reasoning**: Project never had this `<link>` tag — silent omission since project inception. Blazor auto-generates the CSS Isolation bundle at `obj/Debug/net10.0/scopedcss/bundle/LiPi.Web.styles.css` from all `*.razor.css` files in the project, but the framework does NOT auto-inject the link tag — that is the developer's responsibility.
+
+The omission was invisible until StyleGuide.razor (Phase 2.0) became the first page in the project to use Blazor CSS Isolation, exposing the missing infrastructure. Symptom was the silent killer: mode toggle worked (data-mode flipped on `<html>`, cookies persisted, scrollbar darkened via browser hint), but the page itself didn't change colors because StyleGuide.razor.css was never reaching the browser.
+
+This is a project-wide infrastructure fix. Every Phase 2.1+ component that ships with a `*.razor.css` companion file (LipiButton, LipiTextBox, etc.) will now auto-load via this bundle. No further App.razor changes are needed for component CSS going forward.
+
+Loaded LAST in cascade — isolation rules use scope attributes (`[b-abc123]`) for natural specificity, but final-position guarantees they beat any unscoped `admin.css` rules during the Phase 1-2 Modified Big Bang transition.
+
+**Files**:
+- `src/LiPi.Web/App.razor` — added isolation bundle link as last entry in cascade
+
+---
+
+### A10 — StyleGuide.razor file path, auth pattern, and JS interop corrected
+
+**Changed**: Three corrections to the deployed StyleGuide.razor that diverged from project conventions.
+
+**1. File path moved**: `Pages/Admin/StyleGuide.razor` → `Pages/StyleGuide.razor`.
+The `Pages/Admin/` subfolder collided with the existing `Pages/Admin.razor` file (a class file in the `Pages` namespace), causing a `CS0101` namespace collision. The original Phase 2.0 draft attempted to work around this by setting `@namespace LiPi.Web.Pages.AdminPages` on the page, but the cleaner solution is to place admin-style pages directly in `Pages/` root. This pattern matches `Settings.razor`, `Users.razor`, `Clinics.razor`, etc.
+
+**2. Auth pattern corrected**: `[Authorize(Roles="SiteAdmin,SysAdmin,GlobalAdmin")]` → `[Authorize]` + imperative claim check in `OnInitializedAsync`.
+Two-layer bug: (a) PascalCase role names in the `Roles` parameter don't match this project's snake_case claim values (`global_admin`, `sys_admin`, `site_admin`, `staff`); (b) imperative redirect in `OnInitializedAsync` without `forceLoad: true` fires during SSR pre-render before role claims load, causing GlobalAdmin to be redirected to `/dashboard?error=unauthorized` even when authorized.
+
+Production-proven pattern (matches `Settings.razor`, `Users.razor`):
+```razor
+@attribute [Authorize]
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState;
+        var role = auth.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        if (role is not ("global_admin" or "sys_admin" or "site_admin"))
+        { Nav.NavigateTo("/dashboard", forceLoad: true); return; }
+    }
+}
+```
+
+**3. JS interop function names corrected**: `lipiTheme.set(mode)` / `lipiTheme.get()` → `lipiTheme.apply(brand, mode)` / `lipiTheme.getCurrentTheme()`.
+The original draft called functions that don't exist on `window.lipiTheme`. The actual API exposed by `theme-switcher.js`:
+- `apply(brand, mode)` — sets `data-brand` + `data-mode` on `<html>` and writes both cookies
+- `getCurrentTheme()` — returns `{ brand, mode }` object (not a string)
+- `init()` — re-reads cookies and reapplies
+
+StyleGuide now deserializes `getCurrentTheme()` into a `ThemeState(string Brand, string Mode)` record and passes both `_brand` + `_mode` to `apply()` on every toggle (preserving the brand while only mode changes).
+
+**Reasoning**: Each of the three issues above traces to the same root cause: synthesizing the page from generic Blazor patterns instead of reading existing production pages and the actual JS helper before generating the file. Lesson logged for Phase 2.1+ kickoff: when introducing a new page or first-of-its-kind component, audit at least one production-proven analog (`Settings.razor` for auth, `theme-switcher.js` for interop) before writing the new file.
+
+A10 also implicitly supersedes the inaccurate descriptions in A6 above — A6 was drafted before deployment debugging surfaced these issues, so it documents the *intended* path and JS interop rather than what actually shipped. A6 is preserved as historical record; A10 is the authoritative current state.
+
+**Files**:
+- `src/LiPi.Web/Pages/StyleGuide.razor` — path moved, auth pattern rewritten, JS interop corrected
+- `deploy-downloads.ps1` — entry updated to `src\LiPi.Web\Pages\StyleGuide.razor` (no `Admin\` segment)
+
+---
+
+### Known divergences from deployed code (defer to v1.1)
+
+The amendments above bring the spec into sync with deployed Phase 2.0 work. The following divergences between spec and deployed code are **acknowledged but not addressed in Phase 2.0** to keep scope contained:
+
+- **A7 (planned)** — `00.2-THEMING-ARCHITECTURE.md` §Theme Provider Component: spec section shows the older `IUserPreferenceService` + `IClinicContextService` + `eval()` pattern. Deployed code uses `IThemeContextService` + `lipiTheme.apply` (post-D6 architecture refinement during Phase 1 Deliverable 6).
+  - Defer reconciliation to a focused v1.1 spec-update session (call it A7) so the spec accurately documents production code.
+  - Until then, treat the deployed code as authoritative and the spec section as historical reference.
+
+---
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)
@@ -56,6 +227,7 @@ All 12 design decisions finalized. See `00-PROJECT-BASELINE.md`.
 - [ ] **Auto theme mode** (follows OS preference)
 - [ ] **High-contrast theme mode** (accessibility)
 - [ ] **Density toggle** (user preference: comfortable/compact/spacious)
+- [ ] **A7 — ThemeProvider spec/code reconciliation** (see Known divergences above)
 
 ### Pending Decisions (Not Locked)
 - [ ] Insurance TPA workflows (decision pending)

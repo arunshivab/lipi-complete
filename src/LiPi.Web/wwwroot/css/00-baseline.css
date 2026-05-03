@@ -1,0 +1,182 @@
+/* ============================================================
+   00-baseline.css — Layer 1 (Structural)
+   ============================================================
+   SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §"Layer 1 Tokens"
+   DECISION: docs/00-PROJECT-BASELINE.md §12.1 (Custom CSS), §12.4 (Multi-Theme)
+   PHASE:    Phase 2 Sub-step 2.0 — Foundation
+   AMEND:    docs/CHANGE-LOG.md "v1.0 — AMENDMENTS" (2026-05-03)
+
+   Purpose: Structural tokens only — spacing, sizing, typography,
+   border-radius, transitions, fonts. NO color values.
+
+   Color tokens are defined in:
+     wwwroot/themes/mode-light.css  (Layer 3 — light values)
+     wwwroot/themes/mode-dark.css   (Layer 3 — dark values)
+
+   Brand identity tokens in:
+     wwwroot/themes/brand-lipi.css  (Layer 2)
+
+   Cascade order (from App.razor):
+     1. 00-baseline.css         ← THIS FILE (always loaded)
+     2. brand-lipi.css          ← brand identity
+     3. mode-light.css          ← mode values
+     4. mode-dark.css           ← mode values (only one wins via [data-mode])
+     5. component CSS / Blazor isolation (.razor.css)
+     6. module CSS (per-module overrides)
+   ============================================================ */
+
+:root {
+    /* ---------- Layout ---------- */
+    --sidebar-w: 240px;
+    --topbar-h: 56px;
+    --footer-h: 40px;
+    --content-pad: 24px;
+
+    /* ---------- Typography sizes ---------- */
+    --ts-page-title: 18px;     /* Page H1 */
+    --ts-section: 15px;        /* Card titles */
+    --ts-body: 13px;           /* General text */
+    --ts-label: 12px;          /* Form labels */
+    --ts-small: 11px;          /* Helper text */
+    --ts-th: 10px;             /* Table headers (uppercase) */
+    --ts-badge: 10px;          /* Badges, pills */
+    --ts-micro: 9px;           /* Captions, footnotes */
+    --ts-mono-data: 12px;      /* DM Mono: IDs, dates */
+
+    /* ---------- Typography weights ---------- */
+    --fw-regular: 400;
+    --fw-medium: 500;
+    --fw-semi: 600;
+    --fw-bold: 700;
+
+    /* ---------- Spacing ---------- */
+    --sp-xs: 4px;
+    --sp-sm: 8px;
+    --sp-md: 12px;
+    --sp-lg: 16px;
+    --sp-xl: 24px;
+    --sp-2xl: 32px;
+
+    /* ---------- Radius (UPDATED 2026-05-03) ----------
+       Was: 4 / 7 / 10 / 16
+       Now: 6 / 10 / 14 / 16  (matches modern admin density)
+       Buttons + inputs share --r-sm (6px). */
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    --r-xl: 16px;
+
+    /* ---------- Transitions ---------- */
+    --tr-fast: 0.15s ease;
+    --tr-med: 0.3s ease;
+    --tr-slow: 0.5s ease;
+
+    /* ---------- Fonts ----------
+       Two-font system per BASELINE §"Typography":
+         DM Sans  → ALL UI (headings, labels, buttons, nav, body, badges)
+         DM Mono  → ONLY: IDs, timestamps, dates, codes, clinical data */
+    --font-ui: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'DM Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
+}
+
+/* ============================================================
+   Resets & base typography
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-ui);
+    font-size: var(--ts-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    transition: background-color var(--tr-med), color var(--tr-med);
+}
+
+/* Default mode + brand on initial load (in case JS hasn't kicked in) */
+body:not([data-mode]) {
+    /* mode-light.css selector won't match without attribute,
+       so set fallbacks here only to prevent flash of unstyled content */
+}
+
+/* ============================================================
+   Mono utility
+   ============================================================ */
+
+.mono,
+.font-mono {
+    font-family: var(--font-mono);
+}
+
+/* ============================================================
+   Focus visibility — global default
+   Components (buttons, inputs) override with their own focus rings.
+   ============================================================ */
+
+:focus {
+    outline: none;
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+}
+
+/* ============================================================
+   Scrollbar (subtle, theme-aware)
+   ============================================================ */
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+    border-radius: var(--r-sm);
+    border: 2px solid var(--color-bg-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+}
+
+/* ============================================================
+   Selection
+   ============================================================ */
+
+::selection {
+    background: var(--color-primary-pale);
+    color: var(--color-text-primary);
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

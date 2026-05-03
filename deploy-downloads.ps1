@@ -200,6 +200,27 @@ $files = @{
 
     # -- Docs -- Component Library ---------------------------------------------
     "00.2-THEMING-ARCHITECTURE.md"   = "docs\00-COMPONENTS\00.2-THEMING-ARCHITECTURE.md"
+	
+	
+	# =============================================================
+# deploy-downloads.ps1 — Phase 2 Sub-step 2.0 entries
+# Paste these entries into your existing $files hashtable.
+# =============================================================
+
+# CSS — Theme foundation
+"00-baseline.css"  = "src\LiPi.Web\wwwroot\css\00-baseline.css"
+
+
+# Razor — Style guide
+"StyleGuide.razor"     = "src\LiPi.Web\Pages\StyleGuide.razor"
+"StyleGuide.razor.css" = "src\LiPi.Web\Pages\StyleGuide.razor.css"
+
+# Docs — sync to repo
+"CHANGE-LOG.md"               = "docs\CHANGE-LOG.md"
+
+
+
+
 }
 
 # -- Deploy -------------------------------------------------------------------

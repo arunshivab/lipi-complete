@@ -1,13 +1,33 @@
-/* SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Brand: lipi-default */
-/* DECISION: docs/00-PROJECT-BASELINE.md §12.4 (Multi-Theme System)              */
-/* PHASE 1 PLACEHOLDER — populated with token values in Phase 3                  */
-/* DO NOT DELETE — referenced in App.razor CSS cascade order                     */
-/*                                                                                */
-/* Phase 3 will add:                                                              */
-/*   [data-brand="lipi-default"] { --brand-name, --brand-logo-url, hue values }  */
-/*   [data-brand="lipi-default"][data-mode="light"] { brand-specific overrides } */
-/*   [data-brand="lipi-default"][data-mode="dark"]  { brand-specific overrides } */
+/* ============================================================
+   brand-lipi.css — Layer 2 (Brand Identity)
+   ============================================================
+   SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §"Layer 2 Tokens"
+   DECISION: docs/00-PROJECT-BASELINE.md §12.4 (Multi-Theme System)
+   PHASE:    Phase 2 Sub-step 2.0 — Foundation
 
-[data-brand="lipi-default"] {
-    /* Brand identity and hue values — added in Phase 3 */
+   Brand identity tokens for the default LiPi brand.
+   Brand colors live in mode files (Layer 3) because they resolve
+   differently per mode (navy on light → sky on dark). This file
+   only holds tokens that don't change with mode.
+
+   Activated by: <body data-brand="lipi-default">
+   ============================================================ */
+
+:root {
+    --brand-name: 'LiPi HIS';
+    --brand-tagline: 'By imagiQa';
+
+    /* Logo assets — separate variants for light/dark backgrounds.
+       Components should pick the right one based on context, e.g.:
+         background-image: var(--brand-logo-light);   on light surfaces
+         background-image: var(--brand-logo-dark);    on dark surfaces (login panel) */
+    --brand-logo-light: url('/images/logos/lipi-logo.svg');
+    --brand-logo-dark: url('/images/logos/lipi-logo-dark.svg');
 }
+
+/* ============================================================
+   Brand-specific overrides (none in v1.0)
+   ============================================================
+   When additional brands are added (v1.1+), they override mode
+   tokens via [data-brand="armoki"][data-mode="light"] selectors.
+   The default brand has no overrides — it IS the default. */

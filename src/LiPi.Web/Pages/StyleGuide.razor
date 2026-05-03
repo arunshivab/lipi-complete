@@ -1,0 +1,365 @@
+@*
+    SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md (Foundation tokens)
+    DECISION: docs/00-PROJECT-BASELINE.md §12.5 (Style Guide Page)
+    PHASE:    Phase 2 Sub-step 2.0 — Foundation showcase
+    AUTH:     SiteAdmin / SysAdmin / GlobalAdmin only
+    LOCATION: src/LiPi.Web/Pages/StyleGuide.razor
+              (placed directly in Pages/ — Pages/Admin.razor already
+               exists, so a Pages/Admin/ subfolder would collide.)
+
+    AUTH PATTERN (FIX 2026-05-03 v2):
+              Matches the production-proven pattern used by Settings.razor,
+              Users.razor, etc. Roles in ClaimTypes.Role with snake_case values:
+              "global_admin", "sys_admin", "site_admin", "staff".
+
+    JS INTEROP (FIX 2026-05-03 v3):
+              theme-switcher.js exposes window.lipiTheme with:
+                - apply(brand, mode)        ← sets attributes + writes cookies
+                - getCurrentTheme()         ← returns { brand, mode } object
+                - init()                    ← cookie-driven re-init
+              Earlier draft incorrectly called lipiTheme.set/.get which don't exist.
+*@
+
+@page "/admin/style-guide"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using System.Security.Claims
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<SectionContent SectionName="page-title">LiPi Component Library</SectionContent>
+
+<div class="sg-page">
+
+    <!-- ===== Top bar: title + mode toggle ===== -->
+    <header class="sg-topbar">
+        <div class="sg-titleblock">
+            <h1 class="sg-h1">LiPi Component Library</h1>
+            <p class="sg-subtitle">Living style guide for the LiPi HIS design system</p>
+            <div class="sg-status">
+                Current theme: <code class="sg-code">@_brand · @_mode</code>
+            </div>
+        </div>
+        <div class="sg-modeswitcher" role="group" aria-label="Theme mode">
+            <button type="button"
+                    class="sg-mode-btn @(_mode == "light" ? "active" : string.Empty)"
+                    @onclick="SetLight"
+                    aria-pressed="@(_mode == "light")">
+                <span class="sg-mode-icon" aria-hidden="true">☀</span> Light
+            </button>
+            <button type="button"
+                    class="sg-mode-btn @(_mode == "dark" ? "active" : string.Empty)"
+                    @onclick="SetDark"
+                    aria-pressed="@(_mode == "dark")">
+                <span class="sg-mode-icon" aria-hidden="true">🌙</span> Dark
+            </button>
+        </div>
+    </header>
+
+    <!-- ===== Layout: sidebar + content ===== -->
+    <div class="sg-layout">
+
+        <!-- Sidebar -->
+        <aside class="sg-sidebar" aria-label="Style guide sections">
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">Foundation</h3>
+                <a class="sg-nav-link" href="#colors">Colors</a>
+                <a class="sg-nav-link" href="#typography">Typography</a>
+                <a class="sg-nav-link" href="#spacing">Spacing</a>
+                <a class="sg-nav-link" href="#radius">Radius</a>
+                <a class="sg-nav-link" href="#shadows">Shadows</a>
+            </div>
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">Components</h3>
+                <span class="sg-nav-link sg-nav-disabled">(Coming in Phase 2.1)</span>
+            </div>
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">Patterns</h3>
+                <span class="sg-nav-link sg-nav-disabled">(Coming later)</span>
+            </div>
+        </aside>
+
+        <!-- Content -->
+        <main class="sg-content">
+
+            <!-- ====== COLORS ====== -->
+            <section id="colors" class="sg-section">
+                <h2 class="sg-h2">Colors</h2>
+                <p class="sg-p">
+                    All color tokens resolve based on <code class="sg-code">data-mode</code> on
+                    <code class="sg-code">&lt;html&gt;</code>. Switch the mode toggle above to see
+                    live values change. Hover any swatch to see the resolved CSS value.
+                </p>
+
+                @foreach (var group in _colorGroups)
+                {
+                    <h3 class="sg-h3">@group.Title</h3>
+                    <div class="sg-swatch-row">
+                        @foreach (var token in group.Tokens)
+                        {
+                            <div class="sg-swatch">
+                                <div class="sg-swatch-box" style="background: var(@token);"
+                                     title="@token"></div>
+                                <div class="sg-swatch-label">@token</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+
+            <!-- ====== TYPOGRAPHY ====== -->
+            <section id="typography" class="sg-section">
+                <h2 class="sg-h2">Typography</h2>
+                <p class="sg-p">
+                    Two-font system: <strong>DM Sans</strong> for all UI,
+                    <strong>DM Mono</strong> for IDs / dates / clinical data.
+                </p>
+                <div class="sg-typo-list">
+                    @foreach (var t in _typoSamples)
+                    {
+                        <div class="sg-typo-row">
+                            <div class="sg-typo-meta">
+                                <code class="sg-code">@t.Token</code>
+                                <span class="sg-typo-spec">@t.SizePx · @t.Weight</span>
+                            </div>
+                            <div class="sg-typo-sample"
+                                 style="font-size: var(@t.Token); font-weight: @t.Weight; @(t.Mono ? "font-family: var(--font-mono);" : string.Empty)">
+                                @t.Sample
+                            </div>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <!-- ====== SPACING ====== -->
+            <section id="spacing" class="sg-section">
+                <h2 class="sg-h2">Spacing</h2>
+                <p class="sg-p">Used for padding, margins, gaps. All multiples of 4px.</p>
+                <div class="sg-spacing-list">
+                    @foreach (var s in _spacingTokens)
+                    {
+                        <div class="sg-spacing-row">
+                            <code class="sg-code sg-spacing-token">@s.Token</code>
+                            <div class="sg-spacing-bar" style="width: var(@s.Token);"></div>
+                            <span class="sg-spacing-px">@s.Px</span>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <!-- ====== RADIUS ====== -->
+            <section id="radius" class="sg-section">
+                <h2 class="sg-h2">Border Radius</h2>
+                <p class="sg-p">
+                    Updated 2026-05-03 (was 4/7/10/16). Buttons + inputs share
+                    <code class="sg-code">--r-sm</code> (6px).
+                </p>
+                <div class="sg-radius-row">
+                    @foreach (var r in _radiusTokens)
+                    {
+                        <div class="sg-radius-item">
+                            <div class="sg-radius-box" style="border-radius: var(@r.Token);"></div>
+                            <code class="sg-code">@r.Token</code>
+                            <span class="sg-radius-px">@r.Px</span>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <!-- ====== SHADOWS ====== -->
+            <section id="shadows" class="sg-section">
+                <h2 class="sg-h2">Shadows</h2>
+                <p class="sg-p">
+                    Two-layer navy-tinted on light (admin.css formula), single-layer black on dark.
+                </p>
+                <div class="sg-shadow-row">
+                    @foreach (var s in _shadowTokens)
+                    {
+                        <div class="sg-shadow-item">
+                            <div class="sg-shadow-box" style="box-shadow: var(@s.Token);">
+                                <code class="sg-code">@s.Token</code>
+                            </div>
+                            <span class="sg-shadow-label">@s.Label</span>
+                        </div>
+                    }
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private string _mode  = "light";
+    private string _brand = "lipi-default";
+
+    // ---------- Authorization ----------
+    // Pattern matches Settings.razor / Users.razor / Clinics.razor — the production-proven
+    // approach for this project. Roles are in ClaimTypes.Role with snake_case values.
+    // forceLoad: true ensures the redirect survives SSR pre-render.
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState;
+        var role = auth.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+
+        if (role is not ("global_admin" or "sys_admin" or "site_admin"))
+        {
+            Nav.NavigateTo("/dashboard", forceLoad: true);
+            return;
+        }
+    }
+
+    // ---------- Theme mode wiring ----------
+    // theme-switcher.js exposes:
+    //   lipiTheme.apply(brand, mode)  — sets data-* attrs on <html> + writes cookies
+    //   lipiTheme.getCurrentTheme()   — returns { brand, mode } object (NOT a string)
+    //   lipiTheme.init()              — re-reads cookies and applies
+    //
+    // We deserialize getCurrentTheme into the ThemeState record below.
+    private record ThemeState(string Brand, string Mode);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var current = await JS.InvokeAsync<ThemeState>("lipiTheme.getCurrentTheme");
+                if (current is not null)
+                {
+                    _mode  = string.IsNullOrEmpty(current.Mode)  ? "light"        : current.Mode;
+                    _brand = string.IsNullOrEmpty(current.Brand) ? "lipi-default" : current.Brand;
+                }
+            }
+            catch
+            {
+                // JS interop may not be ready in pre-render; fall through to defaults.
+                _mode  = "light";
+                _brand = "lipi-default";
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetLight() => await SetMode("light");
+    private async Task SetDark()  => await SetMode("dark");
+
+    private async Task SetMode(string mode)
+    {
+        _mode = mode;
+        try
+        {
+            // lipiTheme.apply takes TWO args (brand, mode) and writes both cookies.
+            // We pass current _brand to keep the brand stable while only mode changes.
+            await JS.InvokeVoidAsync("lipiTheme.apply", _brand, mode);
+        }
+        catch
+        {
+            // If JS interop fails, internal state still updates. UI re-renders below.
+        }
+        StateHasChanged();
+    }
+
+    // ---------- Token data tables ----------
+    private record ColorGroup(string Title, string[] Tokens);
+
+    private static readonly ColorGroup[] _colorGroups = new[]
+    {
+        new ColorGroup("Backgrounds", new[]
+        {
+            "--color-bg-base", "--color-bg-surface", "--color-bg-elevated",
+            "--color-bg-subtle", "--color-bg-hover"
+        }),
+        new ColorGroup("Text", new[]
+        {
+            "--color-text-primary", "--color-text-secondary",
+            "--color-text-tertiary", "--color-text-inverse"
+        }),
+        new ColorGroup("Borders", new[]
+        {
+            "--color-border-default", "--color-border-subtle",
+            "--color-border-strong", "--color-border-focus"
+        }),
+        new ColorGroup("Brand Primary", new[]
+        {
+            "--color-primary", "--color-primary-hover", "--color-primary-active",
+            "--color-primary-disabled", "--color-primary-pale"
+        }),
+        new ColorGroup("Accent", new[]
+        {
+            "--color-accent", "--color-accent-hover",
+            "--color-accent-active", "--color-accent-pale"
+        }),
+        new ColorGroup("Semantic", new[]
+        {
+            "--color-success", "--color-success-pale",
+            "--color-warning", "--color-warning-pale",
+            "--color-danger", "--color-danger-hover", "--color-danger-active", "--color-danger-pale",
+            "--color-info", "--color-info-pale"
+        }),
+        new ColorGroup("Status strips", new[]
+        {
+            "--status-active", "--status-suspended", "--status-locked",
+            "--status-invited", "--status-terminated"
+        }),
+        new ColorGroup("Section accents", new[]
+        {
+            "--sec-1", "--sec-2", "--sec-3", "--sec-4",
+            "--sec-5", "--sec-6", "--sec-7"
+        })
+    };
+
+    private record TypoSample(string Token, string SizePx, string Weight, string Sample, bool Mono = false);
+
+    private static readonly TypoSample[] _typoSamples = new[]
+    {
+        new TypoSample("--ts-page-title", "18px", "600", "Patient Registration"),
+        new TypoSample("--ts-section",    "15px", "600", "Personal Information"),
+        new TypoSample("--ts-body",       "13px", "400", "Enter the patient's primary contact number."),
+        new TypoSample("--ts-label",      "12px", "500", "Mobile Number *"),
+        new TypoSample("--ts-small",      "11px", "400", "10 digits, no spaces"),
+        new TypoSample("--ts-th",         "10px", "600", "PATIENT NAME"),
+        new TypoSample("--ts-badge",      "10px", "500", "ACTIVE"),
+        new TypoSample("--ts-micro",       "9px", "400", "Last updated 2 minutes ago"),
+        new TypoSample("--ts-mono-data",  "12px", "400", "PT-2026-001847", Mono: true)
+    };
+
+    private record SpacingToken(string Token, string Px);
+
+    private static readonly SpacingToken[] _spacingTokens = new[]
+    {
+        new SpacingToken("--sp-xs",  "4px"),
+        new SpacingToken("--sp-sm",  "8px"),
+        new SpacingToken("--sp-md", "12px"),
+        new SpacingToken("--sp-lg", "16px"),
+        new SpacingToken("--sp-xl", "24px"),
+        new SpacingToken("--sp-2xl","32px")
+    };
+
+    private record RadiusToken(string Token, string Px);
+
+    private static readonly RadiusToken[] _radiusTokens = new[]
+    {
+        new RadiusToken("--r-sm",  "6px"),
+        new RadiusToken("--r-md", "10px"),
+        new RadiusToken("--r-lg", "14px"),
+        new RadiusToken("--r-xl", "16px")
+    };
+
+    private record ShadowToken(string Token, string Label);
+
+    private static readonly ShadowToken[] _shadowTokens = new[]
+    {
+        new ShadowToken("--sh-sm", "Small"),
+        new ShadowToken("--sh-md", "Medium"),
+        new ShadowToken("--sh-lg", "Large")
+    };
+}

@@ -1,15 +1,78 @@
-/* SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Mode: Dark         */
-/* DECISION: docs/00-PROJECT-BASELINE.md §12.4 (Multi-Theme System)              */
-/* PHASE 1 PLACEHOLDER — populated with token values in Phase 3                  */
-/* DO NOT DELETE — referenced in App.razor CSS cascade order                     */
-/*                                                                                */
-/* Phase 3 will add all --color-* tokens for dark mode:                          */
-/*   --color-bg-base: #0d1117     --color-primary: #4A9BD4  (--sky)              */
-/*   --color-bg-surface: #161b22  --color-accent: #E5B847   (bright gold)        */
-/*   --color-text-primary: #e6edf3                                                */
-/*   + pale variants (rgba-based), adjusted status/section colors, dark shadows  */
-/*   Full token list: docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Mode Dark */
+/* SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Mode: Dark        */
+/* DECISION: docs/00-PROJECT-BASELINE.md §12.4 (Multi-Theme System)             */
+/* PHASE:    Phase 2 Sub-step 2.0 — populated from Phase 1 token reconciliation */
+/* AMEND:    docs/CHANGE-LOG.md "v1.0 — AMENDMENTS" (2026-05-03)                */
+/*           A2: --color-danger-hover, --color-danger-active added              */
+/*                                                                              */
+/* NOTE:     Dark mode pales follow Phase 1 mixed convention:                   */
+/*             primary/accent/info → rgba alpha tints over dark surface         */
+/*             success/warning/danger → solid dark surfaces (deep tinted bg)    */
+/*           This intentionally differs from light mode (all solid pastels).    */
 
 [data-mode="dark"] {
-    /* Full token values — added in Phase 3 */
+
+    /* ── Backgrounds ─────────────────────────────────────────────────────── */
+    --color-bg-base:     #0d1117;
+    --color-bg-surface:  #161b22;
+    --color-bg-elevated: #21262d;
+    --color-bg-subtle:   #1c2128;
+    --color-bg-hover:    #21262d;
+
+    /* ── Text ────────────────────────────────────────────────────────────── */
+    --color-text-primary:   #e6edf3;
+    --color-text-secondary: #8b949e;
+    --color-text-tertiary:  #6e7681;
+    --color-text-inverse:   #0d1117;
+
+    /* ── Borders ─────────────────────────────────────────────────────────── */
+    --color-border-default: #30363d;
+    --color-border-subtle:  #21262d;
+    --color-border-strong:  #484f58;
+    --color-border-focus:   rgba(74, 155, 212, 0.6); /* alpha in dark (light uses solid) */
+
+    /* ── Brand primary ───────────────────────────────────────────────────── */
+    --color-primary:          #4A9BD4; /* admin.css --sky — lighter for dark bg */
+    --color-primary-hover:    #5BAEE0; /* admin.css --sky-light */
+    --color-primary-active:   #3A8BC4;
+    --color-primary-disabled: #4a4d52;
+    --color-primary-pale:     rgba(74, 155, 212, 0.12); /* subtle tint for dark surfaces */
+
+    /* ── Accent (Gold — brighter for dark) ───────────────────────────────── */
+    --color-accent:        #E5B847;
+    --color-accent-hover:  #EFC55E;
+    --color-accent-active: #D6A82F;
+    --color-accent-pale:   rgba(229, 184, 71, 0.12);
+
+    /* ── Semantic (adjusted for dark contrast) ───────────────────────────── */
+    --color-success:        #3FB950;
+    --color-success-pale:   #0d2b1a;     /* dark green surface */
+    --color-warning:        #D29922;
+    --color-warning-pale:   #241800;     /* dark amber surface */
+    --color-danger:         #F85149;
+    --color-danger-hover:   #FF6B63;     /* NEW (A2) — lighter for hover (dark-mode convention) */
+    --color-danger-active:  #E03B33;     /* NEW (A2) — darker for active (pressed) */
+    --color-danger-pale:    #2c0f0f;     /* dark red surface */
+    --color-info:           #58A6FF;
+    --color-info-pale:      rgba(88, 166, 255, 0.10); /* alpha — consistent with primary/accent pale */
+
+    /* ── Status strip colors (slightly brighter for dark mode) ───────────── */
+    --status-active:     #5DD66B;
+    --status-suspended:  #FFAB1F;
+    --status-locked:     #F85149;
+    --status-invited:    #58A6FF;
+    --status-terminated: #8b949e;
+
+    /* ── Section accent colors (slightly muted for dark bg) ──────────────── */
+    --sec-1: #4A9BD4;
+    --sec-2: #9C5BC0;
+    --sec-3: #4DB6A8;
+    --sec-4: #FF7043;
+    --sec-5: #5C6BC0;
+    --sec-6: #4DD0E1;
+    --sec-7: #FFA726;
+
+    /* ── Shadows (black-based for dark mode) ─────────────────────────────── */
+    --sh-sm: 0 1px 3px rgba(0, 0, 0, 0.30);
+    --sh-md: 0 4px 12px rgba(0, 0, 0, 0.40);
+    --sh-lg: 0 8px 24px rgba(0, 0, 0, 0.50);
 }
