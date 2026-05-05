@@ -1,0 +1,311 @@
+@* SPEC: Phase 2.2 Sub-step Batch 5 — LipiCombobox<TValue, TItem> rich component           *@
+@* Templated subclass of LipiSelectBase. Caller provides ValueSelector, LabelSelector, and  *@
+@* optionally ItemTemplate for custom row rendering.                                        *@
+@*                                                                                            *@
+@* Use for: Country (flag + name + ISD code), District (name + aspirational badge),         *@
+@* Doctor (name + specialty + photo), Insurance scheme (provider + plan code + coverage).   *@
+@*                                                                                            *@
+@* For simple lists where label = value, use LipiSelect<TValue> instead.                    *@
+
+@typeparam TValue
+@typeparam TItem
+@inherits LipiSelectBase<TValue, TItem>
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+
+<div class="lipi-input-wrapper @CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
+
+    @* ===== LABEL ROW ===== *@
+    <label class="lipi-input-label" for="@EffectiveId">
+        <span class="lipi-input-label-text">@_resolvedLabel</span>
+        @if (Required)
+        {
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+        @if (LabelConfidence.HasValue)
+        {
+            <span class="lipi-input-confidence-pill lipi-input-confidence-@ConfidenceCssClass"
+                  aria-label="@ConfidenceAriaLabel">
+                @ConfidenceLabelText
+            </span>
+        }
+    </label>
+
+    @* ===== ANCHOR (closed-state button + keyboard target when not Searchable) ===== *@
+    <div class="lipi-input-field"
+         @ref="_anchorRef"
+         role="combobox"
+         aria-expanded="@(_isOpen ? "true" : "false")"
+         aria-haspopup="listbox"
+         aria-controls="@EffectiveDropdownId"
+         tabindex="@(Disabled ? -1 : 0)"
+         @onclick="HandleAnchorClick"
+         @onkeydown="HandleKeyDown">
+
+        @if (!string.IsNullOrEmpty(Icon))
+        {
+            <span class="lipi-input-icon-leading" aria-hidden="true">
+                <LucideIcon Name="@Icon" Size="@IconPx" />
+            </span>
+        }
+
+        <span class="lipi-input-control lipi-select-display @(ShowPlaceholder ? "lipi-select-placeholder" : null)"
+              id="@EffectiveId">
+            @if (SelectedAnchorTemplate is not null && CurrentValue is not null && SelectedItem is not null)
+            {
+                @SelectedAnchorTemplate(SelectedItem)
+            }
+            else
+            {
+                @DisplayText
+            }
+        </span>
+
+        <span class="lipi-input-icon-trailing" aria-hidden="true">
+            <LucideIcon Name="@EffectiveTrailingIcon" Size="@IconPx" />
+        </span>
+    </div>
+
+    @* ===== HELPER ROW ===== *@
+    @if (Defaults.Value.AlwaysReserveHelperSlot || HasHelperContent)
+    {
+        <div class="lipi-input-helper @HelperStateClass"
+             role="@HelperRole"
+             aria-live="@HelperAriaLive"
+             id="@HelperId">
+            @HelperText
+        </div>
+    }
+
+    @* ===== DROPDOWN PANEL ===== *@
+    @if (_isOpen)
+    {
+        <div class="lipi-select-dropdown"
+             id="@EffectiveDropdownId"
+             role="listbox"
+             aria-label="@_resolvedLabel options">
+
+            @if (Searchable)
+            {
+                <div class="lipi-select-search">
+                    <LucideIcon Name="search" Size="14" CssClass="lipi-select-search-icon" />
+                    <input type="text"
+                           @ref="_searchInputRef"
+                           class="lipi-select-search-input"
+                           form="lipi-select-orphan"
+                           placeholder="Search…"
+                           value="@_searchText"
+                           @oninput="HandleSearchInput"
+                           @onkeydown="HandleKeyDown"
+                           @onclick:stopPropagation="true" />
+                </div>
+            }
+
+            @{
+                var (pinned, unpinned) = GetFilteredOptions();
+                var totalShown = pinned.Count + unpinned.Count;
+                var globalIdx = 0;
+            }
+
+            <div class="lipi-select-options" tabindex="-1">
+
+                @if (totalShown == 0)
+                {
+                    <div class="lipi-select-empty">
+                        <span>No matching options</span>
+                        @if (AllowFreeText && !string.IsNullOrWhiteSpace(_searchText))
+                        {
+                            <button type="button"
+                                    class="lipi-select-add-new"
+                                    @onclick="CommitFreeTextAsync"
+                                    @onclick:stopPropagation="true">
+                                <LucideIcon Name="plus" Size="12" />
+                                Add "@_searchText" as new
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    @if (pinned.Count > 0)
+                    {
+                        @if (!string.IsNullOrEmpty(PinnedHeading))
+                        {
+                            <div class="lipi-select-section-heading">@PinnedHeading</div>
+                        }
+                        @foreach (var item in pinned)
+                        {
+                            var idx = globalIdx++;
+                            var isHighlighted = idx == _highlightedIndex;
+                            var isSelected = EqualityComparer<TValue?>.Default.Equals(ItemValue(item), CurrentValue);
+                            <div class="lipi-select-option @(isHighlighted ? "lipi-select-option-highlighted" : null) @(isSelected ? "lipi-select-option-selected" : null)"
+                                 role="option"
+                                 aria-selected="@(isSelected ? "true" : "false")"
+                                 @onclick="@(() => SelectItem(item))"
+                                 @onmouseenter="@(() => _highlightedIndex = idx)">
+                                @ItemContent(item)
+                                @if (isSelected)
+                                {
+                                    <LucideIcon Name="check" Size="14" CssClass="lipi-select-option-check" />
+                                }
+                            </div>
+                        }
+                        @if (unpinned.Count > 0)
+                        {
+                            <div class="lipi-select-divider" role="separator"></div>
+                        }
+                    }
+
+                    @if (unpinned.Count > 0)
+                    {
+                        @if (!string.IsNullOrEmpty(UnpinnedHeading) && pinned.Count > 0)
+                        {
+                            <div class="lipi-select-section-heading">@UnpinnedHeading</div>
+                        }
+                        @if (ShouldVirtualize)
+                        {
+                            <Virtualize Items="@unpinned" Context="vitem" ItemSize="36">
+                                @{
+                                    var vIdx = pinned.Count + unpinned.IndexOf(vitem);
+                                    var vHighlighted = vIdx == _highlightedIndex;
+                                    var vSelected = EqualityComparer<TValue?>.Default.Equals(ItemValue(vitem), CurrentValue);
+                                }
+                                <div class="lipi-select-option @(vHighlighted ? "lipi-select-option-highlighted" : null) @(vSelected ? "lipi-select-option-selected" : null)"
+                                     role="option"
+                                     aria-selected="@(vSelected ? "true" : "false")"
+                                     @onclick="@(() => SelectItem(vitem))"
+                                     @onmouseenter="@(() => _highlightedIndex = vIdx)">
+                                    @ItemContent(vitem)
+                                    @if (vSelected)
+                                    {
+                                        <LucideIcon Name="check" Size="14" CssClass="lipi-select-option-check" />
+                                    }
+                                </div>
+                            </Virtualize>
+                        }
+                        else
+                        {
+                            @foreach (var item in unpinned)
+                            {
+                                var idx = globalIdx++;
+                                var isHighlighted = idx == _highlightedIndex;
+                                var isSelected = EqualityComparer<TValue?>.Default.Equals(ItemValue(item), CurrentValue);
+                                <div class="lipi-select-option @(isHighlighted ? "lipi-select-option-highlighted" : null) @(isSelected ? "lipi-select-option-selected" : null)"
+                                     role="option"
+                                     aria-selected="@(isSelected ? "true" : "false")"
+                                     @onclick="@(() => SelectItem(item))"
+                                     @onmouseenter="@(() => _highlightedIndex = idx)">
+                                    @ItemContent(item)
+                                    @if (isSelected)
+                                    {
+                                        <LucideIcon Name="check" Size="14" CssClass="lipi-select-option-check" />
+                                    }
+                                </div>
+                            }
+                        }
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // ==========================================================================
+    // CALLER PARAMETERS — combobox-specific (selectors + templates)
+    // ==========================================================================
+
+    /// <summary>Extract the bound value from an option item. REQUIRED.
+    /// e.g., (Country c) =&gt; c.IsoCode</summary>
+    [Parameter, EditorRequired] public Func<TItem, TValue> ValueSelector { get; set; } = default!;
+
+    /// <summary>Extract the display label from an option item. REQUIRED.
+    /// Used for search matching, anchor display, and default ItemTemplate fallback.
+    /// e.g., (Country c) =&gt; c.Name</summary>
+    [Parameter, EditorRequired] public Func<TItem, string> LabelSelector { get; set; } = default!;
+
+    /// <summary>Optional template for rendering each option row. When null, falls back to
+    /// LabelSelector text. Use to render icons + labels + meta (e.g., flag + name + ISD).
+    /// Context name defaults to "context" — override via Context="item" on the tag.</summary>
+    [Parameter] public RenderFragment<TItem>? ItemTemplate { get; set; }
+
+    /// <summary>Optional template for rendering the SELECTED item in the closed-state anchor.
+    /// When null, falls back to LabelSelector text. Use when the anchor should show richer
+    /// content than just the label (e.g., flag + country name).</summary>
+    [Parameter] public RenderFragment<TItem>? SelectedAnchorTemplate { get; set; }
+
+    // ==========================================================================
+    // ABSTRACT IMPLEMENTATIONS
+    // ==========================================================================
+
+    protected override TValue? ItemValue(TItem item) => ValueSelector(item);
+
+    protected override string ItemLabel(TItem item) => LabelSelector(item) ?? string.Empty;
+
+    /// <summary>Use caller's ItemTemplate when provided, otherwise fall back to label text.</summary>
+    protected override RenderFragment<TItem> ItemContent =>
+        ItemTemplate ?? (item => @<text><span class="lipi-select-option-label">@ItemLabel(item)</span></text>);
+
+    // ==========================================================================
+    // RESOLVED PROPERTIES
+    // ==========================================================================
+
+    /// <summary>The Items entry whose ValueSelector matches CurrentValue, or default if none.
+    /// Used by SelectedAnchorTemplate to render the rich representation of the chosen item.</summary>
+    private TItem? SelectedItem
+    {
+        get
+        {
+            if (CurrentValue is null) return default;
+            foreach (var item in Items)
+            {
+                if (EqualityComparer<TValue?>.Default.Equals(ItemValue(item), CurrentValue))
+                    return item;
+            }
+            return default;
+        }
+    }
+
+    // ==========================================================================
+    // PARAMETER VALIDATION — extends base with selector requirement check
+    // ==========================================================================
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        if (ValueSelector is null || LabelSelector is null)
+        {
+            var message = $"LipiCombobox<{typeof(TValue).Name}, {typeof(TItem).Name}> requires both ValueSelector and LabelSelector parameters.";
+            if (Env.IsDevelopment())
+            {
+                throw new InvalidOperationException(message);
+            }
+            else
+            {
+                Log.LogError("[LipiCombobox] {Message}", message);
+            }
+        }
+    }
+
+    // ==========================================================================
+    // EVENT HANDLERS
+    // ==========================================================================
+
+    private async Task HandleAnchorClick(MouseEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+        if (_isOpen)
+        {
+            await CloseDropdownAsync();
+        }
+        else
+        {
+            await OpenDropdownAsync();
+        }
+    }
+}

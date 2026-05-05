@@ -1,0 +1,519 @@
+/* SPEC: Phase 2.2 Sub-step Batch 3 — shared base styles for the LiPi input
+   component family. Classes here apply to LipiTextBox, LipiTextArea,
+   LipiNumberInput, LipiSelect.
+
+   Per-component scoped CSS (LipiTextBox.razor.css, LipiTextArea.razor.css, etc.)
+   only adds component-specific deltas that should resolve differently per
+   variant — e.g., field height (single-line vs multi-line), icon alignment
+   (center vs top), stepper button placement.
+
+   Loaded via App.razor cascade:
+     AFTER theme files (so it can resolve var(--color-*) tokens)
+     AFTER admin.css (Phase 1-2 Modified Big Bang)
+     BEFORE LiPi.Web.styles.css (so per-component scoped rules win on their own
+       components via [b-abc123] attribute specificity)
+
+   AMEND: docs/CHANGE-LOG.md A13 (Batch 3 — pending entry on visual review). */
+
+/* ===================== WRAPPER ===================== */
+.lipi-input-wrapper {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-ui);
+    min-width: 0;
+}
+
+/* ===================== LABEL ROW ===================== */
+.lipi-input-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    color: var(--color-text-strong-secondary);
+    line-height: 1.3;
+    cursor: pointer;
+    user-select: none;
+}
+
+.lipi-input-label-text {
+    /* Sentence case is rendered by the caller — CSS does not transform it. */
+}
+
+.lipi-input-required-asterisk {
+    color: var(--color-danger);
+    font-weight: 600;
+    line-height: 1;
+}
+
+/* ===================== CONFIDENCE PILL ===================== */
+.lipi-input-confidence-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 1px 6px;
+    border-radius: 999px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+.lipi-input-confidence-verified {
+    background-color: var(--color-confidence-verified-bg);
+    color: var(--color-confidence-verified-text);
+}
+.lipi-input-confidence-self {
+    background-color: var(--color-confidence-self-bg);
+    color: var(--color-confidence-self-text);
+}
+.lipi-input-confidence-estimated {
+    background-color: var(--color-confidence-estimated-bg);
+    color: var(--color-confidence-estimated-text);
+}
+.lipi-input-confidence-unknown {
+    background-color: var(--color-confidence-unknown-bg);
+    color: var(--color-confidence-unknown-text);
+}
+
+/* ===================== INPUT FIELD (the bordered container) =====================
+   NOTE: align-items + height are set per-component:
+     LipiTextBox    → align-items: stretch, height: 28/32/40px (per size)
+     LipiTextArea   → align-items: flex-start, height: auto, min-height set
+     LipiNumberInput→ align-items: stretch (with stepper buttons), height: 28/32/40px
+     LipiSelect     → align-items: stretch, height: 28/32/40px (or auto for multi)         */
+.lipi-input-field {
+    position: relative;
+    display: flex;
+    background-color: var(--color-bg-surface);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    transition: background-color 120ms ease,
+                border-color 120ms ease,
+                box-shadow 120ms ease;
+}
+
+/* ===================== INPUT CONTROL (the <input>/<textarea>/<select>) ===================== */
+.lipi-input-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 12px;
+    background: transparent;
+    border: 0;
+    outline: none;
+    font-family: inherit;
+    font-weight: 400;
+    color: var(--color-text-primary);
+    line-height: 1;
+    width: 100%;
+}
+.lipi-input-control::placeholder {
+    color: var(--color-text-tertiary);
+    opacity: 1;
+}
+.lipi-input-control::-webkit-search-cancel-button {
+    /* Hide native search clear — we render our own via OnIconRightClick if needed */
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+/* ===================== ICON SLOTS ===================== */
+.lipi-input-icon-leading,
+.lipi-input-icon-trailing {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--color-text-tertiary);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
+}
+
+.lipi-input-icon-leading {
+    padding-left: 10px;
+    padding-right: 2px;
+    pointer-events: none; /* decorative */
+}
+
+.lipi-input-icon-trailing {
+    padding-left: 2px;
+    padding-right: 10px;
+    cursor: default;
+}
+
+/* When IconRight is interactive (has OnIconRightClick wired) */
+.lipi-input-icon-clickable {
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    transition: color 120ms ease;
+}
+.lipi-input-icon-clickable:hover:not(:disabled) {
+    color: var(--color-text-primary);
+}
+.lipi-input-icon-clickable:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 1px;
+    border-radius: var(--r-sm);
+}
+.lipi-input-icon-clickable:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* When the leading icon is present, the input gets less left padding to compensate */
+.lipi-input-has-leading-icon .lipi-input-control {
+    padding-left: 6px;
+}
+.lipi-input-has-trailing-icon .lipi-input-control {
+    padding-right: 6px;
+}
+
+/* ===================== SIZES — font/label/helper sizing only =====================
+   Field height is per-component (see field heights in each component's scoped CSS). */
+.lipi-input-small .lipi-input-control { font-size: 12px; }
+.lipi-input-small .lipi-input-label   { font-size: 13px; }
+.lipi-input-small .lipi-input-helper  { font-size: 11px; min-height: 14px; }
+
+.lipi-input-medium .lipi-input-control { font-size: 14px; }
+.lipi-input-medium .lipi-input-label   { font-size: 14px; }
+.lipi-input-medium .lipi-input-helper  { font-size: 12px; min-height: 16px; }
+
+.lipi-input-large .lipi-input-control { font-size: 16px; }
+.lipi-input-large .lipi-input-label   { font-size: 15px; }
+.lipi-input-large .lipi-input-helper  { font-size: 13px; min-height: 18px; }
+
+/* ===================== STATE: FOCUS (CSS-only via :focus-within) ===================== */
+.lipi-input-state-default .lipi-input-field:focus-within,
+.lipi-input-state-required-empty .lipi-input-field:focus-within {
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 3px var(--color-primary-pale);
+}
+
+/* ===================== STATE: REQUIRED-EMPTY (apricot tint) ===================== */
+.lipi-input-state-required-empty .lipi-input-field {
+    background-color: var(--color-required-bg);
+    border-color: var(--color-required-border);
+}
+
+/* ===================== STATE: ERROR ===================== */
+.lipi-input-state-error .lipi-input-field {
+    border-color: var(--color-danger);
+    background-color: var(--color-danger-pale);
+}
+.lipi-input-state-error .lipi-input-field:focus-within {
+    border-color: var(--color-danger);
+    box-shadow: 0 0 0 3px var(--color-danger-pale);
+}
+.lipi-input-state-error .lipi-input-icon-trailing {
+    color: var(--color-danger);
+}
+
+/* ===================== STATE: WARNING ===================== */
+.lipi-input-state-warning .lipi-input-field {
+    border-color: var(--color-warning);
+    background-color: var(--color-warning-pale);
+}
+.lipi-input-state-warning .lipi-input-field:focus-within {
+    border-color: var(--color-warning);
+    box-shadow: 0 0 0 3px var(--color-warning-pale);
+}
+.lipi-input-state-warning .lipi-input-icon-trailing {
+    color: var(--color-warning);
+}
+
+/* ===================== STATE: SUCCESS ===================== */
+.lipi-input-state-success .lipi-input-field {
+    border-color: var(--color-success);
+}
+.lipi-input-state-success .lipi-input-field:focus-within {
+    border-color: var(--color-success);
+    box-shadow: 0 0 0 3px var(--color-success-pale);
+}
+.lipi-input-state-success .lipi-input-icon-trailing {
+    color: var(--color-success);
+}
+
+/* ===================== STATE: DISABLED ===================== */
+.lipi-input-state-disabled .lipi-input-field {
+    background-color: var(--color-bg-subtle);
+    border-color: var(--color-border-subtle);
+    cursor: not-allowed;
+}
+.lipi-input-state-disabled .lipi-input-control {
+    color: var(--color-text-tertiary);
+    cursor: not-allowed;
+}
+.lipi-input-state-disabled .lipi-input-control::placeholder {
+    color: var(--color-text-tertiary);
+    opacity: 0.6;
+}
+.lipi-input-state-disabled .lipi-input-label {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+.lipi-input-state-disabled .lipi-input-icon-leading,
+.lipi-input-state-disabled .lipi-input-icon-trailing {
+    opacity: 0.5;
+}
+
+/* ===================== STATE: READONLY (Variant B — dashed border + faint bg) ===================== */
+.lipi-input-state-readonly .lipi-input-field {
+    border-style: dashed;
+    border-color: var(--color-border-strong);
+    background-color: var(--color-bg-subtle);
+}
+.lipi-input-state-readonly .lipi-input-control {
+    /* Full-color text — readonly is for display, not disabled state */
+    color: var(--color-text-primary);
+    cursor: text;
+}
+.lipi-input-state-readonly .lipi-input-field:focus-within {
+    /* Subtle focus ring for readonly — still selectable */
+    box-shadow: 0 0 0 2px var(--color-primary-pale);
+}
+
+/* ===================== HELPER ROW ===================== */
+.lipi-input-helper {
+    display: flex;
+    align-items: flex-start;
+    line-height: 1.3;
+    color: var(--color-text-secondary);
+    font-weight: 400;
+    /* min-height set by size variants above to reserve space and prevent layout shift */
+}
+
+.lipi-input-helper-default { color: var(--color-text-secondary); }
+.lipi-input-helper-error   { color: var(--color-danger); }
+.lipi-input-helper-warning { color: var(--color-warning-text-strong); }
+.lipi-input-helper-success { color: var(--color-success-text-strong); }
+
+/* ===================== SELECT / COMBOBOX (Phase 2.2 Batch 5) =====================
+   Shared between LipiSelect<TValue> and LipiCombobox<TValue, TItem>. Per-component
+   scoped CSS files only override field height. Everything else lives here. */
+
+.lipi-input-select .lipi-input-field {
+    align-items: stretch;
+    cursor: pointer;
+    user-select: none;
+}
+
+.lipi-input-select .lipi-input-field:focus {
+    outline: none; /* focus shown via :focus-within ring on wrapper */
+}
+
+/* Size rules: NOTE the no-space compound selector. .lipi-input-medium and
+   .lipi-input-select are both classes on the SAME wrapper element. A descendant
+   selector with space (".lipi-input-medium .lipi-input-select") would require
+   .lipi-input-select to be INSIDE .lipi-input-medium, which doesn't match our
+   markup. Compound class selectors (no space) target the same element having
+   both classes. */
+.lipi-input-small.lipi-input-select  .lipi-input-field { height: 28px; }
+.lipi-input-medium.lipi-input-select .lipi-input-field { height: 32px; }
+.lipi-input-large.lipi-input-select  .lipi-input-field { height: 40px; }
+
+/* The display span inside the closed-state anchor — replaces the <input> visually.
+   line-height: 1 matches the implicit line-height of <input> elements, ensuring text
+   sits at the same vertical baseline as LipiTextBox/LipiNumberInput at the same height.
+   align-items: center centers the text within the span's flex height. */
+.lipi-select-display {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0 12px;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-primary);
+}
+
+.lipi-select-placeholder {
+    color: var(--color-text-tertiary);
+}
+
+.lipi-input-has-leading-icon .lipi-select-display { padding-left: 6px; }
+.lipi-input-has-trailing-icon .lipi-select-display { padding-right: 6px; }
+
+/* Disabled / readonly anchors should not show pointer cursor.
+   Compound selector — same element has BOTH the state class AND .lipi-input-select. */
+.lipi-input-state-disabled.lipi-input-select .lipi-input-field,
+.lipi-input-state-readonly.lipi-input-select .lipi-input-field {
+    cursor: not-allowed;
+}
+
+/* ===================== DROPDOWN PANEL ===================== */
+.lipi-select-dropdown {
+    position: fixed; /* JS sets top/left via lipiInput.positionDropdown */
+    z-index: 1000;
+    min-width: 200px;
+    max-height: 320px;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-surface);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    font-family: var(--font-ui);
+    font-size: 14px;
+}
+
+/* ===================== SEARCH INPUT ROW ===================== */
+.lipi-select-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border-subtle);
+    background-color: var(--color-bg-subtle);
+    flex-shrink: 0;
+}
+
+.lipi-select-search-icon {
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+}
+
+.lipi-select-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.lipi-select-search-input::placeholder {
+    color: var(--color-text-tertiary);
+}
+
+/* ===================== OPTIONS LIST ===================== */
+.lipi-select-options {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.lipi-select-options:focus { outline: none; }
+
+.lipi-select-section-heading {
+    padding: 6px 12px 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-tertiary);
+}
+
+.lipi-select-divider {
+    height: 1px;
+    margin: 4px 12px;
+    background-color: var(--color-border-subtle);
+}
+
+/* ===================== OPTION ROW ===================== */
+.lipi-select-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--color-text-primary);
+    line-height: 1.3;
+    /* Fixed height for consistent virtualization (ItemSize="36" in markup) */
+    min-height: 36px;
+    box-sizing: border-box;
+}
+
+.lipi-select-option:hover,
+.lipi-select-option-highlighted {
+    background-color: var(--color-bg-subtle);
+}
+
+.lipi-select-option-selected {
+    background-color: var(--color-primary-pale);
+    color: var(--color-text-primary);
+    font-weight: 500;
+}
+
+.lipi-select-option-selected.lipi-select-option-highlighted,
+.lipi-select-option-selected:hover {
+    background-color: var(--color-primary-pale);
+    /* Slightly darker via box-shadow inset to indicate hover-on-selected */
+    box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.04);
+}
+
+.lipi-select-option-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lipi-select-option-check {
+    flex-shrink: 0;
+    color: var(--color-primary);
+    margin-left: auto;
+}
+
+/* ===================== EMPTY / NO MATCHES STATE ===================== */
+.lipi-select-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 12px;
+    color: var(--color-text-tertiary);
+    font-size: 13px;
+    text-align: center;
+}
+
+.lipi-select-add-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    color: var(--color-primary);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.lipi-select-add-new:hover {
+    background-color: var(--color-primary-pale);
+    border-color: var(--color-primary);
+}
+
+.lipi-select-add-new:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 1px;
+}
+
+/* ===================== OPEN STATE — anchor border picks up focus styling ===================== */
+.lipi-input-select-open .lipi-input-field {
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 3px var(--color-primary-pale);
+}
+
+/* When in error/warning state, open state still uses error/warning ring color */
+.lipi-input-select-open.lipi-input-state-error .lipi-input-field {
+    border-color: var(--color-danger);
+    box-shadow: 0 0 0 3px var(--color-danger-pale);
+}
+.lipi-input-select-open.lipi-input-state-warning .lipi-input-field {
+    border-color: var(--color-warning);
+    box-shadow: 0 0 0 3px var(--color-warning-pale);
+}

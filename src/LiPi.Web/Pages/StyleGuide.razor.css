@@ -445,3 +445,86 @@
     width: 100%;
     max-width: 320px;
 }
+
+/* ============================================================
+   Phase 2.2 Batch 6 — Text Inputs section (LipiTextBox / Area /
+   NumberInput / Select / Combobox showcase + alignment row)
+   ============================================================ */
+
+/* Generic input grid — 4-column responsive default for component states.
+   sg-input-grid-3 / -2 override columns for sections that pair fewer items. */
+.sg-input-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--sp-md);
+    margin: var(--sp-md) 0 var(--sp-xl) 0;
+    align-items: start;
+}
+
+.sg-input-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sg-input-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+    .sg-input-grid-2,
+    .sg-input-grid-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Compound row for "Title + First Name" / "DOB + Age" composition demos.
+   Uses 3-column grid with Cols=1/Cols=2 hint on the components themselves. */
+.sg-compound-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-md);
+    margin: var(--sp-sm) 0 var(--sp-xl) 0;
+    align-items: start;
+}
+
+@media (max-width: 720px) {
+    .sg-compound-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Alignment row (showcase-only) ----------
+   The third column wraps LipiButton in .lipi-input-wrapper structure for
+   label/helper typography parity with the other two columns. Real forms do
+   NOT do this — buttons live outside form-field grids. The .sg-button-shell
+   reserves the same vertical space as a 32px input field would, so the
+   button visually sits at the same Y as the LipiTextBox/LipiSelect fields
+   on either side. */
+.sg-align-row {
+    align-items: start;
+}
+
+.sg-button-wrapper {
+    /* The LipiButton is wrapped in lipi-input-wrapper for label + helper parity.
+       No extra rules needed — inherits from the shared .lipi-input-wrapper rules
+       in lipi-inputs.css. This selector exists for any future tweak. */
+}
+
+.sg-button-shell {
+    /* Mimics .lipi-input-field's height so the button row aligns with adjacent
+       input fields. The wrapped LipiButton has its own 32px height, so this
+       shell just provides the vertical-rhythm container that input fields use. */
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+}
+
+/* Section spacing tweak — text-input section has many sub-headings, so reduce
+   the default sg-h3:first-of-type top margin to avoid wasted vertical space
+   between each sub-heading and its grid. */
+#text-inputs .sg-h3 {
+    margin-top: var(--sp-md);
+}
+
+#text-inputs .sg-h3:first-of-type {
+    margin-top: var(--sp-md);
+}

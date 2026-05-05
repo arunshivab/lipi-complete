@@ -20,44 +20,30 @@
 
     @*
         CSS CASCADE ORDER — Decision #12 §12.4 (SPEC: 00.2-THEMING-ARCHITECTURE.md)
-        1. 00-baseline.css — structural tokens (radius, spacing, typography, layout) — Phase 2.0
-        2. Existing layout/module CSS (unchanged during Phase 1-2 Modified Big Bang)
-        3. Theme: brand → mode-light → mode-dark (both mode files loaded; data-mode attr activates one)
-        4. admin.css stays during Phase 1-2; removed in Phase 3 after theme tokens verified
-        5. Blazor CSS Isolation bundle (LiPi.Web.styles.css) — auto-generated from *.razor.css files,
-           loaded LAST so isolation styles win specificity battles. Required for Phase 2.0+ component
-           styles to apply (e.g., StyleGuide.razor.css for /admin/style-guide).
+        1. 00-baseline.css — structural tokens
+        2. Existing layout/module CSS
+        3. Theme: brand → mode-light → mode-dark
+        4. admin.css (Phase 1-2 Modified Big Bang; removed Phase 3)
+        5. lipi-inputs.css — Phase 2.2 Batch 3 shared input-family base styles
+        6. Blazor CSS Isolation bundle (LiPi.Web.styles.css)
 
-        Version bumped 20260502 → 20260503 for CSS cache busting (Phase 2.0 deploy).
+        Version bumped 20260509 → 20260510 for cache busting on Phase 2.2 Batch 5.4 deploy.
+        Bug fix: LipiSelect size rules in lipi-inputs.css used descendant selectors
+        ".lipi-input-medium .lipi-input-select .lipi-input-field" — but both classes are
+        on the same wrapper element, so the rule never matched. Changed to compound-class
+        ".lipi-input-medium.lipi-input-select .lipi-input-field" (no space between first
+        two). Same fix applied to disabled/readonly cursor rules. Pre-fix LipiSelect field
+        rendered at ~17.6px (natural content height); post-fix renders at 28/32/40px.
     *@
 
-    @* Phase 2.0: Structural foundation tokens — MUST load FIRST so other files can reference --r-sm, --sp-md, etc. *@
-    <link rel="stylesheet" href="css/00-baseline.css?v=20260503" />
-
-    <link rel="stylesheet" href="css/app.css?v=20260503" />
-    <link rel="stylesheet" href="css/dashboard.css?v=20260503" />
-
-    @* Theme CSS — Decision #12, populated in Phase 2.0 with full token values *@
-    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260503" />
-    <link rel="stylesheet" href="themes/mode-light.css?v=20260503" />
-    <link rel="stylesheet" href="themes/mode-dark.css?v=20260503" />
-
-    @* admin.css: Modified Big Bang — stays loaded until Phase 3 *@
-    <link rel="stylesheet" href="css/admin.css?v=20260503" />
-
-    @*
-        Phase 2.0 INFRASTRUCTURE FIX (2026-05-03):
-        Blazor CSS Isolation bundle. Auto-generated from all *.razor.css files in the project
-        (StyleGuide.razor.css, future LipiButton.razor.css, etc.). Served via static-file
-        middleware from obj/Debug/net10.0/scopedcss/bundle/LiPi.Web.styles.css.
-
-        Was missing from App.razor since project inception — never noticed because no page
-        used CSS Isolation until StyleGuide.razor in Phase 2.0. Adding now unblocks the
-        entire component library going forward.
-
-        Loaded LAST in cascade — isolation rules use scope attributes ([b-abc123]) for natural
-        specificity, but final-position guarantees they beat any unscoped admin.css rules.
-    *@
+    <link rel="stylesheet" href="css/00-baseline.css?v=20260510" />
+    <link rel="stylesheet" href="css/app.css?v=20260510" />
+    <link rel="stylesheet" href="css/dashboard.css?v=20260510" />
+    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260510" />
+    <link rel="stylesheet" href="themes/mode-light.css?v=20260510" />
+    <link rel="stylesheet" href="themes/mode-dark.css?v=20260510" />
+    <link rel="stylesheet" href="css/admin.css?v=20260510" />
+    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260510" />
     <link rel="stylesheet" href="LiPi.Web.styles.css" />
 
     <style>
@@ -80,24 +66,14 @@
 
     @*
         FOUC PREVENTION — MUST be blocking script (no async/defer), MUST be in <head>.
-        Runs before browser paints content. Reads cookies, applies data-brand + data-mode
-        to <html> immediately. See wwwroot/js/theme-switcher.js.
-        Provides window.lipiTheme.apply(brand, mode) for ThemeProvider.razor interop.
+        Runs before browser paints content.
     *@
-    <script src="js/theme-switcher.js"></script>
+    <script src="js/theme-switcher.js?v=20260510"></script>
 
     <HeadOutlet @rendermode="@InteractiveServer" />
 </head>
 <body>
     <CascadingAuthenticationState>
-        @*
-            ThemeProvider wraps Router — Decision #12 §12.4
-            Cascades:
-              CascadingValue<ThemeContext>  Name="CurrentTheme" (IsFixed=false) — data
-              CascadingValue<ThemeProvider> Name="ThemeProvider" (IsFixed=true)  — actions
-            Blazor Rule #6: CascadingAuthenticationState stays outermost. ThemeProvider inside.
-            ThemeProvider has @rendermode InteractiveServer — all pages inherit this circuit.
-        *@
         <ThemeProvider>
             <Router AppAssembly="@typeof(App).Assembly">
                 <Found Context="routeData">
@@ -122,10 +98,16 @@
         </ThemeProvider>
     </CascadingAuthenticationState>
 
-    @* Body scripts — order preserved; theme-switcher.js is in <head>, not here *@
-    <script src="js/lipi-login.js"></script>
-    <script src="js/lipi-topnav.js"></script>
-    <script src="js/lipi-shortcuts.js"></script>
+    @* Body scripts — order preserved; theme-switcher.js is in <head>, not here.
+       Cache version added to ALL JS scripts in this batch — previously only CSS was versioned. *@
+    <script src="js/lipi-login.js?v=20260510"></script>
+    <script src="js/lipi-topnav.js?v=20260510"></script>
+    <script src="js/lipi-shortcuts.js?v=20260510"></script>
+
+    @* Phase 2.2: input family helpers (autogrow Batch 3, selectAll Batch 4).
+       Loaded BEFORE blazor.web.js so window.lipiInput is available when components first render. *@
+    <script src="js/lipi-input.js?v=20260510"></script>
+
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

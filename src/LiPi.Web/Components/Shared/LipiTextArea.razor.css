@@ -1,0 +1,49 @@
+/* SPEC: Phase 2.2 LipiTextArea component-specific deltas.
+   All shared base styles live in wwwroot/css/lipi-inputs.css (Batch 3 extraction).
+
+   What lives here:
+     - Field alignment: flex-start (multi-line: icons sit at top of textarea)
+     - Field height: auto (autogrow JS controls height)
+     - Min-height: ensures at least MinRows is visible before autogrow kicks in
+     - Textarea-specific control: resize:none, line-height 1.4, top/bottom padding,
+       overflow management toggled by JS when MaxRows hit
+     - Icon top-alignment: padding-top to line up with first row of text
+
+   AMEND: docs/CHANGE-LOG.md A13 (Batch 3 — pending entry on visual review). */
+
+.lipi-input-field {
+    align-items: flex-start; /* multi-line: icons sit at top of textarea */
+    /* No height set — JS autogrow drives it. min-height enforces MinRows visibility. */
+}
+
+/* ===================== TEXTAREA CONTROL ===================== */
+.lipi-textarea-control {
+    resize: none;             /* JS controls height; no manual user resize */
+    line-height: 1.4;         /* explicit so autogrow JS math is consistent */
+    padding-top: 6px;
+    padding-bottom: 6px;
+    overflow-y: hidden;       /* JS toggles to auto when scrollHeight > MaxRows */
+    transition: none;         /* don't animate JS-driven height jumps (avoids jitter) */
+    width: 100%;
+    box-sizing: border-box;
+    /* font-size inherited from .lipi-input-{size} .lipi-input-control rules in lipi-inputs.css */
+}
+
+/* Min-height by size — guarantees MinRows visibility before user types or programmatic value sets.
+   These are FALLBACK floors; JS autogrow normally measures and sets explicit height larger
+   than these values. Min-height ensures empty textareas don't collapse below MinRows visual.
+   Calculation: line-height (1.4) * font-size + 12px padding (6 top + 6 bottom) + 2px border. */
+.lipi-input-small  .lipi-input-field { min-height: 50px; }   /* ~2 rows × 12px font */
+.lipi-input-medium .lipi-input-field { min-height: 56px; }   /* ~2 rows × 14px font */
+.lipi-input-large  .lipi-input-field { min-height: 62px; }   /* ~2 rows × 16px font */
+
+/* ===================== ICON TOP-ALIGNMENT ===================== */
+.lipi-input-icon-leading,
+.lipi-input-icon-trailing {
+    align-self: flex-start;   /* override stretch from textbox; icons sit at top */
+    padding-top: 8px;         /* align with first line of text (matches input padding-top + a smidge) */
+}
+
+/* ===================== READONLY VARIANT — slight padding fix for textarea ===================== */
+/* Readonly textareas show a dashed border (from shared file); cursor stays text-style. No textarea-
+   specific overrides needed. Documented to confirm the inherited behavior was checked. */

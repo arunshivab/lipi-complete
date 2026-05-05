@@ -237,7 +237,270 @@ A10 also implicitly supersedes the inaccurate descriptions in A6 above — A6 wa
 
 ---
 
-### Phase 2 Sub-step Status (May 3, 2026)
+## v1.0 — AMENDMENTS (May 4, 2026)
+
+> **Scope**: Phase 2 Sub-step 2.2 — TextInput component family kickoff.
+> Token foundation laid before component code so LipiTextBox, LipiTextArea,
+> LipiNumberInput, and LipiSelect can consume `var(--color-*)` tokens immediately.
+> Amendments below adjust v1.0 deliverables but do NOT alter any of the 12 locked decisions.
+
+### A12 — Phase 2.2 token additions (form labels, required tint, badge text-strong, confidence pills)
+
+**Phase**: 2.2 (TextInputs component sub-step) — kickoff (tokens-only batch)
+**Date**: 2026-05-04
+
+**Added**: Token foundation for the four Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect). Five token groups added across both light and dark modes.
+
+**Group 1 — Form label text color (1 token × 2 modes)**
+
+| Token | Light | Dark |
+|---|---|---|
+| `--color-text-strong-secondary` | `#334155` (slate-700) | `#CBD5E1` (slate-300) |
+
+Form labels (top-stacked, weight 500, sentence case) need a stronger tone than `--color-text-secondary` (used for muted body text) but lighter than `--color-text-primary` (reserved for primary content/headers). One notch up the contrast ladder from secondary in both modes.
+
+**Group 2 — Required field treatment (2 tokens × 2 modes)**
+
+| Token | Light | Dark |
+|---|---|---|
+| `--color-required-bg` | `#FFF7ED` (orange-50) | `rgba(254, 215, 170, 0.06)` (faint apricot wash) |
+| `--color-required-border` | `#FED7AA` (orange-200) | `rgba(254, 215, 170, 0.40)` (visible but not glowing) |
+
+Apricot tint on empty required fields. Filled required fields revert to surface bg + standard border (calmer at scale — see UX rationale below). Dark mode uses alpha values rather than solid hex so the apricot reads as a faint warm hint over dark surfaces rather than a solid orange box.
+
+State precedence (highest priority wins, override required tint): Error > Success > Warning > Required-tint > Default.
+
+**Group 3 — Semantic text-strong variants (3 tokens × 2 modes)**
+
+| Token | Light | Dark |
+|---|---|---|
+| `--color-success-text-strong` | `#047857` (emerald-700) | `#34D399` (emerald-400) |
+| `--color-warning-text-strong` | `#92400E` (amber-800) | `#FCD34D` (amber-300) |
+| `--color-info-text-strong` | `#1E40AF` (blue-700) | `#60A5FA` (blue-400) |
+
+These fill a gap in the semantic color ladder: existing `--color-success` (etc.) tokens are tuned for buttons/banners (filled-bg use), but badges/tags/alerts/pills need *darker text on tinted bg* — a different role. Light mode uses 700-level (darker) for contrast against pale backgrounds; dark mode uses 300/400-level (brighter) for contrast against deep dark surfaces.
+
+Pattern follows Material Design 3's "on-{color}-container" convention. Future LipiBadge, LipiTag, LipiBanner, status indicators all benefit from these tokens.
+
+No `--color-danger-text-strong` is added. The danger-pale background (`#FEF2F2` light / `#2c0f0f` dark) is read with the existing `--color-danger` value, which is already at 600-level in light and 500-level in dark — both have sufficient contrast against their respective pale backgrounds.
+
+**Group 4 — Confidence pill tokens (8 tokens × 2 modes — composed)**
+
+| Token | Composes from |
+|---|---|
+| `--color-confidence-verified-bg` | `var(--color-success-pale)` |
+| `--color-confidence-verified-text` | `var(--color-success-text-strong)` |
+| `--color-confidence-self-bg` | `var(--color-info-pale)` |
+| `--color-confidence-self-text` | `var(--color-info-text-strong)` |
+| `--color-confidence-estimated-bg` | `var(--color-warning-pale)` |
+| `--color-confidence-estimated-text` | `var(--color-warning-text-strong)` |
+| `--color-confidence-unknown-bg` | `var(--color-bg-subtle)` |
+| `--color-confidence-unknown-text` | `var(--color-text-secondary)` |
+
+Composition over hardcoding so future theme changes propagate automatically. Light/dark differ only because the underlying tokens differ — the chain itself is identical in both files. The "unknown" pill has no semantic anchor (no danger, no success, neutral) — it composes from neutral surface tokens.
+
+Used by DOB confidence badges (Verified / Self-reported / Estimated / Unknown) per Decision #5, identity verification status (Aadhaar, ABHA), and any future confidence-tier UI.
+
+**Reasoning — why composition not hardcoding (the option C decision)**:
+
+Three options were considered: (A) compose from existing semantic `-pale` and base tokens — but the existing semantic base tokens are tuned for button fills, not badge text, so contrast on pale backgrounds was insufficient. (B) hardcode the spec hex values directly into confidence-* tokens — works but creates a parallel "confidence" color family disconnected from the rest of the semantic system, with no reuse for future badges/tags/alerts. (C) extend the semantic ladder with `-text-strong` variants and compose confidence-* from them — adds 6 tokens but every future "darker text on tinted bg" need is solved.
+
+Option C chosen. Mirrors Material Design 3's "on-{color}-container" pattern. Same precedent as A2 (which added `-hover`/`-active` to danger when LipiButton needed them). The extra 6 tokens are a small cost for a reusable foundation.
+
+**Reasoning — why apricot tint on required fields (industry-non-standard but defensible for HIS)**:
+
+Industry norm for required field marking is red asterisk only (Material UI, Ant Design, Carbon, Chakra, MudBlazor, Telerik, Syncfusion, Salesforce Lightning, GitHub Primer, HIG all use this). Field-background tinting is essentially absent from major systems. The closest precedents are GOV.UK (faint border emphasis, not fill) and some Japanese form patterns (yellow tint).
+
+For HIS context the trade-off is different than general SaaS: reception staff scan 30-field patient registration forms under time pressure with high error cost. The apricot tint provides cognitive scaffolding ("what's still missing at a glance") that pairs with asterisk + ARIA so accessibility is solid (color is not the only signal). Fade-to-white-on-fill addresses the "scale calmness" concern — the form de-emphasizes after each field is filled.
+
+This is shipped as default with an opt-out path: a `RequiredVisualStyle` parameter on each input component (defaulting to `ApricotTint`, alternative `AsteriskOnly`) plus a global `LipiInputDefaults` DI configuration so the app-wide default can be flipped in one place if production review indicates the tint feels heavy. We will reassess after PatientNew migration sees it on a real form at scale.
+
+**Files**:
+- `src/LiPi.Web/wwwroot/themes/mode-light.css` — 14 tokens added (1 label + 2 required + 3 text-strong + 8 confidence). Unknown-pill tokens compose from existing `--color-bg-subtle` and `--color-text-secondary` but still get their own `--color-confidence-unknown-{bg,text}` aliases for API consistency with the rest of the confidence family.
+- `src/LiPi.Web/wwwroot/themes/mode-dark.css` — 14 tokens added (same structure)
+- File headers in both updated to reference A12 entry
+- `deploy-downloads.ps1` — no change needed for this batch (both `mode-light.css` and `mode-dark.css` already mapped from Phase 1; `CHANGE-LOG.md` already mapped under Docs section). Will need updating in Batch 2 with LipiTextBox component file mappings.
+
+**Coordination note**: Component code (LipiTextBox + companions) ships in subsequent batches. This entry covers the token-only foundation. The B-entry for the Phase 2.2 components themselves will be filed after the components ship and pass visual review (mirroring how A11 was filed after Phase 2.1 LipiButton visual review, not at component kickoff).
+
+---
+
+## v1.0 — AMENDMENTS (May 5, 2026)
+
+> **Scope**: Phase 2 Sub-step 2.2 — TextInput component family completion.
+> A13 documents the input-family base infrastructure (shared CSS + JS).
+> A15 documents the LipiNumberInput, LipiSelect, and LipiCombobox components
+> shipping on top of that base. Together with A12 (May 4 token foundation),
+> these three amendments close out Phase 2.2.
+>
+> Note: A14 is reserved for the LipiButton env-gated retrofit (see Known
+> divergences below). Numbering jumps A13 → A15 to preserve A14's reservation.
+> The trigger condition for A14 (Phase 2.2 components shipping the env-gated
+> pattern proven) is satisfied as of A15 — A14 retrofit is now ready to schedule.
+
+### A13 — Phase 2.2 input-family base (LipiTextArea + shared lipi-inputs.css + lipi-input.js)
+
+**Phase**: 2.2 (TextInputs component sub-step) — Batch 3
+**Date**: 2026-05-05
+
+**Added**: Shared base infrastructure for the input component family. Pre-existing LipiTextBox (shipped Batch 2, May 4) was sliced into a thin component-deltas-only file with the bulk of its styling extracted into a shared `lipi-inputs.css` consumable by LipiTextArea (this batch) and the upcoming LipiNumberInput / LipiSelect / LipiCombobox (A15).
+
+**The extraction (lipi-inputs.css)**
+
+Pre-Batch-3 state: LipiTextBox.razor.css contained ~310 lines covering the input-family base styling (wrapper grid, label, field, control, helper, state cascade, sizes, icons, confidence pill, required tint). All of these would have to be duplicated across every new input component if not extracted.
+
+Post-Batch-3 state: shared `wwwroot/css/lipi-inputs.css` (~290 lines) holds the family base. LipiTextBox.razor.css slimmed to ~19 lines of LipiTextBox-specific overrides. New components (LipiTextArea, and later A15's components) consume the shared file with minimal per-component scoped CSS.
+
+**LipiTextArea component (multi-line text)**
+
+InputBase<string?>-derived component for clinical notes, history fields, addresses. Supports `MinRows` (default 3) and `MaxRows` (default 8) parameters. Top-aligned leading/trailing icons (vs LipiTextBox's center-aligned) so they don't drift down with content.
+
+**Autogrow infrastructure (lipi-input.js)**
+
+Created `wwwroot/js/lipi-input.js` exposing `window.lipiInput` global with three functions: `autogrow(textarea)` (measure scrollHeight, set inline height up to MaxRows × line-height, switch to scrollable beyond), `attachAutogrow(textarea)` (wire up oninput listener), `detachAutogrow(textarea)` (cleanup). Detach is critical for SignalR circuit disposal — without it, listener references leak across page navigations.
+
+The autogrow approach was chosen over CSS `field-sizing: content` because the CSS property is Chrome 123+/Safari 17.4+/Firefox-flagged. HIS deployments include older clinical workstations on pinned browsers — JS-based autogrow is the portable v1.0 solution. The JS file is structured to allow future migration to `field-sizing: content` as a feature-detected fast path.
+
+**App.razor cache bumping**
+
+App.razor cache version (the `?v=YYYYMMDD` query string used to bust browser caches on deploy) bumped 20260503 → 20260504 to invalidate cached LipiTextBox.razor.css from clients that loaded it pre-extraction. New `lipi-inputs.css` and `lipi-input.js` references added to App.razor's stylesheet/script blocks with the same versioned query string. This pattern repeats for every CSS or JS change in subsequent batches.
+
+**Reasoning — why a single shared CSS/JS file (not per-component)**
+
+Considered: (a) full duplication per component (no shared base) — rejected, ~300 lines × 4 components = ~1200 lines of inevitable drift. (b) one CSS file per concern (e.g., separate `lipi-inputs-state.css`, `lipi-inputs-helper.css`, etc.) — rejected, breaks Blazor's CSS isolation flow and adds bundle complexity for marginal benefit. (c) single shared base + per-component scoped CSS — chosen. Component scoped CSS handles the small unique deltas (e.g., LipiTextArea's top-aligned icons), shared base handles the family rules.
+
+Same logic for JS: single `lipi-input.js` consolidates input-family JS helpers. As the family grows (A15 adds dropdown positioning, scroll-reposition, value-sync helpers), they all live in this one file rather than spawning per-component JS.
+
+**Files**:
+- `src/LiPi.Web/wwwroot/css/lipi-inputs.css` — NEW. Shared input-family base (~290 lines).
+- `src/LiPi.Web/wwwroot/js/lipi-input.js` — NEW. Shared input-family JS helpers.
+- `src/LiPi.Web/Components/Shared/LipiTextArea.razor` — NEW. Multi-line text component.
+- `src/LiPi.Web/Components/Shared/LipiTextArea.razor.css` — NEW. Component-specific deltas.
+- `src/LiPi.Web/Components/Shared/LipiTextBox.razor.css` — slimmed from ~310 lines to ~19 lines (deltas only).
+- `src/LiPi.Web/App.razor` — cache version 20260503 → 20260504; added `<link>` for lipi-inputs.css and `<script>` for lipi-input.js.
+- `src/LiPi.Web/Pages/Test/TextareaTest.razor` — verification scaffold for the autogrow + states.
+- `deploy-downloads.ps1` — added entries for new files.
+
+**Coordination note**: A15 builds on this base. Every component A15 adds (LipiNumberInput, LipiSelect, LipiCombobox) consumes lipi-inputs.css and extends lipi-input.js with additional helper functions. The base file architecture established here is the foundation for all subsequent input-family work.
+
+---
+
+### A15 — Phase 2.2 component completion (LipiNumberInput, LipiSelect, LipiCombobox)
+
+**Phase**: 2.2 (TextInputs component sub-step) — Batches 4 + 4.1 + 4.2 + 4.3 + 5 + 5.1 + 5.2 + 5.3 + 5.4
+**Date**: 2026-05-05
+
+**Added**: Three remaining components in the Phase 2.2 family — LipiNumberInput<TValue> (locale-aware numeric), LipiSelect<TValue> (identity-selector dropdown), LipiCombobox<TValue, TItem> (templated dropdown). With these shipped, Phase 2.2 closes.
+
+**Group 1 — LipiNumberInput<TValue> (Batches 4 + 4.1 + 4.2 + 4.3)**
+
+Generic-typed numeric input supporting 22 numeric TValue types (signed/unsigned int/long/short/byte/sbyte/uint/ulong/ushort/float/double/decimal and their `Nullable<>` variants). Type validation runs at OnInitialized via a `SupportedTypes` whitelist; non-whitelisted TValue triggers env-gated throw (Dev) / log+fallback (Prod).
+
+| Sub-batch | Scope |
+|-----------|-------|
+| Batch 4 (May 5) | Component itself: locale-aware formatting (en-IN default, 1,23,456 grouping), Min/Max bounds with `Comparer<TValue>.Default`, optional steppers with at-bound disable, focus/blur display switching (raw on focus, formatted on blur), App.razor cache 20260505 → 20260506. |
+| Batch 4.1 | Arrow keys (↑/↓ to increment/decrement), EditForm test page integration with DataAnnotationsValidator. |
+| Batch 4.2 | `DisableArrowKeys` parameter, `BlockNonNumericInput` C# input filter (locale-aware via `EffectiveCulture`, signed/unsigned auto-detect from TValue, single-decimal collapse, first-char-only minus). |
+| Batch 4.3 | JS DOM value-sync (`lipiInput.setValue`) — fixes a render-diff edge case where filtered values weren't reaching the DOM. Cursor position preserved via `setSelectionRange`. App.razor cache 20260506 → 20260507. |
+
+The `dynamic` arithmetic dispatch in `AddStep(...)` deserves a note: rather than maintaining a 22-entry switch table for stepper increments, the component uses `dynamic dc = c; dynamic ds = s; return (TValue)(dc - ds);`. Performance impact is negligible (steppers are click-driven, not hot-path), and the alternative (explicit casts per type) was rejected as verbose-and-error-prone.
+
+**Group 2 — LipiSelect<TValue> + LipiCombobox<TValue, TItem> (Batches 5 + 5.1 + 5.2 + 5.3 + 5.4)**
+
+Two concrete dropdown components sharing `LipiSelectBase<TValue, TItem>` abstract base (~750 lines) which holds the state machine: search filter, dropdown open/close, keyboard navigation, virtualization, JS interop for positioning + outside-click + scroll-reposition.
+
+LipiSelect<TValue> is identity-selector (item IS the value, label = ToString() with culture-aware formatting). For enums, primitive lists, simple string lists. LipiCombobox<TValue, TItem> is templated (caller provides `ValueSelector` + `LabelSelector` + optional `ItemTemplate` / `SelectedAnchorTemplate`). For Country with flag+name+ISD, Doctor with specialty+photo, Insurance scheme with provider+plan code.
+
+| Sub-batch | Scope |
+|-----------|-------|
+| Batch 5 (May 5) | LipiSelectBase abstract + LipiSelect + LipiCombobox concrete. lipi-input.js extended with `positionDropdown`, `attachSelectHandlers`, `detachSelectHandlers` (RAF-throttled scroll, capture-phase listeners, `window._lipiSelectState` namespacing). lipi-inputs.css extended with ~150 lines of select/combobox styling. App.razor cache 20260507 → 20260508. |
+| Batch 5.1 | Build-error fix: `GetFilteredOptions` return type changed from `IReadOnlyList<TItem>` to `List<TItem>` for `<Virtualize>` ICollection compatibility and IndexOf access. LipiNumberInput nullability annotations cleaned up. |
+| Batch 5.2 | Keyboard architecture refinement: consolidated `HandleAnchorKeyDown` + `HandleDropdownKeyDown` into single `HandleKeyDown` branching on `_isOpen`. Added `_wasOpen` field + `OnAfterRenderAsync` hook for focus-on-open transition. Search input gets `form="lipi-select-orphan"` (HTML5 form-orphan technique to disassociate from any `<EditForm>` ancestor — Enter has no submission target). lipi-inputs.css `.lipi-select-display { line-height: 1 }` for vertical alignment with LipiTextBox. App.razor cache 20260508 → 20260509. |
+| Batch 5.3 | Non-searchable focus fix: explicit `_anchorRef.FocusAsync()` for Searchable=false case (was relying on click-to-focus, which is browser-and-render-timing dependent). SelectTest.razor gained Section 7 alignment-comparison row. |
+| Batch 5.4 | CSS selector bug fix: `.lipi-input-medium .lipi-input-select .lipi-input-field` (descendant, with space) → `.lipi-input-medium.lipi-input-select .lipi-input-field` (compound, no space). Both classes were on the same wrapper element, so the descendant form never matched. Pre-fix LipiSelect field rendered at ~17.6px (natural content height); post-fix renders at the intended 28/32/40px per size. Same fix applied to disabled/readonly cursor rules. App.razor cache 20260509 → 20260510. |
+
+**The architectural decisions captured for future reference**
+
+A15 introduces several engineering calls worth recording for sibling-component decisions later:
+
+1. **Reposition-don't-close on scroll** (HIS-specific UX) — when a dropdown is open and user scrolls the page or any scrollable ancestor, the dropdown REPOSITIONS to follow the anchor instead of closing. Material UI does this. Ant closes. Carbon repositions. We chose reposition because clinical workstations may have tracking pointers, accessibility scroll modes, or scrollable modal panels — closing-on-scroll surprises the user mid-selection.
+
+2. **`scroll` listener with `capture: true`** — scroll events don't bubble, but they DO propagate during the capture phase. Single document-level listener catches scroll on any scrollable ancestor (no need to attach per-ancestor).
+
+3. **RAF-throttled reposition** — momentum scrolls fire scroll events at 60fps. Without `requestAnimationFrame` throttling, `positionDropdown` would run 60×/second flooding the SignalR roundtrip.
+
+4. **`window._lipiSelectState[dropdownId]` namespacing** — multiple concurrent dropdowns must coexist without leaking listeners. Per-dropdown state (anchor ref, listeners, RAF id) keyed by the dropdown's element ID.
+
+5. **Defensive detach-before-attach** — `attachSelectHandlers` calls `detachSelectHandlers` first. Protects against re-render double-attach during fast user interactions.
+
+6. **Pinned list-based sort preservation** — `PinnedValues` items render in caller-passed order (NOT alphabetical). Caller intent ("recently used", "common countries with India first") shouldn't be overridden by alphabetical sort.
+
+7. **`TryParseValueFromString` triple cascade** — label match → value-string match → `AllowFreeText` fallback. Most user input is label-match; value-string covers paste-the-underlying-value edge cases; free-text covers "Other / freeform" use cases.
+
+8. **Form-orphan technique for search input Enter** — `<input form="lipi-select-orphan">` (HTML5 standard) disassociates the search input from any ancestor form. Without this, Enter would submit the form before our async C# handler runs (Blazor Server's SignalR roundtrip is too slow to preventDefault retroactively from C#).
+
+9. **Full ARIA combobox/listbox/option pattern** — the select family implements WAI-ARIA 1.2's combobox role pattern (anchor `role="combobox"` + `aria-expanded` + `aria-controls`; dropdown `role="listbox"`; options `role="option"` + `aria-selected`). Genuinely accessible to screen readers, not just visually styled.
+
+10. **`EqualityComparer<TValue>.Default` for value comparison** — type-agnostic, handles nullable structs correctly, respects custom `IEquatable<T>` on caller types.
+
+11. **`_dotNetRef.Dispose()` in async disposal** — prevents `DotNetObjectReference` leak across Blazor circuits. Always dispose async refs explicitly via `IAsyncDisposable`.
+
+**Reasoning — why two concrete subclasses, not one component with optional templates**
+
+Considered: a single `LipiSelect<TValue>` with optional `ValueSelector`/`LabelSelector`/`ItemTemplate` parameters that fall back to identity when null. Rejected because:
+- The type signature `LipiSelect<TValue, TItem>` always exposes both type params even for the simple-string-list case where TItem = TValue. Verbose at every call site.
+- The "is this Combobox-style or Select-style?" branch lives at every selector access (`ItemValue(item)`, `ItemLabel(item)`) — runtime overhead and code complexity.
+- Two clean public APIs (`LipiSelect<TValue>` for simple, `LipiCombobox<TValue, TItem>` for rich) reads better.
+
+Trade-off: shared logic must live in `LipiSelectBase<TValue, TItem>` abstract class. The 80%+ code reuse via abstract base + 20% concrete-class-specific selectors is the right factoring. Mirrors Material UI's Select-vs-Autocomplete split.
+
+**Known limitations** (formally captured for v1.1+ tracking)
+
+| # | Limitation | Component | Mitigation |
+|---|------------|-----------|------------|
+| 1 | Unsigned TValue underflow without explicit Min | LipiNumberInput | Pass `Min="0"`; at-bound logic disables the "−" button. |
+| 2 | Multi-decimal-point silent stripping | LipiNumberInput | Filter handles only first decimal separator; subsequent ones stripped. Acceptable for clinical-numeric inputs. |
+| 3 | Range selection collapses to cursor on filter | LipiNumberInput (setValue) | Native browser range-replace behavior lost; non-trivial JS fix deferred. |
+| 4 | Brief letter-flash on Blazor Server (~20-60ms LAN) | LipiNumberInput | C# filter runs after SignalR roundtrip; user sees character flash before strip. WAN deployments more visible. Acceptable for v1.0; revisit if PatientNew migration shows it's disruptive. |
+| 5 | Composition events / IME / non-Latin numerals | LipiNumberInput | Devanagari/Arabic numerals stripped by filter. Workaround: `BlockNonNumericInput="false"` + culture-aware `BindConverter` for non-ASCII numeric deployments. |
+| 6 | CSS compound-vs-descendant selector trap | LipiSelect (Batch 5.4 lesson) | When two state-driven classes apply to the same element, target with compound (no-space) selectors. Documented in 01.2-TextInputs.md §9.11 for future component CSS authors. |
+
+**A14 trigger condition met**: The env-gated throw pattern (`IWebHostEnvironment.IsDevelopment()` → throw; production → `ILogger.LogError` + fallback) shipped successfully across all five Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox). The pattern is proven. A14's queued LipiButton retrofit (which awaited "Phase 2.2 components shipping the env-gated pattern proven") is now actionable and ready to schedule.
+
+**Files** (across all sub-batches):
+
+Components:
+- `src/LiPi.Web/Components/Shared/LipiNumberInput.razor` — NEW. ~860 lines. Generic numeric input with locale-aware formatting, steppers, bounds, filter modes.
+- `src/LiPi.Web/Components/Shared/LipiNumberInput.razor.css` — NEW. ~40 lines. Component-specific deltas.
+- `src/LiPi.Web/Components/Shared/LipiSelectBase.cs` — NEW. ~750 lines. Abstract base for select family.
+- `src/LiPi.Web/Components/Shared/LipiSelect.razor` — NEW. ~240 lines. Identity-selector concrete subclass.
+- `src/LiPi.Web/Components/Shared/LipiSelect.razor.css` — NEW. Minimal placeholder.
+- `src/LiPi.Web/Components/Shared/LipiCombobox.razor` — NEW. ~310 lines. Templated concrete subclass.
+- `src/LiPi.Web/Components/Shared/LipiCombobox.razor.css` — NEW. Anchor template content alignment.
+
+Shared infrastructure (extended from A13 base):
+- `src/LiPi.Web/wwwroot/css/lipi-inputs.css` — extended ~150 lines (select/combobox styling, search row, options list, empty state, open-state focus rings).
+- `src/LiPi.Web/wwwroot/js/lipi-input.js` — extended ~120 lines (`selectAll`, `setValue`, `positionDropdown`, `attachSelectHandlers`, `detachSelectHandlers`).
+
+Test scaffolds:
+- `src/LiPi.Web/Pages/Test/NumberInputTest.razor` — NEW. 6-section verification scaffold.
+- `src/LiPi.Web/Pages/Test/SelectTest.razor` — NEW. 7-section verification scaffold including alignment-comparison row.
+
+App-level:
+- `src/LiPi.Web/App.razor` — cache version bumped 20260504 → 20260505 → 20260506 → 20260507 → 20260508 → 20260509 → 20260510 across 5 sub-batches.
+- `deploy-downloads.ps1` — added entries for all new components and test scaffolds.
+
+**Coordination note**: With A13 + A15 shipping, all five Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox) are in production. Spec doc `docs/00-COMPONENTS/01.2-TextInputs.md` (shipping in Batch 6 alongside this entry) captures the architecture, parameters, state precedence, and architectural decisions. StyleGuide showcase (`/admin/style-guide`) extended with new sections covering all five components plus a §7 alignment-comparison row.
+
+Forward references:
+- **Phase 2.2.5** — `EditContext.OnValidationStateChanged` auto-population across all 5 components (removes the need for explicit `<ValidationMessage For>`). Prerequisite for full PatientNew migration.
+- **Batch 7** — Build hygiene sweep (warnings → 0; pre-existing Clinics CS8601, PatientNew CS0649/CS0414; MailKit → System.Net.Mail.SmtpClient; SharpZipLib resolution).
+- **A14** — LipiButton env-gated retrofit (trigger condition met as of A15; ready to schedule).
+- **Phase 2.3** — `LipiSelectTextCompound`, `LipiMultiSelect`, `LipiCheckbox`, `LipiRadio`, `LipiToggle`.
+
+---
+
+### Phase 2 Sub-step Status (May 5, 2026)
 
 - ✅ Sub-step 2.0: Foundation tokens + Style Guide bootstrap
   - `mode-light.css` + `mode-dark.css` populated with full token set
@@ -249,8 +512,15 @@ A10 also implicitly supersedes the inaccurate descriptions in A6 above — A6 wa
   - Size-matched spinner (`LipiButtonSpinner`)
   - Full Style Guide showcase: variant grid, states demo, icon patterns, real-world use cases
   - Spec doc: `docs/00-COMPONENTS/01.1-Buttons.md`
-- ⏳ Sub-step 2.2: TextInputs (LipiTextBox, LipiTextArea, LipiNumberInput)
-- ⏳ Sub-step 2.3: Selectors (LipiSelect, LipiCombobox, LipiCheckbox, LipiRadio)
+- ✅ Sub-step 2.2: TextInputs (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox)
+  - ✅ Batch 1 (May 4): Token foundation (A12) — apricot tint, label color, badge text-strong, confidence pills
+  - ✅ Batch 2 (May 4): LipiTextBox + companions (LucideIcon, LipiInputDefaults, AutocompleteValidator, LipiTextInputTypes)
+  - ✅ Batch 3 (May 5): LipiTextArea + lipi-inputs.css extraction + lipi-input.js created (A13)
+  - ✅ Batch 4 (May 5) + 4.1 + 4.2 + 4.3: LipiNumberInput<TValue> generic component (A15)
+  - ✅ Batch 5 (May 5) + 5.1 + 5.2 + 5.3 + 5.4: LipiSelect + LipiCombobox + LipiSelectBase (A15)
+  - ✅ Batch 6 (May 5): StyleGuide showcase additions + `01.2-TextInputs.md` spec doc + A13/A15 changelog entries + deploy-downloads.ps1 finalized
+- ⏳ Sub-step 2.2.5: `EditContext.OnValidationStateChanged` auto-population across all 5 Phase 2.2 components (removes explicit `<ValidationMessage For>`). Prerequisite for full PatientNew migration.
+- ⏳ Sub-step 2.3: Selectors (LipiSelectTextCompound, LipiMultiSelect, LipiCheckbox, LipiRadio, LipiToggle). LipiCombobox shipped in 2.2 ahead of original 2.3 plan.
 - ⏳ Sub-steps 2.4–2.5: Remaining foundational components
 
 ---
@@ -262,6 +532,12 @@ The amendments above bring the spec into sync with deployed Phase 2.0 work. The 
 - **A7 (planned)** — `00.2-THEMING-ARCHITECTURE.md` §Theme Provider Component: spec section shows the older `IUserPreferenceService` + `IClinicContextService` + `eval()` pattern. Deployed code uses `IThemeContextService` + `lipiTheme.apply` (post-D6 architecture refinement during Phase 1 Deliverable 6).
   - Defer reconciliation to a focused v1.1 spec-update session (call it A7) so the spec accurately documents production code.
   - Until then, treat the deployed code as authoritative and the spec section as historical reference.
+
+- **A14 (queued — trigger met)** — Phase 2.1 LipiButton uses unconditional `throw new ArgumentException` in `OnParametersSet` for missing `AriaLabel` on icon-only buttons (LipiButton.razor lines 122–130). Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox) ship with an env-gated pattern: `IWebHostEnvironment.IsDevelopment()` → throw; production → `ILogger.LogError` + render with auto-generated fallback. This protects production from parameter-validation crashes (high stakes for a hospital app) while keeping dev-time strictness.
+  - LipiButton.razor will be retrofitted to the env-gated pattern as a focused v1.1 amendment (A14) once Phase 2.2 components ship and the pattern is proven.
+  - A `TODO (A14)` comment is added to `LipiButton.razor` so the inconsistency is not forgotten.
+  - Until A14 ships: Phase 2.1 LipiButton hard-throws, Phase 2.2 components warn-and-fallback. Documented divergence, scheduled for closure.
+  - **Status update (2026-05-05, post-A15)**: Trigger condition met. The env-gated throw pattern shipped successfully across all 5 Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox). Pattern proven. LipiButton retrofit is now ready to schedule.
 
 ---
 
@@ -277,6 +553,7 @@ The amendments above bring the spec into sync with deployed Phase 2.0 work. The 
 - [ ] **High-contrast theme mode** (accessibility)
 - [ ] **Density toggle** (user preference: comfortable/compact/spacious)
 - [ ] **A7 — ThemeProvider spec/code reconciliation** (see Known divergences above)
+- [ ] **A14 — LipiButton env-gated throw retrofit** (trigger condition met as of A15; ready to schedule)
 
 ### Pending Decisions (Not Locked)
 - [ ] Insurance TPA workflows (decision pending)

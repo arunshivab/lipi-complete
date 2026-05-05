@@ -1,9 +1,12 @@
 @*
     SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md (Foundation tokens)
-    SPEC:     docs/00-COMPONENTS/01.1-Buttons.md (LipiButton — pending)
+    SPEC:     docs/00-COMPONENTS/01.1-Buttons.md (LipiButton)
+    SPEC:     docs/00-COMPONENTS/01.2-TextInputs.md (LipiTextBox, LipiTextArea,
+              LipiNumberInput, LipiSelect, LipiCombobox — Phase 2.2 Batch 6 NEW)
     DECISION: docs/00-PROJECT-BASELINE.md §12.5 (Style Guide Page)
     PHASE:    Phase 2 Sub-step 2.0 — Foundation showcase (DEPLOYED)
-              Phase 2 Sub-step 2.1 — Buttons component showcase (NEW)
+              Phase 2 Sub-step 2.1 — Buttons component showcase (DEPLOYED)
+              Phase 2 Sub-step 2.2 — Text Inputs component showcase (NEW Batch 6)
     AUTH:     SiteAdmin / SysAdmin / GlobalAdmin only
     LOCATION: src/LiPi.Web/Pages/StyleGuide.razor
               (placed directly in Pages/ — Pages/Admin.razor already
@@ -20,6 +23,14 @@
                 - getCurrentTheme()         ← returns { brand, mode } object
                 - init()                    ← cookie-driven re-init
               Earlier draft incorrectly called lipiTheme.set/.get which don't exist.
+
+    PHASE 2.2 ADDITIONS (Batch 6, 2026-05-05):
+              New sections under Components → Text Inputs covering all 5 input
+              components with full state matrix, sizes, locale demos for
+              LipiNumberInput, search/pinned/AllowFreeText for LipiSelect/Combobox,
+              and a §7 alignment-comparison row that wraps LipiButton in
+              .lipi-input-wrapper structure for label/helper typography parity
+              (showcase-only — production forms don't wrap buttons this way).
 *@
 
 @page "/admin/style-guide"
@@ -30,8 +41,10 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.JSInterop
 @using System.Security.Claims
+@using LiPi.Web.Components.Shared
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 
@@ -80,6 +93,8 @@
             <div class="sg-nav-group">
                 <h3 class="sg-nav-header">Components</h3>
                 <a class="sg-nav-link" href="#buttons">Buttons</a>
+                <a class="sg-nav-link" href="#text-inputs">Text Inputs</a>
+                <a class="sg-nav-link" href="#alignment">Alignment</a>
             </div>
             <div class="sg-nav-group">
                 <h3 class="sg-nav-header">Patterns</h3>
@@ -281,6 +296,317 @@
                 </div>
             </section>
 
+            <!-- ====== TEXT INPUTS (Phase 2.2 Batch 6) ====== -->
+            <section id="text-inputs" class="sg-section">
+                <h2 class="sg-h2">Text Inputs</h2>
+                <p class="sg-p">
+                    Five components share <code class="sg-code">InputBase&lt;TValue&gt;</code> derivation
+                    so all participate in <code class="sg-code">EditForm</code> validation,
+                    <code class="sg-code">DataAnnotationsValidator</code>, and the
+                    <code class="sg-code">ValidationMessage&lt;For&gt;</code> pipeline. State precedence:
+                    <strong>Disabled &gt; ReadOnly &gt; Error &gt; Success &gt; Warning &gt; RequiredEmpty &gt; Default</strong>.
+                    See <code class="sg-code">docs/00-COMPONENTS/01.2-TextInputs.md</code> for the full spec.
+                </p>
+
+                @* ====== LipiTextBox ====== *@
+                <h3 class="sg-h3">LipiTextBox — single-line text</h3>
+                <div class="sg-input-grid">
+                    <LipiTextBox Name="sg-tb-default" Label="Default"
+                                 Placeholder="Type something"
+                                 @bind-Value="_sg.TbDefault" />
+                    <LipiTextBox Name="sg-tb-required" Label="Required"
+                                 Required="true"
+                                 Placeholder="Required field"
+                                 @bind-Value="_sg.TbRequired" />
+                    <LipiTextBox Name="sg-tb-error" Label="Error"
+                                 Error="Must be at least 3 characters"
+                                 @bind-Value="_sg.TbError" />
+                    <LipiTextBox Name="sg-tb-warning" Label="Warning"
+                                 Warning="Verify with patient"
+                                 @bind-Value="_sg.TbWarning" />
+                    <LipiTextBox Name="sg-tb-success" Label="Success"
+                                 Success="Confirmed"
+                                 @bind-Value="_sg.TbSuccess" />
+                    <LipiTextBox Name="sg-tb-readonly" Label="Read-only"
+                                 ReadOnly="true"
+                                 @bind-Value="_sg.TbReadonly" />
+                    <LipiTextBox Name="sg-tb-disabled" Label="Disabled"
+                                 Disabled="true"
+                                 @bind-Value="_sg.TbDisabled" />
+                    <LipiTextBox Name="sg-tb-icon" Label="With leading icon"
+                                 Icon="user"
+                                 Placeholder="Search staff"
+                                 @bind-Value="_sg.TbIcon" />
+                    <LipiTextBox Name="sg-tb-confidence" Label="With confidence pill"
+                                 LabelConfidence="ConfidenceLevel.Verified"
+                                 @bind-Value="_sg.TbConfidence" />
+                </div>
+
+                <h3 class="sg-h3">LipiTextBox — sizes (28 / 32 / 40)</h3>
+                <div class="sg-input-grid sg-input-grid-3">
+                    <LipiTextBox Name="sg-tb-small" Label="Small (28px)"
+                                 Size="InputSize.Small"
+                                 @bind-Value="_sg.TbSmall" />
+                    <LipiTextBox Name="sg-tb-medium" Label="Medium (32px)"
+                                 @bind-Value="_sg.TbMedium" />
+                    <LipiTextBox Name="sg-tb-large" Label="Large (40px)"
+                                 Size="InputSize.Large"
+                                 @bind-Value="_sg.TbLarge" />
+                </div>
+
+                @* ====== LipiTextArea ====== *@
+                <h3 class="sg-h3">LipiTextArea — multi-line with autogrow</h3>
+                <p class="sg-p">
+                    <code class="sg-code">MinRows</code> sets initial visible height;
+                    <code class="sg-code">MaxRows</code> caps growth (then scrolls). Autogrow
+                    measured via <code class="sg-code">scrollHeight</code> in
+                    <code class="sg-code">lipi-input.js</code>.
+                </p>
+                <div class="sg-input-grid sg-input-grid-2">
+                    <LipiTextArea Name="sg-ta-default" Label="Default (3 rows min)"
+                                  Placeholder="Type a multi-line note. The textarea grows as you type, up to 8 rows, then scrolls."
+                                  @bind-Value="_sg.TaDefault" />
+                    <LipiTextArea Name="sg-ta-clamped" Label="Clamped (max 4 rows)"
+                                  MaxRows="4"
+                                  Placeholder="This area stops growing at 4 rows and starts scrolling."
+                                  @bind-Value="_sg.TaClamped" />
+                </div>
+
+                @* ====== LipiNumberInput ====== *@
+                <h3 class="sg-h3">LipiNumberInput&lt;TValue&gt; — locale-aware numeric</h3>
+                <p class="sg-p">
+                    Generic over numeric <code class="sg-code">TValue</code> (int/decimal/double, signed/unsigned, nullable).
+                    Default locale is <strong>en-IN</strong> (1,23,456 grouping). Locale parameter overrides per-instance.
+                    Steppers + Min/Max bounds + arrow-key support.
+                </p>
+
+                <h3 class="sg-h3" style="font-size: 13px; color: var(--color-text-secondary);">Type variants</h3>
+                <div class="sg-input-grid sg-input-grid-3">
+                    <LipiNumberInput TValue="int?" Name="sg-ni-int"
+                                     Label="int? (whole numbers)"
+                                     Helper="Minus allowed (signed)"
+                                     @bind-Value="_sg.NiInt" />
+                    <LipiNumberInput TValue="decimal?" Name="sg-ni-dec"
+                                     Label="decimal? (clinical)"
+                                     DecimalPlaces="2"
+                                     @bind-Value="_sg.NiDec" />
+                    <LipiNumberInput TValue="double?" Name="sg-ni-dbl"
+                                     Label="double? (lab values)"
+                                     @bind-Value="_sg.NiDbl" />
+                </div>
+
+                <h3 class="sg-h3" style="font-size: 13px; color: var(--color-text-secondary);">Locale comparison (same value, different formatting on blur)</h3>
+                <div class="sg-input-grid sg-input-grid-3">
+                    <LipiNumberInput TValue="decimal?" Name="sg-ni-loc-in"
+                                     Label="en-IN (default)"
+                                     Helper="1,23,456.78"
+                                     @bind-Value="_sg.NiLocIn" />
+                    <LipiNumberInput TValue="decimal?" Name="sg-ni-loc-us"
+                                     Label="en-US"
+                                     Locale="en-US"
+                                     Helper="123,456.78"
+                                     @bind-Value="_sg.NiLocUs" />
+                    <LipiNumberInput TValue="decimal?" Name="sg-ni-loc-de"
+                                     Label="de-DE"
+                                     Locale="de-DE"
+                                     Helper="123.456,78"
+                                     @bind-Value="_sg.NiLocDe" />
+                </div>
+
+                <h3 class="sg-h3" style="font-size: 13px; color: var(--color-text-secondary);">Steppers + bounds + filter modes</h3>
+                <div class="sg-input-grid sg-input-grid-3">
+                    <LipiNumberInput TValue="int?" Name="sg-ni-stepper"
+                                     Label="With steppers (Min=0, Max=100)"
+                                     ShowSteppers="true"
+                                     Min="0" Max="100"
+                                     Step="5"
+                                     Helper="At-bound buttons disable"
+                                     @bind-Value="_sg.NiStepper" />
+                    <LipiNumberInput TValue="int?" Name="sg-ni-noarrow"
+                                     Label="DisableArrowKeys=true"
+                                     DisableArrowKeys="true"
+                                     Helper="Arrow keys ignored"
+                                     @bind-Value="_sg.NiNoArrow" />
+                    <LipiNumberInput TValue="int?" Name="sg-ni-letterok"
+                                     Label="BlockNonNumericInput=false"
+                                     BlockNonNumericInput="false"
+                                     Helper="Letters allowed (parse fails on submit)"
+                                     @bind-Value="_sg.NiLetterOk" />
+                </div>
+
+                @* ====== LipiSelect ====== *@
+                <h3 class="sg-h3">LipiSelect&lt;TValue&gt; — simple identity selector</h3>
+                <p class="sg-p">
+                    Use when item label = value (enums, primitive lists).
+                    <code class="sg-code">Searchable</code> defaults to true; opt out for short fixed lists.
+                </p>
+                <div class="sg-input-grid sg-input-grid-3">
+                    <LipiSelect TValue="string" Name="sg-sel-gender"
+                                Label="Gender (no search)"
+                                Items="@_sg.Genders"
+                                Searchable="false"
+                                Placeholder="Select"
+                                @bind-Value="_sg.SelGender" />
+                    <LipiSelect TValue="string" Name="sg-sel-blood"
+                                Label="Blood group (search)"
+                                Items="@_sg.BloodGroups"
+                                Required="true"
+                                Placeholder="Select"
+                                @bind-Value="_sg.SelBlood" />
+                    <LipiSelect TValue="string" Name="sg-sel-pinned"
+                                Label="Pinned + headings"
+                                Items="@_sg.SourceList"
+                                PinnedValues="@(new[] { "Self", "GP referral" })"
+                                PinnedHeading="Most common"
+                                UnpinnedHeading="Other"
+                                Placeholder="Select"
+                                @bind-Value="_sg.SelPinned" />
+                </div>
+
+                @* ====== LipiCombobox ====== *@
+                <h3 class="sg-h3">LipiCombobox&lt;TValue, TItem&gt; — rich templated items</h3>
+                <p class="sg-p">
+                    Caller provides <code class="sg-code">ValueSelector</code> +
+                    <code class="sg-code">LabelSelector</code> +
+                    <code class="sg-code">ItemTemplate</code> for icon / meta rendering.
+                    <code class="sg-code">SelectedAnchorTemplate</code> renders the chosen
+                    item richly in the closed-state anchor (e.g., flag + name).
+                </p>
+                <div class="sg-input-grid sg-input-grid-2">
+
+                    <LipiCombobox TValue="string"
+                                  TItem="StyleGuide.CountryDemo"
+                                  Name="sg-cb-country"
+                                  Label="Country (flag + name + ISD)"
+                                  Items="@_sg.Countries"
+                                  ValueSelector="@(c => c.Iso)"
+                                  LabelSelector="@(c => c.Name)"
+                                  PinnedValues="@(new[] { "IN", "US", "GB" })"
+                                  PinnedHeading="Common"
+                                  UnpinnedHeading="All countries"
+                                  Placeholder="Select country"
+                                  @bind-Value="_sg.CbCountry">
+                        <ItemTemplate Context="country">
+                            <span style="font-size: 16px; margin-right: 8px;">@country.Flag</span>
+                            <span class="lipi-select-option-label">@country.Name</span>
+                            <span style="color: var(--color-text-tertiary); font-size: 12px; margin-left: auto;">+@country.Isd</span>
+                        </ItemTemplate>
+                        <SelectedAnchorTemplate Context="country">
+                            <span style="font-size: 16px; margin-right: 8px;">@country.Flag</span>
+                            <span>@country.Name</span>
+                        </SelectedAnchorTemplate>
+                    </LipiCombobox>
+
+                    <LipiCombobox TValue="string"
+                                  TItem="StyleGuide.ReferralDemo"
+                                  Name="sg-cb-referral"
+                                  Label="Referral source (AllowFreeText)"
+                                  Items="@_sg.Referrals"
+                                  ValueSelector="@(r => r.Code)"
+                                  LabelSelector="@(r => r.Label)"
+                                  AllowFreeText="true"
+                                  Placeholder="Select or add new"
+                                  Helper="Type a new value to see Add as new"
+                                  @bind-Value="_sg.CbReferral">
+                        <ItemTemplate Context="r">
+                            <span class="lipi-select-option-label">@r.Label</span>
+                            <span style="color: var(--color-text-tertiary); font-size: 12px; margin-left: auto;">@r.Category</span>
+                        </ItemTemplate>
+                    </LipiCombobox>
+
+                </div>
+
+                @* ====== Compound forms preview ====== *@
+                <h3 class="sg-h3">Compound forms (preview of real-form composition)</h3>
+                <p class="sg-p">
+                    Components composed in form-realistic combinations.
+                    Title + First Name on one row, DOB + Age computed on another.
+                    Phase 2.2.5 will introduce a dedicated <code class="sg-code">LipiSelectTextCompound</code>
+                    that merges adjacent select+text into a single visual unit.
+                </p>
+
+                <h3 class="sg-h3" style="font-size: 13px; color: var(--color-text-secondary);">Title + First Name</h3>
+                <div class="sg-compound-row">
+                    <LipiSelect TValue="string" Name="sg-cmp-title"
+                                Label="Title"
+                                Items="@_sg.Titles"
+                                Searchable="false"
+                                Placeholder="Sel"
+                                @bind-Value="_sg.CmpTitle"
+                                Cols="1" />
+                    <LipiTextBox Name="sg-cmp-fn"
+                                 Label="First Name"
+                                 Required="true"
+                                 Placeholder="Given name"
+                                 @bind-Value="_sg.CmpFirstName"
+                                 Cols="2" />
+                </div>
+
+                <h3 class="sg-h3" style="font-size: 13px; color: var(--color-text-secondary);">DOB + Age</h3>
+                <div class="sg-compound-row">
+                    <LipiTextBox Name="sg-cmp-dob"
+                                 Label="Date of birth"
+                                 Required="true"
+                                 Autocomplete="bday"
+                                 Placeholder="DD/MM/YYYY"
+                                 @bind-Value="_sg.CmpDob" />
+                    <LipiNumberInput TValue="int?" Name="sg-cmp-age"
+                                     Label="Age (computed, read-only)"
+                                     ReadOnly="true"
+                                     Helper="Auto-calculated from DOB"
+                                     @bind-Value="_sg.CmpAge" />
+                </div>
+
+            </section>
+
+            <!-- ====== ALIGNMENT (showcase-only structure for visual parity) ====== -->
+            <section id="alignment" class="sg-section">
+                <h2 class="sg-h2">Alignment Comparison</h2>
+                <p class="sg-p">
+                    LipiTextBox, LipiSelect, and LipiButton at <code class="sg-code">Size=Medium</code> (32px) —
+                    text baselines aligned, fields share <code class="sg-code">.lipi-input-field</code>
+                    height across the family. The button is wrapped in
+                    <code class="sg-code">.lipi-input-wrapper</code> structure for label/helper typography
+                    parity with the other two — <strong>showcase-only structure</strong>; production forms
+                    don't wrap buttons this way (use <code class="sg-code">LipiButton</code> directly with
+                    its own label-less sizing).
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-3 sg-align-row">
+
+                    <LipiTextBox Name="sg-align-tb"
+                                 Label="LipiTextBox"
+                                 Placeholder="Sample text"
+                                 @bind-Value="_sg.AlignText"
+                                 Helper="32px field height" />
+
+                    <LipiSelect TValue="string" Name="sg-align-sel"
+                                Label="LipiSelect"
+                                Items="@_sg.Genders"
+                                Placeholder="Select"
+                                @bind-Value="_sg.AlignSelect"
+                                Helper="32px field height" />
+
+                    @* Showcase-only: LipiButton wrapped in input-wrapper structure for label/helper parity *@
+                    <div class="lipi-input-wrapper sg-button-wrapper">
+                        <label class="lipi-input-label">
+                            <span class="lipi-input-label-text">LipiButton (wrapped for parity)</span>
+                        </label>
+                        <div class="sg-button-shell">
+                            <LipiButton Variant="ButtonVariant.Primary"
+                                        Size="ButtonSize.Medium"
+                                        FullWidth="true">
+                                Primary action
+                            </LipiButton>
+                        </div>
+                        <div class="lipi-input-helper lipi-input-helper-default">
+                            32px button height
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
         </main>
     </div>
 </div>
@@ -382,6 +708,112 @@
         await Task.Delay(1500);
         _isSaving = false;
     }
+
+    // ---------- Phase 2.2: Text-input demo state ----------
+    // All state lives in a single TextInputDemo instance so the @code block stays compact
+    // and the markup binds cleanly via _sg.FieldName. Each property is a free-form input
+    // value with no validation — this is a showcase, not a form.
+
+    private TextInputDemo _sg = new();
+
+    private sealed class TextInputDemo
+    {
+        // LipiTextBox states + sizes
+        public string? TbDefault    { get; set; }
+        public string? TbRequired   { get; set; }
+        public string? TbError      { get; set; } = "ab";   // <3 chars to show error
+        public string? TbWarning    { get; set; } = "verify";
+        public string? TbSuccess    { get; set; } = "Confirmed value";
+        public string? TbReadonly   { get; set; } = "Read-only sample";
+        public string? TbDisabled   { get; set; }
+        public string? TbIcon       { get; set; }
+        public string? TbConfidence { get; set; } = "Verified entry";
+        public string? TbSmall      { get; set; }
+        public string? TbMedium     { get; set; } = "Medium sample";
+        public string? TbLarge      { get; set; }
+
+        // LipiTextArea
+        public string? TaDefault    { get; set; }
+        public string? TaClamped    { get; set; }
+
+        // LipiNumberInput type variants + locales + filter modes
+        public int?     NiInt       { get; set; } = 42;
+        public decimal? NiDec       { get; set; } = 99.95m;
+        public double?  NiDbl       { get; set; } = 7.123;
+        public decimal? NiLocIn     { get; set; } = 123456.78m;
+        public decimal? NiLocUs     { get; set; } = 123456.78m;
+        public decimal? NiLocDe     { get; set; } = 123456.78m;
+        public int?     NiStepper   { get; set; } = 10;
+        public int?     NiNoArrow   { get; set; } = 5;
+        public int?     NiLetterOk  { get; set; }
+
+        // LipiSelect
+        public string? SelGender    { get; set; }
+        public string? SelBlood     { get; set; }
+        public string? SelPinned    { get; set; }
+
+        // LipiCombobox
+        public string? CbCountry    { get; set; } = "IN";
+        public string? CbReferral   { get; set; }
+
+        // Compound previews
+        public string? CmpTitle      { get; set; }
+        public string? CmpFirstName  { get; set; }
+        public string? CmpDob        { get; set; }
+        public int?    CmpAge        { get; set; }
+
+        // Alignment row (Section 7 / dedicated Alignment section)
+        public string? AlignText    { get; set; } = "Sample text";
+        public string? AlignSelect  { get; set; } = "Female";
+
+        // ----- Sample data -----
+        public string[] Genders     => new[] { "Male", "Female", "Other", "Prefer not to say" };
+        public string[] BloodGroups => new[] { "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-" };
+        public string[] Titles      => new[] { "Mr.", "Mrs.", "Ms.", "Dr.", "Prof." };
+        public string[] SourceList  => new[]
+        {
+            "Self", "GP referral", "Specialist referral", "Insurance referral",
+            "Hospital network", "Online search", "Friend/family"
+        };
+
+        public CountryDemo[] Countries => _countriesCache;
+        public ReferralDemo[] Referrals => _referralsCache;
+
+        private static readonly CountryDemo[] _countriesCache =
+        {
+            new("IN", "India",         "🇮🇳", "91"),
+            new("US", "United States", "🇺🇸", "1"),
+            new("GB", "United Kingdom","🇬🇧", "44"),
+            new("AU", "Australia",     "🇦🇺", "61"),
+            new("CA", "Canada",        "🇨🇦", "1"),
+            new("DE", "Germany",       "🇩🇪", "49"),
+            new("FR", "France",        "🇫🇷", "33"),
+            new("JP", "Japan",         "🇯🇵", "81"),
+            new("SG", "Singapore",     "🇸🇬", "65"),
+            new("AE", "UAE",           "🇦🇪", "971"),
+            new("LK", "Sri Lanka",     "🇱🇰", "94"),
+            new("BD", "Bangladesh",    "🇧🇩", "880"),
+            new("PK", "Pakistan",      "🇵🇰", "92"),
+            new("CN", "China",         "🇨🇳", "86"),
+            new("MY", "Malaysia",      "🇲🇾", "60")
+        };
+
+        private static readonly ReferralDemo[] _referralsCache =
+        {
+            new("self",       "Self",                "Direct"),
+            new("gp",         "GP referral",         "Primary care"),
+            new("specialist", "Specialist referral", "Secondary care"),
+            new("insurance",  "Insurance referral",  "Coverage-driven"),
+            new("network",    "Hospital network",    "Cross-clinic"),
+            new("online",     "Online search",       "Self-service"),
+            new("ff",         "Friend/family",       "Word of mouth")
+        };
+    }
+
+    // Public records (used in markup TItem typearg) — must be reachable as
+    // StyleGuide.CountryDemo / StyleGuide.ReferralDemo from the .razor template.
+    public record CountryDemo(string Iso, string Name, string Flag, string Isd);
+    public record ReferralDemo(string Code, string Label, string Category);
 
     // ---------- Token data tables ----------
     private record ColorGroup(string Title, string[] Tokens);

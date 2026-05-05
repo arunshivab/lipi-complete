@@ -1,0 +1,493 @@
+@* SPEC: Phase 2.2 Sub-step Batch 4.1 — verification scaffold for LipiNumberInput<TValue>.
+   Wrapped in EditForm + DataAnnotationsValidator so InputBase's parse-error pathway (e.g.,
+   empty non-nullable int → "Must be a number") flows into ValidationMessage components.
+   Also exercises arrow key handling (added in Batch 4.1).
+
+   Fields covered: type variants (int / int? / decimal? / double? / long?), locales
+   (en-IN, en-US, fr-FR, de-DE), all 7 states, steppers + bounds, sizes.
+
+   Folded into formal StyleGuide showcase in Batch 6.
+   Filename uppercase to satisfy Razor compiler (RZ10011); route preserved via @page directive. *@
+
+@page "/test/number"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiNumberInput Test</PageTitle>
+
+@*
+    Inline styling for ValidationMessage (renders as <div class="validation-message">).
+    Test-page-only — production validation message styling will live in lipi-inputs.css
+    once Phase 2.2.5 wires LipiNumberInput's Error slot to EditContext automatically.
+*@
+<style>
+    .validation-message {
+        color: var(--color-danger);
+        font-size: 11px;
+        margin-top: 2px;
+        line-height: 1.3;
+    }
+    .test-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+    .test-status {
+        margin-top: 16px;
+        padding: 8px 12px;
+        border-radius: var(--r-sm);
+        font-size: 13px;
+        font-weight: 500;
+    }
+    .test-status-valid {
+        background-color: var(--color-success-pale);
+        color: var(--color-success-text-strong);
+    }
+    .test-status-invalid {
+        background-color: var(--color-danger-pale);
+        color: var(--color-danger);
+    }
+</style>
+
+<div style="max-width: 1200px; margin: 0 auto; padding: 24px; font-family: var(--font-ui);">
+
+    <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 16px 0; color: var(--color-text-primary);">
+        LipiNumberInput&lt;TValue&gt; — Batch 4.1 verification
+    </h1>
+    <p style="margin: 0 0 24px 0; color: var(--color-text-secondary); font-size: 14px;">
+        Tab into a field to see formatted → raw transition. Tab out to reverse.
+        Steppers (where shown) disable at Min/Max bounds.
+        <strong>↑ / ↓ arrow keys</strong> increment/decrement on any field, clamped to bounds.
+        Clear the "Dose count (int)" field to see the parse-error validation message appear.
+    </p>
+
+    <EditForm Model="_model" OnValidSubmit="OnValidSubmit" OnInvalidSubmit="OnInvalidSubmit">
+        <DataAnnotationsValidator />
+
+        @* ============ SECTION 1: Type variants ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 24px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            1. Type variants (default en-IN locale)
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+
+            <div class="test-field">
+                <LipiNumberInput TValue="int?"
+                                 Name="age"
+                                 Label="Age (int?, no steppers)"
+                                 @bind-Value="_model.Age"
+                                 Helper="Empty = null. Type 0 explicitly for zero." />
+                <ValidationMessage For="@(() => _model.Age)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="int"
+                                 Name="dose-int"
+                                 Label="Dose count (int, non-nullable)"
+                                 @bind-Value="_model.DoseCount"
+                                 Required="true"
+                                 Helper="Clear me → parse error appears below" />
+                <ValidationMessage For="@(() => _model.DoseCount)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="decimal?"
+                                 Name="weight"
+                                 Label="Weight (decimal?, kg)"
+                                 Unit="kg"
+                                 DecimalPlaces="1"
+                                 @bind-Value="_model.Weight"
+                                 Helper="Pre-filled with 72.5 — should show as 72.5" />
+                <ValidationMessage For="@(() => _model.Weight)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="double?"
+                                 Name="bmi"
+                                 Label="BMI (double?, 2 decimals)"
+                                 DecimalPlaces="2"
+                                 @bind-Value="_model.Bmi"
+                                 Helper="Type 22.5 → blur → shows 22.50" />
+                <ValidationMessage For="@(() => _model.Bmi)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="long?"
+                                 Name="lakhs"
+                                 Label="Population (long?, en-IN grouping)"
+                                 @bind-Value="_model.Population"
+                                 Helper="123456789 → 12,34,56,789 (Indian crore grouping)" />
+                <ValidationMessage For="@(() => _model.Population)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="decimal?"
+                                 Name="cost-large"
+                                 Label="Cost (decimal?, 2dp)"
+                                 Unit="₹"
+                                 DecimalPlaces="2"
+                                 @bind-Value="_model.Cost"
+                                 Helper="Try 1234567.89 → 12,34,567.89" />
+                <ValidationMessage For="@(() => _model.Cost)" />
+            </div>
+
+        </div>
+
+        @* ============ SECTION 2: Steppers + bounds + arrow keys ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            2. Steppers + Min/Max bounds + arrow keys
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+
+            <div class="test-field">
+                <LipiNumberInput TValue="int?"
+                                 Name="quantity"
+                                 Label="Quantity (steppers, 0–10)"
+                                 ShowSteppers="true"
+                                 Min="0"
+                                 Max="10"
+                                 @bind-Value="_model.Quantity"
+                                 Helper="↑/↓ arrow keys also work. Bounds disable at 0 and 10." />
+                <ValidationMessage For="@(() => _model.Quantity)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="decimal?"
+                                 Name="dose-mg"
+                                 Label="Dose (steppers, step=2.5)"
+                                 Unit="mg"
+                                 ShowSteppers="true"
+                                 Step="2.5m"
+                                 Min="0m"
+                                 Max="100m"
+                                 DecimalPlaces="1"
+                                 @bind-Value="_model.DoseMg"
+                                 Helper="Each ↑ = +2.5mg. Try arrow keys too." />
+                <ValidationMessage For="@(() => _model.DoseMg)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="int?"
+                                 Name="temp"
+                                 Label="Temperature (no steppers, arrow keys only)"
+                                 Unit="°F"
+                                 @bind-Value="_model.Temperature"
+                                 Helper="No visible steppers, but ↑/↓ still work" />
+                <ValidationMessage For="@(() => _model.Temperature)" />
+            </div>
+
+        </div>
+
+        @* ============ SECTION 3: Locale variants (shared backing field) ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            3. Locale variants (same number, different formats)
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+
+            <div class="test-field">
+                <LipiNumberInput TValue="long?"
+                                 Name="loc-india"
+                                 Label="India (en-IN, default)"
+                                 @bind-Value="_model.LocaleNumber"
+                                 Helper="1234567 → 12,34,567" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="long?"
+                                 Name="loc-us"
+                                 Label="United States (en-US)"
+                                 Locale="en-US"
+                                 @bind-Value="_model.LocaleNumber"
+                                 Helper="1234567 → 1,234,567" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="long?"
+                                 Name="loc-fr"
+                                 Label="France (fr-FR)"
+                                 Locale="fr-FR"
+                                 @bind-Value="_model.LocaleNumber"
+                                 Helper="1234567 → 1 234 567 (space grouping)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="long?"
+                                 Name="loc-de"
+                                 Label="Germany (de-DE)"
+                                 Locale="de-DE"
+                                 @bind-Value="_model.LocaleNumber"
+                                 Helper="1234567 → 1.234.567 (period grouping)" />
+            </div>
+
+        </div>
+
+        <p style="margin: 12px 0 0 0; color: var(--color-text-tertiary); font-size: 12px;">
+            All four fields share the same backing field (_model.LocaleNumber).
+            Type into any one — all four reflect the same value rendered per their locale.
+        </p>
+
+        @* ============ SECTION 4: All 7 states ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            4. All 7 states + confidence pill
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+
+            <LipiNumberInput TValue="decimal?"
+                             Name="state-default"
+                             Label="Default state"
+                             @bind-Value="_model.StateDefault" />
+
+            <LipiNumberInput TValue="decimal?"
+                             Name="state-required-empty"
+                             Label="Required (empty → apricot)"
+                             Required="true"
+                             @bind-Value="_model.StateRequiredEmpty" />
+
+            <LipiNumberInput TValue="decimal?"
+                             Name="state-error"
+                             Label="Error state"
+                             @bind-Value="_model.StateError"
+                             Error="Value out of allowed range" />
+
+            <LipiNumberInput TValue="decimal?"
+                             Name="state-warning"
+                             Label="Warning state"
+                             @bind-Value="_model.StateWarning"
+                             Warning="Unusually high — verify with patient" />
+
+            <LipiNumberInput TValue="decimal?"
+                             Name="state-success"
+                             Label="Success state"
+                             @bind-Value="_model.StateSuccess"
+                             Success="Within reference range" />
+
+            <LipiNumberInput TValue="decimal?"
+                             Name="state-readonly"
+                             Label="Read-only"
+                             ReadOnly="true"
+                             @bind-Value="_model.StateReadOnly" />
+
+            <LipiNumberInput TValue="decimal?"
+                             Name="state-disabled"
+                             Label="Disabled"
+                             Disabled="true"
+                             @bind-Value="_model.StateDisabled" />
+
+            <LipiNumberInput TValue="decimal?"
+                             Name="state-confidence"
+                             Label="With confidence pill"
+                             LabelConfidence="ConfidenceLevel.SelfReported"
+                             Unit="bpm"
+                             @bind-Value="_model.StateConfidence" />
+
+            <LipiNumberInput TValue="int?"
+                             Name="state-icon"
+                             Label="With leading icon"
+                             Icon="user"
+                             @bind-Value="_model.StateIcon" />
+
+        </div>
+
+        @* ============ SECTION 5: Sizes ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            5. Size variants
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: end;">
+
+            <LipiNumberInput TValue="int?"
+                             Name="size-small"
+                             Label="Small (28px)"
+                             Size="InputSize.Small"
+                             ShowSteppers="true"
+                             @bind-Value="_model.SizeSmall" />
+
+            <LipiNumberInput TValue="int?"
+                             Name="size-medium"
+                             Label="Medium (32px, default)"
+                             ShowSteppers="true"
+                             @bind-Value="_model.SizeMedium" />
+
+            <LipiNumberInput TValue="int?"
+                             Name="size-large"
+                             Label="Large (40px)"
+                             Size="InputSize.Large"
+                             ShowSteppers="true"
+                             @bind-Value="_model.SizeLarge" />
+
+        </div>
+
+        @* ============ SECTION 6: BlockNonNumericInput + DisableArrowKeys (Batch 4.2) ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            6. Filter + arrow-key control (Batch 4.2)
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+
+            <div class="test-field">
+                <LipiNumberInput TValue="decimal?"
+                                 Name="filter-on"
+                                 Label="BlockNonNumericInput=true (default)"
+                                 Unit="mg"
+                                 DecimalPlaces="2"
+                                 @bind-Value="_model.FilterOn"
+                                 Helper="Type 'abc' or '5T' — letters get stripped after a brief flash" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="decimal?"
+                                 Name="filter-off"
+                                 Label="BlockNonNumericInput=false"
+                                 BlockNonNumericInput="false"
+                                 @bind-Value="_model.FilterOff"
+                                 Helper="Letters stay typed; parse error shows in validation slot" />
+                <ValidationMessage For="@(() => _model.FilterOff)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="int?"
+                                 Name="arrows-on"
+                                 Label="Arrow keys ON (default)"
+                                 ShowSteppers="true"
+                                 @bind-Value="_model.ArrowsOn"
+                                 Helper="Click in, press ↑/↓ — value changes" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="int?"
+                                 Name="arrows-off"
+                                 Label="DisableArrowKeys=true"
+                                 DisableArrowKeys="true"
+                                 ShowSteppers="true"
+                                 @bind-Value="_model.ArrowsOff"
+                                 Helper="↑/↓ do nothing; click steppers to change value" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="uint?"
+                                 Name="unsigned"
+                                 Label="Unsigned type (uint?) — minus stripped"
+                                 @bind-Value="_model.UnsignedValue"
+                                 Helper="Try typing '-5' — minus is auto-stripped (TValue is unsigned)" />
+            </div>
+
+            <div class="test-field">
+                <LipiNumberInput TValue="int?"
+                                 Name="signed"
+                                 Label="Signed type (int?) — minus accepted"
+                                 @bind-Value="_model.SignedValue"
+                                 Helper="Try '-5' — minus accepted as first char only" />
+            </div>
+
+        </div>
+
+        @* ============ Submit + status ============ *@
+        @* Plain <button> rather than <LipiButton>: test scaffold doesn't need design-system
+           integration, and avoids parameter-name dependency on a component I haven't
+           directly read. Production forms will use <LipiButton> once its API is confirmed
+           (likely Batch 6 alongside the StyleGuide showcase). *@
+        <div style="display: flex; align-items: center; gap: 12px; margin-top: 32px;">
+            <button type="submit"
+                    style="padding: 8px 16px;
+                           background-color: var(--color-primary);
+                           color: var(--color-primary-contrast, white);
+                           border: 0;
+                           border-radius: var(--r-sm);
+                           font-family: inherit;
+                           font-size: 14px;
+                           font-weight: 500;
+                           cursor: pointer;">
+                Validate all fields
+            </button>
+            @if (_validationStatus != null)
+            {
+                <span class="test-status @(_isValid ? "test-status-valid" : "test-status-invalid")">
+                    @_validationStatus
+                </span>
+            }
+        </div>
+
+    </EditForm>
+
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>What to verify:</strong>
+        <br /> • Clear "Dose count (int)" → "Must be a number" appears below the field (parse error pathway).
+        <br /> • Click "Validate all fields" with all valid values → green "All fields valid" status.
+        <br /> • Up/Down arrow keys increment/decrement on any focused field, respect Min/Max bounds.
+        <br /> • Mouse wheel scroll over a focused field does NOT change the value (intentional, clinical safety).
+        <br /> • Steppers disable at bounds; arrow keys also clamp at bounds.
+        <br /> • Locale section: same number, four different display formats; typing in any field updates all four.
+        <br /> • All 7 states render correctly with circle-x / triangle / check overlays.
+        <br /> • <strong>Section 6:</strong> typing letters in "Filter ON" gets stripped (brief flash); typing letters in "Filter OFF" stays as text and shows parse error.
+        <br /> • <strong>Section 6:</strong> arrow keys work in "Arrows ON" but do nothing in "Arrows OFF" — steppers still work in both.
+        <br /> • <strong>Section 6:</strong> typing minus into "Unsigned" gets stripped; typing minus into "Signed" is accepted as first character.
+    </div>
+
+</div>
+
+@code {
+    private TestModel _model = new();
+    private string? _validationStatus;
+    private bool _isValid;
+
+    private void OnValidSubmit()
+    {
+        _isValid = true;
+        _validationStatus = "✓ All fields valid";
+    }
+
+    private void OnInvalidSubmit()
+    {
+        _isValid = false;
+        _validationStatus = "✗ Some fields invalid — see messages next to each field";
+    }
+
+    public class TestModel
+    {
+        // Section 1 — type variants
+        public int? Age { get; set; }
+
+        [Required(ErrorMessage = "Dose count is required")]
+        public int DoseCount { get; set; } = 1;
+
+        public decimal? Weight { get; set; } = 72.5m;
+        public double? Bmi { get; set; }
+        public long? Population { get; set; } = 123456789L;
+        public decimal? Cost { get; set; } = 1234567.89m;
+
+        // Section 2 — steppers + bounds
+        [Range(0, 10, ErrorMessage = "Quantity must be between 0 and 10")]
+        public int? Quantity { get; set; } = 5;
+
+        [Range(typeof(decimal), "0", "100", ErrorMessage = "Dose must be 0–100mg")]
+        public decimal? DoseMg { get; set; } = 25m;
+
+        public int? Temperature { get; set; } = 98;
+
+        // Section 3 — shared locale demo (one model field, four field views)
+        public long? LocaleNumber { get; set; } = 1234567L;
+
+        // Section 4 — states
+        public decimal? StateDefault { get; set; }
+        public decimal? StateRequiredEmpty { get; set; }
+        public decimal? StateError { get; set; } = 999.5m;
+        public decimal? StateWarning { get; set; } = 180m;
+        public decimal? StateSuccess { get; set; } = 75m;
+        public decimal? StateReadOnly { get; set; } = 42.5m;
+        public decimal? StateDisabled { get; set; }
+        public decimal? StateConfidence { get; set; } = 72m;
+        public int? StateIcon { get; set; } = 30;
+
+        // Section 5 — sizes
+        public int? SizeSmall { get; set; } = 1;
+        public int? SizeMedium { get; set; } = 5;
+        public int? SizeLarge { get; set; } = 10;
+
+        // Section 6 — Batch 4.2 parameter demos
+        public decimal? FilterOn { get; set; }
+        public decimal? FilterOff { get; set; }
+        public int? ArrowsOn { get; set; } = 5;
+        public int? ArrowsOff { get; set; } = 5;
+        public uint? UnsignedValue { get; set; } = 100u;
+        public int? SignedValue { get; set; } = -5;
+    }
+}

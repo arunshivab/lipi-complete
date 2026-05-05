@@ -1,0 +1,536 @@
+@* SPEC: Phase 2.2 Sub-step Batch 3 — LipiTextArea component                                *@
+@* Multi-line input with JS-driven autogrow.                                                 *@
+@* Namespace: LiPi.Web.Components.Shared                                                     *@
+@*                                                                                            *@
+@* Design summary:                                                                            *@
+@*   - Derives from InputBase<string?> (locked Decision 1, strategic).                        *@
+@*       Same future-readiness as LipiTextBox for EditForm + DataAnnotationsValidator.        *@
+@*   - All 7 states (Default/Error/Warning/Success/RequiredEmpty/Disabled/ReadOnly)           *@
+@*     and confidence pill apply identically — shared CSS in lipi-inputs.css.                 *@
+@*   - Autogrow via native JS event listener (window.lipiInput.attachAutogrow):              *@
+@*       User typing → JS resizes textarea natively (no Blazor round-trip)                   *@
+@*       Programmatic value change → C# OnAfterRenderAsync remeasures via JS                 *@
+@*       Disposal → C# detaches the JS listener                                              *@
+@*   - MinRows / MaxRows: defaults 2 / 8. MaxRows: textarea switches to overflow:auto.       *@
+@*   - Error overlay icon: circle-x (matches LipiTextBox).                                   *@
+@*                                                                                            *@
+@* AMEND: docs/CHANGE-LOG.md A13 (Batch 3 — pending entry on visual review).                  *@
+
+@inherits InputBase<string?>
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.JSInterop
+@using Microsoft.Extensions.Logging
+@using Microsoft.Extensions.Options
+@inject IOptions<LipiInputDefaults> Defaults
+@inject IWebHostEnvironment Env
+@inject ILogger<LipiTextArea> Log
+@inject IJSRuntime JS
+
+<div class="lipi-input-wrapper @CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
+
+    @* ===== LABEL ROW ===== *@
+    <label class="lipi-input-label" for="@EffectiveId">
+        <span class="lipi-input-label-text">@_resolvedLabel</span>
+        @if (Required)
+        {
+            @* Locked Decision 6 (Approach D): asterisk + ARIA + tooltip ALWAYS render
+               regardless of RequiredVisualStyle. *@
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+        @if (LabelConfidence.HasValue)
+        {
+            <span class="lipi-input-confidence-pill lipi-input-confidence-@ConfidenceCssClass"
+                  aria-label="@ConfidenceAriaLabel">
+                @ConfidenceLabelText
+            </span>
+        }
+    </label>
+
+    @* ===== TEXTAREA ROW ===== *@
+    <div class="lipi-input-field">
+
+        @if (!string.IsNullOrEmpty(Icon))
+        {
+            <span class="lipi-input-icon-leading" aria-hidden="true">
+                <LucideIcon Name="@Icon" Size="@IconPx" />
+            </span>
+        }
+
+        <textarea id="@EffectiveId"
+                  name="@_resolvedName"
+                  @ref="_textareaRef"
+                  class="lipi-input-control lipi-textarea-control"
+                  rows="@MinRows"
+                  value="@CurrentValueAsString"
+                  placeholder="@Placeholder"
+                  autocomplete="@AutocompleteAttr"
+                  disabled="@Disabled"
+                  readonly="@ReadOnly"
+                  required="@Required"
+                  maxlength="@MaxLengthAttr"
+                  aria-describedby="@AriaDescribedByAttr"
+                  aria-invalid="@AriaInvalidAttr"
+                  @oninput="HandleInput"
+                  @onblur="HandleBlur"></textarea>
+
+        @if (EffectiveTrailingIcon != null)
+        {
+            <button type="button"
+                    class="lipi-input-icon-trailing @(IconRightClickable ? "lipi-input-icon-clickable" : null)"
+                    tabindex="@(IconRightClickable ? 0 : -1)"
+                    aria-hidden="@(IconRightClickable ? null : "true")"
+                    aria-label="@(IconRightClickable ? IconRightAriaLabel : null)"
+                    disabled="@(!IconRightClickable || Disabled)"
+                    @onclick="HandleIconRightClick">
+                <LucideIcon Name="@EffectiveTrailingIcon" Size="@IconPx" />
+            </button>
+        }
+    </div>
+
+    @* ===== HELPER ROW (always reserved when AlwaysReserveHelperSlot=true) ===== *@
+    @if (Defaults.Value.AlwaysReserveHelperSlot || HasHelperContent)
+    {
+        <div class="lipi-input-helper @HelperStateClass"
+             role="@HelperRole"
+             aria-live="@HelperAriaLive"
+             id="@HelperId">
+            @HelperText
+        </div>
+    }
+</div>
+
+@code {
+    // ==========================================================================
+    // PARAMETERS
+    // ──────────────────────────────────────────────────────────────────────────
+    // Inherited from InputBase<string?> — DO NOT redeclare:
+    //   [Parameter] Value, ValueChanged, ValueExpression, DisplayName
+    //   protected CurrentValue, CurrentValueAsString, EditContext, FieldIdentifier
+    // ==========================================================================
+
+    /// <summary>HTML name attribute. REQUIRED — used to derive the id (ta-{Name}).</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    /// <summary>Field label rendered above the textarea. REQUIRED.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>Placeholder text shown when textarea is empty.</summary>
+    [Parameter] public string? Placeholder { get; set; }
+
+    /// <summary>Helper text in the helper slot when no error/warning/success is set.</summary>
+    [Parameter] public string? Helper { get; set; }
+
+    /// <summary>Error message — non-empty triggers Error state (red border, danger-pale bg, circle-x overlay).</summary>
+    [Parameter] public string? Error { get; set; }
+
+    /// <summary>Warning message — non-empty triggers Warning state (amber border + bg, triangle overlay).</summary>
+    [Parameter] public string? Warning { get; set; }
+
+    /// <summary>Success message — non-empty triggers Success state (green border, check overlay).</summary>
+    [Parameter] public string? Success { get; set; }
+
+    /// <summary>Marks textarea as required. Pairs with RequiredVisualStyle for visual treatment.</summary>
+    [Parameter] public bool Required { get; set; }
+
+    /// <summary>Disabled state — terminal, no interaction.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Read-only state (Variant B: dashed border + faint bg, full-color text, selectable).</summary>
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>HTML5 autocomplete token. Validated against WHATWG list; Development throws on invalid.</summary>
+    [Parameter] public string? Autocomplete { get; set; }
+
+    /// <summary>Size variant. Default Medium. Affects font/label/helper sizing; min-height per size.</summary>
+    [Parameter] public InputSize Size { get; set; } = InputSize.Medium;
+
+    /// <summary>Lucide icon name rendered to the LEFT of textarea content (decorative, top-aligned).</summary>
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>Lucide icon name rendered to the RIGHT (top-aligned). Replaced by validation overlay
+    /// during Error/Warning/Success states. Becomes interactive when OnIconRightClick is wired.</summary>
+    [Parameter] public string? IconRight { get; set; }
+
+    /// <summary>Click handler for the right-side icon (clear, copy, etc.). When set, icon becomes a focusable button.</summary>
+    [Parameter] public EventCallback<MouseEventArgs> OnIconRightClick { get; set; }
+
+    /// <summary>Accessible label for the right-side icon button. Required when OnIconRightClick is set.</summary>
+    [Parameter] public string? IconRightAriaLabel { get; set; }
+
+    /// <summary>HTML maxlength attribute. Null = unlimited.</summary>
+    [Parameter] public int? MaxLength { get; set; }
+
+    /// <summary>External aria-describedby reference (in addition to the auto-wired helper id).</summary>
+    [Parameter] public string? AriaDescribedBy { get; set; }
+
+    /// <summary>Per-component override of required-field visual treatment. Null = inherit from LipiInputDefaults.</summary>
+    [Parameter] public RequiredVisualStyle? RequiredVisualStyle { get; set; }
+
+    /// <summary>Confidence pill in label (used for fields with provenance/verification data).</summary>
+    [Parameter] public ConfidenceLevel? LabelConfidence { get; set; }
+
+    /// <summary>Optional grid column span. Sets <c>style="grid-column: span @Cols"</c> for grid migrations.</summary>
+    [Parameter] public int? Cols { get; set; }
+
+    /// <summary>Append-only CSS class. LAYOUT UTILITIES ONLY (margin, alignment).</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Minimum visible rows. Default 2. Sets the rows attribute (initial visible rows
+    /// before any autogrow) and seeds the field's min-height fallback.</summary>
+    [Parameter] public int MinRows { get; set; } = 2;
+
+    /// <summary>Maximum rows before the textarea stops growing and switches to overflow:auto.
+    /// Default 8. Prevents runaway textareas swallowing the surrounding form.</summary>
+    [Parameter] public int MaxRows { get; set; } = 8;
+
+    // ==========================================================================
+    // RESOLVED FIELDS (private — never write to [Parameter] backing fields)
+    // ==========================================================================
+
+    private string _resolvedName = string.Empty;
+    private string _resolvedLabel = string.Empty;
+    private string? _resolvedAutocomplete;
+
+    private const string AnonymousIdPrefix = "ta-anon-"; // distinct from textbox tb-anon-
+    private string? _cachedAnonymousId;
+
+    // ==========================================================================
+    // JS INTEROP FIELDS (autogrow)
+    // ==========================================================================
+
+    private ElementReference _textareaRef;
+    private bool _autogrowAttached;
+    private string? _lastValueSeenByJs;
+
+    // ==========================================================================
+    // INPUTBASE OVERRIDE
+    // ==========================================================================
+
+    /// <summary>
+    /// InputBase&lt;string?&gt; abstract method. Identity passthrough for string T.
+    /// </summary>
+    protected override bool TryParseValueFromString(
+        string? value,
+        out string? result,
+        out string validationErrorMessage)
+    {
+        result = value;
+        validationErrorMessage = string.Empty;
+        return true;
+    }
+
+    // ==========================================================================
+    // PARAMETER VALIDATION (env-gated, mirrors LipiTextBox pattern)
+    // ==========================================================================
+
+    protected override void OnParametersSet()
+    {
+        _resolvedName         = Name;
+        _resolvedLabel        = Label;
+        _resolvedAutocomplete = Autocomplete;
+
+        var errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(Name))
+        {
+            errors.Add("Name parameter is required (used to generate id, name, and a11y attributes)");
+        }
+
+        if (string.IsNullOrWhiteSpace(Label))
+        {
+            errors.Add("Label parameter is required (visible text for sighted users + accessible name)");
+        }
+
+        if (!string.IsNullOrWhiteSpace(Autocomplete) && !AutocompleteValidator.IsValid(Autocomplete))
+        {
+            errors.Add(AutocompleteValidator.FormatInvalidMessage(
+                "LipiTextArea", "Autocomplete", Autocomplete));
+        }
+
+        if (OnIconRightClick.HasDelegate && string.IsNullOrWhiteSpace(IconRightAriaLabel))
+        {
+            errors.Add("IconRightAriaLabel is required when OnIconRightClick is wired " +
+                       "(WCAG 2.1 SC 4.1.2 — accessible name for interactive controls)");
+        }
+
+        if (MinRows < 1)
+        {
+            errors.Add($"MinRows ({MinRows}) must be >= 1");
+        }
+
+        if (MaxRows < MinRows)
+        {
+            errors.Add($"MaxRows ({MaxRows}) must be >= MinRows ({MinRows})");
+        }
+
+        if (errors.Count == 0) return;
+
+        var message = $"LipiTextArea parameter validation failed: {string.Join("; ", errors)}";
+
+        if (Env.IsDevelopment())
+        {
+            throw new InvalidOperationException(message);
+        }
+        else
+        {
+            Log.LogError("[LipiTextArea] {Message}. Component will render with fallback values.", message);
+
+            if (string.IsNullOrWhiteSpace(_resolvedName))
+            {
+                // Cache the anonymous id once across the component's lifetime — same fix as LipiTextBox.
+                _cachedAnonymousId ??= AnonymousIdPrefix + Guid.NewGuid().ToString("N")[..8];
+                _resolvedName = _cachedAnonymousId;
+            }
+            if (string.IsNullOrWhiteSpace(_resolvedLabel))
+            {
+                _resolvedLabel = "(unlabeled)";
+            }
+            if (!string.IsNullOrWhiteSpace(_resolvedAutocomplete) && !AutocompleteValidator.IsValid(_resolvedAutocomplete))
+            {
+                _resolvedAutocomplete = "off";
+            }
+            if (MinRows < 1) MinRows = 2;
+            if (MaxRows < MinRows) MaxRows = Math.Max(MinRows, 8);
+        }
+    }
+
+    // ==========================================================================
+    // AUTOGROW HOOKS
+    // ──────────────────────────────────────────────────────────────────────────
+    // Strategy: native JS listener handles user typing (zero Blazor round-trip).
+    // C# only fires autogrow when CurrentValueAsString changed externally (form
+    // reset, programmatic model patch, server-side data load).
+    // ==========================================================================
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("lipiInput.attachAutogrow", _textareaRef, MaxRows);
+                _autogrowAttached  = true;
+                _lastValueSeenByJs = CurrentValueAsString;
+            }
+            catch (Exception ex)
+            {
+                // attachAutogrow itself does the initial measure; if it fails the textarea
+                // still works (just no autogrow). Log + continue.
+                Log.LogWarning(ex,
+                    "[LipiTextArea] autogrow attach failed (id={Id}). Textarea will function without autogrow.",
+                    EffectiveId);
+            }
+        }
+        else if (_autogrowAttached && CurrentValueAsString != _lastValueSeenByJs)
+        {
+            // External value change path — JS native listener didn't fire because no native
+            // input event happened. Trigger a remeasure manually.
+            try
+            {
+                await JS.InvokeVoidAsync("lipiInput.autogrow", _textareaRef, MaxRows);
+                _lastValueSeenByJs = CurrentValueAsString;
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning(ex, "[LipiTextArea] autogrow remeasure failed (id={Id})", EffectiveId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Cleanup attached JS listener on disposal. InputBase declares IDisposable explicitly
+    /// and provides this protected virtual hook.
+    /// </summary>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && _autogrowAttached)
+        {
+            try
+            {
+                _ = JS.InvokeVoidAsync("lipiInput.detachAutogrow", _textareaRef);
+            }
+            catch
+            {
+                // JS context may be gone during teardown (circuit closed, page unloading).
+                // Detach is best-effort; the DOM will be GC'd anyway.
+            }
+            _autogrowAttached = false;
+        }
+        base.Dispose(disposing);
+    }
+
+    // ==========================================================================
+    // RESOLVED PROPERTIES (mirror LipiTextBox; ta- prefix instead of tb-)
+    // ==========================================================================
+
+    private string EffectiveId => $"ta-{_resolvedName}";
+    private string HelperId   => $"{EffectiveId}-helper";
+
+    private RequiredVisualStyle EffectiveRequiredStyle =>
+        RequiredVisualStyle ?? Defaults.Value.RequiredVisualStyle;
+
+    private bool IsEmpty => string.IsNullOrEmpty(CurrentValueAsString);
+    private bool IconRightClickable => OnIconRightClick.HasDelegate;
+
+    // State precedence: Disabled > ReadOnly > Error > Success > Warning > RequiredEmpty > Default
+    private InputState ResolvedState
+    {
+        get
+        {
+            if (Disabled)                       return InputState.Disabled;
+            if (ReadOnly)                       return InputState.ReadOnly;
+            if (!string.IsNullOrEmpty(Error))   return InputState.Error;
+            if (!string.IsNullOrEmpty(Success)) return InputState.Success;
+            if (!string.IsNullOrEmpty(Warning)) return InputState.Warning;
+            if (Required && IsEmpty
+                && EffectiveRequiredStyle == LiPi.Web.Components.Shared.RequiredVisualStyle.ApricotTint)
+                                                return InputState.RequiredEmpty;
+            return InputState.Default;
+        }
+    }
+
+    private int IconPx => Size switch
+    {
+        InputSize.Small => 14,
+        InputSize.Large => 18,
+        _               => 16
+    };
+
+    private string CssClasses
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                $"lipi-input-{Size.ToString().ToLowerInvariant()}",
+                $"lipi-input-state-{StateCssToken(ResolvedState)}",
+                "lipi-input-textarea" // marker class — useful for any future selectors needing to distinguish multi-line variant
+            };
+            if (IsEmpty)            classes.Add("lipi-input-empty");
+            if (IconRightClickable) classes.Add("lipi-input-icon-right-clickable");
+            if (!string.IsNullOrEmpty(Icon))      classes.Add("lipi-input-has-leading-icon");
+            if (EffectiveTrailingIcon != null)    classes.Add("lipi-input-has-trailing-icon");
+            return string.Join(" ", classes);
+        }
+    }
+
+    private static string StateCssToken(InputState s) => s switch
+    {
+        InputState.Disabled       => "disabled",
+        InputState.ReadOnly       => "readonly",
+        InputState.Error          => "error",
+        InputState.Warning        => "warning",
+        InputState.Success        => "success",
+        InputState.RequiredEmpty  => "required-empty",
+        _                         => "default"
+    };
+
+    private string? InlineStyle => Cols.HasValue ? $"grid-column: span {Cols.Value};" : null;
+
+    // Validation overlay — same as LipiTextBox for visual consistency across the family.
+    private string? EffectiveTrailingIcon => ResolvedState switch
+    {
+        InputState.Error   => "circle-x",
+        InputState.Warning => "alert-triangle",
+        InputState.Success => "check",
+        _                  => IconRight
+    };
+
+    private string? HelperText => ResolvedState switch
+    {
+        InputState.Error   => Error,
+        InputState.Warning => Warning,
+        InputState.Success => Success,
+        _                  => Helper
+    };
+
+    private string HelperStateClass => ResolvedState switch
+    {
+        InputState.Error   => "lipi-input-helper-error",
+        InputState.Warning => "lipi-input-helper-warning",
+        InputState.Success => "lipi-input-helper-success",
+        _                  => "lipi-input-helper-default"
+    };
+
+    private bool HasHelperContent => !string.IsNullOrEmpty(HelperText);
+
+    private string? HelperRole       => ResolvedState == InputState.Error ? "alert" : null;
+    private string  HelperAriaLive   => ResolvedState == InputState.Error ? "assertive" : "polite";
+    private string? AriaInvalidAttr  => ResolvedState == InputState.Error ? "true" : null;
+
+    private string? AutocompleteAttr => string.IsNullOrWhiteSpace(_resolvedAutocomplete)
+        ? null
+        : _resolvedAutocomplete;
+
+    private string? MaxLengthAttr => MaxLength?.ToString();
+
+    private string? AriaDescribedByAttr
+    {
+        get
+        {
+            var ids = new List<string>();
+            if (HasHelperContent || Defaults.Value.AlwaysReserveHelperSlot) ids.Add(HelperId);
+            if (!string.IsNullOrWhiteSpace(AriaDescribedBy)) ids.Add(AriaDescribedBy);
+            return ids.Count == 0 ? null : string.Join(" ", ids);
+        }
+    }
+
+    private string? ConfidenceCssClass => LabelConfidence switch
+    {
+        ConfidenceLevel.Verified     => "verified",
+        ConfidenceLevel.SelfReported => "self",
+        ConfidenceLevel.Estimated    => "estimated",
+        ConfidenceLevel.Unknown      => "unknown",
+        _                            => null
+    };
+
+    private string ConfidenceLabelText => LabelConfidence switch
+    {
+        ConfidenceLevel.Verified     => "Verified",
+        ConfidenceLevel.SelfReported => "Self-reported",
+        ConfidenceLevel.Estimated    => "Estimated",
+        ConfidenceLevel.Unknown      => "Unknown",
+        _                            => string.Empty
+    };
+
+    private string? ConfidenceAriaLabel =>
+        LabelConfidence.HasValue ? $"Data confidence: {ConfidenceLabelText}" : null;
+
+    // ==========================================================================
+    // EVENT HANDLERS
+    // ==========================================================================
+
+    private void HandleInput(ChangeEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+
+        // CurrentValueAsString setter triggers the InputBase pipeline:
+        //   TryParseValueFromString → CurrentValue → ValueChanged + EditContext.NotifyFieldChanged
+        var newValue = e.Value?.ToString();
+        CurrentValueAsString = newValue;
+
+        // Mark this value as JS-aware: native autogrow listener already fired in the same
+        // browser tick before HandleInput ran, so the textarea height is already correct.
+        // OnAfterRenderAsync will see CurrentValueAsString == _lastValueSeenByJs and skip
+        // the redundant remeasure. Programmatic value changes don't go through HandleInput,
+        // so _lastValueSeenByJs stays stale → OnAfterRenderAsync remeasures.
+        _lastValueSeenByJs = newValue;
+    }
+
+    private Task HandleBlur(FocusEventArgs e)
+    {
+        // Hook point for future blur-driven validation. Currently a no-op.
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleIconRightClick(MouseEventArgs e)
+    {
+        if (!IconRightClickable || Disabled) return;
+        await OnIconRightClick.InvokeAsync(e);
+    }
+}

@@ -1,0 +1,116 @@
+@* SPEC: Phase 2.2 Sub-step Batch 3 — verification scaffold for LipiTextArea.
+   Folded into formal StyleGuide showcase in Batch 6.
+   Filename uppercase to satisfy Razor compiler (RZ10011); route preserved via @page directive. *@
+
+@page "/test/textarea"
+@rendermode InteractiveServer
+
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiTextArea Test</PageTitle>
+
+<div style="max-width: 1100px; margin: 0 auto; padding: 24px; font-family: var(--font-ui);">
+
+    <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 16px 0; color: var(--color-text-primary);">
+        LipiTextArea — Batch 3 verification
+    </h1>
+    <p style="margin: 0 0 24px 0; color: var(--color-text-secondary); font-size: 14px;">
+        Live autogrow on typing, initial measure for pre-filled values, all 7 states, MaxRows clamp.
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+
+        @* 1. Live autogrow — type to see height adjust *@
+        <LipiTextArea Name="notes"
+                      Label="Clinical notes"
+                      Required="true"
+                      @bind-Value="_notes"
+                      Placeholder="Type to test autogrow…"
+                      Helper="Should grow as you type, clamped at 8 rows" />
+
+        @* 2. Small variant + tight MaxRows clamp *@
+        <LipiTextArea Name="brief"
+                      Label="Short note (small, MaxRows=3)"
+                      Size="InputSize.Small"
+                      MinRows="1"
+                      MaxRows="3"
+                      @bind-Value="_brief"
+                      Placeholder="Type to hit the 3-row ceiling…" />
+
+        @* 3. Pre-filled with multi-line value — autogrow on first render *@
+        <LipiTextArea Name="long-prefilled"
+                      Label="Pre-filled (autogrow on init)"
+                      @bind-Value="_longText"
+                      Cols="2"
+                      Helper="Should render at ~5 rows on page load, no manual resize needed" />
+
+        @* 4. Error state — circle-x overlay top-right *@
+        <LipiTextArea Name="error-state"
+                      Label="Error state demo"
+                      @bind-Value="_withError"
+                      Error="This is the error overlay test" />
+
+        @* 5. Warning state — alert-triangle overlay *@
+        <LipiTextArea Name="warning-state"
+                      Label="Warning state demo"
+                      @bind-Value="_withWarning"
+                      Warning="Heads up — this is the warning overlay" />
+
+        @* 6. Success state — check overlay *@
+        <LipiTextArea Name="success-state"
+                      Label="Success state demo"
+                      @bind-Value="_withSuccess"
+                      Success="Looks good — this is the success overlay" />
+
+        @* 7. Required-empty — apricot tint when empty *@
+        <LipiTextArea Name="required-empty"
+                      Label="Required (empty → apricot tint)"
+                      Required="true"
+                      @bind-Value="_emptyRequired"
+                      Helper="Tint should clear once you start typing" />
+
+        @* 8. Read-only — dashed border, full-color text, selectable *@
+        <LipiTextArea Name="readonly-state"
+                      Label="Read-only demo"
+                      ReadOnly="true"
+                      @bind-Value="_readOnlyVal" />
+
+        @* 9. Disabled — greyed out, no interaction *@
+        <LipiTextArea Name="disabled-state"
+                      Label="Disabled demo"
+                      Disabled="true"
+                      @bind-Value="_disabledVal" />
+
+        @* 10. With confidence pill *@
+        <LipiTextArea Name="with-confidence"
+                      Label="Verified note"
+                      LabelConfidence="ConfidenceLevel.Verified"
+                      @bind-Value="_verifiedNote"
+                      Helper="Confidence pill renders inline with label" />
+
+    </div>
+
+    <div style="margin-top: 24px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>What to verify:</strong>
+        Pre-filled textarea shows ~5 rows on initial render.
+        Typing in "Clinical notes" grows the textarea live (no Blazor flash).
+        "Short note" stops at 3 rows + scrollbar.
+        Error / Warning / Success show correct top-right icon overlay.
+        Required-empty tint clears on first character.
+        Read-only is selectable; disabled is not.
+    </div>
+
+</div>
+
+@code {
+    private string? _notes;
+    private string? _brief;
+    private string? _longText = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+    private string? _withError = "This has an error attached.";
+    private string? _withWarning = "Watch out for something.";
+    private string? _withSuccess = "All checks passed.";
+    private string? _emptyRequired;
+    private string? _readOnlyVal = "Read-only content visible but not editable.\nLine 2 of read-only.";
+    private string? _disabledVal = "Disabled.";
+    private string? _verifiedNote = "Note authored by the verified clinician.";
+}

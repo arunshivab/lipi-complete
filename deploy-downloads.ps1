@@ -45,6 +45,12 @@ $files = @{
     # -- CSS -- Phase 2.0 Foundation (Decision #12, Sub-step 2.0) -------------
     "00-baseline.css"                = "src\LiPi.Web\wwwroot\css\00-baseline.css"
 
+    # -- CSS / JS -- Phase 2.2 input family shared base (Batches 3-5) ----------
+    # SPEC: docs/00-COMPONENTS/01.2-TextInputs.md (shipped Batch 6)
+    # AMEND: CHANGE-LOG.md A13 (Batch 3) + A15 (Batches 4-5.4)
+    "lipi-inputs.css"                = "src\LiPi.Web\wwwroot\css\lipi-inputs.css"
+    "lipi-input.js"                  = "src\LiPi.Web\wwwroot\js\lipi-input.js"
+
     # -- Layouts & shared components -------------------------------------------
     "TopNavLayout.razor"             = "src\LiPi.Web\Components\Layouts\TopNavLayout.razor"
     "TopNavLayout.razor.css"         = "src\LiPi.Web\Components\Layouts\TopNavLayout.razor.css"
@@ -68,6 +74,30 @@ $files = @{
     "LipiButtonTypes.cs"             = "src\LiPi.Web\Components\Shared\LipiButtonTypes.cs"
     "LipiButtonSpinner.razor"        = "src\LiPi.Web\Components\Shared\LipiButtonSpinner.razor"
     "LucideIcon.razor"               = "src\LiPi.Web\Components\Shared\LucideIcon.razor"
+
+    # -- Components -- Phase 2.2 (LipiTextBox + companions, LipiTextArea, LipiNumberInput, LipiSelect/LipiCombobox) --
+    # Batch 1 (May 4): theme tokens (A12 in CHANGE-LOG.md)
+    # Batch 2 (May 4): LipiTextBox + companions
+    # Batch 3 (May 5): LipiTextArea + lipi-inputs.css extraction (A13 pending)
+    # Batch 4 (May 5): LipiNumberInput<TValue> + lipi-input.js selectAll helper (A14 pending)
+    # Batch 4.1 (May 5): arrow keys + EditForm test page
+    # Batch 4.2 (May 5): DisableArrowKeys + BlockNonNumericInput + LipiButton hotfix
+    # Batch 4.3 (May 5): JS DOM value-sync (closes value-sync issue from 4.2 ship notes)
+    # Batch 5 (May 5): LipiSelect<TValue> + LipiCombobox<TValue,TItem> + LipiSelectBase + dropdown JS
+    "LipiTextBox.razor"              = "src\LiPi.Web\Components\Shared\LipiTextBox.razor"
+    "LipiTextBox.razor.css"          = "src\LiPi.Web\Components\Shared\LipiTextBox.razor.css"
+    "LipiTextArea.razor"             = "src\LiPi.Web\Components\Shared\LipiTextArea.razor"
+    "LipiTextArea.razor.css"         = "src\LiPi.Web\Components\Shared\LipiTextArea.razor.css"
+    "LipiNumberInput.razor"          = "src\LiPi.Web\Components\Shared\LipiNumberInput.razor"
+    "LipiNumberInput.razor.css"      = "src\LiPi.Web\Components\Shared\LipiNumberInput.razor.css"
+    "LipiSelectBase.cs"              = "src\LiPi.Web\Components\Shared\LipiSelectBase.cs"
+    "LipiSelect.razor"               = "src\LiPi.Web\Components\Shared\LipiSelect.razor"
+    "LipiSelect.razor.css"           = "src\LiPi.Web\Components\Shared\LipiSelect.razor.css"
+    "LipiCombobox.razor"             = "src\LiPi.Web\Components\Shared\LipiCombobox.razor"
+    "LipiCombobox.razor.css"         = "src\LiPi.Web\Components\Shared\LipiCombobox.razor.css"
+    "LipiTextInputTypes.cs"          = "src\LiPi.Web\Components\Shared\LipiTextInputTypes.cs"
+    "LipiInputDefaults.cs"           = "src\LiPi.Web\Components\Shared\LipiInputDefaults.cs"
+    "AutocompleteValidator.cs"       = "src\LiPi.Web\Components\Shared\AutocompleteValidator.cs"
 
     # -- Pages -- Admin --------------------------------------------------------
     "Admin.razor"                    = "src\LiPi.Web\Pages\Admin.razor"
@@ -99,6 +129,17 @@ $files = @{
     # -- Pages -- Phase 2.0 (Style Guide, Decision #12 Sub-step 2.0) ----------
     "StyleGuide.razor"               = "src\LiPi.Web\Pages\StyleGuide.razor"
     "StyleGuide.razor.css"           = "src\LiPi.Web\Pages\StyleGuide.razor.css"
+
+    # -- Pages -- Test scaffolds (Phase 2.2 verification — coexist alongside the
+    # StyleGuide showcase. Test pages exercise edge cases (200-item virtualization,
+    # locale comparison, etc.) that are too dense for the showcase grid. The
+    # StyleGuide showcase has the polished demo; these test pages stay for
+    # regression verification.) --
+    # Filename uppercase to satisfy Razor compiler (RZ10011 — component names cannot start
+    # with lowercase). Route preserved via @page directive.
+    "TextareaTest.razor"             = "src\LiPi.Web\Pages\Test\TextareaTest.razor"
+    "NumberInputTest.razor"          = "src\LiPi.Web\Pages\Test\NumberInputTest.razor"
+    "SelectTest.razor"               = "src\LiPi.Web\Pages\Test\SelectTest.razor"
 
     # -- Pages -- Auth ---------------------------------------------------------
     "Login.razor"                    = "src\LiPi.Web\Pages\Login.razor"
@@ -215,6 +256,7 @@ $files = @{
     # -- Docs -- Component Library ---------------------------------------------
     "00.2-THEMING-ARCHITECTURE.md"   = "docs\00-COMPONENTS\00.2-THEMING-ARCHITECTURE.md"
     "01.1-Buttons.md"                = "docs\00-COMPONENTS\01.1-Buttons.md"
+    "01.2-TextInputs.md"             = "docs\00-COMPONENTS\01.2-TextInputs.md"
 
     # -- Docs -- Top-level -----------------------------------------------------
     "CHANGE-LOG.md"                  = "docs\CHANGE-LOG.md"

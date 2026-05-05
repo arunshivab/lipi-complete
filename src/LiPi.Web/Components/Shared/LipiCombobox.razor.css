@@ -1,0 +1,13 @@
+/* SPEC: Phase 2.2 LipiCombobox component-specific deltas.
+   All shared select/combobox styles live in wwwroot/css/lipi-inputs.css.
+   This file is intentionally minimal for now — kept for Blazor's CSS isolation
+   bundle generation. Future per-component tweaks (e.g., richer item template
+   default styling) belong here. */
+
+/* Templated items inside the anchor display may need vertical centering when caller's
+   SelectedAnchorTemplate uses flex layout with multiple lines. Default ensures the
+   template content inherits the anchor's vertical centering without conflicts. */
+.lipi-input-select .lipi-select-display > * {
+    display: inline-flex;
+    align-items: center;
+}

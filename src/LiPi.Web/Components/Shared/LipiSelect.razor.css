@@ -1,0 +1,8 @@
+/* SPEC: Phase 2.2 LipiSelect component-specific deltas.
+   All shared select/combobox styles live in wwwroot/css/lipi-inputs.css.
+   This file is intentionally empty for now — kept for Blazor's CSS isolation
+   bundle generation and future per-component tweaks (e.g., a LipiSelect-only
+   visual variant). Adding a minimal rule to keep the file non-empty. */
+
+/* No component-specific overrides at this time. All select styles in lipi-inputs.css. */
+.lipi-input-select-marker { /* no-op marker class to keep this file present in the bundle */ }

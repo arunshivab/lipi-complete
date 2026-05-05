@@ -5,6 +5,7 @@ using LiPi.Clinic.Identity;
 using LiPi.Master;
 using LiPi.Clinic.Audit;
 using LiPi.Web;
+using LiPi.Web.Components.Shared;
 using LiPi.Web.Services;
 
 // ── Bootstrap check ──────────────────────────────────────────────────────────
@@ -91,6 +92,16 @@ builder.Services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors =
 // SPEC: docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Theme Provider Component
 builder.Services.AddScoped<IUserPreferenceService, UserPreferenceService>();
 builder.Services.AddScoped<IThemeContextService, ThemeContextService>();
+
+// ── Phase 2.2 Lipi input defaults (Decision #12, Sub-step 2.2) ─────────────
+// SPEC: docs/00-COMPONENTS/01.2-TextInputs.md (pending)
+// Global default for input components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect).
+// Per-component parameters override these defaults when set.
+// To change app-wide defaults, pass a configure delegate:
+//   builder.Services.Configure<LipiInputDefaults>(o => {
+//       o.RequiredVisualStyle = RequiredVisualStyle.AsteriskOnly;
+//   });
+builder.Services.Configure<LipiInputDefaults>(_ => { });  // accept built-in defaults
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();

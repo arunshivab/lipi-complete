@@ -1,0 +1,451 @@
+@* SPEC: Phase 2.2 Sub-step Batch 5 — verification scaffold for LipiSelect / LipiCombobox.
+   Covers: simple LipiSelect with strings/enums, LipiCombobox with rich items, search modes,
+   pinned options with headings, free-text mode, virtualization (large list), all 7 states,
+   sizes, EditForm integration with ValidationMessage.
+
+   Folded into formal StyleGuide showcase in Batch 6.
+   Filename uppercase to satisfy Razor compiler (RZ10011); route preserved via @page directive. *@
+
+@page "/test/select"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiSelect / LipiCombobox Test</PageTitle>
+
+<style>
+    .validation-message {
+        color: var(--color-danger);
+        font-size: 11px;
+        margin-top: 2px;
+        line-height: 1.3;
+    }
+    .test-field { display: flex; flex-direction: column; gap: 0; }
+    .test-status { margin-top: 16px; padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; }
+    .test-status-valid { background-color: var(--color-success-pale); color: var(--color-success-text-strong); }
+    .test-status-invalid { background-color: var(--color-danger-pale); color: var(--color-danger); }
+    .country-flag { font-size: 16px; margin-right: 8px; }
+    .country-meta { color: var(--color-text-tertiary); font-size: 12px; margin-left: auto; }
+</style>
+
+<div style="max-width: 1200px; margin: 0 auto; padding: 24px; font-family: var(--font-ui);">
+
+    <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 16px 0; color: var(--color-text-primary);">
+        LipiSelect / LipiCombobox — Batch 5 verification
+    </h1>
+    <p style="margin: 0 0 24px 0; color: var(--color-text-secondary); font-size: 14px;">
+        Click anchor to open. Type to search (when Searchable=true). Use ↑/↓ to highlight,
+        Enter to select, Escape or click-outside to close. Scroll the page with a dropdown
+        open — it should reposition (not close).
+    </p>
+
+    <EditForm Model="_model" OnValidSubmit="OnValidSubmit" OnInvalidSubmit="OnInvalidSubmit">
+        <DataAnnotationsValidator />
+
+        @* ============ SECTION 1: Simple LipiSelect ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 24px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            1. LipiSelect&lt;TValue&gt; — simple identity selector
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+
+            <div class="test-field">
+                <LipiSelect TValue="string"
+                            Name="gender"
+                            Label="Gender (no search)"
+                            Items="@_genders"
+                            Searchable="false"
+                            @bind-Value="_model.Gender"
+                            Placeholder="Select gender" />
+                <ValidationMessage For="@(() => _model.Gender)" />
+            </div>
+
+            <div class="test-field">
+                <LipiSelect TValue="string"
+                            Name="bloodgroup"
+                            Label="Blood group (search, contains)"
+                            Items="@_bloodGroups"
+                            @bind-Value="_model.BloodGroup"
+                            Placeholder="Select blood group"
+                            Required="true" />
+                <ValidationMessage For="@(() => _model.BloodGroup)" />
+            </div>
+
+            <div class="test-field">
+                <LipiSelect TValue="MaritalStatus?"
+                            Name="marital"
+                            Label="Marital status (enum)"
+                            Items="@_maritalStatuses"
+                            @bind-Value="_model.Marital"
+                            Placeholder="Select status" />
+                <ValidationMessage For="@(() => _model.Marital)" />
+            </div>
+
+        </div>
+
+        @* ============ SECTION 2: LipiCombobox with rich items ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            2. LipiCombobox&lt;TValue, TItem&gt; — rich templated items
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+
+            <div class="test-field">
+                <LipiCombobox TValue="string"
+                              TItem="CountryOption"
+                              Name="country"
+                              Label="Country (flag + name + ISD)"
+                              Items="@_countries"
+                              ValueSelector="@(c => c.IsoCode)"
+                              LabelSelector="@(c => c.Name)"
+                              SearchMode="SelectSearchMode.StartsWith"
+                              PinnedValues="@(new[] { "IN", "US", "GB" })"
+                              PinnedHeading="Common"
+                              UnpinnedHeading="All countries"
+                              @bind-Value="_model.Country"
+                              Placeholder="Select country">
+                    <ItemTemplate Context="country">
+                        <span class="country-flag">@country.Flag</span>
+                        <span class="lipi-select-option-label">@country.Name</span>
+                        <span class="country-meta">+@country.IsdCode</span>
+                    </ItemTemplate>
+                    <SelectedAnchorTemplate Context="country">
+                        <span class="country-flag">@country.Flag</span>
+                        <span>@country.Name</span>
+                    </SelectedAnchorTemplate>
+                </LipiCombobox>
+                <ValidationMessage For="@(() => _model.Country)" />
+            </div>
+
+            <div class="test-field">
+                <LipiCombobox TValue="Guid?"
+                              TItem="DoctorOption"
+                              Name="doctor"
+                              Label="Doctor (name + specialty)"
+                              Items="@_doctors"
+                              ValueSelector="@(d => (Guid?)d.Id)"
+                              LabelSelector="@(d => d.Name)"
+                              @bind-Value="_model.DoctorId"
+                              Placeholder="Select doctor">
+                    <ItemTemplate Context="doc">
+                        <span class="lipi-select-option-label">
+                            <strong>@doc.Name</strong>
+                        </span>
+                        <span class="country-meta">@doc.Specialty</span>
+                    </ItemTemplate>
+                </LipiCombobox>
+            </div>
+
+        </div>
+
+        @* ============ SECTION 3: Free-text + AllowFreeText ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            3. AllowFreeText — "Add as new" empty state
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+
+            <div class="test-field">
+                <LipiSelect TValue="string"
+                            Name="referral-strict"
+                            Label="Referral source (strict)"
+                            Items="@_referralSources"
+                            @bind-Value="_model.ReferralStrict"
+                            Placeholder="Select source"
+                            Helper="Type 'foo' — empty state shows, no add option" />
+                <ValidationMessage For="@(() => _model.ReferralStrict)" />
+            </div>
+
+            <div class="test-field">
+                <LipiSelect TValue="string"
+                            Name="referral-free"
+                            Label="Referral source (allow new)"
+                            Items="@_referralSources"
+                            AllowFreeText="true"
+                            @bind-Value="_model.ReferralFree"
+                            Placeholder="Select or add new"
+                            Helper="Type 'Other clinic' — 'Add as new' button appears" />
+            </div>
+
+        </div>
+
+        @* ============ SECTION 4: Virtualization (large list) ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            4. Virtualization (auto-detect threshold = 50)
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+
+            <div class="test-field">
+                <LipiSelect TValue="string"
+                            Name="big-list"
+                            Label="District (200 items, auto-virtualized)"
+                            Items="@_bigList"
+                            @bind-Value="_model.District"
+                            Placeholder="Select district"
+                            Helper="Should scroll smoothly through 200 items" />
+            </div>
+
+            <div class="test-field">
+                <LipiSelect TValue="string"
+                            Name="forced-novirtual"
+                            Label="District (200 items, virtualization=false)"
+                            Items="@_bigList"
+                            UseVirtualization="false"
+                            @bind-Value="_model.DistrictNoVirtual"
+                            Placeholder="Select district"
+                            Helper="Should still work but DOM is heavier" />
+            </div>
+
+        </div>
+
+        @* ============ SECTION 5: All 7 states ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            5. All 7 states
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+
+            <LipiSelect TValue="string" Name="state-default"
+                        Label="Default state" Items="@_genders"
+                        @bind-Value="_model.StateDefault" />
+
+            <LipiSelect TValue="string" Name="state-required-empty"
+                        Label="Required (empty → apricot)" Items="@_genders"
+                        Required="true" @bind-Value="_model.StateRequiredEmpty" />
+
+            <LipiSelect TValue="string" Name="state-error"
+                        Label="Error state" Items="@_genders"
+                        Error="Invalid selection" @bind-Value="_model.StateError" />
+
+            <LipiSelect TValue="string" Name="state-warning"
+                        Label="Warning state" Items="@_genders"
+                        Warning="Verify with patient" @bind-Value="_model.StateWarning" />
+
+            <LipiSelect TValue="string" Name="state-success"
+                        Label="Success state" Items="@_genders"
+                        Success="Confirmed" @bind-Value="_model.StateSuccess" />
+
+            <LipiSelect TValue="string" Name="state-readonly"
+                        Label="Read-only" Items="@_genders"
+                        ReadOnly="true" @bind-Value="_model.StateReadOnly" />
+
+            <LipiSelect TValue="string" Name="state-disabled"
+                        Label="Disabled" Items="@_genders"
+                        Disabled="true" @bind-Value="_model.StateDisabled" />
+
+            <LipiSelect TValue="string" Name="state-confidence"
+                        Label="With confidence pill" Items="@_genders"
+                        LabelConfidence="ConfidenceLevel.Verified"
+                        @bind-Value="_model.StateConfidence" />
+
+            <LipiSelect TValue="string" Name="state-icon"
+                        Label="With leading icon" Items="@_genders"
+                        Icon="user" @bind-Value="_model.StateIcon" />
+
+        </div>
+
+        @* ============ SECTION 6: Sizes ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            6. Size variants
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: end;">
+            <LipiSelect TValue="string" Name="size-small" Label="Small (28px)"
+                        Size="InputSize.Small" Items="@_genders" @bind-Value="_model.SizeSmall" />
+            <LipiSelect TValue="string" Name="size-medium" Label="Medium (32px)"
+                        Items="@_genders" @bind-Value="_model.SizeMedium" />
+            <LipiSelect TValue="string" Name="size-large" Label="Large (40px)"
+                        Size="InputSize.Large" Items="@_genders" @bind-Value="_model.SizeLarge" />
+        </div>
+
+        @* ============ SECTION 7: Alignment comparison (Batch 5.2/5.3) ============ *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 32px 0 12px 0; color: var(--color-text-strong-secondary); text-transform: uppercase; letter-spacing: 0.04em;">
+            7. Vertical alignment comparison (Medium 32px)
+        </h2>
+        <p style="margin: 0 0 12px 0; color: var(--color-text-secondary); font-size: 13px;">
+            LipiTextBox, LipiSelect, and a primary-styled button at Size=Medium (32px).
+            All three should sit at the same height with text baselines visually aligned.
+            Type sample text into the LipiTextBox and pick an option in the LipiSelect to
+            see baselines compared.
+        </p>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: end;">
+
+            <LipiTextBox Name="align-text"
+                         Label="LipiTextBox"
+                         Placeholder="Type to compare baseline"
+                         @bind-Value="_model.AlignText"
+                         Helper="32px field height" />
+
+            <LipiSelect TValue="string"
+                        Name="align-select"
+                        Label="LipiSelect"
+                        Items="@_genders"
+                        @bind-Value="_model.AlignSelect"
+                        Placeholder="Select to compare"
+                        Helper="32px field height" />
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-weight: 500; font-size: 14px; color: var(--color-text-strong-secondary);">
+                    Button (plain HTML, primary-styled)
+                </label>
+                <button type="button"
+                        style="height: 32px; padding: 0 16px;
+                               background-color: var(--color-primary);
+                               color: var(--color-primary-contrast, white);
+                               border: 0; border-radius: var(--r-sm);
+                               font-family: inherit; font-size: 14px; font-weight: 500;
+                               cursor: pointer;">
+                    Primary action
+                </button>
+                <span style="font-size: 12px; color: var(--color-text-secondary); min-height: 16px;">
+                    32px button height
+                </span>
+            </div>
+
+        </div>
+
+        @* ============ Submit + status ============ *@
+        <div style="display: flex; align-items: center; gap: 12px; margin-top: 32px;">
+            <button type="submit"
+                    style="padding: 8px 16px; background-color: var(--color-primary);
+                           color: var(--color-primary-contrast, white); border: 0;
+                           border-radius: var(--r-sm); font-family: inherit; font-size: 14px;
+                           font-weight: 500; cursor: pointer;">
+                Validate all fields
+            </button>
+            @if (_validationStatus != null)
+            {
+                <span class="test-status @(_isValid ? "test-status-valid" : "test-status-invalid")">
+                    @_validationStatus
+                </span>
+            }
+        </div>
+
+    </EditForm>
+
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>What to verify:</strong>
+        <br /> • <strong>Open/close:</strong> click anchor opens dropdown; click outside closes; Escape closes; Tab closes (commits highlighted if any).
+        <br /> • <strong>Search:</strong> type "ma" in Country (StartsWith) shows Madagascar, Malawi, Malaysia... Type "ind" in Country (StartsWith) shows India, Indonesia. Type "an" in Blood group (Contains) shows nothing for blood groups (no match).
+        <br /> • <strong>Keyboard:</strong> ↑/↓ moves highlight, Enter selects, mouse hover updates highlight.
+        <br /> • <strong>Pinned:</strong> Country dropdown shows India / United States / United Kingdom at top under "Common", divider, then "All countries" alphabetical.
+        <br /> • <strong>Free text:</strong> in "Referral (allow new)", type "Walk-in clinic" → empty state shows "Add as new" button → click commits "Walk-in clinic" as the value.
+        <br /> • <strong>Virtualization:</strong> District (200 items) opens fast, scrolls smoothly. Open it, scroll halfway, type "10" — list filters to district-10x.
+        <br /> • <strong>Reposition on scroll:</strong> open Country dropdown, scroll the page → dropdown follows the anchor, doesn't close.
+        <br /> • <strong>Flip-up:</strong> open a select near the bottom of viewport — dropdown should flip above the anchor.
+        <br /> • <strong>States:</strong> all 7 states render correctly with chevron / circle-x / triangle / check overlays.
+    </div>
+
+</div>
+
+@code {
+    private TestModel _model = new();
+    private string? _validationStatus;
+    private bool _isValid;
+
+    private void OnValidSubmit() { _isValid = true; _validationStatus = "✓ All fields valid"; }
+    private void OnInvalidSubmit() { _isValid = false; _validationStatus = "✗ Some fields invalid — see messages"; }
+
+    // ===== Sample data =====
+    private static readonly string[] _genders = { "Male", "Female", "Other", "Prefer not to say" };
+    private static readonly string[] _bloodGroups = { "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-" };
+    private static readonly MaritalStatus?[] _maritalStatuses =
+    {
+        MaritalStatus.Single, MaritalStatus.Married, MaritalStatus.Divorced,
+        MaritalStatus.Widowed, MaritalStatus.Separated
+    };
+    private static readonly string[] _referralSources =
+    {
+        "Self", "GP referral", "Specialist referral", "Insurance referral",
+        "Hospital network", "Online search", "Friend/family"
+    };
+
+    private static readonly CountryOption[] _countries =
+    {
+        new("IN", "India",         "🇮🇳", "91"),
+        new("US", "United States", "🇺🇸", "1"),
+        new("GB", "United Kingdom","🇬🇧", "44"),
+        new("AF", "Afghanistan",   "🇦🇫", "93"),
+        new("AL", "Albania",       "🇦🇱", "355"),
+        new("DZ", "Algeria",       "🇩🇿", "213"),
+        new("AR", "Argentina",     "🇦🇷", "54"),
+        new("AU", "Australia",     "🇦🇺", "61"),
+        new("AT", "Austria",       "🇦🇹", "43"),
+        new("BD", "Bangladesh",    "🇧🇩", "880"),
+        new("BR", "Brazil",        "🇧🇷", "55"),
+        new("CA", "Canada",        "🇨🇦", "1"),
+        new("CN", "China",         "🇨🇳", "86"),
+        new("FR", "France",        "🇫🇷", "33"),
+        new("DE", "Germany",       "🇩🇪", "49"),
+        new("ID", "Indonesia",     "🇮🇩", "62"),
+        new("IT", "Italy",         "🇮🇹", "39"),
+        new("JP", "Japan",         "🇯🇵", "81"),
+        new("MY", "Malaysia",      "🇲🇾", "60"),
+        new("MX", "Mexico",        "🇲🇽", "52"),
+        new("NL", "Netherlands",   "🇳🇱", "31"),
+        new("NZ", "New Zealand",   "🇳🇿", "64"),
+        new("PK", "Pakistan",      "🇵🇰", "92"),
+        new("PH", "Philippines",   "🇵🇭", "63"),
+        new("RU", "Russia",        "🇷🇺", "7"),
+        new("SG", "Singapore",     "🇸🇬", "65"),
+        new("ZA", "South Africa",  "🇿🇦", "27"),
+        new("KR", "South Korea",   "🇰🇷", "82"),
+        new("ES", "Spain",         "🇪🇸", "34"),
+        new("LK", "Sri Lanka",     "🇱🇰", "94"),
+        new("CH", "Switzerland",   "🇨🇭", "41"),
+        new("TH", "Thailand",      "🇹🇭", "66"),
+        new("AE", "UAE",           "🇦🇪", "971"),
+        new("VN", "Vietnam",       "🇻🇳", "84")
+    };
+
+    private DoctorOption[] _doctors = Enumerable.Range(1, 8).Select(i => new DoctorOption(
+        Guid.Parse($"00000000-0000-0000-0000-{i:D12}"),
+        $"Dr. {(i % 2 == 0 ? "Anjali" : "Rahul")} {(char)('A' + i)}",
+        new[] { "Cardiology", "Oncology", "General Medicine", "Radiology", "Pediatrics" }[i % 5]
+    )).ToArray();
+
+    private string[] _bigList = Enumerable.Range(1, 200)
+        .Select(i => $"District {i:D3}")
+        .ToArray();
+
+    public class TestModel
+    {
+        // Section 1
+        public string? Gender { get; set; }
+        [Required(ErrorMessage = "Blood group is required for record")]
+        public string? BloodGroup { get; set; }
+        public MaritalStatus? Marital { get; set; }
+
+        // Section 2
+        public string? Country { get; set; } = "IN";
+        public Guid? DoctorId { get; set; }
+
+        // Section 3
+        public string? ReferralStrict { get; set; }
+        public string? ReferralFree { get; set; }
+
+        // Section 4
+        public string? District { get; set; }
+        public string? DistrictNoVirtual { get; set; }
+
+        // Section 5
+        public string? StateDefault { get; set; }
+        public string? StateRequiredEmpty { get; set; }
+        public string? StateError { get; set; } = "Other";
+        public string? StateWarning { get; set; } = "Other";
+        public string? StateSuccess { get; set; } = "Female";
+        public string? StateReadOnly { get; set; } = "Male";
+        public string? StateDisabled { get; set; }
+        public string? StateConfidence { get; set; } = "Female";
+        public string? StateIcon { get; set; } = "Other";
+
+        // Section 6
+        public string? SizeSmall { get; set; }
+        public string? SizeMedium { get; set; } = "Female";
+        public string? SizeLarge { get; set; }
+
+        // Section 7 — alignment comparison (Batch 5.2/5.3)
+        public string? AlignText { get; set; } = "Sample text";
+        public string? AlignSelect { get; set; } = "Female";
+    }
+
+    public enum MaritalStatus { Single, Married, Divorced, Widowed, Separated }
+    public record CountryOption(string IsoCode, string Name, string Flag, string IsdCode);
+    public record DoctorOption(Guid Id, string Name, string Specialty);
+}
