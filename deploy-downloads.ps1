@@ -78,18 +78,20 @@ $files = @{
     # -- Components -- Phase 2.2 (LipiTextBox + companions, LipiTextArea, LipiNumberInput, LipiSelect/LipiCombobox) --
     # Batch 1 (May 4): theme tokens (A12 in CHANGE-LOG.md)
     # Batch 2 (May 4): LipiTextBox + companions
-    # Batch 3 (May 5): LipiTextArea + lipi-inputs.css extraction (A13 pending)
-    # Batch 4 (May 5): LipiNumberInput<TValue> + lipi-input.js selectAll helper (A14 pending)
+    # Batch 3 (May 5): LipiTextArea + lipi-inputs.css extraction (A13)
+    # Batch 4 (May 5): LipiNumberInput<TValue> + lipi-input.js selectAll helper (A15)
     # Batch 4.1 (May 5): arrow keys + EditForm test page
     # Batch 4.2 (May 5): DisableArrowKeys + BlockNonNumericInput + LipiButton hotfix
     # Batch 4.3 (May 5): JS DOM value-sync (closes value-sync issue from 4.2 ship notes)
     # Batch 5 (May 5): LipiSelect<TValue> + LipiCombobox<TValue,TItem> + LipiSelectBase + dropdown JS
+    # Phase 2.2.5 Batch 8a (May ?): LipiInputBase shared base for EditContext auto-population (A16)
     "LipiTextBox.razor"              = "src\LiPi.Web\Components\Shared\LipiTextBox.razor"
     "LipiTextBox.razor.css"          = "src\LiPi.Web\Components\Shared\LipiTextBox.razor.css"
     "LipiTextArea.razor"             = "src\LiPi.Web\Components\Shared\LipiTextArea.razor"
     "LipiTextArea.razor.css"         = "src\LiPi.Web\Components\Shared\LipiTextArea.razor.css"
     "LipiNumberInput.razor"          = "src\LiPi.Web\Components\Shared\LipiNumberInput.razor"
     "LipiNumberInput.razor.css"      = "src\LiPi.Web\Components\Shared\LipiNumberInput.razor.css"
+    "LipiInputBase.cs"               = "src\LiPi.Web\Components\Shared\LipiInputBase.cs"
     "LipiSelectBase.cs"              = "src\LiPi.Web\Components\Shared\LipiSelectBase.cs"
     "LipiSelect.razor"               = "src\LiPi.Web\Components\Shared\LipiSelect.razor"
     "LipiSelect.razor.css"           = "src\LiPi.Web\Components\Shared\LipiSelect.razor.css"
@@ -140,6 +142,7 @@ $files = @{
     "TextareaTest.razor"             = "src\LiPi.Web\Pages\Test\TextareaTest.razor"
     "NumberInputTest.razor"          = "src\LiPi.Web\Pages\Test\NumberInputTest.razor"
     "SelectTest.razor"               = "src\LiPi.Web\Pages\Test\SelectTest.razor"
+    "TextboxTest.razor"              = "src\LiPi.Web\Pages\Test\TextboxTest.razor"
 
     # -- Pages -- Auth ---------------------------------------------------------
     "Login.razor"                    = "src\LiPi.Web\Pages\Login.razor"

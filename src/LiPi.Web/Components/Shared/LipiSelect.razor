@@ -41,7 +41,8 @@
          aria-controls="@EffectiveDropdownId"
          tabindex="@(Disabled ? -1 : 0)"
          @onclick="HandleAnchorClick"
-         @onkeydown="HandleKeyDown">
+         @onkeydown="HandleKeyDown"
+         @onblur="HandleAnchorBlur">
 
         @if (!string.IsNullOrEmpty(Icon))
         {

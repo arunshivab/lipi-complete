@@ -541,6 +541,112 @@ The amendments above bring the spec into sync with deployed Phase 2.0 work. The 
 
 ---
 
+## v1.0 — AMENDMENTS (May 6, 2026)
+
+> A16 documents Phase 2.2.5 — the EditContext auto-population migration. Three
+> batches (8a, 8b, 8c) executed sequentially with verification gates between
+> each. The five Phase 2.2 components now derive from a shared
+> `LipiInputBase<TValue>` abstract class that owns common parameters, services,
+> EditContext subscription, and the touched-state validation pattern.
+
+### A16 — Phase 2.2.5 EditContext auto-population (LipiInputBase + 5-component migration)
+
+**Trigger.** Phase 2.2 components shipped with explicit `<ValidationMessage For>` markup required adjacent to every input — verbose for callers and inconsistent with how production form libraries (Material UI, Carbon, Ant Design) integrate validation. The fix: each component subscribes to `EditContext.OnValidationStateChanged` internally and populates its own helper slot with the current validation message. Caller markup becomes `<LipiTextBox Name="email" @bind-Value="model.Email" />` with no separate ValidationMessage tag.
+
+**Batches & sequencing.**
+
+- **Batch 8a** (May 5 → May 6): LipiInputBase class created. LipiTextBox migrated to inherit from it. Two-step verification: (Step 1) ship with comparison-baseline `<ValidationMessage>` visible alongside auto-populated helper slot; user verifies texts match; (Step 2) remove comparison baseline, leaving pure E2 form. Closed clean across 5 sub-iterations (8a, 8a.1, 8a.2, 8a.3, 8a.4) covering build issues caught by tightening checks.
+- **Batch 8b** (May 6): LipiTextArea + LipiNumberInput migrated. ~400 lines of duplicated code eliminated across the two components. LipiNumberInput's raw → formatted display switch on blur uses the new `OnFieldBlurred` virtual hook on the base.
+- **Batch 8c** (May 6): LipiSelectBase migrated to a 3-level hierarchy (`InputBase<TValue>` → `LipiInputBase<TValue>` → `LipiSelectBase<TValue, TItem>` → `LipiSelect<TValue>` / `LipiCombobox<TValue, TItem>`). LipiSelectBase implements both IDisposable (inherited) AND IAsyncDisposable (own JS handler cleanup). Touched-state pattern wired into three trigger points: `CloseDropdownAsync`, `SelectItem`, and a new `HandleAnchorBlur` for tab-past handling.
+
+**LipiInputBase architecture.**
+
+- Abstract class, derives from `InputBase<TValue>`, implements `IDisposable`. Microsoft's `InputBase<TValue>` already provides the disposal pattern; we extend rather than hide it. EditContext detach is genuinely synchronous (`-=` on an event handler), so IAsyncDisposable would be ceremony without functional benefit. Components needing async cleanup (LipiSelectBase) layer IAsyncDisposable on top.
+- 18 common `[Parameter]` declarations: Name, Label, Placeholder, Helper, Error, Warning, Success, Required, Disabled, ReadOnly, Autocomplete, Size, Icon, AriaDescribedBy, RequiredVisualStyle, LabelConfidence, Cols, Class.
+- 3 injected services: `IOptions<LipiInputDefaults>`, `IWebHostEnvironment`, `ILogger<LipiInputBase<TValue>>`. Component-specific injections (`IJSRuntime` for LipiTextArea/NumberInput/SelectBase) layer on top.
+- `EditContext.OnValidationStateChanged` subscription via `OnInitialized`, with swap-handling in `OnParametersSet` (`ReferenceEquals` guard against the same `EditContext` instance, manual detach + reattach when EditContext is replaced).
+- `_editContextError` field + `EffectiveError` property: `Error ?? _editContextError`. Caller-set `Error` wins display, but does NOT fail `EditContext.Validate()` (intentional — see §10.10 of 01.2-TextInputs.md). For submission-blocking server-side errors, callers handle in `OnValidSubmit` or use a custom validator with `EditContext.GetMessageStore()`.
+- State precedence cascade (Disabled > ReadOnly > Error > Success > Warning > RequiredEmpty > Default) reads `EffectiveError` so EditContext-driven errors elevate state correctly.
+- Touched-state pattern: `_isTouched` bool, defaults false. `HandleValidationStateChanged` gates `_editContextError` update on `_isTouched` — silent until first blur, then live updates per keystroke. Matches Material UI / Carbon / Ant Design industry standard.
+- `HandleBlur(FocusEventArgs)` method bound via `@onblur` in concrete components. Marks `_isTouched=true`, calls `EditContext.NotifyFieldChanged(FieldIdentifier)` to force `[Required]` validation on tab-past empty fields, calls virtual `OnFieldBlurred(FocusEventArgs)` hook for component-specific behavior.
+- `MarkFieldAsTouched()` args-free helper extracted in Batch 8c for components without a single input element (selects with anchor + dynamic search input). Idempotent.
+- Virtual extension points: `ComponentIdPrefix` (e.g., "tb", "ta", "ni", "sel"), `ComponentTypeName` for log categories, `IsEmpty` (default `CurrentValue is null`; LipiTextBox/Area override to `string.IsNullOrEmpty(CurrentValueAsString)`), `CollectParameterValidationErrors` for component-specific checks (IconRightAriaLabel-required-when-clickable, MinRows/MaxRows ordering, Min/Max ordering, Locale validity, Items-required for selects).
+- Anonymous-id fallback (Production): `_cachedAnonymousId ??= AnonymousIdPrefix + Guid.NewGuid().ToString("N")[..8]`. Cached once per component lifetime. Each ComponentIdPrefix maps to its own AnonymousIdPrefix via virtual property.
+
+**Touched-state pattern across the family.**
+
+| Component | Trigger 1 (primary) | Trigger 2 | Trigger 3 |
+|-----------|---------------------|-----------|-----------|
+| LipiTextBox    | `@onblur="HandleBlur"` on `<input>` | — | — |
+| LipiTextArea   | `@onblur="HandleBlur"` on `<textarea>` | — | — |
+| LipiNumberInput | `@onblur="HandleBlur"` on `<input>` (also fires `OnFieldBlurred` to switch raw→formatted) | — | — |
+| LipiSelect / LipiCombobox | `CloseDropdownAsync` (outside-click, Escape, Tab-with-commit) | `SelectItem` (item click or Enter on highlight) | `HandleAnchorBlur` (tab-past closed dropdown). Guard: skip if `_isOpen` (mid-interaction) |
+
+**Pre-delivery quality check (memory rule #25).**
+
+Adopted as standing process during Batch 8a debugging. Before declaring files shipped, self-check: (1) Razor tag balance — every `<Tag>` has matching `</Tag>` or self-closing `/>`, especially `<ValidationMessage>`, `<Virtualize>`, generic components; (2) C# brace and semicolon balance (compare `{` vs `}` counts); (3) `@using` directives present for all referenced types; (4) Cache version consistency across files; (5) Deploy script entries for new files. Strategic chat verifies the same during review.
+
+**Issues caught in 8a debugging that informed memory #25.**
+
+- `RequiredVisualStyle` parameter shadows the enum type of the same name in instance scope. Bare `RequiredVisualStyle.ApricotTint` resolves to the property, not the type. Fix: fully-qualify `LiPi.Web.Components.Shared.RequiredVisualStyle.ApricotTint`. The original LipiSelectBase and LipiNumberInput already had this workaround; it dropped during consolidation into LipiInputBase and was restored in Batch 8a.1.
+- `Dispose(bool)` was declared `protected virtual` instead of `protected override`. CS0114 caught it. `InputBase<TValue>` already provides the virtual; we extend it. Fixed in 8a.2 along with removing duplicate `public Dispose()` and adding `base.Dispose(disposing)` call.
+- LipiSelectBase's `TryParseValueFromString` signature didn't match Microsoft's nullability annotations (`[MaybeNullWhen(false)] out TValue result`, `[NotNullWhen(false)] out string? validationErrorMessage`). CS8765 caught it after enabling stricter nullability. Fixed in 8a.2.
+- Razor's lexer scans CSS string literals AND CSS comments inside `<style>` blocks for component tags. Literal `<ValidationMessage>` text inside a CSS pseudo-element content string AND inside a CSS comment both triggered RZ10001 + RZ1034. Fixes: hex escape `\3CValidationMessage\3E` in CSS strings (Batch 8a.2), describe in prose without literal angle brackets in comments (Batch 8a.3). The pattern is now: never write the literal `<` followed by an identifier character anywhere inside a `<style>` block — string content, comment, or anywhere else.
+
+**Issue gaps that became "documented behavior, not bugs" in 01.2-TextInputs.md §10.**
+
+- §10.6 (✅ shipped): EditContext auto-population (this amendment delivers it).
+- §10.7 (UX): Validation suppressed until first blur (touched-state pattern). Microsoft's `InputBase<TValue>` does NOT do this — `LipiInputBase<TValue>` adds it at the family level so all five components inherit the right UX.
+- §10.8: `[EmailAddress]` regex is permissive (`abc@abc` passes). .NET behavior, not a component limitation. Callers add `[RegularExpression]` for stricter validation.
+- §10.9: LipiTextBox doesn't block non-numeric input at keystroke level. Use `[RegularExpression]` for validation, or LipiNumberInput for digit-only fields. `BlockNonNumericInput` parameter on LipiTextBox is a candidate Phase 2.3 enhancement.
+- §10.10: Caller-set `Error` displays but doesn't fail `EditContext.Validate()`. For submission-blocking errors, check the underlying state in `OnValidSubmit` handler. `LipiServerValidationProvider` is a candidate Phase 2.3 helper for the unified pattern.
+
+**Files shipped across Phase 2.2.5.**
+
+```
+NEW (1):
+  src/LiPi.Web/Components/Shared/LipiInputBase.cs                  (Batch 8a)
+RESHIP (8):
+  src/LiPi.Web/Components/Shared/LipiTextBox.razor                 (Batch 8a)
+  src/LiPi.Web/Components/Shared/LipiTextArea.razor                (Batch 8b)
+  src/LiPi.Web/Components/Shared/LipiNumberInput.razor             (Batch 8b)
+  src/LiPi.Web/Components/Shared/LipiSelectBase.cs                 (Batch 8c)
+  src/LiPi.Web/Components/Shared/LipiSelect.razor                  (Batch 8c)
+  src/LiPi.Web/Components/Shared/LipiCombobox.razor                (Batch 8c)
+  src/LiPi.Web/Pages/Test/TextboxTest.razor                        (Batch 8a)
+  src/LiPi.Web/Pages/Test/TextareaTest.razor                       (Batch 8b)
+  src/LiPi.Web/Pages/Test/NumberInputTest.razor                    (Batch 8b)
+  src/LiPi.Web/Pages/Test/SelectTest.razor                         (Batch 8c)
+  docs/00-COMPONENTS/01.2-TextInputs.md                            (Batch 8a, 8c)
+  docs/CHANGE-LOG.md                                               (this entry)
+  deploy-downloads.ps1                                             (Batch 8a)
+```
+
+**Lines of code impact.**
+
+- LipiInputBase.cs: 0 → ~480 lines (new abstract class)
+- LipiTextBox.razor: 537 → 263 lines (~274 lines removed)
+- LipiTextArea.razor: 537 → 344 lines (~193 lines removed)
+- LipiNumberInput.razor: 866 → 667 lines (~199 lines removed)
+- LipiSelectBase.cs: 757 → ~580 lines (~177 lines removed)
+- LipiSelect.razor / LipiCombobox.razor: 1 line added each (`@onblur` wiring)
+
+Net: roughly 800 lines of duplicated code consolidated into the 480-line LipiInputBase, with the touched-state pattern + EditContext subscription added at the family level (would have been ~150 lines × 5 = 750 lines if added per-component instead).
+
+**Verification matrix.** Each batch closed only after the corresponding test page passed user verification on the matching sub-route:
+
+- `/test/textbox` (Batch 8a) — verified clean May 5
+- `/test/textarea` + `/test/number` (Batch 8b) — verified clean May 6
+- `/test/select` (Batch 8c) — pending verification at this writing
+
+**Phase 2.2 Sub-step Status table.** The Phase 2.2 sub-step table earlier in this document marks Phase 2.2.5 as ✅ complete after Batch 8c verifies clean.
+
+**A14 status update (post-A16).** A14 (LipiButton env-gated retrofit) trigger condition has been doubly satisfied: first by A15 (Phase 2.2 components shipping the pattern), now by A16 (Phase 2.2.5 consolidating the pattern into LipiInputBase). Retrofit pattern: extend the LipiButton parameter validation to use the env-gated `Env.IsDevelopment() ? throw : log + fallback` pattern, removing the current always-throw. A14 still scheduled for v1.1 sprint planning.
+
+**Coordination with deploy script.** Batch 8a updated `deploy-downloads.ps1` to include `LipiInputBase.cs` and `TextboxTest.razor`. The other 4 components (LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox) and their test pages were already mapped from Phase 2.2 batches — no additional script edits needed. The deploy script does not version files, so reships overwrite cleanly.
+
+---
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)

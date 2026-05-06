@@ -1,116 +1,214 @@
-@* SPEC: Phase 2.2 Sub-step Batch 3 — verification scaffold for LipiTextArea.
-   Folded into formal StyleGuide showcase in Batch 6.
-   Filename uppercase to satisfy Razor compiler (RZ10011); route preserved via @page directive. *@
+@* SPEC: docs/00-COMPONENTS/01.2-TextInputs.md (LipiTextArea verification)
+   PHASE: 2.2.5 Batch 8b — final E2 state with EditContext auto-population.
+
+   No manual <ValidationMessage> component tags. Validation flows automatically
+   through the helper slot via LipiInputBase's EditContext subscription. Test
+   cases exercise:
+   - Touched-state pattern (silent until first blur, then live)
+   - Force-validation on tab-past empty Required fields
+   - All 7 states + sizes
+   - Autogrow behavior (live during typing, no Blazor round-trip)
+   - MaxRows clamp (textarea switches to scrolling at limit)
+*@
 
 @page "/test/textarea"
 @rendermode InteractiveServer
 
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
 @using LiPi.Web.Components.Shared
 
-<PageTitle>LipiTextArea Test</PageTitle>
+<PageTitle>LipiTextArea Test (Phase 2.2.5)</PageTitle>
+
+<style>
+    .field-divider {
+        margin: 24px 0;
+        border-top: 1px solid var(--color-border-subtle);
+    }
+    .test-status {
+        margin-top: 16px;
+        padding: 8px 12px;
+        border-radius: var(--r-sm);
+        font-size: 13px;
+        font-weight: 500;
+    }
+    .test-status-valid   { background-color: var(--color-success-pale); color: var(--color-success-text-strong); }
+    .test-status-invalid { background-color: var(--color-danger-pale);  color: var(--color-danger); }
+</style>
 
 <div style="max-width: 1100px; margin: 0 auto; padding: 24px; font-family: var(--font-ui);">
 
-    <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 16px 0; color: var(--color-text-primary);">
-        LipiTextArea — Batch 3 verification
+    <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 8px 0; color: var(--color-text-primary);">
+        LipiTextArea — Phase 2.2.5 EditContext auto-population
     </h1>
-    <p style="margin: 0 0 24px 0; color: var(--color-text-secondary); font-size: 14px;">
-        Live autogrow on typing, initial measure for pre-filled values, all 7 states, MaxRows clamp.
+    <p style="margin: 0 0 24px 0; color: var(--color-text-secondary); font-size: 13px;">
+        DataAnnotations validation flows automatically into helper slots via
+        <code style="background: var(--color-bg-subtle); padding: 1px 4px; border-radius: 3px;">LipiInputBase</code>.
+        Validation is suppressed until first blur (touched-state); after first blur,
+        updates live as the user types. Autogrow remains JS-driven — zero Blazor
+        round-trip on typing.
     </p>
 
-    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+    <EditForm Model="_model" OnValidSubmit="OnValidSubmit" OnInvalidSubmit="OnInvalidSubmit">
+        <DataAnnotationsValidator />
 
-        @* 1. Live autogrow — type to see height adjust *@
+        @* ===== Required + autogrow ===== *@
         <LipiTextArea Name="notes"
                       Label="Clinical notes"
                       Required="true"
-                      @bind-Value="_notes"
                       Placeholder="Type to test autogrow…"
-                      Helper="Should grow as you type, clamped at 8 rows" />
+                      Helper="Should grow as you type, clamped at 8 rows"
+                      @bind-Value="_model.Notes" />
 
-        @* 2. Small variant + tight MaxRows clamp *@
-        <LipiTextArea Name="brief"
-                      Label="Short note (small, MaxRows=3)"
-                      Size="InputSize.Small"
-                      MinRows="1"
-                      MaxRows="3"
-                      @bind-Value="_brief"
-                      Placeholder="Type to hit the 3-row ceiling…" />
+        <div class="field-divider"></div>
 
-        @* 3. Pre-filled with multi-line value — autogrow on first render *@
-        <LipiTextArea Name="long-prefilled"
-                      Label="Pre-filled (autogrow on init)"
-                      @bind-Value="_longText"
-                      Cols="2"
-                      Helper="Should render at ~5 rows on page load, no manual resize needed" />
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
 
-        @* 4. Error state — circle-x overlay top-right *@
-        <LipiTextArea Name="error-state"
-                      Label="Error state demo"
-                      @bind-Value="_withError"
-                      Error="This is the error overlay test" />
+            @* ===== StringLength validation ===== *@
+            <LipiTextArea Name="bio"
+                          Label="Short bio"
+                          Helper="Max 200 characters"
+                          Placeholder="A few sentences about yourself"
+                          MaxLength="200"
+                          @bind-Value="_model.Bio" />
 
-        @* 5. Warning state — alert-triangle overlay *@
-        <LipiTextArea Name="warning-state"
-                      Label="Warning state demo"
-                      @bind-Value="_withWarning"
-                      Warning="Heads up — this is the warning overlay" />
+            @* ===== MaxRows clamp ===== *@
+            <LipiTextArea Name="address"
+                          Label="Multi-line address"
+                          MinRows="3"
+                          MaxRows="4"
+                          Placeholder="Type many lines to verify scroll kicks in at 4 rows"
+                          Helper="Caps at 4 rows then scrolls"
+                          @bind-Value="_model.Address" />
 
-        @* 6. Success state — check overlay *@
-        <LipiTextArea Name="success-state"
-                      Label="Success state demo"
-                      @bind-Value="_withSuccess"
-                      Success="Looks good — this is the success overlay" />
+        </div>
 
-        @* 7. Required-empty — apricot tint when empty *@
-        <LipiTextArea Name="required-empty"
-                      Label="Required (empty → apricot tint)"
-                      Required="true"
-                      @bind-Value="_emptyRequired"
-                      Helper="Tint should clear once you start typing" />
+        <div class="field-divider"></div>
 
-        @* 8. Read-only — dashed border, full-color text, selectable *@
-        <LipiTextArea Name="readonly-state"
-                      Label="Read-only demo"
-                      ReadOnly="true"
-                      @bind-Value="_readOnlyVal" />
+        @* ===== States ===== *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: var(--color-text-secondary);">States</h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
 
-        @* 9. Disabled — greyed out, no interaction *@
-        <LipiTextArea Name="disabled-state"
-                      Label="Disabled demo"
-                      Disabled="true"
-                      @bind-Value="_disabledVal" />
+            <LipiTextArea Name="ta-default"
+                          Label="Default"
+                          Placeholder="Type something"
+                          @bind-Value="_model.StateDefault" />
 
-        @* 10. With confidence pill *@
-        <LipiTextArea Name="with-confidence"
-                      Label="Verified note"
-                      LabelConfidence="ConfidenceLevel.Verified"
-                      @bind-Value="_verifiedNote"
-                      Helper="Confidence pill renders inline with label" />
+            <LipiTextArea Name="ta-required"
+                          Label="Required (empty → apricot)"
+                          Required="true"
+                          Placeholder="Type to clear apricot tint"
+                          @bind-Value="_model.StateRequired" />
 
-    </div>
+            <LipiTextArea Name="ta-warning"
+                          Label="Warning state"
+                          Warning="Verify content with patient before saving"
+                          @bind-Value="_model.StateWarning" />
 
-    <div style="margin-top: 24px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+            <LipiTextArea Name="ta-success"
+                          Label="Success state"
+                          Success="Notes look complete"
+                          @bind-Value="_model.StateSuccess" />
+
+            <LipiTextArea Name="ta-readonly"
+                          Label="Read-only"
+                          ReadOnly="true"
+                          @bind-Value="_model.StateReadonly" />
+
+            <LipiTextArea Name="ta-disabled"
+                          Label="Disabled"
+                          Disabled="true"
+                          @bind-Value="_model.StateDisabled" />
+
+        </div>
+
+        <div class="field-divider"></div>
+
+        @* ===== Sizes ===== *@
+        <h2 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: var(--color-text-secondary);">Sizes</h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start;">
+            <LipiTextArea Name="ta-small" Label="Small" Size="InputSize.Small"
+                          Placeholder="Compact"
+                          @bind-Value="_model.SizeSmall" />
+            <LipiTextArea Name="ta-medium" Label="Medium (default)"
+                          Placeholder="Standard"
+                          @bind-Value="_model.SizeMedium" />
+            <LipiTextArea Name="ta-large" Label="Large" Size="InputSize.Large"
+                          Placeholder="Comfortable"
+                          @bind-Value="_model.SizeLarge" />
+        </div>
+
+        <div class="field-divider"></div>
+
+        <button type="submit"
+                style="padding: 8px 16px; background-color: var(--color-primary);
+                       color: var(--color-primary-contrast, white); border: 0;
+                       border-radius: var(--r-sm); font-family: inherit; font-size: 14px;
+                       font-weight: 500; cursor: pointer;">
+            Validate All Fields
+        </button>
+
+        @if (_validationStatus != null)
+        {
+            <div class="test-status @(_isValid ? "test-status-valid" : "test-status-invalid")">
+                @_validationStatus
+            </div>
+        }
+
+    </EditForm>
+
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary); line-height: 1.5;">
         <strong>What to verify:</strong>
-        Pre-filled textarea shows ~5 rows on initial render.
-        Typing in "Clinical notes" grows the textarea live (no Blazor flash).
-        "Short note" stops at 3 rows + scrollbar.
-        Error / Warning / Success show correct top-right icon overlay.
-        Required-empty tint clears on first character.
-        Read-only is selectable; disabled is not.
+        <br /> • <strong>Force-validation on tab-past:</strong> click into "Clinical notes" and tab out without typing → "Notes are required" appears.
+        <br /> • <strong>Touched-state:</strong> typing into Notes stays silent until first blur, then validates live.
+        <br /> • <strong>Autogrow:</strong> typing multi-line content in Notes grows the textarea up to 8 rows, then scrolls. Zero Blazor round-trip.
+        <br /> • <strong>MaxRows clamp:</strong> typing many lines in "Multi-line address" caps at 4 rows then scrolls.
+        <br /> • <strong>StringLength:</strong> in Bio, type more than 200 characters — browser blocks input at 200 (maxlength HTML attr).
+        <br /> • <strong>States:</strong> all 7 states render with correct colors, helper text, icons.
+        <br /> • <strong>Apricot tint suppressed during error:</strong> Required fields in Error state should NOT show apricot.
     </div>
 
 </div>
 
 @code {
-    private string? _notes;
-    private string? _brief;
-    private string? _longText = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
-    private string? _withError = "This has an error attached.";
-    private string? _withWarning = "Watch out for something.";
-    private string? _withSuccess = "All checks passed.";
-    private string? _emptyRequired;
-    private string? _readOnlyVal = "Read-only content visible but not editable.\nLine 2 of read-only.";
-    private string? _disabledVal = "Disabled.";
-    private string? _verifiedNote = "Note authored by the verified clinician.";
+    private TestModel _model = new();
+    private string? _validationStatus;
+    private bool _isValid;
+
+    private void OnValidSubmit()
+    {
+        _isValid = true;
+        _validationStatus = "✓ All fields valid";
+    }
+
+    private void OnInvalidSubmit()
+    {
+        _isValid = false;
+        _validationStatus = "✗ Some fields invalid — see helper slots";
+    }
+
+    public class TestModel
+    {
+        [Required(ErrorMessage = "Notes are required")]
+        [StringLength(2000, ErrorMessage = "Notes must be under 2000 characters")]
+        public string? Notes { get; set; }
+
+        [StringLength(200, ErrorMessage = "Bio must be under 200 characters")]
+        public string? Bio { get; set; }
+
+        public string? Address { get; set; }
+
+        // States demo (no validation)
+        public string? StateDefault   { get; set; }
+        public string? StateRequired  { get; set; }
+        public string? StateWarning   { get; set; }
+        public string? StateSuccess   { get; set; } = "Sample text already entered";
+        public string? StateReadonly  { get; set; } = "Cannot be edited";
+        public string? StateDisabled  { get; set; }
+
+        // Sizes demo
+        public string? SizeSmall  { get; set; }
+        public string? SizeMedium { get; set; }
+        public string? SizeLarge  { get; set; }
+    }
 }

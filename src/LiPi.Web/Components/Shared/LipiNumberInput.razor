@@ -1,47 +1,32 @@
-@* SPEC: Phase 2.2 Sub-step Batch 4 — LipiNumberInput<TValue> component                    *@
-@* Generic numeric input with locale-aware formatting, optional steppers, Min/Max bounds.    *@
-@* Namespace: LiPi.Web.Components.Shared                                                     *@
-@*                                                                                            *@
-@* Design summary:                                                                            *@
-@*   - @typeparam TValue : InputBase<TValue>                                                  *@
-@*       Supported: int, long, short, byte, sbyte, uint, ulong, ushort,                       *@
-@*                  decimal, double, float — and their Nullable<T> variants.                  *@
-@*       Type-checked at OnInitialized; non-numeric TValue throws (Dev) or logs (Prod).       *@
-@*                                                                                            *@
-@*   - Empty-string handling: nullable TValue → null (valid, value cleared).                  *@
-@*       Non-nullable TValue → parse fails, validation message "Must be a number."            *@
-@*       Caller chooses by type: int? for optional, int for "must enter a number".            *@
-@*                                                                                            *@
-@*   - Locale formatting: 3-tier — Locale param > LipiInputDefaults.NumberLocale > "en-IN".   *@
-@*       en-IN default produces 1,23,456 (Indian grouping). Same culture used for parsing,    *@
-@*       so user can type grouped numbers and they round-trip correctly.                      *@
-@*                                                                                            *@
-@*   - Display strategy: formatted on blur (1,23,456), raw on focus (123456).                 *@
-@*       Auto select-all on focus via lipi-input.js so typing replaces. No cursor jumps —     *@
-@*       focused display = raw = matches user typing.                                         *@
-@*                                                                                            *@
-@*   - Optional steppers (default OFF via LipiInputDefaults.ShowNumberSteppers).              *@
-@*       Disabled at Min/Max bounds (Material UI / Carbon / Ant pattern).                     *@
-@*       Step defaults to 1 of TValue's underlying type.                                      *@
-@*                                                                                            *@
-@*   - Same 7 states as LipiTextBox/Area + confidence pill + unit pill in label.              *@
-@*                                                                                            *@
-@* AMEND: docs/CHANGE-LOG.md A14 (Batch 4 — pending entry on visual review).                  *@
+@* SPEC: docs/00-COMPONENTS/01.2-TextInputs.md (LipiNumberInput<TValue> component) *@
+@* PHASE: 2.2 (Batches 4-4.3 ship) + 2.2.5 (Batch 8b — base class migration)      *@
+@* AMEND: docs/CHANGE-LOG.md A16 (pending — Phase 2.2.5 wrap-up at Batch 8c)      *@
+@*                                                                                  *@
+@* Phase 2.2.5 migration: derives from LipiInputBase<TValue> instead of            *@
+@* InputBase<TValue>. The base now owns all common parameters, the EditContext    *@
+@* subscription for validation auto-population, the anonymous-id fallback, the    *@
+@* env-gated parameter validation, the touched-state HandleBlur, and the state    *@
+@* cascade. LipiNumberInput keeps numeric-specific bits: type whitelist with      *@
+@* OnInitialized validation, generic TValue arithmetic via dynamic dispatch,      *@
+@* locale-aware formatting (RawDisplay/FormattedDisplay), Min/Max/Step bounds     *@
+@* with at-bound stepper disable, ArrowUp/Down keyboard support, BlockNonNumeric  *@
+@* C# input filter + JS DOM value-sync, plus markup, IconRight, OnIconRightClick. *@
+@*                                                                                  *@
+@* OnFieldBlurred IS overridden — to switch from raw display ("123456") to        *@
+@* formatted ("1,23,456") on blur. This is the documented use case for the        *@
+@* virtual hook in LipiInputBase. Blur work order:                                *@
+@*   1. base.HandleBlur sets _isTouched=true, calls NotifyFieldChanged            *@
+@*   2. base.HandleBlur calls our OnFieldBlurred override                         *@
+@*   3. We set _hasFocus=false; FormatValueAsString re-renders formatted          *@
 
 @typeparam TValue
-@inherits InputBase<TValue>
+@inherits LipiInputBase<TValue>
 
 @using System.Globalization
 @using System.Diagnostics.CodeAnalysis
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Web
-@using Microsoft.AspNetCore.Hosting
 @using Microsoft.JSInterop
-@using Microsoft.Extensions.Logging
-@using Microsoft.Extensions.Options
-@inject IOptions<LipiInputDefaults> Defaults
-@inject IWebHostEnvironment Env
-@inject ILogger<LipiNumberInput<TValue>> Log
 @inject IJSRuntime JS
 
 <div class="lipi-input-wrapper @CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
@@ -174,113 +159,86 @@
     };
 
     /// <summary>Subset of IntegerTypes that cannot represent negative values. Used by
-    /// BlockNonNumericInput's filter to auto-disable minus-sign acceptance when TValue
-    /// is unsigned. Saves a parameter (no explicit AllowNegative needed).</summary>
+    /// FilterNumericInput to auto-disable minus-sign acceptance when TValue is unsigned.
+    /// Saves a parameter (no explicit AllowNegative needed).</summary>
     private static readonly HashSet<Type> UnsignedTypes = new()
     {
         typeof(byte), typeof(uint), typeof(ulong), typeof(ushort)
     };
 
     // ==========================================================================
-    // PARAMETERS
+    // PARAMETERS — component-specific only (common ones inherited from base)
     // ──────────────────────────────────────────────────────────────────────────
-    // Inherited from InputBase<TValue> — DO NOT redeclare:
-    //   [Parameter] Value, ValueChanged, ValueExpression, DisplayName
-    //   protected CurrentValue, CurrentValueAsString, EditContext, FieldIdentifier
+    // Inherited from LipiInputBase<TValue>:
+    //   Name, Label, Placeholder, Helper, Error, Warning, Success, Required,
+    //   Disabled, ReadOnly, Autocomplete, Size, Icon, AriaDescribedBy,
+    //   RequiredVisualStyle, LabelConfidence, Cols, Class
+    // Inherited from InputBase<TValue>:
+    //   Value, ValueChanged, ValueExpression, DisplayName
     // ==========================================================================
 
-    /// <summary>HTML name attribute. REQUIRED — used to derive the id (ni-{Name}).</summary>
-    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
-
-    /// <summary>Field label rendered above the input. REQUIRED.</summary>
-    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
-
-    [Parameter] public string? Placeholder { get; set; }
-    [Parameter] public string? Helper { get; set; }
-    [Parameter] public string? Error { get; set; }
-    [Parameter] public string? Warning { get; set; }
-    [Parameter] public string? Success { get; set; }
-    [Parameter] public bool Required { get; set; }
-    [Parameter] public bool Disabled { get; set; }
-    [Parameter] public bool ReadOnly { get; set; }
-    [Parameter] public string? Autocomplete { get; set; }
-    [Parameter] public InputSize Size { get; set; } = InputSize.Medium;
-    [Parameter] public string? Icon { get; set; }
     [Parameter] public string? IconRight { get; set; }
     [Parameter] public EventCallback<MouseEventArgs> OnIconRightClick { get; set; }
     [Parameter] public string? IconRightAriaLabel { get; set; }
-    [Parameter] public string? AriaDescribedBy { get; set; }
-    [Parameter] public RequiredVisualStyle? RequiredVisualStyle { get; set; }
-    [Parameter] public ConfidenceLevel? LabelConfidence { get; set; }
-    [Parameter] public int? Cols { get; set; }
-    [Parameter] public string? Class { get; set; }
 
-    /// <summary>Inclusive lower bound. Stepper ▼ disables at this value. Null = no lower bound.</summary>
+    /// <summary>Lower bound for stepper / value clamping. When CurrentValue equals Min,
+    /// the decrement button is disabled.</summary>
     [Parameter] public TValue? Min { get; set; }
 
-    /// <summary>Inclusive upper bound. Stepper ▲ disables at this value. Null = no upper bound.</summary>
+    /// <summary>Upper bound for stepper / value clamping. When CurrentValue equals Max,
+    /// the increment button is disabled.</summary>
     [Parameter] public TValue? Max { get; set; }
 
-    /// <summary>Stepper increment. Defaults to 1 of TValue's underlying type. Has no effect when steppers are off.</summary>
+    /// <summary>Increment per stepper click / arrow keypress. Defaults to 1 of TValue's
+    /// underlying type (e.g., int → 1, decimal → 1m, double → 1.0).</summary>
     [Parameter] public TValue? Step { get; set; }
 
-    /// <summary>Show ▼/▲ stepper buttons. Null = inherit from LipiInputDefaults.ShowNumberSteppers (default false).</summary>
+    /// <summary>Override DI-default `LipiInputDefaults.ShowNumberSteppers`. When true,
+    /// renders +/- buttons flanking the input. When false, no buttons (arrow keys still
+    /// work unless DisableArrowKeys=true).</summary>
     [Parameter] public bool? ShowSteppers { get; set; }
 
-    /// <summary>BCP-47 locale for formatting and parsing (e.g., "en-IN", "en-US", "fr-FR").
-    /// Null = inherit from LipiInputDefaults.NumberLocale (default "en-IN" = 1,23,456 grouping).</summary>
+    /// <summary>Per-instance locale override. Falls back to `LipiInputDefaults.NumberLocale`
+    /// (default "en-IN"). Affects both parsing and formatting.</summary>
     [Parameter] public string? Locale { get; set; }
 
-    /// <summary>Fixed decimal places when blurred (formatted) display. Null = auto:
-    /// integer types → 0 decimals, decimal/double/float → use culture's NumberDecimalDigits (en-IN: 2).</summary>
+    /// <summary>When set, formats with N{DecimalPlaces} on blur (e.g., DecimalPlaces=2 →
+    /// "1,23,456.78"). When null, integer types use N0 and decimal/float types use N
+    /// (culture default NumberDecimalDigits).</summary>
     [Parameter] public int? DecimalPlaces { get; set; }
 
-    /// <summary>Optional unit shown next to the label (e.g., "kg", "mg/dL", "%"). Decorative.</summary>
+    /// <summary>Optional unit indicator rendered as a small pill in the label row
+    /// (e.g., "kg", "mg/dL", "₹"). For display only — does NOT affect parsing.</summary>
     [Parameter] public string? Unit { get; set; }
 
-    /// <summary>
-    /// When true (default), strips non-numeric characters from input as the user types.
-    /// Filter is locale-aware (uses Locale or LipiInputDefaults.NumberLocale for separators).
-    /// Allowed characters: digits 0-9, decimal separator (only for non-integer TValue),
-    /// minus sign (only as first character, only for signed TValue — auto-detected from type),
-    /// thousands group separator. Multiple decimals collapsed to first occurrence.
-    ///
-    /// Trade-off: brief letter-flash before C# strips the character (one SignalR roundtrip on
-    /// Blazor Server, ~10-50ms typical). Pre-input filtering would require JS interop with
-    /// preventDefault on keydown — deferred.
-    ///
-    /// Set to false for fields that need flexible input (e.g., scientific notation).
-    /// </summary>
+    /// <summary>When true (default), filter rejects non-numeric characters before parse.
+    /// When false, user can type anything and parse-time validation rejects on blur.
+    /// Documented limitation: brief letter-flash on Blazor Server (~20-60ms LAN) due to
+    /// SignalR roundtrip — see 01.2-TextInputs.md §10.5.</summary>
     [Parameter] public bool BlockNonNumericInput { get; set; } = true;
 
-    /// <summary>
-    /// When true, ArrowUp/ArrowDown keypresses are ignored. Default false (arrow keys
-    /// increment/decrement by Step, matching universal numeric-input convention).
-    /// Disable for fields where arrow-key value changes would surprise users (e.g., when
-    /// the field is part of a larger keyboard navigation flow).
-    /// </summary>
+    /// <summary>When true, Arrow keys do NOT increment/decrement. Use when arrow keys
+    /// would conflict with custom keyboard shortcuts on the parent form.</summary>
     [Parameter] public bool DisableArrowKeys { get; set; }
 
     // ==========================================================================
-    // RESOLVED FIELDS
+    // FOCUS STATE — drives raw-vs-formatted display in FormatValueAsString
     // ==========================================================================
-
-    private string _resolvedName = string.Empty;
-    private string _resolvedLabel = string.Empty;
-    private string? _resolvedAutocomplete;
-
-    private const string AnonymousIdPrefix = "ni-anon-";
-    private string? _cachedAnonymousId;
 
     private ElementReference _inputRef;
     private bool _hasFocus;
 
     // ==========================================================================
     // LIFECYCLE — type validation runs once at OnInitialized
+    // ──────────────────────────────────────────────────────────────────────────
+    // Calls base.OnInitialized() FIRST so LipiInputBase's EditContext subscription
+    // is established before we run our type validation.
     // ==========================================================================
 
     protected override void OnInitialized()
     {
+        base.OnInitialized();
+
         if (!SupportedTypes.Contains(typeof(TValue)))
         {
             var supported = string.Join(", ",
@@ -301,31 +259,29 @@
     }
 
     // ==========================================================================
-    // PARAMETER VALIDATION (env-gated, mirrors LipiTextBox/Area)
+    // BASE CLASS OVERRIDES
     // ==========================================================================
 
-    protected override void OnParametersSet()
+    /// <summary>Component id namespace — produces id="ni-{Name}".</summary>
+    protected override string ComponentIdPrefix => "ni";
+
+    /// <summary>Type name for log messages — overrides the generic-mangled default.</summary>
+    protected override string ComponentTypeName => "LipiNumberInput";
+
+    /// <summary>Append the LipiNumberInput-specific component-validation checks.</summary>
+    protected override List<string> CollectParameterValidationErrors()
     {
-        _resolvedName         = Name;
-        _resolvedLabel        = Label;
-        _resolvedAutocomplete = Autocomplete;
-
-        var errors = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(Name))
-            errors.Add("Name parameter is required (used to generate id, name, and a11y attributes)");
-
-        if (string.IsNullOrWhiteSpace(Label))
-            errors.Add("Label parameter is required (visible text for sighted users + accessible name)");
-
-        if (!string.IsNullOrWhiteSpace(Autocomplete) && !AutocompleteValidator.IsValid(Autocomplete))
-            errors.Add(AutocompleteValidator.FormatInvalidMessage("LipiNumberInput", "Autocomplete", Autocomplete));
+        var errors = base.CollectParameterValidationErrors();
 
         if (OnIconRightClick.HasDelegate && string.IsNullOrWhiteSpace(IconRightAriaLabel))
+        {
             errors.Add("IconRightAriaLabel is required when OnIconRightClick is wired (WCAG 2.1 SC 4.1.2)");
+        }
 
         if (Min is not null && Max is not null && Comparer<TValue>.Default.Compare(Min, Max) > 0)
+        {
             errors.Add($"Min ({Min}) must be <= Max ({Max})");
+        }
 
         if (!string.IsNullOrWhiteSpace(Locale))
         {
@@ -333,40 +289,31 @@
             catch (CultureNotFoundException) { errors.Add($"Locale '{Locale}' is not a recognized culture name"); }
         }
 
-        if (errors.Count == 0) return;
+        return errors;
+    }
 
-        var message = $"LipiNumberInput parameter validation failed: {string.Join("; ", errors)}";
-
-        if (Env.IsDevelopment())
-        {
-            throw new InvalidOperationException(message);
-        }
-        else
-        {
-            Log.LogError("[LipiNumberInput] {Message}. Component will render with fallback values.", message);
-
-            if (string.IsNullOrWhiteSpace(_resolvedName))
-            {
-                _cachedAnonymousId ??= AnonymousIdPrefix + Guid.NewGuid().ToString("N")[..8];
-                _resolvedName = _cachedAnonymousId;
-            }
-            if (string.IsNullOrWhiteSpace(_resolvedLabel))
-            {
-                _resolvedLabel = "(unlabeled)";
-            }
-            if (!string.IsNullOrWhiteSpace(_resolvedAutocomplete) && !AutocompleteValidator.IsValid(_resolvedAutocomplete))
-            {
-                _resolvedAutocomplete = "off";
-            }
-        }
+    /// <summary>
+    /// OnFieldBlurred override — switches display from raw to formatted on blur.
+    /// LipiInputBase.HandleBlur calls this AFTER it marks _isTouched=true and fires
+    /// EditContext.NotifyFieldChanged. We set _hasFocus=false; the next render's
+    /// FormatValueAsString will return FormattedDisplay (grouped) instead of
+    /// RawDisplay (ungrouped). Re-render triggered automatically because
+    /// HandleValidationStateChanged calls StateHasChanged after state transitions.
+    /// </summary>
+    protected override void OnFieldBlurred(FocusEventArgs e)
+    {
+        _hasFocus = false;
+        // No explicit StateHasChanged — base.HandleBlur and the EditContext machinery
+        // will trigger re-render naturally. The next render's FormatValueAsString
+        // returns FormattedDisplay because _hasFocus is now false.
     }
 
     // ==========================================================================
-    // INPUTBASE OVERRIDES
+    // INPUTBASE<TVALUE> OVERRIDES (parsing + formatting)
     // ==========================================================================
 
     /// <summary>
-    /// Empty string → null for nullable TValue (valid), parse error for non-nullable TValue.
+    /// Empty string → null for nullable TValue (valid), parse error for non-nullable.
     /// Non-empty: BindConverter.TryConvertTo with effective culture handles all numeric types.
     /// </summary>
     protected override bool TryParseValueFromString(
@@ -401,7 +348,7 @@
 
     /// <summary>
     /// Display branches on focus state:
-    ///   _hasFocus = true  → raw (e.g., "123456") — matches what user is typing, no cursor jumps
+    ///   _hasFocus = true  → raw (e.g., "123456") — matches what user is typing
     ///   _hasFocus = false → formatted (e.g., "1,23,456") — easy to read in the form
     /// </summary>
     protected override string? FormatValueAsString(TValue? value)
@@ -416,9 +363,6 @@
 
     private string RawDisplay(TValue value)
     {
-        // Use locale's decimal separator but no grouping. "0.################" preserves
-        // up to 16 fractional digits (more than any practical clinical measurement) without
-        // forcing trailing zeros.
         // value!.ToString() — caller (FormatValueAsString) null-checks one frame up.
         // Compiler can't see across the call boundary, so we suppress here.
         return value is IFormattable f
@@ -439,7 +383,6 @@
         }
         else
         {
-            // Use culture's NumberDecimalDigits (en-IN: 2; en-US: 2; ja-JP: 0).
             format = "N";
         }
         return value is IFormattable f
@@ -485,10 +428,6 @@
 
     // ==========================================================================
     // STEPPER ARITHMETIC — runtime dispatch via dynamic
-    // ──────────────────────────────────────────────────────────────────────────
-    // Type whitelist enforced in OnInitialized, so dynamic + is safe at runtime.
-    // Slower than static dispatch, but stepper clicks are rare events; perceptible
-    // latency comes from network round-trip, not arithmetic.
     // ==========================================================================
 
     private TValue? AddStep(TValue? current, TValue? step, bool subtract = false)
@@ -518,18 +457,10 @@
     }
 
     // ==========================================================================
-    // RESOLVED PROPERTIES
+    // COMPONENT-SPECIFIC RESOLVED PROPERTIES
     // ==========================================================================
 
-    private string EffectiveId => $"ni-{_resolvedName}";
-    private string HelperId    => $"{EffectiveId}-helper";
-
-    private RequiredVisualStyle EffectiveRequiredStyle =>
-        RequiredVisualStyle ?? Defaults.Value.RequiredVisualStyle;
-
     private bool EffectiveShowSteppers => ShowSteppers ?? Defaults.Value.ShowNumberSteppers;
-
-    private bool IsEmpty => CurrentValue is null;
     private bool IconRightClickable => OnIconRightClick.HasDelegate;
 
     private bool AtMinBound
@@ -552,30 +483,6 @@
 
     private bool DecrementDisabled => Disabled || ReadOnly || AtMinBound;
     private bool IncrementDisabled => Disabled || ReadOnly || AtMaxBound;
-
-    // State precedence: Disabled > ReadOnly > Error > Success > Warning > RequiredEmpty > Default
-    private InputState ResolvedState
-    {
-        get
-        {
-            if (Disabled)                       return InputState.Disabled;
-            if (ReadOnly)                       return InputState.ReadOnly;
-            if (!string.IsNullOrEmpty(Error))   return InputState.Error;
-            if (!string.IsNullOrEmpty(Success)) return InputState.Success;
-            if (!string.IsNullOrEmpty(Warning)) return InputState.Warning;
-            if (Required && IsEmpty
-                && EffectiveRequiredStyle == LiPi.Web.Components.Shared.RequiredVisualStyle.ApricotTint)
-                                                return InputState.RequiredEmpty;
-            return InputState.Default;
-        }
-    }
-
-    private int IconPx => Size switch
-    {
-        InputSize.Small => 14,
-        InputSize.Large => 18,
-        _               => 16
-    };
 
     // Stepper icons render slightly smaller than label/leading icons for visual balance
     private int StepperIconPx => Size switch
@@ -604,19 +511,6 @@
         }
     }
 
-    private static string StateCssToken(InputState s) => s switch
-    {
-        InputState.Disabled       => "disabled",
-        InputState.ReadOnly       => "readonly",
-        InputState.Error          => "error",
-        InputState.Warning        => "warning",
-        InputState.Success        => "success",
-        InputState.RequiredEmpty  => "required-empty",
-        _                         => "default"
-    };
-
-    private string? InlineStyle => Cols.HasValue ? $"grid-column: span {Cols.Value};" : null;
-
     private string? EffectiveTrailingIcon => ResolvedState switch
     {
         InputState.Error   => "circle-x",
@@ -625,63 +519,7 @@
         _                  => IconRight
     };
 
-    private string? HelperText => ResolvedState switch
-    {
-        InputState.Error   => Error,
-        InputState.Warning => Warning,
-        InputState.Success => Success,
-        _                  => Helper
-    };
-
-    private string HelperStateClass => ResolvedState switch
-    {
-        InputState.Error   => "lipi-input-helper-error",
-        InputState.Warning => "lipi-input-helper-warning",
-        InputState.Success => "lipi-input-helper-success",
-        _                  => "lipi-input-helper-default"
-    };
-
-    private bool HasHelperContent => !string.IsNullOrEmpty(HelperText);
-
-    private string? HelperRole       => ResolvedState == InputState.Error ? "alert" : null;
-    private string  HelperAriaLive   => ResolvedState == InputState.Error ? "assertive" : "polite";
-    private string? AriaInvalidAttr  => ResolvedState == InputState.Error ? "true" : null;
-
-    private string? AutocompleteAttr => string.IsNullOrWhiteSpace(_resolvedAutocomplete) ? null : _resolvedAutocomplete;
-
     private string InputModeAttr => IsIntegerTValue ? "numeric" : "decimal";
-
-    private string? AriaDescribedByAttr
-    {
-        get
-        {
-            var ids = new List<string>();
-            if (HasHelperContent || Defaults.Value.AlwaysReserveHelperSlot) ids.Add(HelperId);
-            if (!string.IsNullOrWhiteSpace(AriaDescribedBy)) ids.Add(AriaDescribedBy);
-            return ids.Count == 0 ? null : string.Join(" ", ids);
-        }
-    }
-
-    private string? ConfidenceCssClass => LabelConfidence switch
-    {
-        ConfidenceLevel.Verified     => "verified",
-        ConfidenceLevel.SelfReported => "self",
-        ConfidenceLevel.Estimated    => "estimated",
-        ConfidenceLevel.Unknown      => "unknown",
-        _                            => null
-    };
-
-    private string ConfidenceLabelText => LabelConfidence switch
-    {
-        ConfidenceLevel.Verified     => "Verified",
-        ConfidenceLevel.SelfReported => "Self-reported",
-        ConfidenceLevel.Estimated    => "Estimated",
-        ConfidenceLevel.Unknown      => "Unknown",
-        _                            => string.Empty
-    };
-
-    private string? ConfidenceAriaLabel =>
-        LabelConfidence.HasValue ? $"Data confidence: {ConfidenceLabelText}" : null;
 
     // ==========================================================================
     // EVENT HANDLERS
@@ -693,29 +531,14 @@
 
         var raw = e.Value?.ToString();
 
-        // BlockNonNumericInput filter: strip characters that aren't digits / decimal separator /
-        // minus / thousands separator (locale-aware). When the filter changes the value, set
-        // CurrentValueAsString to the filtered version AND force the DOM input element's value
-        // attribute via JS interop.
-        //
-        // Why JS sync is required (Batch 4.3 fix):
-        // Blazor's render diff caches attribute values across renders. If the filtered string
-        // (e.g., "5") matches the prior CurrentValueAsString (also "5", because CurrentValue
-        // didn't change), the diff sees no attribute change and skips the SetAttribute call.
-        // Result: user-typed invalid character (e.g., "5T") persists in the DOM despite
-        // CurrentValue being correctly filtered to 5. JS imperatively sets input.value to
-        // bypass the diff.
-        //
-        // Documented in Batch 4.2 ship notes as the trigger for this follow-up.
+        // BlockNonNumericInput filter (Batch 4.2) + JS DOM value-sync (Batch 4.3).
+        // See LipiNumberInput.razor (pre-migration) for full reasoning. Logic unchanged.
         if (BlockNonNumericInput && !string.IsNullOrEmpty(raw))
         {
             var filtered = FilterNumericInput(raw);
             if (filtered != raw)
             {
                 CurrentValueAsString = filtered;
-                // Fire-and-forget — completes async, errors logged in SyncDomValueAsync.
-                // setValue is a no-op when input.value already matches, so the JS round-trip
-                // only does work when there's actual drift to repair.
                 _ = SyncDomValueAsync();
                 return;
             }
@@ -723,21 +546,14 @@
 
         // CurrentValueAsString setter calls TryParseValueFromString → CurrentValue → ValueChanged.
         // While focused, FormatValueAsString returns raw (matches input), no cursor jump.
+        // After base.HandleBlur calls our OnFieldBlurred, _hasFocus=false → next render formatted.
         CurrentValueAsString = raw;
     }
 
-    /// <summary>
-    /// Imperatively sets the input element's DOM value to match CurrentValue's RawDisplay.
-    /// Required when Blazor's render diff would skip the SetAttribute call because the
-    /// rendered value attribute matches the prior render. Fire-and-forget; exceptions logged.
-    /// </summary>
     private async Task SyncDomValueAsync()
     {
         try
         {
-            // FormatValueAsString reads _hasFocus to choose raw vs formatted display.
-            // During HandleInput, _hasFocus is true, so this returns RawDisplay (e.g., "5"
-            // not "5.00"). Matches what the user expects to see while typing.
             await JS.InvokeVoidAsync("lipiInput.setValue", _inputRef, FormatValueAsString(CurrentValue) ?? string.Empty);
         }
         catch (Exception ex)
@@ -750,9 +566,6 @@
     /// Locale-aware filter: keeps digits, decimal separator (if non-integer TValue), minus
     /// sign (only as first character, only if signed TValue), and thousands separator.
     /// Multiple decimal occurrences collapse to first (silent typo correction).
-    /// Single-character separator assumption — all real-world cultures (en-IN, en-US, de-DE,
-    /// fr-FR, ja-JP) use single-char separators including U+00A0 non-breaking space (fr-FR group).
-    /// Multi-char separators (rare/synthetic cultures) would need explicit substring matching.
     /// </summary>
     private string? FilterNumericInput(string? raw)
     {
@@ -781,16 +594,13 @@
             }
             else if (allowNegative && c == negSign && sb.Length == 0)
             {
-                // Minus only valid as first character; subsequent minus signs are stripped silently
                 sb.Append(c);
             }
             else if (c == groupSep)
             {
-                // Preserve thousands separator so user can type pre-formatted numbers.
-                // BindConverter parses these correctly via the same culture.
                 sb.Append(c);
             }
-            // Else: drop character silently (letter, symbol, second decimal, mid-string minus, etc.)
+            // Else: drop character silently
         }
 
         return sb.ToString();
@@ -800,7 +610,6 @@
     {
         if (Disabled || ReadOnly) return;
         _hasFocus = true;
-        // Re-render so input shows raw form. JS selectAll runs after render, on the now-raw text.
         StateHasChanged();
         try
         {
@@ -812,21 +621,14 @@
         }
     }
 
-    private void HandleBlur(FocusEventArgs e)
-    {
-        _hasFocus = false;
-        // Re-render so input shows formatted (grouped) form.
-    }
+    // HandleBlur is inherited from LipiInputBase<TValue>. It sets _isTouched=true,
+    // fires EditContext.NotifyFieldChanged so [Required] validates on tab-past empty
+    // numeric fields, and calls our OnFieldBlurred override (above) which switches
+    // _hasFocus=false to render FormattedDisplay on next paint.
 
     /// <summary>
-    /// Keyboard alternative to stepper buttons.
-    /// ArrowUp / ArrowDown increment/decrement by Step (default 1 of TValue's underlying type),
-    /// clamped to Min/Max bounds via the same HandleIncrement/HandleDecrement path the visible
-    /// steppers use. Independent of EffectiveShowSteppers — arrow keys work whether or not the
-    /// stepper buttons are visible (industry-universal pattern; matches MUI, Carbon, Ant, native
-    /// HTML number input).
-    /// No preventDefault: single-line text inputs do not get hijacked by arrow keys on modern
-    /// browsers (no cursor jumps, no page scroll), so browser default is essentially a no-op.
+    /// ArrowUp / ArrowDown increment/decrement by Step (default 1 of TValue's underlying
+    /// type), clamped to Min/Max via the same path as the visible stepper buttons.
     /// </summary>
     private void HandleKeyDown(KeyboardEventArgs e)
     {

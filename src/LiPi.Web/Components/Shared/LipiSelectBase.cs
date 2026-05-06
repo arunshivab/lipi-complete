@@ -2,6 +2,18 @@
 // Holds the shared state machine: search, dropdown open/close, keyboard navigation,
 // virtualization toggle, pinned-options sorting, JS positioning interop.
 //
+// Phase 2.2.5 Batch 8c: derives from LipiInputBase<TValue> instead of InputBase<TValue>.
+// 3-level hierarchy:
+//   InputBase<TValue>                    (Microsoft framework, IDisposable)
+//     └── LipiInputBase<TValue>          (Phase 2.2.5 base — IDisposable, EditContext +
+//                                         18 common params + state cascade + touched-state
+//                                         pattern)
+//           └── LipiSelectBase<TValue, TItem>  (this class — also IAsyncDisposable for
+//                                               JS handler cleanup; inherits IDisposable
+//                                               from LipiInputBase for EditContext detach)
+//                 ├── LipiSelect<TValue>
+//                 └── LipiCombobox<TValue, TItem>
+//
 // LipiSelect<TValue>           : LipiSelectBase<TValue, TValue>     — identity selectors
 // LipiCombobox<TValue, TItem>  : LipiSelectBase<TValue, TItem>      — caller-provided selectors
 //
@@ -12,55 +24,38 @@ using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 
 namespace LiPi.Web.Components.Shared;
 
-public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncDisposable
+public abstract class LipiSelectBase<TValue, TItem> : LipiInputBase<TValue>, IAsyncDisposable
 {
     // ==========================================================================
     // INJECTED SERVICES
+    // ──────────────────────────────────────────────────────────────────────────
+    // Inherited from LipiInputBase<TValue>:
+    //   IOptions<LipiInputDefaults> Defaults, IWebHostEnvironment Env,
+    //   ILogger<LipiInputBase<TValue>> Log
+    // Component-specific:
+    //   IJSRuntime JS — for select positioning, keyboard handlers, click-outside detection
     // ==========================================================================
 
-    [Inject] protected IOptions<LipiInputDefaults> Defaults { get; set; } = default!;
-    [Inject] protected IWebHostEnvironment Env { get; set; } = default!;
-    [Inject] protected ILogger<LipiSelectBase<TValue, TItem>> Log { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
 
     // ==========================================================================
-    // CALLER PARAMETERS (shared across LipiSelect and LipiCombobox)
+    // CALLER PARAMETERS — component-specific only (common ones inherited from base)
     // ──────────────────────────────────────────────────────────────────────────
-    // Inherited from InputBase<TValue> — DO NOT redeclare:
-    //   [Parameter] Value, ValueChanged, ValueExpression, DisplayName
-    //   protected CurrentValue, CurrentValueAsString, EditContext, FieldIdentifier
+    // Inherited from LipiInputBase<TValue>:
+    //   Name, Label, Placeholder, Helper, Error, Warning, Success, Required,
+    //   Disabled, ReadOnly, Autocomplete, Size, Icon, AriaDescribedBy,
+    //   RequiredVisualStyle, LabelConfidence, Cols, Class
+    // Inherited from InputBase<TValue>:
+    //   Value, ValueChanged, ValueExpression, DisplayName
     // ==========================================================================
-
-    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
-    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
 
     /// <summary>The full list of options. IReadOnlyList (not IEnumerable) so .Count is O(1)
     /// for virtualization auto-detection. Caller materializes upstream.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<TItem> Items { get; set; } = Array.Empty<TItem>();
-
-    [Parameter] public string? Placeholder { get; set; }
-    [Parameter] public string? Helper { get; set; }
-    [Parameter] public string? Error { get; set; }
-    [Parameter] public string? Warning { get; set; }
-    [Parameter] public string? Success { get; set; }
-    [Parameter] public bool Required { get; set; }
-    [Parameter] public bool Disabled { get; set; }
-    [Parameter] public bool ReadOnly { get; set; }
-    [Parameter] public string? Autocomplete { get; set; }
-    [Parameter] public InputSize Size { get; set; } = InputSize.Medium;
-    [Parameter] public string? Icon { get; set; }
-    [Parameter] public string? AriaDescribedBy { get; set; }
-    [Parameter] public RequiredVisualStyle? RequiredVisualStyle { get; set; }
-    [Parameter] public ConfidenceLevel? LabelConfidence { get; set; }
-    [Parameter] public int? Cols { get; set; }
-    [Parameter] public string? Class { get; set; }
 
     /// <summary>Whether to render the search input box at the top of the dropdown.
     /// Default true. Set to false for short fixed lists (Gender, Marital Status) where
@@ -121,12 +116,8 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
     /// 200 items (countries) or 700 (districts). Most are under 50.</summary>
     protected const int VirtualizationThreshold = 50;
 
-    protected const string AnonymousIdPrefix = "sel-anon-";
-
-    protected string? _cachedAnonymousId;
-    protected string _resolvedName = string.Empty;
-    protected string _resolvedLabel = string.Empty;
-    protected string? _resolvedAutocomplete;
+    // _resolvedName, _resolvedLabel, _resolvedAutocomplete, _cachedAnonymousId now
+    // inherited from LipiInputBase. Anonymous-id prefix override below.
 
     protected bool _isOpen;
     protected bool _wasOpen; // tracks transition for focus-on-open in OnAfterRenderAsync
@@ -142,14 +133,20 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
     // ==========================================================================
 
     /// <summary>
+    /// <summary>
     /// Parses the user's typed search/free-text into a TValue. For LipiSelect/LipiCombobox,
     /// successful parsing means: (a) the text matches an option's label (or value), or
     /// (b) AllowFreeText is true and BindConverter can parse the text into TValue.
     /// </summary>
+    /// <remarks>
+    /// Signature matches Microsoft's InputBase&lt;TValue&gt;.TryParseValueFromString exactly,
+    /// including the [MaybeNullWhen(false)] / [NotNullWhen(false)] attributes. Without these,
+    /// CS8765 fires (nullability mismatch with overridden member).
+    /// </remarks>
     protected override bool TryParseValueFromString(
         string? value,
-        out TValue? result,
-        out string? validationErrorMessage)
+        [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out TValue result,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out string? validationErrorMessage)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -163,7 +160,11 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
         {
             if (string.Equals(ItemLabel(item), value, StringComparison.OrdinalIgnoreCase))
             {
-                result = ItemValue(item);
+                // ItemValue returns TValue? (the abstract sig allows null values for
+                // nullable TValue contexts). The override contract is [MaybeNullWhen(false)]
+                // which means non-null when returning true — but for LipiSelect<TValue?>
+                // a null option IS valid input, so suppress the warning.
+                result = ItemValue(item)!;
                 validationErrorMessage = null;
                 return true;
             }
@@ -175,7 +176,7 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
             var itemValue = ItemValue(item);
             if (itemValue?.ToString() == value)
             {
-                result = itemValue;
+                result = itemValue!;
                 validationErrorMessage = null;
                 return true;
             }
@@ -216,56 +217,31 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
     }
 
     // ==========================================================================
-    // PARAMETER VALIDATION (env-gated, mirrors LipiTextBox/Area/NumberInput)
+    // BASE CLASS OVERRIDES
     // ==========================================================================
 
-    protected override void OnParametersSet()
+    /// <summary>Component id namespace — produces id="sel-{Name}" so legacy stylesheets
+    /// targeting #sel-* selectors continue to match. Anonymous-id prefix follows the
+    /// same convention via AnonymousIdPrefix override on the base.</summary>
+    protected override string ComponentIdPrefix => "sel";
+
+    /// <summary>Type name for log messages — uses runtime GetType().Name so subclasses
+    /// (LipiSelect / LipiCombobox) get accurate component identification in logs without
+    /// each having to override.</summary>
+    protected override string ComponentTypeName => GetType().Name;
+
+    /// <summary>Append the LipiSelectBase-specific Items-required check on top of base
+    /// validation (Name + Label + Autocomplete).</summary>
+    protected override List<string> CollectParameterValidationErrors()
     {
-        _resolvedName         = Name;
-        _resolvedLabel        = Label;
-        _resolvedAutocomplete = Autocomplete;
-
-        var errors = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(Name))
-            errors.Add("Name parameter is required (used to generate id, name, and a11y attributes)");
-
-        if (string.IsNullOrWhiteSpace(Label))
-            errors.Add("Label parameter is required (visible text for sighted users + accessible name)");
+        var errors = base.CollectParameterValidationErrors();
 
         if (Items is null)
+        {
             errors.Add("Items parameter is required (the options to render in the dropdown)");
-
-        if (!string.IsNullOrWhiteSpace(Autocomplete) && !AutocompleteValidator.IsValid(Autocomplete))
-            errors.Add(AutocompleteValidator.FormatInvalidMessage(GetType().Name, "Autocomplete", Autocomplete));
-
-        if (errors.Count == 0) return;
-
-        var message = $"{GetType().Name} parameter validation failed: {string.Join("; ", errors)}";
-
-        if (Env.IsDevelopment())
-        {
-            throw new InvalidOperationException(message);
         }
-        else
-        {
-            Log.LogError("[{Component}] {Message}. Component will render with fallback values.",
-                GetType().Name, message);
 
-            if (string.IsNullOrWhiteSpace(_resolvedName))
-            {
-                _cachedAnonymousId ??= AnonymousIdPrefix + Guid.NewGuid().ToString("N")[..8];
-                _resolvedName = _cachedAnonymousId;
-            }
-            if (string.IsNullOrWhiteSpace(_resolvedLabel))
-            {
-                _resolvedLabel = "(unlabeled)";
-            }
-            if (!string.IsNullOrWhiteSpace(_resolvedAutocomplete) && !AutocompleteValidator.IsValid(_resolvedAutocomplete))
-            {
-                _resolvedAutocomplete = "off";
-            }
-        }
+        return errors;
     }
 
     // ==========================================================================
@@ -365,6 +341,11 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
         _searchText = string.Empty;
         _highlightedIndex = -1;
         await DetachJsHandlersAsync();
+
+        // Closing the dropdown counts as the user finishing their interaction with this
+        // field — equivalent to a blur on a text input. Mark touched so validation
+        // surfaces in the helper slot. Idempotent; safe to call on every close.
+        MarkFieldAsTouched();
     }
 
     protected void SelectItem(TItem item)
@@ -375,6 +356,27 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
         _searchText = string.Empty;
         _highlightedIndex = -1;
         _ = DetachJsHandlersAsync();
+
+        // Selecting an item is also a definitive interaction — touched.
+        MarkFieldAsTouched();
+    }
+
+    /// <summary>
+    /// Anchor blur handler — wired via @onblur on the anchor div in LipiSelect.razor /
+    /// LipiCombobox.razor. Handles the tab-past case: user tabs through a closed,
+    /// never-opened select. The other touched-state triggers (CloseDropdownAsync,
+    /// SelectItem) won't fire because the dropdown was never opened.
+    ///
+    /// Critical guard: if _isOpen is true, the blur is moving focus into the search
+    /// input or option list (which are children of the dropdown panel, not the anchor).
+    /// That's mid-interaction, NOT a leave-the-field event. Skip marking touched.
+    /// CloseDropdownAsync (triggered by outside-click or Escape) will handle the
+    /// touched-state when the user actually finishes interacting.
+    /// </summary>
+    protected void HandleAnchorBlur(FocusEventArgs e)
+    {
+        if (_isOpen) return; // mid-interaction — let close paths handle touched-state
+        MarkFieldAsTouched();
     }
 
     protected void HandleSearchInput(ChangeEventArgs e)
@@ -468,6 +470,10 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Call base implementation FIRST so any LipiInputBase OnAfterRender work runs.
+        // Currently no-op in base, but reserved for future use (e.g., auto-focus-on-error).
+        await base.OnAfterRenderAsync(firstRender);
+
         if (_isOpen && !_wasOpen)
         {
             _wasOpen = true;
@@ -582,50 +588,42 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
         }
     }
 
+    /// <summary>
+    /// IAsyncDisposable.DisposeAsync — async JS handler cleanup, then synchronous
+    /// EditContext detach via base.Dispose(true). The 3-level disposal chain:
+    ///   LipiSelectBase.DisposeAsync (this)
+    ///     → DetachJsHandlersAsync (async JS interop)
+    ///     → _dotNetRef.Dispose (sync)
+    ///     → base.Dispose(true)
+    ///         → LipiInputBase.Dispose(bool) (EditContext.OnValidationStateChanged detach)
+    ///         → InputBase.Dispose(bool) (Microsoft's internal cleanup)
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         await DetachJsHandlersAsync();
         _dotNetRef?.Dispose();
+        // Synchronous part of disposal: EditContext detach via LipiInputBase.Dispose(bool).
+        Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
 
     // ==========================================================================
-    // RESOLVED PROPERTIES (used by .razor templates)
+    // RESOLVED PROPERTIES — component-specific only (common ones inherited from base)
     // ==========================================================================
 
-    protected string EffectiveId         => $"sel-{_resolvedName}";
+    // EffectiveId is inherited from LipiInputBase as $"sel-{_resolvedName}" via the
+    // ComponentIdPrefix => "sel" override above. Re-derived here just for the
+    // dropdown's child id (which subclasses' .razor templates reference).
     protected string EffectiveDropdownId => $"{EffectiveId}-dropdown";
-    protected string HelperId            => $"{EffectiveId}-helper";
 
-    protected RequiredVisualStyle EffectiveRequiredStyle =>
-        RequiredVisualStyle ?? Defaults.Value.RequiredVisualStyle;
+    // IsEmpty inherited from LipiInputBase (default: CurrentValue is null) — correct for selects.
+    // ResolvedState, StateCssToken, EffectiveRequiredStyle, IconPx, InlineStyle, HelperText,
+    // HelperStateClass, HasHelperContent, HelperRole, HelperAriaLive, AriaInvalidAttr,
+    // AutocompleteAttr, AriaDescribedByAttr, ConfidenceCssClass, ConfidenceLabelText,
+    // ConfidenceAriaLabel — all inherited from base.
 
-    protected bool IsEmpty => CurrentValue is null;
-
-    // State precedence: Disabled > ReadOnly > Error > Success > Warning > RequiredEmpty > Default
-    protected InputState ResolvedState
-    {
-        get
-        {
-            if (Disabled)                       return InputState.Disabled;
-            if (ReadOnly)                       return InputState.ReadOnly;
-            if (!string.IsNullOrEmpty(Error))   return InputState.Error;
-            if (!string.IsNullOrEmpty(Success)) return InputState.Success;
-            if (!string.IsNullOrEmpty(Warning)) return InputState.Warning;
-            if (Required && IsEmpty
-                && EffectiveRequiredStyle == LiPi.Web.Components.Shared.RequiredVisualStyle.ApricotTint)
-                                                return InputState.RequiredEmpty;
-            return InputState.Default;
-        }
-    }
-
-    protected int IconPx => Size switch
-    {
-        InputSize.Small => 14,
-        InputSize.Large => 18,
-        _               => 16
-    };
-
+    /// <summary>Component-specific CSS class assembly. Adds lipi-input-select and the
+    /// open-state class on top of the base's size + state tokens.</summary>
     protected string CssClasses
     {
         get
@@ -644,19 +642,10 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
         }
     }
 
-    private static string StateCssToken(InputState s) => s switch
-    {
-        InputState.Disabled       => "disabled",
-        InputState.ReadOnly       => "readonly",
-        InputState.Error          => "error",
-        InputState.Warning        => "warning",
-        InputState.Success        => "success",
-        InputState.RequiredEmpty  => "required-empty",
-        _                         => "default"
-    };
-
-    protected string? InlineStyle => Cols.HasValue ? $"grid-column: span {Cols.Value};" : null;
-
+    /// <summary>Trailing-icon mapping for selects: validation-state icons (Error → circle-x,
+    /// Warning → alert-triangle, Success → check) win over the open/closed chevron.
+    /// Each component family defines its own; LipiTextBox/Area use IconRight as default,
+    /// LipiNumberInput uses ResolvedState. Selects use chevron-up when open, chevron-down when closed.</summary>
     protected string? EffectiveTrailingIcon => ResolvedState switch
     {
         InputState.Error   => "circle-x",
@@ -664,62 +653,6 @@ public abstract class LipiSelectBase<TValue, TItem> : InputBase<TValue>, IAsyncD
         InputState.Success => "check",
         _                  => _isOpen ? "chevron-up" : "chevron-down"
     };
-
-    protected string? HelperText => ResolvedState switch
-    {
-        InputState.Error   => Error,
-        InputState.Warning => Warning,
-        InputState.Success => Success,
-        _                  => Helper
-    };
-
-    protected string HelperStateClass => ResolvedState switch
-    {
-        InputState.Error   => "lipi-input-helper-error",
-        InputState.Warning => "lipi-input-helper-warning",
-        InputState.Success => "lipi-input-helper-success",
-        _                  => "lipi-input-helper-default"
-    };
-
-    protected bool HasHelperContent => !string.IsNullOrEmpty(HelperText);
-
-    protected string? HelperRole       => ResolvedState == InputState.Error ? "alert" : null;
-    protected string  HelperAriaLive   => ResolvedState == InputState.Error ? "assertive" : "polite";
-    protected string? AriaInvalidAttr  => ResolvedState == InputState.Error ? "true" : null;
-
-    protected string? AutocompleteAttr => string.IsNullOrWhiteSpace(_resolvedAutocomplete) ? null : _resolvedAutocomplete;
-
-    protected string? AriaDescribedByAttr
-    {
-        get
-        {
-            var ids = new List<string>();
-            if (HasHelperContent || Defaults.Value.AlwaysReserveHelperSlot) ids.Add(HelperId);
-            if (!string.IsNullOrWhiteSpace(AriaDescribedBy)) ids.Add(AriaDescribedBy);
-            return ids.Count == 0 ? null : string.Join(" ", ids);
-        }
-    }
-
-    protected string? ConfidenceCssClass => LabelConfidence switch
-    {
-        ConfidenceLevel.Verified     => "verified",
-        ConfidenceLevel.SelfReported => "self",
-        ConfidenceLevel.Estimated    => "estimated",
-        ConfidenceLevel.Unknown      => "unknown",
-        _                            => null
-    };
-
-    protected string ConfidenceLabelText => LabelConfidence switch
-    {
-        ConfidenceLevel.Verified     => "Verified",
-        ConfidenceLevel.SelfReported => "Self-reported",
-        ConfidenceLevel.Estimated    => "Estimated",
-        ConfidenceLevel.Unknown      => "Unknown",
-        _                            => string.Empty
-    };
-
-    protected string? ConfidenceAriaLabel =>
-        LabelConfidence.HasValue ? $"Data confidence: {ConfidenceLabelText}" : null;
 
     /// <summary>Display text shown in the closed-state anchor button. Falls back to
     /// Placeholder when no value is selected.</summary>

@@ -1,37 +1,21 @@
-@* SPEC: Phase 2.2 LipiTextBox component — TextInput family kickoff *@
-@* All variants × sizes × states per locked design package *@
-@* Namespace: LiPi.Web.Components.Shared *@
-@*                                                                        *@
-@* Design summary:                                                        *@
-@*   - Derives from InputBase<string?> (locked Decision 1, strategic).    *@
-@*       Future-ready for EditForm + DataAnnotationsValidator across      *@
-@*       80+ forms. Existing forms (UsersNew, ClinicsNew, OrgsNew,        *@
-@*       PatientNew) keep their manual validation until they migrate to   *@
-@*       <EditForm> in a separate work item (Phase 2.2.5 or Phase 4).     *@
-@*       NEW forms going forward use <EditForm> + LipiTextBox from day 1. *@
-@*   - Top-stacked label, weight 500, sentence case, slate-700/300        *@
-@*   - 7 validation states: Default / Focus / Error / Warning / Success / *@
-@*       Disabled / ReadOnly + 8th sub-state RequiredEmpty (apricot tint) *@
-@*   - Always-reserved 16px helper slot (prevents layout shift)           *@
-@*   - Required visual: ApricotTint (default) or AsteriskOnly (opt-out)   *@
-@*       Per-component parameter falls through to LipiInputDefaults       *@
-@*       Asterisk + ARIA always render (locked Decision 6 — Approach D)   *@
-@*   - Auto-overlay validation icons replace caller's IconRight during    *@
-@*       Error/Warning/Success states (icon precedence)                   *@
-@*       Error → circle-x (stronger affordance than plain x)              *@
-@*   - Quality enforcement: env-gated throw on missing Name/Label or      *@
-@*       invalid Autocomplete (Development); warn-and-fallback in Prod    *@
+@* SPEC: docs/00-COMPONENTS/01.2-TextInputs.md (LipiTextBox component)            *@
+@* PHASE: 2.2 (Batch 2 ship) + 2.2.5 (this Batch 8a — base class migration)      *@
+@* AMEND: docs/CHANGE-LOG.md A16 (pending — Phase 2.2.5 wrap-up)                 *@
+@*                                                                                *@
+@* Phase 2.2.5 migration: derives from LipiInputBase<string?> instead of         *@
+@* InputBase<string?>. The base now owns all common parameters (Name, Label,    *@
+@* Helper, Error, Warning, Success, Required, Disabled, ReadOnly, Autocomplete, *@
+@* Size, Icon, AriaDescribedBy, RequiredVisualStyle, LabelConfidence, Cols,     *@
+@* Class), the EditContext subscription for validation auto-population, the    *@
+@* anonymous-id fallback, the env-gated parameter validation, and the state    *@
+@* cascade. LipiTextBox keeps only the single-line-text-specific bits: Type,   *@
+@* IconRight, OnIconRightClick, IconRightAriaLabel, MaxLength, plus the markup *@
+@* and event handlers.                                                          *@
 
-@inherits InputBase<string?>
+@inherits LipiInputBase<string?>
 
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Web
-@using Microsoft.AspNetCore.Hosting
-@using Microsoft.Extensions.Logging
-@using Microsoft.Extensions.Options
-@inject IOptions<LipiInputDefaults> Defaults
-@inject IWebHostEnvironment Env
-@inject ILogger<LipiTextBox> Log
 
 <div class="lipi-input-wrapper @CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
 
@@ -42,8 +26,7 @@
         {
             @* Locked Decision 6 (Approach D): asterisk + ARIA + tooltip ALWAYS render
                regardless of RequiredVisualStyle. Sighted users get apricot tint (when
-               that style is active); screen-reader users get asterisk + aria-label.
-               Different channels, complementary not exclusive. *@
+               that style is active); screen-reader users get asterisk + aria-label. *@
             <span class="lipi-input-required-asterisk"
                   aria-label="required field"
                   title="Required">*</span>
@@ -78,26 +61,34 @@
                readonly="@ReadOnly"
                required="@Required"
                maxlength="@MaxLengthAttr"
-               aria-describedby="@AriaDescribedByAttr"
                aria-invalid="@AriaInvalidAttr"
+               aria-describedby="@AriaDescribedByAttr"
                @oninput="HandleInput"
                @onblur="HandleBlur" />
 
-        @if (EffectiveTrailingIcon != null)
+        @if (!string.IsNullOrEmpty(EffectiveTrailingIcon))
         {
-            <button type="button"
-                    class="lipi-input-icon-trailing @(IconRightClickable ? "lipi-input-icon-clickable" : null)"
-                    tabindex="@(IconRightClickable ? 0 : -1)"
-                    aria-hidden="@(IconRightClickable ? null : "true")"
-                    aria-label="@(IconRightClickable ? IconRightAriaLabel : null)"
-                    disabled="@(!IconRightClickable || Disabled)"
-                    @onclick="HandleIconRightClick">
-                <LucideIcon Name="@EffectiveTrailingIcon" Size="@IconPx" />
-            </button>
+            @if (IconRightClickable)
+            {
+                <button type="button"
+                        class="lipi-input-icon-trailing lipi-input-icon-trailing-button"
+                        aria-label="@IconRightAriaLabel"
+                        disabled="@Disabled"
+                        @onclick="HandleIconRightClick">
+                    <LucideIcon Name="@EffectiveTrailingIcon" Size="@IconPx" />
+                </button>
+            }
+            else
+            {
+                <span class="lipi-input-icon-trailing" aria-hidden="true">
+                    <LucideIcon Name="@EffectiveTrailingIcon" Size="@IconPx" />
+                </span>
+            }
         }
+
     </div>
 
-    @* ===== HELPER ROW (always reserved when AlwaysReserveHelperSlot=true) ===== *@
+    @* ===== HELPER ROW (always reserved unless globally disabled) ===== *@
     @if (Defaults.Value.AlwaysReserveHelperSlot || HasHelperContent)
     {
         <div class="lipi-input-helper @HelperStateClass"
@@ -107,113 +98,49 @@
             @HelperText
         </div>
     }
+
 </div>
 
 @code {
     // ==========================================================================
-    // PARAMETERS
+    // COMPONENT-SPECIFIC PARAMETERS
     // ──────────────────────────────────────────────────────────────────────────
+    // The 18 common parameters live on LipiInputBase<string?> and are inherited
+    // automatically. Only LipiTextBox-specific parameters are declared here.
+    //
     // Inherited from InputBase<string?> — DO NOT redeclare:
     //   [Parameter] Value, ValueChanged, ValueExpression, DisplayName
     //   protected CurrentValue, CurrentValueAsString, EditContext, FieldIdentifier
     // ==========================================================================
 
-    /// <summary>HTML name attribute. REQUIRED — used to derive the id (tb-{Name}).
-    /// Throws in Development if missing/empty. Logs + falls back to anonymous id in Production.</summary>
-    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
-
-    /// <summary>Field label rendered above the input. REQUIRED — visible text for sighted users
-    /// and accessible name for assistive tech. Throws in Development if missing/empty.</summary>
-    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
-
-    /// <summary>HTML input type. Default Text. Number is excluded — use LipiNumberInput instead.</summary>
+    /// <summary>HTML input type. Default Text. Number is excluded — use LipiNumberInput
+    /// instead for locale-aware numeric input. See <see cref="TextInputType"/> for the
+    /// supported values (Text/Email/Tel/Password/Search/Url).</summary>
     [Parameter] public TextInputType Type { get; set; } = TextInputType.Text;
 
-    /// <summary>Placeholder text shown when value is empty.</summary>
-    [Parameter] public string? Placeholder { get; set; }
-
-    /// <summary>Helper text shown in the helper slot when no error/warning/success present.</summary>
-    [Parameter] public string? Helper { get; set; }
-
-    /// <summary>Error message — non-empty triggers Error state (red border, light pink bg, circle-x overlay).</summary>
-    [Parameter] public string? Error { get; set; }
-
-    /// <summary>Warning message — non-empty triggers Warning state (amber border + bg, triangle overlay).</summary>
-    [Parameter] public string? Warning { get; set; }
-
-    /// <summary>Success message — non-empty triggers Success state (green border, check overlay).</summary>
-    [Parameter] public string? Success { get; set; }
-
-    /// <summary>Marks field as required. Pairs with RequiredVisualStyle for visual treatment.</summary>
-    [Parameter] public bool Required { get; set; }
-
-    /// <summary>Disabled state — terminal, no interaction.</summary>
-    [Parameter] public bool Disabled { get; set; }
-
-    /// <summary>Read-only state (Variant B: dashed border + faint bg, full-color text, selectable).</summary>
-    [Parameter] public bool ReadOnly { get; set; }
-
-    /// <summary>HTML5 autocomplete token. Validated against WHATWG list; Development throws on invalid value.</summary>
-    [Parameter] public string? Autocomplete { get; set; }
-
-    /// <summary>Size variant. Default Medium (32px).</summary>
-    [Parameter] public InputSize Size { get; set; } = InputSize.Medium;
-
-    /// <summary>Lucide icon name rendered to the LEFT of input text (decorative).</summary>
-    [Parameter] public string? Icon { get; set; }
-
-    /// <summary>Lucide icon name rendered to the RIGHT of input text. Replaced by validation overlay
-    /// during Error/Warning/Success states. Becomes interactive when OnIconRightClick is wired.</summary>
+    /// <summary>Lucide icon name rendered to the RIGHT of input text. Replaced by validation
+    /// overlay during Error/Warning/Success states. Becomes interactive when OnIconRightClick
+    /// is wired (typical patterns: password toggle, clear button, copy-to-clipboard).</summary>
     [Parameter] public string? IconRight { get; set; }
 
-    /// <summary>Click handler for the right-side icon (password toggle, clear button, copy, etc.).
-    /// When set, the icon becomes a focusable button.</summary>
+    /// <summary>Click handler for the right-side icon. When set, the icon becomes a
+    /// focusable button.</summary>
     [Parameter] public EventCallback<MouseEventArgs> OnIconRightClick { get; set; }
 
-    /// <summary>Accessible label for the right-side icon button. Required when OnIconRightClick is set.</summary>
+    /// <summary>Accessible label for the right-side icon button. Required when
+    /// OnIconRightClick is set (WCAG 2.1 SC 4.1.2 — accessible name for interactive controls).</summary>
     [Parameter] public string? IconRightAriaLabel { get; set; }
 
     /// <summary>HTML maxlength attribute. Null = unlimited.</summary>
     [Parameter] public int? MaxLength { get; set; }
 
-    /// <summary>External aria-describedby reference (in addition to the auto-wired helper id).</summary>
-    [Parameter] public string? AriaDescribedBy { get; set; }
-
-    /// <summary>Per-component override of required-field visual treatment. Null = inherit from LipiInputDefaults.</summary>
-    [Parameter] public RequiredVisualStyle? RequiredVisualStyle { get; set; }
-
-    /// <summary>Confidence pill in label (Verified / Self-reported / Estimated / Unknown).
-    /// Used for DOB and identity verification fields per Decision #5.</summary>
-    [Parameter] public ConfidenceLevel? LabelConfidence { get; set; }
-
-    /// <summary>Optional grid column span. Sets <c>style="grid-column: span @Cols"</c> for clean
-    /// migration from the legacy reg-* / pg-g4 layout patterns.</summary>
-    [Parameter] public int? Cols { get; set; }
-
-    /// <summary>Append-only CSS class. LAYOUT UTILITIES ONLY (margin, alignment).
-    /// NEVER use for visual styling — use Size, Variant, or component parameters instead.</summary>
-    [Parameter] public string? Class { get; set; }
-
-    // ==========================================================================
-    // RESOLVED FIELDS (private — never write to [Parameter] backing fields)
-    // ==========================================================================
-
-    private string _resolvedName = string.Empty;
-    private string _resolvedLabel = string.Empty;
-    private string? _resolvedAutocomplete;
-
-    private const string AnonymousIdPrefix = "tb-anon-";
-    private string? _cachedAnonymousId; // persist anonymous id across renders (production fallback)
-
     // ==========================================================================
     // INPUTBASE OVERRIDE
+    // ──────────────────────────────────────────────────────────────────────────
+    // For string-typed inputs the parsing is identity — the raw string IS the value.
+    // Always succeeds. NumberInput<TValue> has real parsing logic.
     // ==========================================================================
 
-    /// <summary>
-    /// InputBase&lt;string?&gt; abstract method. For string-typed inputs the parsing is identity —
-    /// the raw string IS the value. Always succeeds. Future LipiNumberInput&lt;TValue&gt; will have
-    /// real parsing logic here (locale-aware decimal, integer overflow detection, etc.).
-    /// </summary>
     protected override bool TryParseValueFromString(
         string? value,
         out string? result,
@@ -225,35 +152,26 @@
     }
 
     // ==========================================================================
-    // PARAMETER VALIDATION (env-gated)
+    // BASE CLASS OVERRIDES
     // ==========================================================================
 
-    protected override void OnParametersSet()
+    /// <summary>Component id namespace — produces id="tb-{Name}" so legacy stylesheets
+    /// targeting #tb-* selectors continue to match.</summary>
+    protected override string ComponentIdPrefix => "tb";
+
+    /// <summary>Type name for log messages — overrides the generic-mangled default.</summary>
+    protected override string ComponentTypeName => "LipiTextBox";
+
+    /// <summary>For string?, "empty" includes both null AND "". The base default
+    /// (CurrentValue is null) would treat "" as non-empty, breaking the apricot-tint
+    /// trigger when a user clears the input.</summary>
+    protected override bool IsEmpty => string.IsNullOrEmpty(CurrentValueAsString);
+
+    /// <summary>Append the LipiTextBox-specific component-validation check
+    /// (IconRightAriaLabel required when OnIconRightClick is wired).</summary>
+    protected override List<string> CollectParameterValidationErrors()
     {
-        // Snapshot caller-provided values into resolved fields. We never mutate
-        // [Parameter] properties — Blazor re-sets them on every render and our
-        // mutations would be wiped.
-        _resolvedName         = Name;
-        _resolvedLabel        = Label;
-        _resolvedAutocomplete = Autocomplete;
-
-        var errors = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(Name))
-        {
-            errors.Add("Name parameter is required (used to generate id, name, and a11y attributes)");
-        }
-
-        if (string.IsNullOrWhiteSpace(Label))
-        {
-            errors.Add("Label parameter is required (visible text for sighted users + accessible name)");
-        }
-
-        if (!string.IsNullOrWhiteSpace(Autocomplete) && !AutocompleteValidator.IsValid(Autocomplete))
-        {
-            errors.Add(AutocompleteValidator.FormatInvalidMessage(
-                "LipiTextBox", "Autocomplete", Autocomplete));
-        }
+        var errors = base.CollectParameterValidationErrors();
 
         if (OnIconRightClick.HasDelegate && string.IsNullOrWhiteSpace(IconRightAriaLabel))
         {
@@ -261,71 +179,14 @@
                        "(WCAG 2.1 SC 4.1.2 — accessible name for interactive controls)");
         }
 
-        if (errors.Count == 0) return;
-
-        var message = $"LipiTextBox parameter validation failed: {string.Join("; ", errors)}";
-
-        if (Env.IsDevelopment())
-        {
-            // Development: hard fail — surface the issue immediately.
-            throw new InvalidOperationException(message);
-        }
-        else
-        {
-            // Production: log + render with safe fallbacks. Never crash a hospital app.
-            Log.LogError("[LipiTextBox] {Message}. Component will render with fallback values.", message);
-
-            if (string.IsNullOrWhiteSpace(_resolvedName))
-            {
-                // Cache once across the component's lifetime so the rendered id is stable
-                // between renders. Without caching, every render generates a new guid →
-                // id changes → label `for=` no longer matches → broken a11y in the
-                // exact case we're already failing.
-                _cachedAnonymousId ??= AnonymousIdPrefix + Guid.NewGuid().ToString("N")[..8];
-                _resolvedName = _cachedAnonymousId;
-            }
-            if (string.IsNullOrWhiteSpace(_resolvedLabel))
-            {
-                _resolvedLabel = "(unlabeled)";
-            }
-            if (!string.IsNullOrWhiteSpace(_resolvedAutocomplete) && !AutocompleteValidator.IsValid(_resolvedAutocomplete))
-            {
-                _resolvedAutocomplete = "off"; // safest fallback — disables autofill rather than misleading the browser
-            }
-        }
+        return errors;
     }
 
     // ==========================================================================
-    // RESOLVED PROPERTIES
+    // COMPONENT-SPECIFIC RESOLVED PROPERTIES
     // ==========================================================================
 
-    private string EffectiveId => $"tb-{_resolvedName}";
-    private string HelperId   => $"{EffectiveId}-helper";
-
-    private RequiredVisualStyle EffectiveRequiredStyle =>
-        RequiredVisualStyle ?? Defaults.Value.RequiredVisualStyle;
-
-    private bool IsEmpty => string.IsNullOrEmpty(CurrentValueAsString);
     private bool IconRightClickable => OnIconRightClick.HasDelegate;
-
-    // State precedence (highest priority wins, override required tint):
-    //   Disabled > ReadOnly > Error > Success > Warning > RequiredEmpty > Default
-    // Disabled and ReadOnly are terminal — they short-circuit before any state styling.
-    private InputState ResolvedState
-    {
-        get
-        {
-            if (Disabled)                         return InputState.Disabled;
-            if (ReadOnly)                         return InputState.ReadOnly;
-            if (!string.IsNullOrEmpty(Error))     return InputState.Error;
-            if (!string.IsNullOrEmpty(Success))   return InputState.Success;
-            if (!string.IsNullOrEmpty(Warning))   return InputState.Warning;
-            if (Required && IsEmpty
-                && EffectiveRequiredStyle == LiPi.Web.Components.Shared.RequiredVisualStyle.ApricotTint)
-                                                  return InputState.RequiredEmpty;
-            return InputState.Default;
-        }
-    }
 
     private string TypeAttr => Type switch
     {
@@ -335,13 +196,6 @@
         TextInputType.Search   => "search",
         TextInputType.Url      => "url",
         _                      => "text"
-    };
-
-    private int IconPx => Size switch
-    {
-        InputSize.Small => 14,
-        InputSize.Large => 18,
-        _               => 16
     };
 
     private string CssClasses
@@ -361,24 +215,8 @@
         }
     }
 
-    private static string StateCssToken(InputState s) => s switch
-    {
-        InputState.Disabled       => "disabled",
-        InputState.ReadOnly       => "readonly",
-        InputState.Error          => "error",
-        InputState.Warning        => "warning",
-        InputState.Success        => "success",
-        InputState.RequiredEmpty  => "required-empty",
-        _                         => "default"
-    };
-
-    private string? InlineStyle => Cols.HasValue ? $"grid-column: span {Cols.Value};" : null;
-
-    // Validation state icons override caller's IconRight when active.
-    // Lucide icons used:
-    //   Error   → circle-x (X-in-a-circle, stronger affordance than plain x)
-    //   Warning → alert-triangle (filled exclamation triangle)
-    //   Success → check (single checkmark)
+    /// <summary>Validation-state icons override caller's IconRight when active.
+    /// Lucide icons used: Error → circle-x, Warning → alert-triangle, Success → check.</summary>
     private string? EffectiveTrailingIcon => ResolvedState switch
     {
         InputState.Error   => "circle-x",
@@ -387,71 +225,7 @@
         _                  => IconRight
     };
 
-    // Helper slot resolution (priority matches state precedence).
-    private string? HelperText => ResolvedState switch
-    {
-        InputState.Error   => Error,
-        InputState.Warning => Warning,
-        InputState.Success => Success,
-        _                  => Helper
-    };
-
-    private string HelperStateClass => ResolvedState switch
-    {
-        InputState.Error   => "lipi-input-helper-error",
-        InputState.Warning => "lipi-input-helper-warning",
-        InputState.Success => "lipi-input-helper-success",
-        _                  => "lipi-input-helper-default"
-    };
-
-    private bool HasHelperContent => !string.IsNullOrEmpty(HelperText);
-
-    private string? HelperRole       => ResolvedState == InputState.Error ? "alert" : null;
-    private string  HelperAriaLive   => ResolvedState == InputState.Error ? "assertive" : "polite";
-    private string? AriaInvalidAttr  => ResolvedState == InputState.Error ? "true" : null;
-
-    private string? AutocompleteAttr => string.IsNullOrWhiteSpace(_resolvedAutocomplete)
-        ? null
-        : _resolvedAutocomplete;
-
     private string? MaxLengthAttr => MaxLength?.ToString();
-
-    private string? AriaDescribedByAttr
-    {
-        get
-        {
-            // Wire up helper id so screen readers announce the helper/error message
-            // along with the input. Combine with caller-provided AriaDescribedBy if present.
-            var ids = new List<string>();
-            if (HasHelperContent || Defaults.Value.AlwaysReserveHelperSlot)
-                ids.Add(HelperId);
-            if (!string.IsNullOrWhiteSpace(AriaDescribedBy))
-                ids.Add(AriaDescribedBy);
-            return ids.Count == 0 ? null : string.Join(" ", ids);
-        }
-    }
-
-    // Confidence pill rendering helpers
-    private string? ConfidenceCssClass => LabelConfidence switch
-    {
-        ConfidenceLevel.Verified     => "verified",
-        ConfidenceLevel.SelfReported => "self",
-        ConfidenceLevel.Estimated    => "estimated",
-        ConfidenceLevel.Unknown      => "unknown",
-        _                            => null
-    };
-
-    private string ConfidenceLabelText => LabelConfidence switch
-    {
-        ConfidenceLevel.Verified     => "Verified",
-        ConfidenceLevel.SelfReported => "Self-reported",
-        ConfidenceLevel.Estimated    => "Estimated",
-        ConfidenceLevel.Unknown      => "Unknown",
-        _                            => string.Empty
-    };
-
-    private string? ConfidenceAriaLabel =>
-        LabelConfidence.HasValue ? $"Data confidence: {ConfidenceLabelText}" : null;
 
     // ==========================================================================
     // EVENT HANDLERS
@@ -464,18 +238,18 @@
         // CurrentValueAsString setter (inherited from InputBase<string?>):
         //   1. Calls TryParseValueFromString → assigns CurrentValue
         //   2. Fires ValueChanged.InvokeAsync (fire-and-forget)
-        //   3. Notifies EditContext.NotifyFieldChanged → triggers DataAnnotations validation
+        //   3. Notifies EditContext.NotifyFieldChanged → triggers validation
+        //   4. EditContext fires OnValidationStateChanged
+        //   5. LipiInputBase's HandleValidationStateChanged updates _editContextError
+        //   6. Re-render: EffectiveError surfaces validation message in helper slot
         // No await needed — the InputBase pipeline is internally fire-and-forget.
         CurrentValueAsString = e.Value?.ToString();
     }
 
-    private Task HandleBlur(FocusEventArgs e)
-    {
-        // Hook point for future blur-driven validation (e.g., debounced revalidation).
-        // Currently a no-op — callers handle blur via their own state management or
-        // via EditContext.OnFieldChanged when wired into <EditForm>.
-        return Task.CompletedTask;
-    }
+    // HandleBlur is inherited from LipiInputBase<string?>. It marks _isTouched=true,
+    // forces EditContext.NotifyFieldChanged so [Required] validates on tab-past, and
+    // calls our virtual OnFieldBlurred hook (which we don't override — text inputs
+    // have no component-specific blur logic).
 
     private async Task HandleIconRightClick(MouseEventArgs e)
     {

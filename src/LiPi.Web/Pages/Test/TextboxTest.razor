@@ -1,0 +1,210 @@
+@* SPEC: docs/00-COMPONENTS/01.2-TextInputs.md (LipiTextBox verification)
+   PHASE: 2.2.5 Batch 8a Step 2 — final E2 state, no comparison baseline.
+
+   Step 1 baseline verification was completed and matched. The manual
+   ValidationMessage component-tag pattern is removed; validation flows entirely
+   through the auto-populated helper slot via EditContext.OnValidationStateChanged
+   subscription in LipiInputBase.
+
+   Test cases exercise:
+   - Touched-state pattern: validation suppressed until first blur, then live
+   - Force-validation on tab-past: empty Required fields fire on blur
+   - State precedence cascade: Error elevation suppresses apricot tint
+   - DataAnnotations attributes: Required, EmailAddress, StringLength, RegularExpression
+   - Caller-set Error wins display (server-side simulation), but does not fail
+     EditContext.Validate() — see 01.2-TextInputs.md §10.10
+*@
+
+@page "/test/textbox"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiTextBox EditContext Test (Phase 2.2.5 Step 2)</PageTitle>
+
+<style>
+    .field-divider {
+        margin: 24px 0;
+        border-top: 1px solid var(--color-border-subtle);
+    }
+    .test-status {
+        margin-top: 16px;
+        padding: 8px 12px;
+        border-radius: var(--r-sm);
+        font-size: 13px;
+        font-weight: 500;
+    }
+    .test-status-valid   { background-color: var(--color-success-pale); color: var(--color-success-text-strong); }
+    .test-status-invalid { background-color: var(--color-danger-pale);  color: var(--color-danger); }
+</style>
+
+<div style="max-width: 720px; margin: 0 auto; padding: 24px; font-family: var(--font-ui);">
+
+    <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 8px 0; color: var(--color-text-primary);">
+        LipiTextBox — Phase 2.2.5 EditContext auto-population
+    </h1>
+    <p style="margin: 0 0 24px 0; color: var(--color-text-secondary); font-size: 13px;">
+        DataAnnotations validation flows automatically into the LipiTextBox helper slot
+        via <code style="background: var(--color-bg-subtle); padding: 1px 4px; border-radius: 3px;">EditContext.OnValidationStateChanged</code>
+        subscription in <code style="background: var(--color-bg-subtle); padding: 1px 4px; border-radius: 3px;">LipiInputBase</code>.
+        Validation is suppressed until first blur (touched-state pattern); after first blur,
+        it updates live as the user types.
+    </p>
+
+    <EditForm Model="_model" OnValidSubmit="OnValidSubmit" OnInvalidSubmit="OnInvalidSubmit">
+        <DataAnnotationsValidator />
+
+        @* ===================================================================
+           FIELD 1: Email (Required + EmailAddress validation)
+           ─────────────────────────────────────────────────────────────────
+           Demonstrates: empty Required field fires on blur (no typing needed);
+           invalid format shows error after first blur, then live-updates on
+           subsequent typing.
+           ================================================================== *@
+        <LipiTextBox Name="email"
+                     Label="Email"
+                     Required="true"
+                     Type="TextInputType.Email"
+                     Autocomplete="email"
+                     Placeholder="user@example.com"
+                     Helper="Required for staff record"
+                     @bind-Value="_model.Email" />
+
+        <div class="field-divider"></div>
+
+        @* ===================================================================
+           FIELDS 2-4: Auto-populated, multiple DataAnnotations attributes.
+           Validation flows automatically into each component's helper slot
+           via EditContext.OnValidationStateChanged subscription in LipiInputBase.
+           ================================================================== *@
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <LipiTextBox Name="firstName"
+                         Label="First Name"
+                         Required="true"
+                         Autocomplete="given-name"
+                         Placeholder="Letters only"
+                         @bind-Value="_model.FirstName" />
+
+            <LipiTextBox Name="lastName"
+                         Label="Last Name"
+                         Required="true"
+                         Autocomplete="family-name"
+                         Placeholder="Letters only"
+                         @bind-Value="_model.LastName" />
+        </div>
+
+        <div style="margin-top: 16px;">
+            <LipiTextBox Name="phone"
+                         Label="Mobile Number"
+                         Type="TextInputType.Tel"
+                         Required="true"
+                         Autocomplete="tel"
+                         Placeholder="10 digits, no spaces"
+                         Helper="Used for OTP and shift notifications"
+                         @bind-Value="_model.Phone" />
+        </div>
+
+        <div style="margin-top: 16px;">
+            <LipiTextBox Name="username"
+                         Label="Username"
+                         Autocomplete="username"
+                         Placeholder="Letters and digits only"
+                         Helper="Optional. Used for sign-in alongside email."
+                         @bind-Value="_model.Username" />
+        </div>
+
+        @* Caller-set Error wins demo *@
+        <div style="margin-top: 16px;">
+            <LipiTextBox Name="employeeId"
+                         Label="Employee ID (caller Error always wins)"
+                         Error="@(_simulateServerError ? "Employee ID already in use" : null)"
+                         Helper="Toggle the simulated server error to see caller Error override EditContext"
+                         @bind-Value="_model.EmployeeId" />
+
+            <label style="display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--color-text-secondary); cursor: pointer;">
+                <input type="checkbox" @bind="_simulateServerError" />
+                Simulate server-side validation error
+            </label>
+        </div>
+
+        @* Submit + status *@
+        <div style="display: flex; align-items: center; gap: 12px; margin-top: 24px;">
+            <button type="submit"
+                    style="padding: 8px 16px; background-color: var(--color-primary);
+                           color: var(--color-primary-contrast, white); border: 0;
+                           border-radius: var(--r-sm); font-family: inherit; font-size: 14px;
+                           font-weight: 500; cursor: pointer;">
+                Validate all fields
+            </button>
+            @if (_validationStatus != null)
+            {
+                <span class="test-status @(_isValid ? "test-status-valid" : "test-status-invalid")">
+                    @_validationStatus
+                </span>
+            }
+        </div>
+    </EditForm>
+
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary); line-height: 1.5;">
+        <strong>What to verify (Step 2 — final E2 state):</strong>
+        <br /> • <strong>Force-validation on tab-past (Issue #1 fix):</strong> click into a Required field (e.g., First Name) and tab out without typing. The required error should now appear in the helper slot. Without HandleBlur calling NotifyFieldChanged, never-touched empty fields would stay silent.
+        <br /> • <strong>Touched-state pattern (Issue #2 fix):</strong> click into Email, type "v" — no error appears (field is mid-typing, not yet blurred). Type "valid@e" — still no error. Tab out — error appears now. Continue typing in same field — error updates live as you fix it.
+        <br /> • <strong>Auto-populated everywhere:</strong> all fields display validation in their own helper slot via the LipiInputBase EditContext subscription. No manual ValidationMessage component-tags anywhere on this page.
+        <br /> • <strong>Caller Error wins display:</strong> tick the "Simulate server-side validation error" checkbox. Employee ID shows "Employee ID already in use" — caller-set Error parameter takes precedence over any EditContext message.
+        <br /> • <strong>Caller Error does NOT fail Validate (§10.10):</strong> with the simulated server error visible, click "Validate All Fields". Form may still pass EditContext.Validate() if all DataAnnotations are clean — caller-set Error is for display only. Submission-blocking logic belongs in OnValidSubmit handler.
+        <br /> • <strong>Apricot tint suppressed during error:</strong> required fields in Error state should NOT show apricot — Error state precedes RequiredEmpty in the cascade.
+        <br /> • <strong>Form submit:</strong> click "Validate All Fields". Invalid → "Some fields invalid". Fix all errors → "All fields valid".
+        <br />
+        <br /> Documented behaviors not bugs: §10.8 (.NET [EmailAddress] is permissive — "valid@e" passes); §10.9 (LipiTextBox doesn't block non-numeric input — Mobile field accepts letters); §10.10 (caller-set Error displays but doesn't fail Validate).
+    </div>
+
+</div>
+
+@code {
+    private TestModel _model = new();
+    private bool _simulateServerError = false;
+    private string? _validationStatus;
+    private bool _isValid;
+
+    private void OnValidSubmit()
+    {
+        _isValid = true;
+        _validationStatus = "✓ All fields valid";
+    }
+
+    private void OnInvalidSubmit()
+    {
+        _isValid = false;
+        _validationStatus = "✗ Some fields invalid — see helper slots";
+    }
+
+    public class TestModel
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        public string? Email { get; set; }
+
+        [Required(ErrorMessage = "First name is required")]
+        [RegularExpression(@"^[a-zA-Z\s]+$", ErrorMessage = "Letters only")]
+        [StringLength(50, ErrorMessage = "Max 50 characters")]
+        public string? FirstName { get; set; }
+
+        [Required(ErrorMessage = "Last name is required")]
+        [RegularExpression(@"^[a-zA-Z\s]+$", ErrorMessage = "Letters only")]
+        [StringLength(50, ErrorMessage = "Max 50 characters")]
+        public string? LastName { get; set; }
+
+        [Required(ErrorMessage = "Mobile number is required")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Must be 10 digits")]
+        public string? Phone { get; set; }
+
+        [StringLength(20, MinimumLength = 3, ErrorMessage = "3 to 20 characters")]
+        [RegularExpression(@"^[a-zA-Z0-9_]+$", ErrorMessage = "Letters, digits, and _ only")]
+        public string? Username { get; set; }
+
+        public string? EmployeeId { get; set; }
+    }
+}
