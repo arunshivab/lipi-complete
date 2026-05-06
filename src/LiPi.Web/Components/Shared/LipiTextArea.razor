@@ -301,17 +301,6 @@
 
     private string? MaxLengthAttr => MaxLength?.ToString();
 
-    private static string StateCssToken(InputState s) => s switch
-    {
-        InputState.Disabled       => "disabled",
-        InputState.ReadOnly       => "readonly",
-        InputState.Error          => "error",
-        InputState.Warning        => "warning",
-        InputState.Success        => "success",
-        InputState.RequiredEmpty  => "required-empty",
-        _                         => "default"
-    };
-
     // ==========================================================================
     // EVENT HANDLERS
     // ==========================================================================

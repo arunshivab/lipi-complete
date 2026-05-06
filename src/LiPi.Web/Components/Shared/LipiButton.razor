@@ -1,15 +1,24 @@
 @* SPEC: Phase 2.1 LipiButton design package *@
 @* All variants × sizes × states per locked design package *@
 @* Namespace: LiPi.Web.Components.Shared *@
+@*                                                                                  *@
+@* A14 (May 6, 2026): env-gated parameter validation. Mirrors the                   *@
+@* CollectParameterValidationErrors / ValidateOrFallback pattern in LipiInputBase.  *@
+@* Development → throw InvalidOperationException; Production → ILogger.LogError     *@
+@* with safe fallback (icon name + " button"). See docs/CHANGE-LOG.md A14.          *@
 
 @using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.Extensions.Logging
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@inject ILogger<LipiButton> Log
 
 <button type="@Type"
         class="lipi-button @CssClasses @(Class ?? string.Empty)"
         disabled="@EffectiveDisabled"
         aria-busy="@AriaBusyValue"
-        aria-label="@AriaLabel"
+        aria-label="@_resolvedAriaLabel"
         @onclick="HandleClickAsync">
     @* Loading replaces LEFT icon only; text and right-icon remain visible to preserve width. *@
     @if (IsLoading)
@@ -81,7 +90,10 @@
     /// <summary>HTML button type: "button" (default), "submit", or "reset".</summary>
     [Parameter] public string Type { get; set; } = "button";
 
-    /// <summary>Screen reader label. REQUIRED for icon-only buttons (throws if missing).</summary>
+    /// <summary>Screen reader label. REQUIRED for icon-only buttons. Missing AriaLabel
+    /// on icon-only buttons throws InvalidOperationException in Development; in Production,
+    /// logs an error and falls back to "{Icon} button" so the page renders. Always set
+    /// explicitly for production-quality accessibility.</summary>
     [Parameter] public string? AriaLabel { get; set; }
 
     /// <summary>
@@ -119,13 +131,42 @@
         }
     }
 
+    /// <summary>Caller-set AriaLabel snapshot, with production-fallback applied for
+    /// icon-only buttons that lack an explicit AriaLabel. Markup binds to this field
+    /// instead of the [Parameter] directly so the fallback flows through to the DOM.
+    /// Recomputed every OnParametersSet — safe because the cost is trivial and the
+    /// behavior is idempotent.</summary>
+    private string? _resolvedAriaLabel;
+
     protected override void OnParametersSet()
     {
+        // Default: pass through caller's AriaLabel unchanged.
+        _resolvedAriaLabel = AriaLabel;
+
+        // Validate icon-only buttons have an accessible name (WCAG 2.1.4.6 / SC 4.1.2).
         if (IsIconOnly && string.IsNullOrWhiteSpace(AriaLabel))
         {
-            throw new ArgumentException(
+            var message =
                 "LipiButton: AriaLabel is required when in icon-only mode " +
-                "(ChildContent null + Icon set). WCAG 2.1.4.6 / SC 4.1.2 compliance.");
+                $"(ChildContent null + Icon='{Icon}'). WCAG 2.1.4.6 / SC 4.1.2 compliance.";
+
+            // Env-gated pattern (mirrors LipiInputBase.ValidateOrFallback):
+            //   Development → throw so the developer sees the error during build/test
+            //   Production  → log + safe fallback so the page doesn't crash on a live
+            //                 patient-care screen. Fallback "{Icon} button" gives screen
+            //                 reader users a reasonable accessible name (e.g., "save button"
+            //                 for an icon-only save button); the developer-time error
+            //                 still teaches the right pattern in dev.
+            if (Env.IsDevelopment())
+            {
+                throw new InvalidOperationException(message);
+            }
+            else
+            {
+                Log.LogError("[LipiButton] {Message} Falling back to '{Fallback} button'.",
+                    message, Icon);
+                _resolvedAriaLabel = $"{Icon} button";
+            }
         }
     }
 

@@ -270,7 +270,7 @@
     var c = allClinics.First(x => x.Id == clinicId);
     _orgModalClinicId   = clinicId;
     _orgModalClinicName = c.Name;
-    _orgModalSelectedId = c.OrganizationId.HasValue && c.OrganizationId != Guid.Empty ? c.OrganizationId.ToString() : string.Empty;
+    _orgModalSelectedId = c.OrganizationId.HasValue && c.OrganizationId != Guid.Empty ? c.OrganizationId.Value.ToString() : string.Empty;
     _orgModalError      = string.Empty;
   }
 

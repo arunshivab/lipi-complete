@@ -333,10 +333,10 @@ This is shipped as default with an opt-out path: a `RequiredVisualStyle` paramet
 > shipping on top of that base. Together with A12 (May 4 token foundation),
 > these three amendments close out Phase 2.2.
 >
-> Note: A14 is reserved for the LipiButton env-gated retrofit (see Known
-> divergences below). Numbering jumps A13 → A15 to preserve A14's reservation.
-> The trigger condition for A14 (Phase 2.2 components shipping the env-gated
-> pattern proven) is satisfied as of A15 — A14 retrofit is now ready to schedule.
+> A14 (originally reserved for the LipiButton env-gated retrofit) was held in
+> sequence between A13 and A15 even though it shipped a day later than A15.
+> The amendment number reflects the logical ordering — A14 was always the
+> LipiButton retrofit slot, regardless of when it landed.
 
 ### A13 — Phase 2.2 input-family base (LipiTextArea + shared lipi-inputs.css + lipi-input.js)
 
@@ -382,6 +382,82 @@ Same logic for JS: single `lipi-input.js` consolidates input-family JS helpers. 
 - `deploy-downloads.ps1` — added entries for new files.
 
 **Coordination note**: A15 builds on this base. Every component A15 adds (LipiNumberInput, LipiSelect, LipiCombobox) consumes lipi-inputs.css and extends lipi-input.js with additional helper functions. The base file architecture established here is the foundation for all subsequent input-family work.
+
+---
+
+### A14 — LipiButton env-gated parameter validation retrofit
+
+**Phase**: 2.1 (LipiButton component sub-step) — A14 reservation backlog
+**Date**: 2026-05-06 (numbering preserved between A13 and A15 per reservation)
+
+**Changed**: `LipiButton.razor` parameter validation — replaces the always-throw `OnParametersSet` (originally shipped in Phase 2.1) with the env-gated pattern proven across all five Phase 2.2 components and consolidated into `LipiInputBase.ValidateOrFallback` in A16.
+
+**Before A14:**
+
+```csharp
+protected override void OnParametersSet()
+{
+    if (IsIconOnly && string.IsNullOrWhiteSpace(AriaLabel))
+    {
+        throw new ArgumentException(
+            "LipiButton: AriaLabel is required when in icon-only mode " +
+            "(ChildContent null + Icon set). WCAG 2.1.4.6 / SC 4.1.2 compliance.");
+    }
+}
+```
+
+A `throw` in OnParametersSet crashes the page on any render, including production patient-care screens. For Phase 2.1 this was an acceptable trade-off (icon-only-without-AriaLabel is a clear coding error and the rendering surface was admin-only). For production HIS workloads it's unsafe — a missed AriaLabel on a settings panel button shouldn't blank the patient registration screen.
+
+**After A14:**
+
+```csharp
+private string? _resolvedAriaLabel;
+
+protected override void OnParametersSet()
+{
+    _resolvedAriaLabel = AriaLabel;
+
+    if (IsIconOnly && string.IsNullOrWhiteSpace(AriaLabel))
+    {
+        var message =
+            "LipiButton: AriaLabel is required when in icon-only mode " +
+            $"(ChildContent null + Icon='{Icon}'). WCAG 2.1.4.6 / SC 4.1.2 compliance.";
+
+        if (Env.IsDevelopment())
+        {
+            throw new InvalidOperationException(message);
+        }
+        else
+        {
+            Log.LogError("[LipiButton] {Message} Falling back to '{Fallback} button'.",
+                message, Icon);
+            _resolvedAriaLabel = $"{Icon} button";
+        }
+    }
+}
+```
+
+The markup binds `aria-label="@_resolvedAriaLabel"` (was `@AriaLabel`). Production fallback derives the accessible name from the icon name itself — `Icon="save"` + missing AriaLabel renders `aria-label="save button"`. Reasonable for screen readers; developers still see the dev-time exception and learn to set AriaLabel explicitly. The exception type is `InvalidOperationException` rather than `ArgumentException` because the parameter values arrived correctly from Blazor — the issue is a programming-time mistake about which combination is valid, not a malformed argument.
+
+**Injected services added:**
+- `IWebHostEnvironment Env` — for the `Env.IsDevelopment()` branch
+- `ILogger<LipiButton> Log` — for the production warning
+
+Same services and same names as the five Phase 2.2 components, so the pattern is immediately recognizable across the family.
+
+**Why a `_resolvedAriaLabel` field instead of mutating the [Parameter] directly:** Blazor re-sets `[Parameter]` properties on every render, so any direct mutation in OnParametersSet would survive only one render cycle. The field is recomputed each OnParametersSet from the current AriaLabel value, ensuring the fallback flows through to the DOM consistently. This matches the pattern in LipiInputBase (`_resolvedName`, `_resolvedLabel`, `_resolvedAutocomplete`).
+
+**Files**:
+- `src/LiPi.Web/Components/Shared/LipiButton.razor` — file header `TODO (A14)` block replaced with brief A14-shipped reference; `@using` block extended with `Microsoft.AspNetCore.Hosting` and `Microsoft.Extensions.Logging`; `@inject` block extended with `IWebHostEnvironment Env` and `ILogger<LipiButton> Log`; markup `aria-label` binding switched to `_resolvedAriaLabel`; `OnParametersSet` rewritten with env-gated pattern; `_resolvedAriaLabel` private field added; AriaLabel parameter docstring updated to describe the new env-gated behavior.
+
+**No other files changed.** No CSS, no JS, no test page updates, no deploy script changes (LipiButton.razor already mapped from Phase 2.1). No cache bump (Razor recompile only).
+
+**Coordination note**: A14 closes the documented divergence flagged at A12 (token foundation). The Known Divergences section below is updated to mark A14 resolved (entry retained as historical record). The v1.1 PLANNED list is updated to remove the A14 line item, since the retrofit has now shipped rather than waiting for v1.1.
+
+**Verification**: Manual smoke test on `/styleguide` confirmed:
+- Icon-only LipiButton with explicit AriaLabel renders correctly (no behavior change)
+- Icon-only LipiButton without AriaLabel: in Development build → throws on render with diagnostic; in Release build → renders with `aria-label="{Icon} button"` and logs the error
+- Non-icon-only buttons (text + optional icon): no change, AriaLabel optional and passes through
 
 ---
 
@@ -465,7 +541,7 @@ Trade-off: shared logic must live in `LipiSelectBase<TValue, TItem>` abstract cl
 | 5 | Composition events / IME / non-Latin numerals | LipiNumberInput | Devanagari/Arabic numerals stripped by filter. Workaround: `BlockNonNumericInput="false"` + culture-aware `BindConverter` for non-ASCII numeric deployments. |
 | 6 | CSS compound-vs-descendant selector trap | LipiSelect (Batch 5.4 lesson) | When two state-driven classes apply to the same element, target with compound (no-space) selectors. Documented in 01.2-TextInputs.md §9.11 for future component CSS authors. |
 
-**A14 trigger condition met**: The env-gated throw pattern (`IWebHostEnvironment.IsDevelopment()` → throw; production → `ILogger.LogError` + fallback) shipped successfully across all five Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox). The pattern is proven. A14's queued LipiButton retrofit (which awaited "Phase 2.2 components shipping the env-gated pattern proven") is now actionable and ready to schedule.
+**A14 trigger condition met**: The env-gated throw pattern (`IWebHostEnvironment.IsDevelopment()` → throw; production → `ILogger.LogError` + fallback) shipped successfully across all five Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox). The pattern is proven. A14's queued LipiButton retrofit (which awaited "Phase 2.2 components shipping the env-gated pattern proven") subsequently shipped 2026-05-06 — see A14 entry above.
 
 **Files** (across all sub-batches):
 
@@ -495,7 +571,7 @@ App-level:
 Forward references:
 - **Phase 2.2.5** — `EditContext.OnValidationStateChanged` auto-population across all 5 components (removes the need for explicit `<ValidationMessage For>`). Prerequisite for full PatientNew migration.
 - **Batch 7** — Build hygiene sweep (warnings → 0; pre-existing Clinics CS8601, PatientNew CS0649/CS0414; MailKit → System.Net.Mail.SmtpClient; SharpZipLib resolution).
-- **A14** — LipiButton env-gated retrofit (trigger condition met as of A15; ready to schedule).
+- **A14** — LipiButton env-gated retrofit (✅ shipped 2026-05-06; see A14 entry above).
 - **Phase 2.3** — `LipiSelectTextCompound`, `LipiMultiSelect`, `LipiCheckbox`, `LipiRadio`, `LipiToggle`.
 
 ---
@@ -533,11 +609,9 @@ The amendments above bring the spec into sync with deployed Phase 2.0 work. The 
   - Defer reconciliation to a focused v1.1 spec-update session (call it A7) so the spec accurately documents production code.
   - Until then, treat the deployed code as authoritative and the spec section as historical reference.
 
-- **A14 (queued — trigger met)** — Phase 2.1 LipiButton uses unconditional `throw new ArgumentException` in `OnParametersSet` for missing `AriaLabel` on icon-only buttons (LipiButton.razor lines 122–130). Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox) ship with an env-gated pattern: `IWebHostEnvironment.IsDevelopment()` → throw; production → `ILogger.LogError` + render with auto-generated fallback. This protects production from parameter-validation crashes (high stakes for a hospital app) while keeping dev-time strictness.
-  - LipiButton.razor will be retrofitted to the env-gated pattern as a focused v1.1 amendment (A14) once Phase 2.2 components ship and the pattern is proven.
-  - A `TODO (A14)` comment is added to `LipiButton.razor` so the inconsistency is not forgotten.
-  - Until A14 ships: Phase 2.1 LipiButton hard-throws, Phase 2.2 components warn-and-fallback. Documented divergence, scheduled for closure.
-  - **Status update (2026-05-05, post-A15)**: Trigger condition met. The env-gated throw pattern shipped successfully across all 5 Phase 2.2 components (LipiTextBox, LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox). Pattern proven. LipiButton retrofit is now ready to schedule.
+- **A14 (✅ shipped 2026-05-06)** — Phase 2.1 LipiButton previously used unconditional `throw new ArgumentException` in `OnParametersSet` for missing `AriaLabel` on icon-only buttons. Phase 2.2 components shipped with an env-gated pattern: `IWebHostEnvironment.IsDevelopment()` → throw; production → `ILogger.LogError` + render with auto-generated fallback. This protected production from parameter-validation crashes (high stakes for a hospital app) while keeping dev-time strictness.
+  - **Resolution**: A14 retrofit landed 2026-05-06 (see A14 entry above). LipiButton now uses the same env-gated pattern as the Phase 2.2 components. The `TODO (A14)` comment in `LipiButton.razor` was replaced with a brief A14-shipped reference.
+  - **Historical record retained**: This entry kept in the divergences section as a record of the resolved drift between Phase 2.1 and Phase 2.2 patterns. Future Known-Divergences scans should treat it as closed.
 
 ---
 
@@ -641,11 +715,260 @@ Net: roughly 800 lines of duplicated code consolidated into the 480-line LipiInp
 
 **Phase 2.2 Sub-step Status table.** The Phase 2.2 sub-step table earlier in this document marks Phase 2.2.5 as ✅ complete after Batch 8c verifies clean.
 
-**A14 status update (post-A16).** A14 (LipiButton env-gated retrofit) trigger condition has been doubly satisfied: first by A15 (Phase 2.2 components shipping the pattern), now by A16 (Phase 2.2.5 consolidating the pattern into LipiInputBase). Retrofit pattern: extend the LipiButton parameter validation to use the env-gated `Env.IsDevelopment() ? throw : log + fallback` pattern, removing the current always-throw. A14 still scheduled for v1.1 sprint planning.
+**A14 status update (post-A16).** A14 (LipiButton env-gated retrofit) trigger condition was doubly satisfied: first by A15 (Phase 2.2 components shipping the pattern), then by A16 (Phase 2.2.5 consolidating the pattern into LipiInputBase). A14 itself shipped on 2026-05-06 — same day as A16 — applying the proven env-gated pattern to the Phase 2.1 LipiButton. The numbering reflects logical ordering (A14 was always reserved for the LipiButton retrofit), even though A14's calendar date is one day later than A15. See the A14 entry above for details.
 
 **Coordination with deploy script.** Batch 8a updated `deploy-downloads.ps1` to include `LipiInputBase.cs` and `TextboxTest.razor`. The other 4 components (LipiTextArea, LipiNumberInput, LipiSelect, LipiCombobox) and their test pages were already mapped from Phase 2.2 batches — no additional script edits needed. The deploy script does not version files, so reships overwrite cleanly.
 
 ---
+
+### A17 — Build hygiene: zero-warning posture (MailKit + MimeKit security advisories, SharpZipLib framework restoration, redundant Components.Web reference)
+
+**Phase**: Cross-cutting infrastructure — Batch 7
+**Date**: 2026-05-06
+
+**Changed**: `src/LiPi.Web/LiPi.Web.csproj` only. Three `<PackageReference>` edits drive the build to zero warnings. No C# code changes — neither `SmtpEmailService.cs` nor `AadhaarXmlService.cs` is touched. The chosen package versions are API-compatible with the existing call sites.
+
+**Pre-A17 build output (4 unique warnings, doubled across restore + build phases for 8 total):**
+
+```
+warning NU1510: PackageReference Microsoft.AspNetCore.Components.Web will not be pruned.
+                Consider removing this package from your dependencies, as it is likely unnecessary.
+warning NU1902: Package 'MailKit' 4.7.1 has a known moderate severity vulnerability,
+                https://github.com/advisories/GHSA-9j88-vvj5-vhgr
+warning NU1902: Package 'MimeKit' 4.7.1 has a known moderate severity vulnerability,
+                https://github.com/advisories/GHSA-g7hc-96xr-gvvx
+warning NU1701: Package 'ICSharpCode.SharpZipLib 0.86.0.518' was restored using
+                '.NETFramework,Version=v4.6.1, ..., .NETFramework,Version=v4.8.1'
+                instead of the project target framework 'net10.0'.
+                This package may not be fully compatible with your project.
+```
+
+Build succeeded but with security debt and framework-restoration mismatches that were unacceptable for the HIPAA + Six Sigma posture LiPi targets. NU1902 is the most urgent: a build that compiles but ships against a known CVE is not a build that meets the bar for clinical software.
+
+**Post-A17 build output expectation: 0 warnings, 0 errors.**
+
+**Edit 1 — MailKit 4.7.1 → 4.16.0 (clears NU1902 ×2)**
+
+GHSA-9j88-vvj5-vhgr is a STARTTLS Response Injection vulnerability that allows a Man-in-the-Middle attacker to inject protocol responses across the plaintext-to-TLS trust boundary, enabling SASL authentication mechanism downgrade. The advisory affects all MailKit versions ≤ 4.12.0 when used with `SecureSocketOptions.StartTls` — which `SmtpEmailService.cs` does (it sets `SecureSocketOptions.StartTls` in its `ConnectAsync` call for Gmail/SES/SendGrid SMTP). The fix is shipped in MailKit 4.16.0.
+
+GHSA-g7hc-96xr-gvvx is a parallel advisory in MimeKit 4.7.1 (transitive dependency of MailKit). Upgrading MailKit to 4.16.0 pulls in a non-vulnerable MimeKit transitively, clearing both NU1902 warnings simultaneously.
+
+API compatibility: MailKit 4.x is a stable major-version line; the 4.7.1 → 4.16.0 jump is a minor-version progression with no breaking changes to `SmtpClient`, `MailKit.Security.SecureSocketOptions`, `MimeKit.MimeMessage`, `MimeKit.MailboxAddress`, or `MimeKit.TextPart` — all the types `SmtpEmailService.cs` consumes. The `client.ConnectAsync(host, port, SecureSocketOptions.StartTls)` / `AuthenticateAsync(user, pass)` / `SendAsync(message)` / `DisconnectAsync(true)` flow is unchanged. No code edit needed.
+
+**Edit 2 — `ICSharpCode.SharpZipLib 0.86.0.518` → `SharpZipLib 1.4.2` (clears NU1701)**
+
+This edit is a **package id rename plus a version bump**, not a simple version upgrade. The currently-pinned package id `ICSharpCode.SharpZipLib` is the legacy 2010-era package on NuGet (last update 2010/05/25). The currently-maintained package on NuGet.org is published under the simpler id `SharpZipLib` (no `ICSharpCode.` prefix). The 0.86.0.518 pin is the source of NU1701 because that package only ships .NET Framework v4.x assemblies, and NuGet falls back to net4.x compatibility when restoring into a net10.0 project — which works at runtime by accident but is not a posture LiPi can defend in audit.
+
+`SharpZipLib 1.4.2` (released 2023-01-30) ships .NETStandard 2.0 + 2.1 assemblies, which restore cleanly into net10.0 and remove NU1701. The C# `namespace ICSharpCode.SharpZipLib.Zip`, the `ZipFile` class, the `ZipEntry` enumeration, the `Password` property, the `GetInputStream(ZipEntry)` method, the `Close()` method, and the `ZipException` type are all unchanged from 0.86.0.518 to 1.4.2 — the namespace stayed `ICSharpCode.SharpZipLib.*` even after the package id changed. `AadhaarXmlService.cs` continues to compile and run unchanged: its `using ICSharpCode.SharpZipLib.Zip;` directive plus `var zipFile = new ZipFile(ms); zipFile.Password = shareCode;` pattern is forward-compatible.
+
+**Why not BCL replacement (`System.IO.Compression.ZipArchive`)?**
+
+UIDAI Offline Aadhaar ZIPs are password-protected (4-digit share code as ZIP password). `System.IO.Compression.ZipArchive` does not support password-protected ZIPs — period. `AadhaarXmlService.cs` requires password-protected ZIP support, so dropping SharpZipLib entirely would require a different third-party library or implementing PKZIP 2.0 password decryption from scratch. Neither alternative is better than the SharpZipLib upgrade. Decision: keep SharpZipLib, upgrade to the maintained 1.4.2 line, get out of the .NET Framework restoration trap, leave the call site untouched.
+
+**Edit 3 — Remove `<PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />` (clears NU1510)**
+
+`Microsoft.AspNetCore.Components.Web` is included transitively by the `Microsoft.NET.Sdk.Web` SDK (which the project's `<Project Sdk="Microsoft.NET.Sdk.Web">` declaration pulls in). The explicit `<PackageReference>` was redundant — NuGet's `prune` analysis flagged it as such. Removing the explicit reference does not change which assemblies end up in the build; it just removes the redundant declaration. NU1510 clears.
+
+**Strategic context (memory rule #26 — infrastructure phases trigger on real demand)**
+
+A17 is interim hygiene, not the final email or compression architecture for LiPi HIS. The strategic plan documented as of 2026-05-06:
+
+- **LipiMail service** — A future infrastructure phase will introduce a dedicated `LipiMail` application service that wraps the SMTP backend (likely MailKit, possibly a SaaS provider like SendGrid or AWS SES) with the application-layer concerns LiPi will need at scale: queueing, templating, audit logging, multi-tenant SMTP config (per-clinic FROM addresses), retry / circuit breaker, and delivery tracking for HIPAA audit. **Trigger**: first module needing structured email beyond the OTP / password-reset use case (likely Lab or Radiology report delivery).
+
+- **LipiHttp + LipiApi services** — Parallel future infrastructure phase for outbound HTTP integrations (ABDM consent flows, DigiLocker Aadhaar verification, lab equipment HL7 endpoints, SMS providers, payment gateways). Will wrap `HttpClient` with the same application-layer concerns (auth handling, retry, audit, circuit breaker). **Trigger**: first external integration shipping (likely ABDM or DigiLocker, both queued behind Patient Module completion).
+
+Neither of these is in scope for v1.0. They are deliberate infrastructure phases triggered by real module requirements, not speculative inline work. A17 just keeps the existing thin SMTP usage on a non-vulnerable MailKit version until LipiMail replaces it.
+
+**Out-of-scope items mentioned in the original Batch 7 authorization but no longer in the current build output**
+
+The original Batch 7 plan referenced `Clinics.razor` line 273 CS8601, `PatientNew.razor` line 951 `_permPinLooking` CS0414, and `PatientNew.razor` line 1009 `PhotoConsent` CS0649. The May 6 `dotnet build` output captured immediately before this ship contained no CS8601, CS0414, or CS0649 warnings anywhere. These were either resolved by prior work that landed between the original Batch 7 scoping and today, or they never existed in the current codebase under net10.0 nullable analysis. Either way, A17 ships only what the current build actually flags. If any of these warnings reappear in future builds, they'll be addressed in a focused follow-up.
+
+**Files**:
+
+- `src/LiPi.Web/LiPi.Web.csproj` — three edits as detailed above.
+- `docs/CHANGE-LOG.md` — this entry.
+
+**No other files changed.** No `SmtpEmailService.cs` rewrite. No `AadhaarXmlService.cs` adjustment. No `Clinics.razor` or `PatientNew.razor` touch. No deploy-script edit (csproj already mapped from Phase 1; CHANGE-LOG already mapped from Phase 2). No cache version bump (no static-asset changes).
+
+**Verification recipe**:
+
+1. `dotnet restore src/LiPi.Web/LiPi.Web.csproj` — should succeed with 0 warnings (was: 4 warnings)
+2. `dotnet build src/LiPi.Web/LiPi.Web.csproj` — should succeed with 0 warnings (was: 8 warnings doubled across restore + build)
+3. Manual smoke test of the forgot-password flow (MailKit 4.16.0 is a minor-version progression but the security advisory means the streaming path internals changed — quick smoke confirms the runtime path still works):
+   - `/forgot-password` → enter test username → "Send OTP" → confirm OTP email arrives in the test inbox
+   - `/verify-otp/{userId}` → enter the 6-digit OTP → confirm redirect to `/reset-password/{token}`
+   - `/reset-password/{token}` → set new password → confirm "Password Changed" email arrives → confirm subsequent login with new password works
+4. If a production-equivalent Aadhaar XML test fixture is available, run `AadhaarXmlService.ParseAsync` against it to confirm SharpZipLib 1.4.2's `ZipFile(ms) + Password = shareCode + GetInputStream(entry)` path still extracts and decrypts the embedded XML. If no fixture is available, the build success against the unchanged call site is sufficient evidence — the API surface didn't move.
+5. `/styleguide` page renders (no LipiButton or input-component regression — these don't depend on MailKit or SharpZipLib, but spot-checking confirms nothing was disturbed).
+6. All four `/test/*` pages still pass verification (textbox / textarea / number / select).
+
+**Coordination note**: A17 closes out v1.0 build hygiene. Future warning regressions will be tracked as separate amendments rather than rolled into this entry. The `LipiMail` and `LipiHttp` / `LipiApi` infrastructure phases mentioned above are recorded in v1.1 PLANNED below (added in this amendment) so they don't get inlined into feature work by future chats.
+
+**Memory rule #26 reference**: This amendment is the first concrete application of the infrastructure-phases-trigger-on-real-demand principle. Future chats reviewing this entry should treat it as the canonical example of "interim hygiene now, dedicated phase when triggered" rather than rewriting `SmtpEmailService.cs` opportunistically.
+
+**Post-A17 update (see A18 below)**: A17's "closes out v1.0 build hygiene" claim turned out to be premature. With the four package-level warnings (NU1510, NU1902 ×2, NU1701) cleared, four C# warnings (CS0108, CS8601, CS0414, CS0649) that had been masked by — or simply not surfaced alongside — the package warnings became visible in the post-A17 build. A18 cleans those up and is the actual close-out of v1.0 build hygiene.
+
+---
+
+### A18 — Build hygiene part 2: C# warnings revealed by A17 (CS0108 + CS8601 + CS0414 + CS0649)
+
+**Phase**: Cross-cutting infrastructure — Batch 7.1
+**Date**: 2026-05-06
+
+**Changed**: Four C# warnings cleared across three source files. No package changes (those landed in A17). No CHANGE-LOG-related logic — this is a follow-up cleanup batch.
+
+**Pre-A18 build output (4 unique warnings, all C#):**
+
+```
+warning CS0108: 'LipiTextArea.StateCssToken(InputState)' hides inherited member
+                'LipiInputBase<string?>.StateCssToken(InputState)'.
+                Use the new keyword if hiding was intended.
+                — src/LiPi.Web/Components/Shared/LipiTextArea.razor(304,27)
+
+warning CS8601: Possible null reference assignment.
+                — src/LiPi.Web/Pages/Admin/Clinics.razor(273,27)
+
+warning CS0414: The field 'PatientNew._permPinLooking' is assigned but its value is never used
+                — src/LiPi.Web/Pages/Patients/PatientNew.razor(951,20)
+
+warning CS0649: Field 'PatientNew.PM.PhotoConsent' is never assigned to,
+                and will always have its default value false
+                — src/LiPi.Web/Pages/Patients/PatientNew.razor(1009,80)
+```
+
+Each warning got its own root-cause investigation rather than blanket pragma suppression. The root causes turned out to be more interesting than expected — three of the four warnings led to genuine code issues (a missed Phase 2.2.5 migration cleanup, a nullable-flow type mismatch, and a Razor parser edge case), and only one (PhotoConsent) was a true dead-field cleanup.
+
+**Post-A18 expectation**: 0 warnings, 0 errors.
+
+**Fix 1 — LipiTextArea.razor CS0108 (inheritance shadow)**
+
+Phase 2.2.5 Batch 8b migrated LipiTextArea to inherit from `LipiInputBase<string?>`. The base class provides `protected static string StateCssToken(InputState s)`. The migration successfully removed the duplicated `ResolvedState` property, `IsEmpty`, `EffectiveRequiredStyle`, and several other base-provided members from LipiTextArea — but missed the `StateCssToken` static helper. The subclass kept its own `private static string StateCssToken(InputState s) => ...` with byte-identical body, silently hiding the inherited method.
+
+CS0108 fired exactly to flag this: "are you intentionally shadowing the base member, or did you forget to remove a duplicate?" In this case, forgot to remove a duplicate.
+
+The fix: delete the shadowed `StateCssToken` method (12 lines) from LipiTextArea.razor. The single call site at line 283 (`StateCssToken(ResolvedState)`) now resolves to the inherited base method, which has identical behavior.
+
+**This is the canonical example for memory rule #25 bullet 6** (added in this amendment): after migrating a subclass to a new base class, grep the subclass for any private/protected member whose name exists on the base. CS0108 is deterministic — it fires on every shadow, even when bodies are identical. The Phase 2.2.5 ship missed this; the new bullet 6 prevents future repeats.
+
+Verified during this batch: LipiNumberInput, LipiSelectBase, LipiSelect, LipiCombobox, and LipiTextBox have NO lingering shadows of inherited base members. Only LipiTextArea was affected.
+
+**Fix 2 — Clinics.razor CS8601 (nullable string return on `Nullable<Guid>.ToString()`)**
+
+The flagged line:
+
+```csharp
+_orgModalSelectedId = c.OrganizationId.HasValue && c.OrganizationId != Guid.Empty
+                      ? c.OrganizationId.ToString()
+                      : string.Empty;
+```
+
+`_orgModalSelectedId` is declared `private string` (non-nullable). The conditional expression's `c.OrganizationId.ToString()` branch calls `Nullable<Guid>.ToString()`, which is annotated as returning `string?` in the .NET 10 BCL — even though `Nullable<T>.ToString()` semantically returns empty string when null and never genuinely returns null at runtime. The compiler's nullable-flow analysis sees `string?` flowing into a non-nullable target and fires CS8601.
+
+The fix: call `.ToString()` on the unwrapped Guid instead of on the `Nullable<Guid>` wrapper:
+
+```csharp
+_orgModalSelectedId = c.OrganizationId.HasValue && c.OrganizationId != Guid.Empty
+                      ? c.OrganizationId.Value.ToString()
+                      : string.Empty;
+```
+
+`Guid.ToString()` returns `string` (non-nullable). `c.OrganizationId.Value` is safe because the same expression already guards on `.HasValue`. No null risk, no operator suppression, no behavior change.
+
+**Fix 3 — PatientNew.razor CS0414 (Razor parser edge case: `@if` glued to text)**
+
+The flagged field declaration:
+
+```csharp
+private bool _permPinLooking=false, _permPinAutoFilled=false;
+```
+
+`_permPinLooking` is read in markup at line 466 (the permanent address Pincode label):
+
+```razor
+<label class="reg-lbl" for="pn-ppin">Pincode@if(_permPinLooking){...}else if(_permPinAutoFilled){...}</label>
+```
+
+Yet CS0414 fires on `_permPinLooking` while NOT firing on `_permPinAutoFilled` — same field declaration line, same markup conditional structure. Investigation revealed the smoking gun: compare with the working sibling at line 401 (current address Pincode label):
+
+```razor
+<label class="reg-lbl" for="pn-pin">Pincode <span class="reg-req">*</span>@if(_pinLooking){...}else if(_pinAutoFilled){...}</label>
+```
+
+Line 401: `Pincode <span ...>` BEFORE `@if`. Whitespace and an HTML element separate text content from the code transition. No CS0414 for `_pinLooking`.
+
+Line 466: `Pincode@if` BEFORE the fix. No whitespace, no intervening element. CS0414 fires.
+
+`_permPinAutoFilled` doesn't fire CS0414 because it's also read at lines 478 and 485 (in `placeholder` attributes within proper attribute-context Razor expressions, not glued-to-text-content `@if` chains). Only `_permPinLooking`'s read is exclusively in the glued-to-text position, and the Razor parser is failing to emit it as a code reference in the generated C#.
+
+The fix: insert a single space between `Pincode` and `@if`:
+
+```razor
+<label class="reg-lbl" for="pn-ppin">Pincode @if(_permPinLooking){...}else if(_permPinAutoFilled){...}</label>
+```
+
+This addresses the root cause (Razor parser edge case with text-glued code transitions) rather than masking it with a `#pragma warning disable CS0414`. The visible output is identical to the user — a single non-significant whitespace character before the conditional content. The "looking up..." UX feedback during permanent-address Pincode lookups continues to work (the markup read is now visible to the compiler).
+
+Lesson for future Razor authoring: keep at least one whitespace character or HTML element between literal text and `@if` / `@foreach` / similar code transitions. The codebase's existing pattern (line 401) already follows this implicitly; line 466 was the outlier.
+
+**Fix 4 — PatientNew.razor CS0649 (orphaned PhotoConsent field)**
+
+The flagged declaration on line 1009:
+
+```csharp
+public bool VipFlag,Allergy,OrganDonor,Research,Intl,HipaaConsent=true,PhotoConsent;
+```
+
+`PhotoConsent` is declared but never assigned anywhere in the file. Searched all occurrences (markup + code) — single match (the declaration). The consent panel markup uses `m.HipaaConsent` for HIPAA / Privacy consent; there is no separate Photo Consent UI element.
+
+The fix: remove the `,PhotoConsent` token from the multi-field declaration, leaving:
+
+```csharp
+public bool VipFlag,Allergy,OrganDonor,Research,Intl,HipaaConsent=true;
+```
+
+True dead-field cleanup. If a Photo Consent feature is desired in the future (separate from HIPAA consent), it would need a fresh declaration plus matching UI markup; reusing this stub would have been a footgun.
+
+**Files**:
+
+- `src/LiPi.Web/Components/Shared/LipiTextArea.razor` — Fix 1 (delete shadowed `StateCssToken`, lines 304-313)
+- `src/LiPi.Web/Pages/Admin/Clinics.razor` — Fix 2 (`.ToString()` → `.Value.ToString()` at line 273)
+- `src/LiPi.Web/Pages/Patients/PatientNew.razor` — Fix 3 (insert space at line 466) + Fix 4 (remove `PhotoConsent` from line 1009)
+- `docs/CHANGE-LOG.md` — this entry
+
+**No other files changed.** No deploy-script edit (all files already mapped). No cache version bump (Razor recompiles automatically).
+
+**Memory rule #25 amendment — bullet 6 added (Inheritance shadowing check)**
+
+The Phase 2.2.5 LipiTextArea CS0108 regression motivates an addition to memory rule #25. The pre-delivery quality check now reads:
+
+> 1. Razor tag balance — every `<Tag>` has matching `</Tag>` or self-closing `/>`
+> 2. C# brace balance (compare `{` vs `}` counts)
+> 3. `@using` directives present for all referenced types
+> 4. Cache version consistency across files
+> 5. Deploy script entries for new files
+> 6. **(NEW)** Inheritance shadowing check — after migrating any subclass to a new base class, grep the subclass for any private/protected member whose name exists on the base. CS0108 fires when a subclass member silently hides a base member with the same signature, indicating either a missed delete (the right call when migrating) or a needed `new` keyword (rare). The Phase 2.2.5 LipiTextArea CS0108 should have been caught by this check at Batch 8b ship time.
+
+The user has confirmed adoption of bullet 6 and will handle the formal memory edit separately. This amendment documents the rationale.
+
+**Verification recipe**:
+
+1. `dotnet build src/LiPi.Web/LiPi.Web.csproj` → expect 0 warnings, 0 errors (was 4 C# warnings post-A17)
+2. `/test/textarea` smoke test — confirms LipiTextArea's autogrow, validation, and helper slot still work after StateCssToken delete (the inherited base method has identical behavior, but a render check confirms)
+3. `/admin/clinics` → click "Change Org" on any clinic → confirm modal opens with current org pre-selected → confirm save flows correctly (Fix 2 didn't break the OrganizationId display logic)
+4. `/patients/new` → tab to permanent address → tick "Enter separately" → enter a 6-digit PIN → confirm "looking up..." indicator shows during the API call and "✓ auto-filled" shows after (Fix 3 keeps `_permPinLooking` markup read functional)
+5. `/patients/new` → confirm consent panel still renders (Fix 4 removed orphan field, no UI impact expected)
+6. `/styleguide` and all four `/test/*` pages still pass verification
+
+**Coordination note**: A18 is the actual close-out of v1.0 build hygiene. The 4-warnings-clear-then-4-different-warnings-appear pattern from A17 → A18 is a useful lesson: package-level warnings (NU####) and C# warnings (CS####) are surfaced through different toolchain phases; clearing all NU#### in one batch can reveal CS#### that were not visible in the original output. Future build-hygiene amendments should run `dotnet build` between each batch of related warning fixes rather than batching too aggressively.
+
+**Phase 2 status (post-A18)**:
+
+- ✅ Phase 2.0 (StyleGuide foundation)
+- ✅ Phase 2.1 (LipiButton + tokens) — A11 visual review, A14 env-gated retrofit
+- ✅ Phase 2.2 (5-component TextInput family) — A12 token foundation, A13 base infrastructure, A15 component completion
+- ✅ Phase 2.2.5 (LipiInputBase + EditContext auto-population) — A16, tagged `phase-2-sub-2-2-5-may06`
+- ✅ Build hygiene closed — A17 (package warnings) + A18 (C# warnings)
+- 🟢 Phase 2.3 ready to start (`LipiSelectTextCompound`, `LipiMultiSelect`, `LipiCheckbox`, `LipiRadio`, `LipiToggle`)
 
 ## v1.1 — PLANNED (Future)
 
@@ -659,7 +982,16 @@ Net: roughly 800 lines of duplicated code consolidated into the 480-line LipiInp
 - [ ] **High-contrast theme mode** (accessibility)
 - [ ] **Density toggle** (user preference: comfortable/compact/spacious)
 - [ ] **A7 — ThemeProvider spec/code reconciliation** (see Known divergences above)
-- [ ] **A14 — LipiButton env-gated throw retrofit** (trigger condition met as of A15; ready to schedule)
+
+### Infrastructure Phases (Triggered by Real Module Demand — see A17 strategic context)
+
+These are deliberate cross-cutting infrastructure builds, not features. Each has a real-demand trigger that prevents speculative inline rewriting during feature work. Memory rule #26 enforces this: future chats must NOT inline-rewrite these pieces during feature development; they wait for the trigger.
+
+- [ ] **LipiMail service** — Application-layer wrapper over SMTP (initially MailKit, possibly SaaS provider later) with: queueing, templating, audit logging, multi-tenant SMTP config (per-clinic FROM addresses), retry / circuit breaker, delivery tracking for HIPAA audit. **Trigger**: first module needing structured email beyond OTP / password-reset (likely Lab or Radiology report delivery). **Until trigger**: thin SMTP usage in `SmtpEmailService.cs` continues, kept on a non-vulnerable MailKit version (currently 4.16.0 per A17).
+
+- [ ] **LipiHttp service** — Application-layer wrapper over `HttpClient` for outbound integrations (auth handling, retry, circuit breaker, audit logging). **Trigger**: first external integration shipping (likely ABDM consent or DigiLocker Aadhaar verification, both queued behind Patient Module completion).
+
+- [ ] **LipiApi service** — Higher-level convenience layer on top of LipiHttp for typed REST API consumption (request/response DTOs, deserialization, error envelope normalization, observability). **Trigger**: same as LipiHttp — both ship as a single infrastructure phase since LipiApi depends on LipiHttp.
 
 ### Pending Decisions (Not Locked)
 - [ ] Insurance TPA workflows (decision pending)
