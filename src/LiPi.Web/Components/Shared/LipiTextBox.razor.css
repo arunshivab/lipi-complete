@@ -1,19 +1,16 @@
 /* SPEC: Phase 2.2 LipiTextBox component-specific deltas.
-   All shared base styles live in wwwroot/css/lipi-inputs.css (Batch 3 extraction).
+   All shared base styles live in wwwroot/css/lipi-inputs.css.
 
    What lives here:
-     - Field alignment: stretch (single-line input centered vertically)
-     - Field height: fixed per size (28/32/40px)
+     - Field alignment: stretch (single-line input fills the field height)
 
-   Everything else (label, confidence pill, all 7 states, sizes for font/label/helper,
-   icon slots, helper colors, focus rings) → shared file.
+   Everything else (label, confidence pill, all 7 states, sizes for font/label/
+   helper/field-height, icon slots, helper colors, focus rings) → shared file.
 
-   AMEND: docs/CHANGE-LOG.md A13 (Batch 3 — pending entry on visual review). */
+   AMEND: docs/CHANGE-LOG.md A13 (Batch 3 — pending entry on visual review).
+   Batch 9a.1 cleanup: field-height rules promoted from this file to
+   lipi-inputs.css family-level shared rules. See memory rule #25 bullet 7. */
 
 .lipi-input-field {
     align-items: stretch; /* single-line: input fills the field height */
 }
-
-.lipi-input-small  .lipi-input-field { height: 28px; }
-.lipi-input-medium .lipi-input-field { height: 32px; }
-.lipi-input-large  .lipi-input-field { height: 40px; }

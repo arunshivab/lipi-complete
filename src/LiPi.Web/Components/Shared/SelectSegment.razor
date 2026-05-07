@@ -1,0 +1,350 @@
+@* SPEC: docs/00-COMPONENTS/01.3-CompoundField.md (shipping in Batch 9c) *@
+@* PHASE: 2.3 (Batch 9a)                                                  *@
+@* AMEND: docs/CHANGE-LOG.md A19 (pending)                                 *@
+@*                                                                         *@
+@* SelectSegment — dropdown segment for LipiCompoundField.                  *@
+@*                                                                         *@
+@* Architecture (Path 3 — see CHANGE-LOG A19 / spec doc 01.3 §Architectural *@
+@* decisions): inherits LipiSelectBase<TValue, TValue> directly. Single     *@
+@* source of truth for dropdown LOGIC remains LipiSelectBase. The dropdown  *@
+@* panel MARKUP is duplicated verbatim from LipiSelect.razor lines 75-205.  *@
+@* Trigger to extract: when 3+ dropdown-using components exist (currently   *@
+@* LipiSelect + LipiCombobox + SelectSegment = 3 — borderline, but the      *@
+@* extraction itself is large and risky enough that we wait for a clear     *@
+@* fourth caller before doing it).                                          *@
+@*                                                                         *@
+@* Differences from LipiSelect:                                             *@
+@* - No <label>, no helper slot — those live on the parent LipiCompoundField *@
+@* - Field bar wrapper replaced with a segment-specific narrower wrapper    *@
+@* - Width parameter for segment sizing (e.g., 80px for ISD code dropdown)  *@
+@* - On selection change, calls Parent.AdvanceFocusFromAsync(this) for      *@
+@*   smart auto-advance (Q4 = C)                                            *@
+@* - Implements ICompoundSegment for parent state aggregation                *@
+
+@typeparam TValue
+@inherits LipiSelectBase<TValue, TValue>
+@implements ICompoundSegment
+@implements LipiInputBaseTouchable
+
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+
+<div class="lipi-compound-segment lipi-compound-segment-select @(_isOpen ? "lipi-compound-segment-open" : null) @(ResolvedState == InputState.Error ? "lipi-compound-segment-error" : null)"
+     style="@SegmentInlineStyle">
+
+    @* ===== ANCHOR (closed-state button + keyboard target) ===== *@
+    <div class="lipi-compound-segment-anchor"
+         @ref="_anchorRef"
+         role="combobox"
+         aria-expanded="@(_isOpen ? "true" : "false")"
+         aria-haspopup="listbox"
+         aria-controls="@EffectiveDropdownId"
+         aria-label="@(SegmentAriaLabel ?? _resolvedLabel)"
+         tabindex="@(Disabled ? -1 : 0)"
+         @onclick="HandleAnchorClick"
+         @onkeydown="HandleKeyDown"
+         @onblur="HandleAnchorBlur">
+
+        <span class="lipi-compound-segment-display @(ShowPlaceholder ? "lipi-compound-segment-placeholder" : null)"
+              id="@EffectiveId">
+            @DisplayText
+        </span>
+
+        <span class="lipi-compound-segment-chevron" aria-hidden="true">
+            <LucideIcon Name="@(_isOpen ? "chevron-up" : "chevron-down")" Size="@IconPx" />
+        </span>
+    </div>
+
+    @* ===== DROPDOWN PANEL (verbatim duplicate from LipiSelect.razor lines 75-205) =====
+       Path 3 architectural decision: this duplication is intentional and bounded.
+       Keep this section in sync with LipiSelect.razor when the panel structure
+       changes. Future extraction trigger: 4th dropdown consumer. ============== *@
+    @if (_isOpen)
+    {
+        <div class="lipi-select-dropdown"
+             id="@EffectiveDropdownId"
+             role="listbox"
+             aria-label="@_resolvedLabel options">
+
+            @if (Searchable)
+            {
+                <div class="lipi-select-search">
+                    <LucideIcon Name="search" Size="14" CssClass="lipi-select-search-icon" />
+                    <input type="text"
+                           @ref="_searchInputRef"
+                           class="lipi-select-search-input"
+                           form="lipi-select-orphan"
+                           placeholder="Search…"
+                           value="@_searchText"
+                           @oninput="HandleSearchInput"
+                           @onkeydown="HandleKeyDown"
+                           @onclick:stopPropagation="true" />
+                </div>
+            }
+
+            @{
+                var (pinned, unpinned) = GetFilteredOptions();
+                var totalShown = pinned.Count + unpinned.Count;
+                var globalIdx = 0;
+            }
+
+            <div class="lipi-select-options" tabindex="-1">
+
+                @if (totalShown == 0)
+                {
+                    <div class="lipi-select-empty">
+                        <span>No matching options</span>
+                        @if (AllowFreeText && !string.IsNullOrWhiteSpace(_searchText))
+                        {
+                            <button type="button"
+                                    class="lipi-select-add-new"
+                                    @onclick="CommitFreeTextAsync"
+                                    @onclick:stopPropagation="true">
+                                <LucideIcon Name="plus" Size="12" />
+                                Add "@_searchText" as new
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    @if (pinned.Count > 0)
+                    {
+                        @if (!string.IsNullOrEmpty(PinnedHeading))
+                        {
+                            <div class="lipi-select-section-heading">@PinnedHeading</div>
+                        }
+                        @foreach (var item in pinned)
+                        {
+                            var idx = globalIdx++;
+                            var isHighlighted = idx == _highlightedIndex;
+                            var isSelected = EqualityComparer<TValue?>.Default.Equals(ItemValue(item), CurrentValue);
+                            <div class="lipi-select-option @(isHighlighted ? "lipi-select-option-highlighted" : null) @(isSelected ? "lipi-select-option-selected" : null)"
+                                 role="option"
+                                 aria-selected="@(isSelected ? "true" : "false")"
+                                 @onclick="@(() => SelectAndAdvanceAsync(item))"
+                                 @onmouseenter="@(() => _highlightedIndex = idx)">
+                                @ItemContent(item)
+                                @if (isSelected)
+                                {
+                                    <LucideIcon Name="check" Size="14" CssClass="lipi-select-option-check" />
+                                }
+                            </div>
+                        }
+                        @if (unpinned.Count > 0)
+                        {
+                            <div class="lipi-select-divider" role="separator"></div>
+                        }
+                    }
+
+                    @if (unpinned.Count > 0)
+                    {
+                        @if (!string.IsNullOrEmpty(UnpinnedHeading) && pinned.Count > 0)
+                        {
+                            <div class="lipi-select-section-heading">@UnpinnedHeading</div>
+                        }
+                        @if (ShouldVirtualize)
+                        {
+                            <Virtualize Items="@unpinned" Context="vitem" ItemSize="36">
+                                @{
+                                    var vIdx = pinned.Count + unpinned.IndexOf(vitem);
+                                    var vHighlighted = vIdx == _highlightedIndex;
+                                    var vSelected = EqualityComparer<TValue?>.Default.Equals(ItemValue(vitem), CurrentValue);
+                                }
+                                <div class="lipi-select-option @(vHighlighted ? "lipi-select-option-highlighted" : null) @(vSelected ? "lipi-select-option-selected" : null)"
+                                     role="option"
+                                     aria-selected="@(vSelected ? "true" : "false")"
+                                     @onclick="@(() => SelectAndAdvanceAsync(vitem))"
+                                     @onmouseenter="@(() => _highlightedIndex = vIdx)">
+                                    @ItemContent(vitem)
+                                    @if (vSelected)
+                                    {
+                                        <LucideIcon Name="check" Size="14" CssClass="lipi-select-option-check" />
+                                    }
+                                </div>
+                            </Virtualize>
+                        }
+                        else
+                        {
+                            @foreach (var item in unpinned)
+                            {
+                                var idx = globalIdx++;
+                                var isHighlighted = idx == _highlightedIndex;
+                                var isSelected = EqualityComparer<TValue?>.Default.Equals(ItemValue(item), CurrentValue);
+                                <div class="lipi-select-option @(isHighlighted ? "lipi-select-option-highlighted" : null) @(isSelected ? "lipi-select-option-selected" : null)"
+                                     role="option"
+                                     aria-selected="@(isSelected ? "true" : "false")"
+                                     @onclick="@(() => SelectAndAdvanceAsync(item))"
+                                     @onmouseenter="@(() => _highlightedIndex = idx)">
+                                    @ItemContent(item)
+                                    @if (isSelected)
+                                    {
+                                        <LucideIcon Name="check" Size="14" CssClass="lipi-select-option-check" />
+                                    }
+                                </div>
+                            }
+                        }
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // ==========================================================================
+    // SEGMENT-SPECIFIC PARAMETERS
+    // ==========================================================================
+
+    /// <summary>Width override for this segment within the compound field bar.
+    /// Accepts any CSS length (px, em, %, etc.). Examples: "60px" for an ISD
+    /// code dropdown, "120px" for a state code dropdown.</summary>
+    [Parameter] public string? Width { get; set; }
+
+    /// <summary>Optional aria-label override for the segment trigger when the
+    /// parent's label isn't descriptive enough on its own. Example: parent
+    /// label "Mobile" + segment aria-label "ISD code" gives screen readers
+    /// "Mobile, ISD code" via the role=group + per-segment aria-label combo.</summary>
+    [Parameter] public string? SegmentAriaLabel { get; set; }
+
+    /// <summary>Cascaded reference to the enclosing LipiCompoundField. Required
+    /// at runtime — segments must be inside a LipiCompoundField to function.
+    /// Validated in OnInitialized.</summary>
+    [CascadingParameter] protected LipiCompoundField? Parent { get; set; }
+
+    // ==========================================================================
+    // ABSTRACT IMPLEMENTATIONS — identity selectors (same as LipiSelect)
+    // ==========================================================================
+
+    protected override TValue? ItemValue(TValue item) => item;
+
+    protected override string ItemLabel(TValue item)
+    {
+        if (item is null) return string.Empty;
+        if (item is IFormattable f)
+            return f.ToString(null, System.Globalization.CultureInfo.CurrentCulture);
+        return item.ToString() ?? string.Empty;
+    }
+
+    protected override RenderFragment<TValue> ItemContent =>
+        item => @<text><span class="lipi-select-option-label">@ItemLabel(item)</span></text>;
+
+    // ==========================================================================
+    // COMPONENT ID PREFIX — keep distinct from "sel" (LipiSelect) so generated
+    // ids don't collide if both rendered on same page.
+    // ==========================================================================
+
+    protected override string ComponentIdPrefix => "seg-sel";
+
+    // ==========================================================================
+    // SEGMENT REGISTRATION + UNREGISTRATION
+    // ==========================================================================
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        if (Parent is null)
+        {
+            if (Env.IsDevelopment())
+            {
+                throw new InvalidOperationException(
+                    "SelectSegment must be inside a LipiCompoundField. " +
+                    "Wrap it: <LipiCompoundField>...<SelectSegment .../>...</LipiCompoundField>");
+            }
+            else
+            {
+                Log.LogError("[SelectSegment] No parent LipiCompoundField found via cascade. " +
+                             "Component will render but auto-advance and state aggregation are disabled.");
+            }
+        }
+        else
+        {
+            Parent.RegisterSegment(this);
+        }
+    }
+
+    /// <summary>Override the synchronous Dispose chain to unregister from
+    /// parent. Don't override DisposeAsync — that's not virtual on
+    /// LipiSelectBase, so attempting to override would require `new` shadowing
+    /// which has fragile semantics for IAsyncDisposable. The parent
+    /// unregistration is purely synchronous (list removal), so the synchronous
+    /// disposal path is the right home for it. JS interop cleanup and
+    /// EditContext detach continue to flow through DisposeAsync as normal.</summary>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Parent?.UnregisterSegment(this);
+        }
+        base.Dispose(disposing);
+    }
+
+    // ==========================================================================
+    // EVENT HANDLERS — anchor click + select-and-advance
+    // ==========================================================================
+
+    private async Task HandleAnchorClick(MouseEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+        if (_isOpen) await CloseDropdownAsync();
+        else         await OpenDropdownAsync();
+    }
+
+    /// <summary>Wraps the inherited SelectItem with a post-selection focus
+    /// advance to the next segment. (Q4 = C: smart auto-advance.) Replaces
+    /// the bare SelectItem call in option @onclick handlers.</summary>
+    private async Task SelectAndAdvanceAsync(TValue item)
+    {
+        SelectItem(item);
+        Parent?.NotifyStateChanged();
+        if (Parent is not null)
+        {
+            await Parent.AdvanceFocusFromAsync(this);
+        }
+    }
+
+    // ==========================================================================
+    // ICompoundSegment IMPLEMENTATION
+    // ==========================================================================
+
+    bool ICompoundSegment.IsTouched => _isTouched;
+    bool ICompoundSegment.HasError  => ResolvedState == InputState.Error;
+
+    /// <summary>Pulls the current effective error message — caller-set Error
+    /// wins over EditContext-derived messages (matching LipiInputBase semantics).</summary>
+    string? ICompoundSegment.ErrorMessage => EffectiveError;
+
+    public async ValueTask FocusAsync()
+    {
+        try { await _anchorRef.FocusAsync(); }
+        catch (Exception ex)
+        {
+            Log.LogTrace(ex, "[SelectSegment] anchor focus failed (likely not yet rendered).");
+        }
+    }
+
+    // ==========================================================================
+    // LipiInputBaseTouchable IMPLEMENTATION — receives the "container reports
+    // focus left" signal from the parent's HandleCompoundFocusOut.
+    // ==========================================================================
+
+    public void MarkTouchedFromContainer()
+    {
+        // Use the inherited MarkFieldAsTouched helper (introduced in Phase 2.2.5
+        // Batch 8c specifically for this pattern).
+        if (!_isTouched)
+        {
+            MarkFieldAsTouched();
+        }
+    }
+
+    // ==========================================================================
+    // SEGMENT INLINE STYLE — width override
+    // ==========================================================================
+
+    protected string? SegmentInlineStyle =>
+        string.IsNullOrEmpty(Width) ? null : $"width: {Width}; flex: 0 0 {Width};";
+}

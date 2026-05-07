@@ -51,6 +51,18 @@ $files = @{
     "lipi-inputs.css"                = "src\LiPi.Web\wwwroot\css\lipi-inputs.css"
     "lipi-input.js"                  = "src\LiPi.Web\wwwroot\js\lipi-input.js"
 
+    # -- CSS -- Phase 2.3 compound field family (Batch 9a) ---------------------
+    # SPEC: docs/00-COMPONENTS/01.3-CompoundField.md (shipping in Batch 9c)
+    # AMEND: CHANGE-LOG.md A19 (pending — Phase 2.3 close-out)
+    # lipi-input.js extended in Batch 9a with window.lipiCompound.isInsideElement;
+    # already mapped above, no new entry needed for the JS file.
+    "lipi-compound.css"              = "src\LiPi.Web\wwwroot\css\lipi-compound.css"
+
+    # -- CSS -- Phase 2.3 multi-select family (Batch 9b) -----------------------
+    # SPEC: docs/00-COMPONENTS/01.4-MultiSelect.md (shipping in Batch 9c)
+    # AMEND: CHANGE-LOG.md A19 (pending)
+    "lipi-multi.css"                 = "src\LiPi.Web\wwwroot\css\lipi-multi.css"
+
     # -- Layouts & shared components -------------------------------------------
     "TopNavLayout.razor"             = "src\LiPi.Web\Components\Layouts\TopNavLayout.razor"
     "TopNavLayout.razor.css"         = "src\LiPi.Web\Components\Layouts\TopNavLayout.razor.css"
@@ -101,6 +113,25 @@ $files = @{
     "LipiInputDefaults.cs"           = "src\LiPi.Web\Components\Shared\LipiInputDefaults.cs"
     "AutocompleteValidator.cs"       = "src\LiPi.Web\Components\Shared\AutocompleteValidator.cs"
 
+    # -- Components -- Phase 2.3 (Compound field family) -----------------------
+    # SPEC: docs/00-COMPONENTS/01.3-CompoundField.md (shipping in Batch 9c)
+    # AMEND: CHANGE-LOG.md A19 (pending)
+    # Batch 9a (May 6): LipiContainerBase + ICompoundSegment + LipiCompoundField + SelectSegment + TextSegment + CompoundFieldTest
+    "LipiContainerBase.cs"           = "src\LiPi.Web\Components\Shared\LipiContainerBase.cs"
+    "ICompoundSegment.cs"            = "src\LiPi.Web\Components\Shared\ICompoundSegment.cs"
+    "LipiCompoundField.razor"        = "src\LiPi.Web\Components\Shared\LipiCompoundField.razor"
+    "SelectSegment.razor"            = "src\LiPi.Web\Components\Shared\SelectSegment.razor"
+    "TextSegment.razor"              = "src\LiPi.Web\Components\Shared\TextSegment.razor"
+
+    # -- Components -- Phase 2.3 (Multi-select family) -------------------------
+    # SPEC: docs/00-COMPONENTS/01.4-MultiSelect.md (shipping in Batch 9c-b)
+    # AMEND: CHANGE-LOG.md A19 (pending)
+    # Batch 9b (May 6/7): LipiMultiSelectBase + LipiMultiSelect + MultiSelectTest
+    # Batch 9c-a (May 7): LipiMultiCombobox + MultiComboboxTest (templated multi-select)
+    "LipiMultiSelectBase.cs"         = "src\LiPi.Web\Components\Shared\LipiMultiSelectBase.cs"
+    "LipiMultiSelect.razor"          = "src\LiPi.Web\Components\Shared\LipiMultiSelect.razor"
+    "LipiMultiCombobox.razor"        = "src\LiPi.Web\Components\Shared\LipiMultiCombobox.razor"
+
     # -- Pages -- Admin --------------------------------------------------------
     "Admin.razor"                    = "src\LiPi.Web\Pages\Admin.razor"
     "Dashboard.razor"                = "src\LiPi.Web\Pages\Dashboard.razor"
@@ -143,6 +174,9 @@ $files = @{
     "NumberInputTest.razor"          = "src\LiPi.Web\Pages\Test\NumberInputTest.razor"
     "SelectTest.razor"               = "src\LiPi.Web\Pages\Test\SelectTest.razor"
     "TextboxTest.razor"              = "src\LiPi.Web\Pages\Test\TextboxTest.razor"
+    "CompoundFieldTest.razor"        = "src\LiPi.Web\Pages\Test\CompoundFieldTest.razor"
+    "MultiSelectTest.razor"          = "src\LiPi.Web\Pages\Test\MultiSelectTest.razor"
+    "MultiComboboxTest.razor"        = "src\LiPi.Web\Pages\Test\MultiComboboxTest.razor"
 
     # -- Pages -- Auth ---------------------------------------------------------
     "Login.razor"                    = "src\LiPi.Web\Pages\Login.razor"
@@ -260,6 +294,8 @@ $files = @{
     "00.2-THEMING-ARCHITECTURE.md"   = "docs\00-COMPONENTS\00.2-THEMING-ARCHITECTURE.md"
     "01.1-Buttons.md"                = "docs\00-COMPONENTS\01.1-Buttons.md"
     "01.2-TextInputs.md"             = "docs\00-COMPONENTS\01.2-TextInputs.md"
+    "01.3-CompoundField.md"          = "docs\00-COMPONENTS\01.3-CompoundField.md"
+    "01.4-MultiSelect.md"            = "docs\00-COMPONENTS\01.4-MultiSelect.md"
 
     # -- Docs -- Top-level -----------------------------------------------------
     "CHANGE-LOG.md"                  = "docs\CHANGE-LOG.md"

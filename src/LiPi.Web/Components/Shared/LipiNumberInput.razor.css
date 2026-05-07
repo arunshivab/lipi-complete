@@ -2,23 +2,21 @@
    All shared base styles live in wwwroot/css/lipi-inputs.css.
 
    What lives here:
-     - Field alignment: stretch (single-line, like LipiTextBox) — but we don't redeclare;
-       inherited from default behavior. Field height matches LipiTextBox per size.
+     - Field alignment: stretch (single-line, like LipiTextBox)
      - Stepper buttons: thin vertical buttons inside the field on either side of input
      - Right-aligned numeric text (financial / clinical convention)
      - Unit pill in label (small uppercase tag like "kg", "mg/dL", "%")
 
-   AMEND: docs/CHANGE-LOG.md A14 (Batch 4 — pending entry on visual review). */
+   Field height: family-level shared rules in lipi-inputs.css cover 28/32/40px.
+   No longer duplicated here (Batch 9a.1 cleanup).
+
+   AMEND: docs/CHANGE-LOG.md A14 (Batch 4 — pending entry on visual review).
+   Batch 9a.1 cleanup: field-height rules promoted from this file to
+   lipi-inputs.css family-level shared rules. See memory rule #25 bullet 7. */
 
 .lipi-input-field {
     align-items: stretch; /* match LipiTextBox single-line behavior */
 }
-
-/* Field heights mirror LipiTextBox (single-line) so number inputs and text inputs sit at
-   the same baseline in mixed-grid forms. */
-.lipi-input-small  .lipi-input-field { height: 28px; }
-.lipi-input-medium .lipi-input-field { height: 32px; }
-.lipi-input-large  .lipi-input-field { height: 40px; }
 
 /* ===================== NUMERIC TEXT ALIGNMENT ===================== */
 .lipi-number-control {

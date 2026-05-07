@@ -172,19 +172,34 @@
     padding-right: 6px;
 }
 
-/* ===================== SIZES — font/label/helper sizing only =====================
-   Field height is per-component (see field heights in each component's scoped CSS). */
+/* ===================== SIZES — font/label/helper + field height =================
+   Field height is family-level shared (Batch 9a.1 cleanup). Applies to ANY
+   component that emits .lipi-input-field within a .lipi-input-{small,medium,large}
+   wrapper. Single source of truth for the 28/32/40 family standard.
+   LipiTextArea overrides via min-height for autogrow (see its own scoped CSS).
+
+   Architectural note: prior to Batch 9a.1, field-height rules were duplicated
+   across per-component scoped CSS files (LipiTextBox.razor.css,
+   LipiNumberInput.razor.css) and lipi-inputs.css had compound-class rules for
+   LipiSelect (.lipi-input-medium.lipi-input-select). This caused the Batch 5.4
+   LipiSelect 17.6px regression and the Batch 9a LipiCompoundField 18.4px
+   regression — every new component had to remember to re-emit or rely-on a
+   compound-class rule. Promotion to family-level shared rules eliminates the
+   trap. See memory rule #25 bullet 7. */
 .lipi-input-small .lipi-input-control { font-size: 12px; }
 .lipi-input-small .lipi-input-label   { font-size: 13px; }
 .lipi-input-small .lipi-input-helper  { font-size: 11px; min-height: 14px; }
+.lipi-input-small .lipi-input-field   { height: 28px; }
 
 .lipi-input-medium .lipi-input-control { font-size: 14px; }
 .lipi-input-medium .lipi-input-label   { font-size: 14px; }
 .lipi-input-medium .lipi-input-helper  { font-size: 12px; min-height: 16px; }
+.lipi-input-medium .lipi-input-field   { height: 32px; }
 
 .lipi-input-large .lipi-input-control { font-size: 16px; }
 .lipi-input-large .lipi-input-label   { font-size: 15px; }
 .lipi-input-large .lipi-input-helper  { font-size: 13px; min-height: 18px; }
+.lipi-input-large .lipi-input-field   { height: 40px; }
 
 /* ===================== STATE: FOCUS (CSS-only via :focus-within) ===================== */
 .lipi-input-state-default .lipi-input-field:focus-within,
@@ -305,15 +320,11 @@
     outline: none; /* focus shown via :focus-within ring on wrapper */
 }
 
-/* Size rules: NOTE the no-space compound selector. .lipi-input-medium and
-   .lipi-input-select are both classes on the SAME wrapper element. A descendant
-   selector with space (".lipi-input-medium .lipi-input-select") would require
-   .lipi-input-select to be INSIDE .lipi-input-medium, which doesn't match our
-   markup. Compound class selectors (no space) target the same element having
-   both classes. */
-.lipi-input-small.lipi-input-select  .lipi-input-field { height: 28px; }
-.lipi-input-medium.lipi-input-select .lipi-input-field { height: 32px; }
-.lipi-input-large.lipi-input-select  .lipi-input-field { height: 40px; }
+/* Field heights: previously had compound-class rules here
+   (.lipi-input-{size}.lipi-input-select .lipi-input-field) to fix the Batch 5.4
+   LipiSelect 17.6px regression. Promoted to family-level shared rules in the
+   SIZES section above (Batch 9a.1). LipiSelect now inherits those naturally
+   without needing per-component compound-class duplication. */
 
 /* The display span inside the closed-state anchor — replaces the <input> visually.
    line-height: 1 matches the implicit line-height of <input> elements, ensuring text

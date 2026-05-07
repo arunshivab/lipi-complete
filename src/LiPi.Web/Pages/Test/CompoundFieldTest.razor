@@ -1,0 +1,269 @@
+@* SPEC: docs/00-COMPONENTS/01.3-CompoundField.md (shipping in Batch 9c)
+   PHASE: 2.3 Batch 9a — verification page for LipiCompoundField + SelectSegment + TextSegment.
+
+   Three test scenarios:
+   1. Mobile (Select + Text) — ISD code + 10-digit number; tests select-then-text auto-advance
+   2. Landline (Select + Select + Text) — ISD + STD + 8-digit number; tests select-then-select auto-advance
+   3. Aadhaar (Text + Text + Text) — 4-4-4 digit segments; tests text-then-text auto-advance through full chain
+*@
+
+@page "/test/compound"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiCompoundField Test (Phase 2.3 Batch 9a)</PageTitle>
+
+<style>
+    .test-page          { max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    .test-section       { margin-bottom: 40px; }
+    .test-section h3    { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .test-section p     { color: var(--color-text-tertiary); font-size: 13px; margin-bottom: 16px; }
+    .test-status        { margin-top: 16px; padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; }
+    .test-status-valid  { background-color: var(--color-success-pale); color: var(--color-success-text-strong); }
+    .test-status-invalid{ background-color: var(--color-danger-pale); color: var(--color-danger); }
+    .live-state         { margin-top: 12px; font-size: 12px; color: var(--color-text-tertiary); font-family: monospace; }
+</style>
+
+<div class="test-page">
+
+    <h1 style="font-size: 24px; margin-bottom: 8px;">LipiCompoundField Test</h1>
+    <p style="color: var(--color-text-secondary); margin-bottom: 32px;">
+        Phase 2.3 Batch 9a — verification of compound field with three multi-segment scenarios.
+    </p>
+
+    <EditForm Model="_model" OnValidSubmit="OnValidSubmit" OnInvalidSubmit="OnInvalidSubmit">
+        <DataAnnotationsValidator />
+
+        @* ===================================================================
+           SCENARIO 1 — MOBILE (Select + Text)
+           Tests: select-then-text auto-advance, MaxLength=10 trigger
+           =================================================================== *@
+        <div class="test-section">
+            <h3>1. Mobile (2-segment: Select + Text)</h3>
+            <p>Select +91 → focus auto-jumps to text input. Type 10 digits → focus stays (no next segment).</p>
+
+            <LipiCompoundField Name="mobile" Label="Mobile" Required="true">
+                <SelectSegment TValue="string"
+                               Name="mobile-cc"
+                               Label="ISD code"
+                               Items="@_isdCodes"
+                               @bind-Value="_model.MobCC"
+                               Width="80px"
+                               SegmentAriaLabel="ISD code"
+                               Placeholder="ISD"
+                               Required="true" />
+                <TextSegment Name="mobile-num"
+                             Label="Mobile number"
+                             @bind-Value="_model.Mobile"
+                             MaxLength="10"
+                             Type="tel"
+                             InputMode="numeric"
+                             Placeholder="9876543210"
+                             SegmentAriaLabel="Number"
+                             Required="true" />
+            </LipiCompoundField>
+
+            <div class="live-state">
+                Live: MobCC = "@(_model.MobCC ?? "(null)")", Mobile = "@(_model.Mobile ?? "(null)")"
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 2 — LANDLINE (Select + Select + Text)
+           Tests: select-then-select auto-advance, then select-then-text auto-advance
+           =================================================================== *@
+        <div class="test-section">
+            <h3>2. Landline (3-segment: Select + Select + Text)</h3>
+            <p>Select +91 → STD → text. Each selection advances to next segment.</p>
+
+            <LipiCompoundField Name="landline" Label="Landline">
+                <SelectSegment TValue="string"
+                               Name="land-isd"
+                               Label="ISD code"
+                               Items="@_isdCodes"
+                               @bind-Value="_model.LandISD"
+                               Width="70px"
+                               SegmentAriaLabel="ISD code"
+                               Placeholder="ISD" />
+                <SelectSegment TValue="string"
+                               Name="land-std"
+                               Label="STD code"
+                               Items="@_stdCodes"
+                               @bind-Value="_model.LandSTD"
+                               Width="100px"
+                               Searchable="true"
+                               SegmentAriaLabel="STD code"
+                               Placeholder="STD"
+                               Required="true" />
+                <TextSegment Name="land-num"
+                             Label="Landline number"
+                             @bind-Value="_model.LandNum"
+                             MaxLength="8"
+                             Type="tel"
+                             InputMode="numeric"
+                             Placeholder="Number"
+                             SegmentAriaLabel="Number"
+                             Required="true" />
+            </LipiCompoundField>
+
+            <div class="live-state">
+                Live: LandISD = "@(_model.LandISD ?? "(null)")", LandSTD = "@(_model.LandSTD ?? "(null)")", LandNum = "@(_model.LandNum ?? "(null)")"
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 3 — AADHAAR (Text + Text + Text)
+           Tests: text-then-text-then-text auto-advance chain (4-4-4 grouping)
+           =================================================================== *@
+        <div class="test-section">
+            <h3>3. Aadhaar (3-segment: Text + Text + Text, 4-4-4)</h3>
+            <p>Type 4 digits in each segment. Auto-advance fires at MaxLength reached.</p>
+
+            <LipiCompoundField Name="aadhaar" Label="Aadhaar Number">
+                <TextSegment Name="aadhaar-1"
+                             Label="Aadhaar group 1"
+                             @bind-Value="_model.Aadhaar1"
+                             MaxLength="4"
+                             Type="tel"
+                             InputMode="numeric"
+                             Placeholder="XXXX"
+                             SegmentAriaLabel="Aadhaar group 1"
+                             Required="true" />
+                <TextSegment Name="aadhaar-2"
+                             Label="Aadhaar group 2"
+                             @bind-Value="_model.Aadhaar2"
+                             MaxLength="4"
+                             Type="tel"
+                             InputMode="numeric"
+                             Placeholder="XXXX"
+                             SegmentAriaLabel="Aadhaar group 2"
+                             Required="true" />
+                <TextSegment Name="aadhaar-3"
+                             Label="Aadhaar group 3"
+                             @bind-Value="_model.Aadhaar3"
+                             MaxLength="4"
+                             Type="tel"
+                             InputMode="numeric"
+                             Placeholder="XXXX"
+                             SegmentAriaLabel="Aadhaar group 3"
+                             Required="true" />
+            </LipiCompoundField>
+
+            <div class="live-state">
+                Live: @(_model.Aadhaar1 ?? "")—@(_model.Aadhaar2 ?? "")—@(_model.Aadhaar3 ?? "")
+            </div>
+        </div>
+
+        @* ===================================================================
+           SUBMIT + STATUS
+           =================================================================== *@
+        <div style="display: flex; gap: 12px; align-items: center; margin-top: 32px;">
+            <LipiButton Type="submit"
+                        Variant="ButtonVariant.Primary"
+                        AriaLabel="Submit form">
+                Submit
+            </LipiButton>
+
+            @if (_submitted)
+            {
+                <span class="test-status @(_isValid ? "test-status-valid" : "test-status-invalid")">
+                    @(_isValid ? "✓ Valid submission" : "✗ Invalid submission — check fields")
+                </span>
+            }
+        </div>
+
+    </EditForm>
+
+    @* ===================================================================
+       VERIFICATION CHECKLIST
+       =================================================================== *@
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>What to verify (Phase 2.3 Batch 9a):</strong>
+        <br /> • <strong>Mobile auto-advance:</strong> select +91 → focus jumps to text input, cursor at position 0. Type 10 digits → focus stays on text segment (no next segment).
+        <br /> • <strong>Landline auto-advance:</strong> select +91 → focus jumps to STD dropdown. Select 080 → focus jumps to text. Type 8 digits → focus stays.
+        <br /> • <strong>Aadhaar auto-advance:</strong> type 1234 → jumps to segment 2 (cursor at 0). Type 5678 → jumps to segment 3. Type 9012 → focus stays.
+        <br /> • <strong>Touched-state Z (focus-leaves-compound):</strong> tab into a compound, tab between its segments → no validation surfaces. Tab OUT of the compound to a different field → validation surfaces.
+        <br /> • <strong>Field-level error outline:</strong> when any segment has an error AND parent is touched → field-level red border visible at the wrapper.
+        <br /> • <strong>Per-segment red border:</strong> the failing segment(s) get their own red marker; non-failing siblings stay neutral.
+        <br /> • <strong>Helper slot first-error rule:</strong> if multiple segments fail, helper shows the FIRST (left-to-right) failing segment's message.
+        <br /> • <strong>Required asterisk at field level:</strong> Mobile and Aadhaar show *. Landline does not (its outer Required is false).
+        <br /> • <strong>Tab forward + Shift+Tab back:</strong> works through segments naturally; no programmatic interference.
+        <br /> • <strong>Apricot tint per segment:</strong> empty Required segments show apricot tint when state is Default.
+        <br /> • <strong>Submit invalid:</strong> empty/incomplete fields → invalid submission, errors aggregate at field level.
+        <br /> • <strong>Submit valid:</strong> fill everything correctly → valid submission status.
+    </div>
+
+    @* ===================================================================
+       REGRESSION CHECK NOTE
+       =================================================================== *@
+    <div style="margin-top: 24px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>Regression checks (Phase 2.2.5 components — should be unaffected):</strong>
+        <br /> • <strong>/test/select</strong> — LipiSelect / LipiCombobox still work identically (Path 3 inheritance, base class untouched).
+        <br /> • <strong>/test/textbox, /test/textarea, /test/number</strong> — LipiInputBase descendants still work.
+        <br /> • <strong>/styleguide</strong> — all components render correctly.
+    </div>
+</div>
+
+@code {
+    private TestModel _model = new();
+    private bool _submitted;
+    private bool _isValid;
+
+    private static readonly List<string> _isdCodes = new()
+    {
+        "+91", "+1", "+44", "+61", "+86", "+81", "+49", "+33", "+971"
+    };
+
+    private static readonly List<string> _stdCodes = new()
+    {
+        "011", "022", "033", "040", "044", "079", "080", "020", "0124", "0172"
+    };
+
+    private void OnValidSubmit()
+    {
+        _submitted = true;
+        _isValid = true;
+    }
+
+    private void OnInvalidSubmit()
+    {
+        _submitted = true;
+        _isValid = false;
+    }
+
+    public class TestModel
+    {
+        // Mobile (2-segment)
+        [Required(ErrorMessage = "Country code is required")]
+        public string? MobCC { get; set; } = "+91";
+
+        [Required(ErrorMessage = "Mobile number is required")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Mobile must be exactly 10 digits")]
+        public string? Mobile { get; set; }
+
+        // Landline (3-segment)
+        public string? LandISD { get; set; } = "+91";
+
+        [Required(ErrorMessage = "STD code is required")]
+        public string? LandSTD { get; set; }
+
+        [Required(ErrorMessage = "Landline number is required")]
+        [RegularExpression(@"^\d{8}$", ErrorMessage = "Landline must be exactly 8 digits")]
+        public string? LandNum { get; set; }
+
+        // Aadhaar (3-segment, 4-4-4)
+        [Required(ErrorMessage = "Aadhaar group 1 is required")]
+        [RegularExpression(@"^\d{4}$", ErrorMessage = "Group 1 must be 4 digits")]
+        public string? Aadhaar1 { get; set; }
+
+        [Required(ErrorMessage = "Aadhaar group 2 is required")]
+        [RegularExpression(@"^\d{4}$", ErrorMessage = "Group 2 must be 4 digits")]
+        public string? Aadhaar2 { get; set; }
+
+        [Required(ErrorMessage = "Aadhaar group 3 is required")]
+        [RegularExpression(@"^\d{4}$", ErrorMessage = "Group 3 must be 4 digits")]
+        public string? Aadhaar3 { get; set; }
+    }
+}

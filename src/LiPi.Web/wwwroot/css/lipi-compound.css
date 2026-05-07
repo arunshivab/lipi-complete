@@ -1,0 +1,172 @@
+/* ============================================================================
+   lipi-compound.css — Compound field visual primitives
+   ============================================================================
+   SPEC:  docs/00-COMPONENTS/01.3-CompoundField.md (shipping in Batch 9c)
+   PHASE: 2.3 (Batch 9a)
+   AMEND: docs/CHANGE-LOG.md A19 (pending)
+
+   Loaded after lipi-inputs.css. Compound fields reuse all the family-level
+   visuals from lipi-inputs.css for the OUTER wrapper (label, helper slot,
+   state cascade, asterisk, focus ring, sizes), and define their own visuals
+   for the INNER segment-bar layout and per-segment styling.
+   ========================================================================= */
+
+
+/* ----------------------------------------------------------------------------
+   FIELD BAR — the horizontal flex container holding all segments
+   ----------------------------------------------------------------------------
+   Inherits the field's height/border/background/focus-ring from the wrapper
+   .lipi-input-field rules in lipi-inputs.css. Just adds the flex layout. */
+
+.lipi-compound-field-bar {
+    display: flex;
+    align-items: stretch;
+    gap: 0;                  /* Segments butt up against each other; visual
+                                separation provided by individual segment borders */
+    padding: 0;              /* Override .lipi-input-field padding — segments
+                                handle their own internal padding */
+    overflow: hidden;        /* Prevent segment borders from spilling past the
+                                wrapper's rounded corners */
+}
+
+
+/* ----------------------------------------------------------------------------
+   SEGMENT — base layer shared by SelectSegment + TextSegment
+   ---------------------------------------------------------------------------- */
+
+.lipi-compound-segment {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 100%;            /* Fill parent's height (size is set on the
+                                wrapper via lipi-input-{small,medium,large}) */
+    background: transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Vertical separator between segments — drawn as a left border on every
+   segment except the first. Subtle, doesn't compete with the field-level
+   border that the wrapper provides. */
+.lipi-compound-segment + .lipi-compound-segment {
+    border-left: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+/* Per-segment error state — red border around just the failing segment.
+   Field-level red outline (when AnyErrored is true) is provided by the
+   wrapper's lipi-input-state-error class from lipi-inputs.css. */
+.lipi-compound-segment-error {
+    background: var(--color-danger-pale, #fff5f5);
+    box-shadow: inset 0 0 0 1px var(--color-danger, #dc2626);
+}
+
+
+/* ----------------------------------------------------------------------------
+   SELECT SEGMENT — anchor (closed state) + chevron
+   ---------------------------------------------------------------------------- */
+
+.lipi-compound-segment-select {
+    cursor: pointer;
+}
+
+.lipi-compound-segment-select[aria-disabled="true"],
+.lipi-compound-segment-select.lipi-input-state-disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.lipi-compound-segment-anchor {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 100%;
+    padding: 0 8px;
+    cursor: inherit;
+    outline: none;
+}
+
+.lipi-compound-segment-anchor:focus-visible {
+    /* No own focus ring — the parent .lipi-compound-field-bar wrapper takes
+       focus appearance via :focus-within. Keeps the visual unified. */
+    outline: none;
+}
+
+.lipi-compound-segment-display {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: inherit;
+    line-height: 1;
+}
+
+.lipi-compound-segment-placeholder {
+    color: var(--color-text-tertiary, #94a3b8);
+    font-style: normal;
+}
+
+.lipi-compound-segment-chevron {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
+    color: var(--color-text-secondary, #64748b);
+    flex-shrink: 0;
+}
+
+/* When the dropdown is open, give the chevron a subtle hint */
+.lipi-compound-segment-open .lipi-compound-segment-chevron {
+    color: var(--color-text-primary, #0f172a);
+}
+
+
+/* ----------------------------------------------------------------------------
+   TEXT SEGMENT — bare input
+   ---------------------------------------------------------------------------- */
+
+.lipi-compound-segment-text {
+    flex: 1 1 auto;          /* Text segments stretch to fill remaining space
+                                unless explicitly sized via Width parameter */
+}
+
+.lipi-compound-segment-input {
+    width: 100%;
+    height: 100%;
+    padding: 0 8px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1;
+    outline: none;
+    box-shadow: none;
+}
+
+.lipi-compound-segment-input::placeholder {
+    color: var(--color-text-tertiary, #94a3b8);
+}
+
+.lipi-compound-segment-input:disabled {
+    cursor: not-allowed;
+    color: var(--color-text-disabled, #cbd5e1);
+}
+
+.lipi-compound-segment-input:read-only {
+    cursor: default;
+    background: var(--color-bg-subtle, #f8fafc);
+}
+
+
+/* ----------------------------------------------------------------------------
+   FIELD-LEVEL FOCUS RING via :focus-within
+   ----------------------------------------------------------------------------
+   When ANY segment within the compound-field-bar has focus, the wrapper
+   shows its own focus ring (matching all other LipiInput components). The
+   focus ring rules already exist on .lipi-input-wrapper:focus-within in
+   lipi-inputs.css — this just lets the browser propagate :focus-within up. */
+
+.lipi-compound-field .lipi-input-field:focus-within {
+    /* Inherits the wrapper-level focus ring from lipi-inputs.css. No extra
+       rules needed here — :focus-within bubbles up from segment elements
+       to the .lipi-input-field wrapper that has the focus-ring rules. */
+}

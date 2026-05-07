@@ -1,0 +1,251 @@
+@* SPEC: docs/00-COMPONENTS/01.4-MultiSelect.md (shipping in Batch 9c)
+   PHASE: 2.3 Batch 9b — verification page for LipiMultiSelectBase + LipiMultiSelect.
+
+   Five scenarios mapping to the 5 locked Q-decisions:
+   1. Allergies         — Searchable + AllowFreeText (Q4 + Q3 + Q5)
+   2. Departments       — Closed list, no AllowFreeText
+   3. Insurance Coverage — MaxSelections=3 cap behavior
+   4. Tags              — MaxVisibleChips=5 + +M more summary chip (Q2)
+   5. Specialties       — Non-searchable, type-ahead keyboard (Q6)
+*@
+
+@page "/test/multi"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiMultiSelect Test (Phase 2.3 Batch 9b)</PageTitle>
+
+<style>
+    .test-page          { max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    .test-section       { margin-bottom: 40px; }
+    .test-section h3    { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .test-section p     { color: var(--color-text-tertiary); font-size: 13px; margin-bottom: 16px; }
+    .test-status        { margin-top: 16px; padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; }
+    .test-status-valid  { background-color: var(--color-success-pale); color: var(--color-success-text-strong); }
+    .test-status-invalid{ background-color: var(--color-danger-pale); color: var(--color-danger); }
+    .live-state         { margin-top: 12px; font-size: 12px; color: var(--color-text-tertiary); font-family: monospace; }
+</style>
+
+<div class="test-page">
+    <h1 style="font-size: 24px; margin-bottom: 8px;">LipiMultiSelect Test</h1>
+    <p style="color: var(--color-text-secondary); margin-bottom: 32px;">
+        Phase 2.3 Batch 9b — verification of multi-select with five scenarios covering
+        Q1 (min-height grow), Q2 (+M more), Q3 (Backspace), Q4 (AllowFreeText), Q5 (apricot tint),
+        Q6 (keyboard incl. type-ahead).
+    </p>
+
+    <EditForm Model="_model" OnValidSubmit="OnValidSubmit" OnInvalidSubmit="OnInvalidSubmit">
+        <DataAnnotationsValidator />
+
+        @* ===================================================================
+           SCENARIO 1 — Allergies (Searchable + AllowFreeText)
+           Tests: Q3 Backspace, Q4 free-text, Q5 apricot tint
+           =================================================================== *@
+        <div class="test-section">
+            <h3>1. Allergies (Searchable + AllowFreeText)</h3>
+            <p>Type to filter; type unmatched + Enter to add as new. Backspace on empty input removes last chip.</p>
+
+            <LipiMultiSelect TValue="string"
+                             Name="allergies"
+                             Label="Known Allergies"
+                             Items="@_commonAllergies"
+                             @bind-Value="_model.Allergies"
+                             Searchable="true"
+                             AllowFreeText="true"
+                             Required="true"
+                             Placeholder="Type to search…" />
+
+            <div class="live-state">
+                Live: [@string.Join(", ", _model.Allergies)] — @_model.Allergies.Count selected
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 2 — Departments (Closed list)
+           Tests: AllowFreeText=false, no "Add as new" option
+           =================================================================== *@
+        <div class="test-section">
+            <h3>2. Departments (Closed list)</h3>
+            <p>No free-text. Typing unmatched value shows "No matching options" without an add option.</p>
+
+            <LipiMultiSelect TValue="string"
+                             Name="departments"
+                             Label="Departments"
+                             Items="@_departments"
+                             @bind-Value="_model.Departments"
+                             Searchable="true"
+                             AllowFreeText="false"
+                             Placeholder="Search departments…" />
+
+            <div class="live-state">
+                Live: [@string.Join(", ", _model.Departments)]
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 3 — Insurance (MaxSelections=3)
+           Tests: cap enforcement, "Maximum reached" hint, disabled remaining items
+           =================================================================== *@
+        <div class="test-section">
+            <h3>3. Insurance Coverage (MaxSelections=3)</h3>
+            <p>Cap at 3 selections. Once reached, remaining items are disabled in the dropdown.</p>
+
+            <LipiMultiSelect TValue="string"
+                             Name="insurance"
+                             Label="Insurance Coverage Types"
+                             Items="@_insuranceTypes"
+                             @bind-Value="_model.Insurance"
+                             Searchable="true"
+                             MaxSelections="3"
+                             Placeholder="Choose up to 3…" />
+
+            <div class="live-state">
+                Live: [@string.Join(", ", _model.Insurance)] — @_model.Insurance.Count / 3
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 4 — Tags (MaxVisibleChips=5, +M more)
+           Tests: Q2 summary chip behavior, Q1 field bar grows when chips wrap
+           =================================================================== *@
+        <div class="test-section">
+            <h3>4. Tags (MaxVisibleChips=5)</h3>
+            <p>First 5 chips render normally; rest hide behind a "+M more" summary chip. Click +M more to see all.</p>
+
+            <LipiMultiSelect TValue="string"
+                             Name="tags"
+                             Label="Project Tags"
+                             Items="@_tags"
+                             @bind-Value="_model.Tags"
+                             Searchable="true"
+                             MaxVisibleChips="5"
+                             Placeholder="Add tags…" />
+
+            <div class="live-state">
+                Live: [@string.Join(", ", _model.Tags)] — @_model.Tags.Count chip(s)
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 5 — Specialties (Non-searchable, type-ahead)
+           Tests: Q6 type-ahead keyboard buffer, 1-second reset window
+           =================================================================== *@
+        <div class="test-section">
+            <h3>5. Specialties (Non-searchable, type-ahead keyboard)</h3>
+            <p>Click field to open dropdown. Type "p" for first item starting with "p"; type "pe" within 1s for "Pediatrics".</p>
+
+            <LipiMultiSelect TValue="string"
+                             Name="specialties"
+                             Label="Medical Specialties"
+                             Items="@_specialties"
+                             @bind-Value="_model.Specialties"
+                             Searchable="false"
+                             Placeholder="Click to choose…" />
+
+            <div class="live-state">
+                Live: [@string.Join(", ", _model.Specialties)]
+            </div>
+        </div>
+
+        @* ===================================================================
+           SUBMIT + STATUS
+           =================================================================== *@
+        <div style="display: flex; gap: 12px; align-items: center; margin-top: 32px;">
+            <LipiButton Type="submit"
+                        Variant="ButtonVariant.Primary"
+                        AriaLabel="Submit form">
+                Submit
+            </LipiButton>
+
+            @if (_submitted)
+            {
+                <span class="test-status @(_isValid ? "test-status-valid" : "test-status-invalid")">
+                    @(_isValid ? "✓ Valid submission" : "✗ Invalid — Allergies required")
+                </span>
+            }
+        </div>
+    </EditForm>
+
+    @* ===================================================================
+       VERIFICATION CHECKLIST
+       =================================================================== *@
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>What to verify (Phase 2.3 Batch 9b):</strong>
+        <br /> • <strong>Q1 — min-height growth:</strong> Tags scenario, add 8+ items, field bar expands as chips wrap to 2 rows.
+        <br /> • <strong>Q2 — +M more summary:</strong> Tags with 7 selected → first 5 chips + "+2 more" visible. Click "+2 more" → dropdown opens with selected items at top (alphabetical), unselected below (alphabetical).
+        <br /> • <strong>Q3 — Backspace:</strong> Allergies, add A→B→C→D→E. Click search input (empty), Backspace → E removed. Continue back to empty.
+        <br /> • <strong>Q4 — AllowFreeText:</strong> Allergies, type "Sulfa drugs", press Enter → chip added with the typed value.
+        <br /> • <strong>Q4 — AllowFreeText env-gated:</strong> Set TValue=Guid in code with AllowFreeText=true (try/test). Development → throws InvalidOperationException at render. (Production logs error and renders without the "Add as new" option.)
+        <br /> • <strong>Q5 — Apricot tint:</strong> Allergies (Required=true) starts with apricot tint. Add a chip → tint disappears. Remove the chip → tint reappears (strict IsEmpty, family behavior).
+        <br /> • <strong>Q6 — Keyboard MVP:</strong> ArrowDown/Up navigate dropdown, Enter/Space toggle item, Esc closes, Tab moves to next form field.
+        <br /> • <strong>Q6 — Type-ahead:</strong> Specialties (non-searchable). Open, type "p" → highlight first specialty starting with "p". Type "pe" within 1s → highlight Pediatrics. Wait 2s, type "p" → buffer reset, just "p".
+        <br /> • <strong>MaxSelections cap:</strong> Insurance, select 3 items. Open dropdown → remaining items show as disabled with "Maximum reached" hint at top.
+    </div>
+
+    @* ===================================================================
+       REGRESSION CHECK NOTE
+       =================================================================== *@
+    <div style="margin-top: 24px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>Regression checks (Phase 2.2/2.3 components — should be unaffected):</strong>
+        <br /> • <strong>/test/textbox, /test/textarea, /test/number, /test/select, /test/compound</strong> — all still render at 32px field height (CSS family architecture stable).
+        <br /> • <strong>/styleguide</strong> — Section 7 alignment row unchanged.
+    </div>
+</div>
+
+@code {
+    private TestModel _model = new();
+    private bool _submitted;
+    private bool _isValid;
+
+    private static readonly List<string> _commonAllergies = new()
+    {
+        "Penicillin", "Aspirin", "Latex", "Peanuts", "Shellfish", "Eggs",
+        "Dairy", "Gluten", "Soy", "Iodine", "Sulfa drugs", "Tree nuts"
+    };
+
+    private static readonly List<string> _departments = new()
+    {
+        "Cardiology", "Neurology", "Orthopaedics", "Paediatrics",
+        "Radiology", "Pathology", "Dermatology", "Endocrinology"
+    };
+
+    private static readonly List<string> _insuranceTypes = new()
+    {
+        "Cashless OPD", "Cashless IPD", "Reimbursement", "TPA Direct",
+        "Corporate", "Government Scheme", "Self-pay"
+    };
+
+    private static readonly List<string> _tags = new()
+    {
+        "Urgent", "Follow-up", "Lab pending", "Imaging pending",
+        "Referral", "Consult required", "Discharge ready", "Insurance review",
+        "Billing review", "Records incomplete", "Second opinion", "Family contact"
+    };
+
+    private static readonly List<string> _specialties = new()
+    {
+        "Anesthesiology", "Cardiology", "Dermatology", "Emergency Medicine",
+        "Endocrinology", "Gastroenterology", "Geriatrics", "Hematology",
+        "Neurology", "Obstetrics", "Oncology", "Ophthalmology",
+        "Orthopaedics", "Otolaryngology", "Paediatrics", "Pathology",
+        "Psychiatry", "Pulmonology", "Radiology", "Rheumatology",
+        "Surgery (General)", "Urology"
+    };
+
+    private void OnValidSubmit() { _submitted = true; _isValid = true; }
+    private void OnInvalidSubmit() { _submitted = true; _isValid = false; }
+
+    public class TestModel
+    {
+        [Required(ErrorMessage = "At least one allergy entry is required (use 'NKDA' if none).")]
+        [MinLength(1, ErrorMessage = "At least one allergy entry is required.")]
+        public List<string> Allergies { get; set; } = new();
+
+        public List<string> Departments { get; set; } = new();
+        public List<string> Insurance   { get; set; } = new();
+        public List<string> Tags        { get; set; } = new();
+        public List<string> Specialties { get; set; } = new();
+    }
+}

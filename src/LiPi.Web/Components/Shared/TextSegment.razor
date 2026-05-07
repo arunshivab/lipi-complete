@@ -1,0 +1,209 @@
+@* SPEC: docs/00-COMPONENTS/01.3-CompoundField.md (shipping in Batch 9c) *@
+@* PHASE: 2.3 (Batch 9a)                                                  *@
+@* AMEND: docs/CHANGE-LOG.md A19 (pending)                                 *@
+@*                                                                         *@
+@* TextSegment — text input segment for LipiCompoundField.                  *@
+@*                                                                         *@
+@* Architecture (Path 3): inherits LipiInputBase<string?> directly. Single  *@
+@* source of truth for input LOGIC remains LipiInputBase. The text input    *@
+@* MARKUP is minimal (no label, no helper, no leading icon — those live on  *@
+@* the parent or aren't applicable to embedded segments).                  *@
+@*                                                                         *@
+@* Auto-advance behavior (Q4 = C, locked):                                  *@
+@* - Fires on @oninput when CurrentValueAsString.Length reaches MaxLength   *@
+@* - Cursor at position 0 in next segment (Q3 refinement, locked)           *@
+@* - No IME composition handling (Q3 = i, deferred to Phase 2.4+)           *@
+
+@inherits LipiInputBase<string?>
+@implements ICompoundSegment
+@implements LipiInputBaseTouchable
+
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="lipi-compound-segment lipi-compound-segment-text @(HasResolvedError ? "lipi-compound-segment-error" : null)"
+     style="@SegmentInlineStyle">
+
+    <input @ref="_inputRef"
+           id="@EffectiveId"
+           name="@_resolvedName"
+           type="@TypeAttr"
+           class="lipi-compound-segment-input"
+           value="@CurrentValueAsString"
+           placeholder="@Placeholder"
+           autocomplete="@AutocompleteAttr"
+           inputmode="@InputModeAttr"
+           disabled="@Disabled"
+           readonly="@ReadOnly"
+           required="@Required"
+           maxlength="@MaxLengthAttr"
+           aria-label="@(SegmentAriaLabel ?? _resolvedLabel)"
+           aria-invalid="@AriaInvalidAttr"
+           aria-describedby="@AriaDescribedByAttr"
+           @oninput="HandleSegmentInput"
+           @onblur="HandleBlur" />
+
+</div>
+
+@code {
+    // ==========================================================================
+    // SEGMENT-SPECIFIC PARAMETERS
+    // ==========================================================================
+
+    /// <summary>HTML input type. Default "text". Use "tel" for phone segments
+    /// (triggers the right mobile keyboard), "number" for purely numeric, etc.</summary>
+    [Parameter] public string Type { get; set; } = "text";
+
+    /// <summary>Maximum length. When CurrentValueAsString.Length reaches this
+    /// value via @oninput, focus auto-advances to the next segment (Q4 = C).
+    /// When null, no auto-advance — user must Tab manually.</summary>
+    [Parameter] public int? MaxLength { get; set; }
+
+    /// <summary>HTML inputmode hint for mobile keyboards. Default "text".
+    /// Common values: "numeric" (digits-only keypad), "tel" (phone keypad).</summary>
+    [Parameter] public string? InputMode { get; set; }
+
+    /// <summary>Width override for this segment. Accepts any CSS length.</summary>
+    [Parameter] public string? Width { get; set; }
+
+    /// <summary>Optional aria-label override for the segment input. Combined
+    /// with the parent's role=group label on screen readers.</summary>
+    [Parameter] public string? SegmentAriaLabel { get; set; }
+
+    /// <summary>Required parent reference. Validated in OnInitialized.</summary>
+    [CascadingParameter] protected LipiCompoundField? Parent { get; set; }
+
+    // ==========================================================================
+    // ELEMENT REFERENCE — for focus management
+    // ==========================================================================
+
+    private ElementReference _inputRef;
+
+    // ==========================================================================
+    // COMPONENT ID PREFIX
+    // ==========================================================================
+
+    protected override string ComponentIdPrefix => "seg-tx";
+
+    // ==========================================================================
+    // ABSTRACT IMPLEMENTATIONS — string conversion (same as LipiTextBox)
+    // ==========================================================================
+
+    protected override bool TryParseValueFromString(
+        string? value, out string? result, out string validationErrorMessage)
+    {
+        result = value;
+        validationErrorMessage = string.Empty;
+        return true;
+    }
+
+    // ==========================================================================
+    // SEGMENT REGISTRATION
+    // ==========================================================================
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        if (Parent is null)
+        {
+            if (Env.IsDevelopment())
+            {
+                throw new InvalidOperationException(
+                    "TextSegment must be inside a LipiCompoundField. " +
+                    "Wrap it: <LipiCompoundField>...<TextSegment .../>...</LipiCompoundField>");
+            }
+            else
+            {
+                Log.LogError("[TextSegment] No parent LipiCompoundField found via cascade. " +
+                             "Component will render but auto-advance and state aggregation are disabled.");
+            }
+        }
+        else
+        {
+            Parent.RegisterSegment(this);
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Parent?.UnregisterSegment(this);
+        }
+        base.Dispose(disposing);
+    }
+
+    // ==========================================================================
+    // EVENT HANDLERS
+    // ==========================================================================
+
+    /// <summary>Handles input. Updates CurrentValue (which writes through the
+    /// inherited two-way binding), notifies parent of state change, and
+    /// auto-advances if MaxLength reached (Q4 = C).</summary>
+    private async Task HandleSegmentInput(ChangeEventArgs e)
+    {
+        var newValue = e.Value?.ToString() ?? string.Empty;
+        CurrentValueAsString = newValue;
+
+        Parent?.NotifyStateChanged();
+
+        // Q4 auto-advance: fire on oninput when value length reaches MaxLength.
+        // Q3 refinement: focus moves to next segment, cursor at position 0.
+        // Q3 (i) defer: no IME composition guard in Phase 2.3.
+        if (MaxLength.HasValue && newValue.Length >= MaxLength.Value && Parent is not null)
+        {
+            await Parent.AdvanceFocusFromAsync(this);
+        }
+    }
+
+    // ==========================================================================
+    // ICompoundSegment IMPLEMENTATION
+    // ==========================================================================
+
+    bool ICompoundSegment.IsTouched => _isTouched;
+    bool ICompoundSegment.HasError  => HasResolvedError;
+    string? ICompoundSegment.ErrorMessage => EffectiveError;
+
+    /// <summary>True when this segment's resolved state is Error.</summary>
+    private bool HasResolvedError => ResolvedState == InputState.Error;
+
+    public async ValueTask FocusAsync()
+    {
+        try
+        {
+            await _inputRef.FocusAsync();
+            // Q3 refinement: cursor at position 0. Empty input naturally has
+            // cursor at 0 after FocusAsync; non-empty inputs would benefit from
+            // an explicit setSelectionRange call via JS interop, but for the
+            // Phase 2.3 use cases (Mobile/Landline/Aadhaar — fresh segments
+            // user is filling in left-to-right), the empty case is what
+            // matters and it Just Works.
+        }
+        catch (Exception ex)
+        {
+            Log.LogTrace(ex, "[TextSegment] input focus failed (likely not yet rendered).");
+        }
+    }
+
+    // ==========================================================================
+    // LipiInputBaseTouchable
+    // ==========================================================================
+
+    public void MarkTouchedFromContainer()
+    {
+        if (!_isTouched) MarkFieldAsTouched();
+    }
+
+    // ==========================================================================
+    // ATTRIBUTE BUILDERS
+    // ==========================================================================
+
+    protected string TypeAttr     => string.IsNullOrEmpty(Type) ? "text" : Type;
+    protected string? InputModeAttr => string.IsNullOrEmpty(InputMode) ? null : InputMode;
+    protected string? MaxLengthAttr => MaxLength?.ToString();
+
+    protected string? SegmentInlineStyle =>
+        string.IsNullOrEmpty(Width) ? null : $"flex: 1 1 {Width};";
+}

@@ -1,0 +1,249 @@
+/* ============================================================================
+   lipi-multi.css — Multi-select component-specific deltas
+   ============================================================================
+   SPEC:  docs/00-COMPONENTS/01.4-MultiSelect.md (shipping in Batch 9c)
+   PHASE: 2.3 (Batch 9b)
+   AMEND: docs/CHANGE-LOG.md A19 (pending)
+
+   Loaded after lipi-inputs.css. Multi-select reuses ALL family-level rules
+   for label, helper, state cascade, focus ring, asterisk, and 28/32/40
+   sizing — only the field bar height behavior is overridden (Q1 = A:
+   min-height instead of fixed height, so chips can wrap to multiple rows).
+
+   This file follows memory rule #25 bullet 7: family-level rules (heights,
+   borders, focus rings, padding) live in shared CSS. Only genuine multi-
+   select deltas (chip styling, summary chip, search input embedded in
+   field bar, override of fixed-height to min-height) live here.
+   ========================================================================= */
+
+
+/* ----------------------------------------------------------------------------
+   Q1 — FIELD BAR HEIGHT OVERRIDE (component-specific delta)
+   ----------------------------------------------------------------------------
+   Family-level rule in lipi-inputs.css sets `height: {28,32,40}px` per size.
+   Multi-select needs the field to grow when chips wrap to multiple rows.
+   Override via compound-class selector (.lipi-multi-select.lipi-input-{size})
+   to switch from `height` to `height: auto; min-height: {28,32,40}px`.
+
+   Compound class selectors (no space) per Batch 5.4 lesson — both classes
+   are on the same wrapper element, not nested.
+
+   This is the SECOND intentional family override. LipiTextArea was the first
+   (autogrow uses `height: auto; min-height: ...` for textarea expansion). */
+
+.lipi-multi-select.lipi-input-small  .lipi-input-field { height: auto; min-height: 28px; }
+.lipi-multi-select.lipi-input-medium .lipi-input-field { height: auto; min-height: 32px; }
+.lipi-multi-select.lipi-input-large  .lipi-input-field { height: auto; min-height: 40px; }
+
+
+/* ----------------------------------------------------------------------------
+   FIELD BAR LAYOUT — flex wrap so chips and search input flow naturally
+   ---------------------------------------------------------------------------- */
+
+.lipi-multi-select .lipi-input-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: flex-start;
+    gap: 4px;
+    padding: 4px 8px;             /* breathing room around chips and input */
+    cursor: text;                  /* hint to caller that clicking enters search */
+}
+
+.lipi-multi-select.lipi-input-state-disabled .lipi-input-field,
+.lipi-multi-select.lipi-input-state-readonly .lipi-input-field {
+    cursor: not-allowed;
+}
+
+
+/* ----------------------------------------------------------------------------
+   CHIPS — selected items rendered inside field bar
+   ---------------------------------------------------------------------------- */
+
+.lipi-multi-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 4px 0 8px;
+    border-radius: var(--r-sm, 6px);
+    background-color: var(--color-bg-subtle, #f1f5f9);
+    color: var(--color-text-primary, #0f172a);
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.lipi-multi-chip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;     /* keep individual chips from getting too wide */
+}
+
+.lipi-multi-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    color: var(--color-text-secondary, #64748b);
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.lipi-multi-chip-remove:hover {
+    background-color: var(--color-bg-hover, rgba(0, 0, 0, 0.06));
+    color: var(--color-danger, #dc2626);
+}
+
+.lipi-multi-chip-remove:focus-visible {
+    outline: 2px solid var(--color-primary, #4f46e5);
+    outline-offset: 1px;
+}
+
+/* Disabled state — chip × button hidden when field is disabled/readonly.
+   The Razor template handles the conditional rendering; this CSS is just
+   defense in depth. */
+.lipi-multi-select.lipi-input-state-disabled .lipi-multi-chip-remove,
+.lipi-multi-select.lipi-input-state-readonly .lipi-multi-chip-remove {
+    display: none;
+}
+
+
+/* ----------------------------------------------------------------------------
+   +M MORE SUMMARY CHIP (Q2 = α)
+   ----------------------------------------------------------------------------
+   Distinct visual treatment from regular chips — no × button, slightly
+   different background. Click opens dropdown with selected-first sort. */
+
+.lipi-multi-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: var(--r-sm, 6px);
+    background-color: var(--color-primary-pale, #eef2ff);
+    color: var(--color-primary, #4f46e5);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+    flex-shrink: 0;
+}
+
+.lipi-multi-summary-chip:hover {
+    background-color: var(--color-primary-pale-hover, #e0e7ff);
+}
+
+
+/* ----------------------------------------------------------------------------
+   SEARCH INPUT (embedded in field bar when Searchable)
+   ---------------------------------------------------------------------------- */
+
+.lipi-multi-search-input {
+    flex: 1 1 80px;          /* grow to fill row, but allow shrinking with chips */
+    min-width: 80px;
+    height: 22px;
+    padding: 0 4px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1;
+    outline: none;
+}
+
+.lipi-multi-search-input::placeholder {
+    color: var(--color-text-tertiary, #94a3b8);
+}
+
+.lipi-multi-search-input:disabled {
+    cursor: not-allowed;
+}
+
+
+/* ----------------------------------------------------------------------------
+   PLACEHOLDER (when not searchable and no chips selected)
+   ---------------------------------------------------------------------------- */
+
+.lipi-multi-placeholder {
+    flex: 1 1 auto;
+    color: var(--color-text-tertiary, #94a3b8);
+    font-size: inherit;
+    line-height: 1;
+    padding: 0 4px;
+    user-select: none;
+}
+
+
+/* ----------------------------------------------------------------------------
+   TRAILING CHEVRON
+   ---------------------------------------------------------------------------- */
+
+.lipi-multi-chevron {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;       /* push to far right of field bar */
+    color: var(--color-text-secondary, #64748b);
+    flex-shrink: 0;
+}
+
+
+/* ----------------------------------------------------------------------------
+   DROPDOWN — multi-select-specific additions to lipi-select-dropdown
+   ----------------------------------------------------------------------------
+   Reuses .lipi-select-dropdown shell rules from lipi-inputs.css. Only
+   multi-select deltas live here. */
+
+/* Cap reached hint at top of dropdown when MaxSelections in effect */
+.lipi-multi-cap-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.08));
+    background-color: var(--color-warning-pale, #fef3c7);
+    color: var(--color-warning-text-strong, #78350f);
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+/* Multi-select option — adds checkbox indicator on the left */
+.lipi-multi-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lipi-multi-option-check {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-secondary, #64748b);
+    flex-shrink: 0;
+}
+
+.lipi-multi-option.lipi-select-option-selected .lipi-multi-option-check {
+    color: var(--color-primary, #4f46e5);
+}
+
+.lipi-multi-option-label {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Disabled option (cap reached, item not yet selected) */
+.lipi-multi-option.lipi-select-option-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}

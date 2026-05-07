@@ -970,6 +970,347 @@ The user has confirmed adoption of bullet 6 and will handle the formal memory ed
 - ✅ Build hygiene closed — A17 (package warnings) + A18 (C# warnings)
 - 🟢 Phase 2.3 ready to start (`LipiSelectTextCompound`, `LipiMultiSelect`, `LipiCheckbox`, `LipiRadio`, `LipiToggle`)
 
+## v1.0 — AMENDMENTS (May 7, 2026)
+
+> A19 documents Phase 2.3 — the Compound + Multi-Select component family.
+> Three feature ships (9a Compound, 9b Multi-Select, 9c Multi-Combobox + StyleGuide)
+> plus six fix sub-batches woven through them. Phase 2.3 closes here.
+
+### A19 — Phase 2.3 close: Compound + Multi-Select family complete
+
+**Phase**: 2 Sub-step 2.3 — Compound + Multi-Select Component Family
+**Date**: 2026-05-06 to 2026-05-07
+**Status**: ✅ DEPLOYED, tagged `phase-2-sub-2-3-may07`
+
+**Added (feature batches)**:
+
+Three feature batches and six interleaved fix sub-batches over two days. Components
+shipped: 4 user-facing (`LipiCompoundField`, `SelectSegment`, `TextSegment`,
+`LipiMultiSelect`, `LipiMultiCombobox`) plus 2 base classes (`LipiContainerBase`,
+`LipiMultiSelectBase`) and 1 segment contract (`ICompoundSegment`).
+
+- **Batch 9a — Compound field family** (May 6). Introduced `LipiContainerBase`
+  as a sibling base to `LipiInputBase` for components that hold child segments
+  rather than a single bound value. `LipiCompoundField` is the first concrete
+  consumer; `SelectSegment` and `TextSegment` are the first segment types. The
+  three demo scenarios (Mobile = ISD select + 10-digit number, Landline =
+  ISD select + STD select + 8-digit number, Aadhaar = 4-4-4 text segments)
+  validated the Q1=C/Q2=Z/Q3=C-C1/Q4=C/Q5=Y locked decisions from the
+  strategic design package.
+
+- **Batch 9b — Multi-select family** (May 6/7). `LipiMultiSelectBase<TValue, TItem>`
+  abstract base shipped with `LipiMultiSelect<TValue>` as the identity-typed
+  concrete subclass. Implements all six locked architectural decisions
+  (Q1 min-height growth, Q2 +M more dropdown sort, Q3 Backspace-removes-last,
+  Q4 env-gated AllowFreeText constraint, Q5 strict IsEmpty, Q6 keyboard MVP
+  scope including Spacebar toggle and type-ahead). Pattern B replacement
+  semantics for all `List<TValue>` mutations.
+
+- **Batch 9c-a — Multi-Combobox + StyleGuide** (May 7). `LipiMultiCombobox<TValue, TItem>`
+  templated multi-select inheriting `LipiMultiSelectBase`. Caller provides
+  `ValueSelector` / `LabelSelector` parameters plus optional `ItemTemplate`
+  (rich dropdown rendering) and `SelectedChipTemplate` (rich chip rendering).
+  StyleGuide gained a "Compound & Multi-Select" section with three demo
+  subsections; the `MultiComboboxTest.razor` page exercises 5 templated
+  scenarios (diagnoses with severity badges, medications with dose info, lab
+  tests with conditional STAT badge, specialties with emoji icons,
+  string-typed allergens with caps interaction). One follow-up polish ship
+  (9c-a.1) added scoped `min-width` rules to align dropdown name columns
+  across rows of varying-length codes.
+
+- **Batch 9c-b — Spec docs + this CHANGE-LOG entry** (May 7). New spec docs
+  `01.3-CompoundField.md` and `01.4-MultiSelect.md` documenting architecture,
+  parameter surfaces, and locked decisions. Phase 2.3 closes with this
+  amendment.
+
+**Changed (architecture)**:
+
+- **CSS family-level height rules promoted to `lipi-inputs.css`** (Batch 9a.1
+  CSS sub-batch). Prior to Phase 2.3, the `.lipi-input-{size} .lipi-input-field`
+  height rules were duplicated across per-component scoped CSS files
+  (`LipiTextBox.razor.css`, `LipiNumberInput.razor.css`) and embedded as
+  compound-class rules in `lipi-inputs.css` for `LipiSelect`. Each new
+  component had to remember to either re-emit the height rules or rely on a
+  compound-class match. This caused the Batch 5.4 LipiSelect 17.6px
+  regression and the Batch 9a `LipiCompoundField` 18.4px regression. The
+  fix promoted the three height rules (28/32/40 px) to truly family-level
+  shared rules keyed only on `.lipi-input-{size} .lipi-input-field`.
+  `LipiTextArea` (`min-height` for autogrow) is the first intentional
+  family override; `LipiMultiSelect` (`min-height` for chip-row growth) is
+  the second.
+
+- **Memory rule #25 amended — bullet 7 added** (CSS class scaffolding check).
+  The new bullet reads:
+
+  > 7. Shared-CSS class scaffolding — When creating a new component that
+  > should inherit family-level visual rules from shared CSS, verify that
+  > (a) the wrapper emits the same family classes existing components use,
+  > (b) family-level rules live in shared CSS keyed on family classes, not
+  > duplicated in per-component scoped files, and (c) per-component scoped
+  > CSS contains only genuine deltas. The Batch 5.4 LipiSelect 17.6px
+  > regression and the Batch 9a LipiCompoundField 18.4px regression are
+  > both examples of this bullet's failure mode.
+
+  The user has confirmed adoption of bullet 7 and handles the formal memory
+  edit separately. This amendment documents the rationale.
+
+**Fixed (sub-batches)**:
+
+Each feature batch surfaced issues during verification that were addressed
+in dedicated fix ships rather than rolled into the next feature batch. This
+preserved a clean per-batch verification gate.
+
+- **9a.1 — 5-error fix + CSS architectural cleanup** (combined ship after
+  Batch 9a). The C# fixes addressed five build errors discovered during
+  Batch 9a's first verification: (1+2) `FocusEventArgs.RelatedTarget` does
+  not exist in Blazor — moved focusout listener to JS side via
+  `lipiCompound.attachFocusOut` / `detachFocusOut` with
+  `DotNetObjectReference` callback into `[JSInvokable] OnFocusLeftCompound`.
+  (3) `HasError` was an explicit interface implementation
+  (`bool ICompoundSegment.HasError`) and inaccessible via `this`-context
+  Razor markup; replaced inline check with `ResolvedState == InputState.Error`.
+  (4) `LipiButton` `Variant="Primary"` should have been
+  `Variant="ButtonVariant.Primary"`. (5) Cascade of #4 — generated lambda
+  return type mismatch resolved automatically once #4 was fixed. Plus 16
+  RZ2012 warnings (missing `[EditorRequired]` Name/Label on segments)
+  cleared by adding kebab-case Name and descriptive Label to all 8 segment
+  call-sites in `CompoundFieldTest.razor`.
+
+  The CSS architectural cleanup (described above under Changed/architecture)
+  shipped at the same time and shares the 9a.1 label.
+
+- **9b.1 — CS0108 + CS8629 cleanup** (after Batch 9b initial verification).
+  CS0108: my new `LipiMultiSelectBase.Placeholder` parameter declaration
+  shadowed the inherited `LipiInputBase<List<TValue>>.Placeholder`. Memory
+  rule #25 bullet 6 (added in A18) caught exactly this regression class —
+  the rule was framed for "migrating any subclass to a new base class," but
+  the same risk applies when AUTHORING a NEW subclass against an existing
+  base. Bullet 6's wording should be (and is now in practice) interpreted
+  to cover both scenarios. Fix: deleted the redundant declaration; the
+  inherited `Placeholder` has byte-identical signature.
+
+  CS8629: `MaxSelections.Value` access inside a `@if (capReached)` Razor
+  branch — compiler nullable-flow analysis can't see that `capReached`
+  (defined in the base) implies `MaxSelections.HasValue`. Fix: replaced
+  `@MaxSelections.Value` with `@MaxSelections` (Razor int? interpolation
+  renders the inner value when non-null, which is guaranteed inside the
+  guard).
+
+- **9b.2 — 6-issue UX fix** (after Batch 9b functional verification).
+  Two root causes for six reported issues:
+  (A) Keydown event propagation — `@onkeydown` was bound to BOTH the outer
+  field-bar div AND the inner search input. Backspace and ArrowUp/Down
+  fired both handlers, removing 2 chips at once or jumping 2 items in
+  highlight. Fix: added `@onkeydown:stopPropagation="true"` on the search
+  input.
+  (B) JS interop signature mismatch — I called
+  `lipiInput.attachSelectHandlers / detachSelectHandlers / positionDropdown`
+  with only 2 arguments. `LipiSelectBase` calls all three with a third
+  argument `EffectiveDropdownId`. Without it, JS could not (3) detect
+  outside-clicks against the panel, (4) reposition the panel on scroll, or
+  (5) flip the panel above the anchor when below-anchor space was
+  insufficient. Fix: added `EffectiveDropdownId` as the third argument to
+  all four JS interop call sites.
+
+  This batch crystallized a Path 3 lesson: when reusing a JS interop API
+  from a sibling base class, the call signature must match exactly. The
+  Path 3 discipline of "duplicate the markup verbatim" extends to the C#
+  glue code that drives the JS, not just the Razor template.
+
+- **9b.3 — Scroll-highlighted-option-into-view fix** (after Batch 9b
+  Specialties scenario test). Type-ahead and arrow-key keyboard
+  navigation correctly updated `_highlightedIndex` in C#, but the matching
+  option DOM element remained outside the dropdown's visible scroll region
+  when the matching item was below visible. User saw no feedback even
+  though the highlight had moved correctly internally. Fix: added
+  `lipiInput.scrollOptionIntoView(panelId, index)` JS helper using
+  `scrollIntoView({block: 'nearest'})` on the option element identified by
+  a new `data-option-index="N"` attribute on each rendered option. C# calls
+  the helper from `ScrollHighlightIntoViewAsync` after every keyboard-driven
+  highlight change (3 sites: ArrowDown, ArrowUp, type-ahead match). The
+  same gap exists latently in `LipiSelectBase` and is moved to the v1.1
+  PLANNED section below; deferred because LipiSelect's `Searchable=true`
+  default sidesteps the symptom for most use cases.
+
+- **9c-a.1 — Dropdown name-column alignment polish** (after Batch 9c-a
+  Diagnoses scenario test). ICD codes have varying length (`I10`, `J45.909`)
+  so diagnosis names started at different X positions per dropdown row.
+  Fix: added scoped `min-width: 60px` on `.dx-row .dx-icd` and
+  `min-width: 56px` on `.lab-row .lab-code` (parent-scoped so chip context
+  is unaffected — chips legitimately want to hug content). Fix lives in
+  `MultiComboboxTest.razor` and `StyleGuide.razor` only; not promoted to
+  shared CSS until 3+ consumer pattern repeats.
+
+**Architectural decisions locked**:
+
+Six strategic and six implementation-level decisions shape the architectural
+footprint of Phase 2.3. Future strategic chats reading this amendment should
+treat these as locked unless explicitly amended in a future entry.
+
+- **Track 4b / Approach C — Generic `LipiCompoundField` over per-shape components**.
+  Rejected: per-shape components (`LipiMobileField`, `LipiAadhaarField`,
+  `LipiLandlineField`). Chosen: one generic `LipiCompoundField` that hosts
+  child segments (`SelectSegment`, `TextSegment`, future `DateSegment`).
+  Rationale: arbitrary multi-segment shapes are unbounded (every form's
+  compound is unique), and per-shape components multiply the code surface
+  without proportional benefit. The segment registration pattern via
+  `ICompoundSegment` provides the consistency that per-shape components
+  would otherwise enforce.
+
+- **`LipiContainerBase` as sibling base to `LipiInputBase`, not subclass or refactor**.
+  Rejected: (Option B) refactor `LipiInputBase` to add container-shape support
+  via composition. (Option C) make `LipiContainerBase` inherit from
+  `LipiInputBase`. Chosen: introduce `LipiContainerBase` as a NEW abstract
+  sibling that takes no `TValue` and owns segment registration / focus-out
+  aggregation / visual scaffolding. Rationale: the two responsibilities
+  (single bound value vs. hosting child segments) are orthogonal; trying to
+  share inheritance would force every input to carry container ceremony. The
+  sibling-base shape preserves clean boundaries for both.
+
+- **Path 3 — Declarative duplication over imperative `RenderFragment` extraction at 2-caller scale**.
+  When `SelectSegment` (Batch 9a) needed the same dropdown panel markup as
+  `LipiSelect`, the team considered three paths:
+  (Path 1) Extract dropdown rendering into a virtual method on
+  `LipiSelectBase` returning `RenderFragment`.
+  (Path 2) Move dropdown into a separate component imported by both.
+  (Path 3) Duplicate the dropdown panel markup verbatim in `SelectSegment`,
+  ~80 lines of intentional copy.
+  Chosen: Path 3. Rationale at 2-caller scale: extraction adds an indirection
+  layer that obscures debugging (renders happen in a method returning a
+  delegate, not in the `.razor` markup the developer is editing), and
+  templates iterating independently per consumer is more important than DRY.
+  When `LipiMultiCombobox` (Batch 9c-a) became the second consumer of the
+  multi-select dropdown panel, Path 3 was reapplied — total panels duplicated
+  in Phase 2.3: 2 (`SelectSegment` from `LipiSelect`, `LipiMultiCombobox` from
+  `LipiMultiSelect`). **Trigger to extract: the third consumer of any panel
+  shape.** Until then, declarative duplication is the locked default.
+
+- **CSS Path A — `min-height` override as the family-level deviation pattern**.
+  When components legitimately need to deviate from family-level fixed
+  heights (28/32/40 px), the locked pattern is to use a compound-class
+  selector (`.lipi-multi-select.lipi-input-{size} .lipi-input-field`) that
+  sets `height: auto; min-height: {size}`. `LipiTextArea` (autogrow)
+  established this in Phase 2.2 Batch 3; `LipiMultiSelect` (chip-row growth)
+  is the second case. Rejected alternatives: (A2) constrain content to fit
+  fixed height with overflow handling, (A3) promote `min-height` to the
+  family-level rule and refactor all components. A3 is a Phase 3 candidate;
+  A2 was rejected for chips because forced single-line overflow degrades
+  UX more than letting the field grow naturally. Document any future
+  third-time-override as a Phase 3 trigger to revisit A3.
+
+- **Pattern B — Replacement, not in-place mutation, for `List<TValue>` binding**.
+  All `Value` mutations in `LipiMultiSelectBase` (`AddItem`, `RemoveItem`,
+  `RemoveLastChip`, `ToggleItem`, `CommitFreeTextAsync`) create a new
+  `List<TValue>` instance and assign to `CurrentValue`. Rejected alternative
+  (Pattern A): in-place `Value.RemoveAt(idx)` followed by
+  `ValueChanged.InvokeAsync(Value)`. Rationale: in-place mutation produces
+  the same reference, breaking reference-equality change detection in
+  `EditContext`, FluentValidation, EF Core change tracking, and any future
+  migration to `ImmutableList<T>` or record-based view models. Cost is one
+  list allocation per chip add/remove; user-paced operations make this
+  negligible. Going forward, any new collection-typed bound parameter
+  (`List<T>`, `HashSet<T>`, `Dictionary<K,V>`) follows Pattern B by default.
+
+- **Q4 — Env-gated `TValue=string` constraint for `AllowFreeText`** (mirrors LipiButton A14).
+  `LipiMultiSelect.AllowFreeText` and `LipiMultiCombobox.AllowFreeText`
+  require `TValue=string` because free-text input synthesizes new values
+  from typed strings — non-string TValue (e.g., `Guid`, `int`) cannot be
+  synthesized this way. Rejected alternatives: (II) add a
+  `Func<string, TValue?>` parser parameter, (III) silently skip the
+  "Add as new" UI when `TValue ≠ string`. Chosen: (I) env-gated
+  `InvalidOperationException` in Development, log error + force-false in
+  Production. Mirrors the LipiButton AriaLabel pattern locked in A14.
+  Rationale: clinical data binding to entity IDs (Guid medications, Guid
+  diagnoses) should NOT support arbitrary user-typed values — those are
+  data-quality risks. The constraint pushes free-text use cases to
+  `TValue=string` properties where the string itself is the storage shape
+  (allergies, tags, free-form notes lists).
+
+**Q1-Q6 implementation locks (multi-select family)**:
+
+| Q | Decision | Implementation |
+|---|----------|----------------|
+| Q1 | min-height override | `.lipi-multi-select.lipi-input-{size} .lipi-input-field` sets `height: auto; min-height: {28,32,40}px`. Field grows when chips wrap to multiple rows. |
+| Q2 | +M more opens dropdown sorted | Click "+M more" sets `_isFromSummaryClick = true`; `GetFilteredOptions` returns `(Selected: alphabetical, Unselected: alphabetical)`. Reset on `CloseDropdownAsync`. |
+| Q3 | Backspace removes Value last | `RemoveLastChip` calls `Value.RemoveAt(Value.Count - 1)` via Pattern B replacement. List order, not visual order. |
+| Q4 | AllowFreeText requires string | Env-gated check in `OnParametersSet`; `_resolvedAllowFreeText` field used in rendering instead of raw parameter. |
+| Q5 | Strict IsEmpty | `protected override bool IsEmpty => CurrentValue is null \|\| CurrentValue.Count == 0` — apricot tint reappears when emptied even after first interaction. |
+| Q6 | MVP + Spacebar + Type-ahead | Backspace, ArrowUp/Down, Enter/Space toggle, Esc close, Tab native; type-ahead buffer with 1-second reset window for non-searchable mode. |
+
+**Files**:
+
+Across 9a → 9c-b: 11 NEW files, 8 EDITED files, 1 EDITED config (`deploy-downloads.ps1`,
+multiple times).
+
+NEW (Components):
+- `src/LiPi.Web/Components/Shared/ICompoundSegment.cs`
+- `src/LiPi.Web/Components/Shared/LipiContainerBase.cs`
+- `src/LiPi.Web/Components/Shared/LipiCompoundField.razor`
+- `src/LiPi.Web/Components/Shared/SelectSegment.razor`
+- `src/LiPi.Web/Components/Shared/TextSegment.razor`
+- `src/LiPi.Web/Components/Shared/LipiMultiSelectBase.cs`
+- `src/LiPi.Web/Components/Shared/LipiMultiSelect.razor`
+- `src/LiPi.Web/Components/Shared/LipiMultiCombobox.razor`
+
+NEW (CSS):
+- `src/LiPi.Web/wwwroot/css/lipi-compound.css`
+- `src/LiPi.Web/wwwroot/css/lipi-multi.css`
+
+NEW (Test pages):
+- `src/LiPi.Web/Pages/Test/CompoundFieldTest.razor`
+- `src/LiPi.Web/Pages/Test/MultiSelectTest.razor`
+- `src/LiPi.Web/Pages/Test/MultiComboboxTest.razor`
+
+NEW (Docs):
+- `docs/00-COMPONENTS/01.3-CompoundField.md`
+- `docs/00-COMPONENTS/01.4-MultiSelect.md`
+
+EDITED:
+- `src/LiPi.Web/wwwroot/css/lipi-inputs.css` (CSS architectural cleanup, family-level heights)
+- `src/LiPi.Web/wwwroot/js/lipi-input.js` (extended with `lipiCompound.attachFocusOut` / `detachFocusOut` + `scrollOptionIntoView`)
+- `src/LiPi.Web/Components/Shared/LipiTextBox.razor.css` (3 height rules removed; promoted to shared)
+- `src/LiPi.Web/Components/Shared/LipiNumberInput.razor.css` (3 height rules removed; promoted to shared)
+- `src/LiPi.Web/Components/Layout/App.razor` (cache version bumps `20260510 → 20260514` across 9a → 9b.3 + new CSS link entries)
+- `src/LiPi.Web/Pages/StyleGuide.razor` (new "Compound & Multi-Select" section, updated stale Phase 2.2.5 comment)
+- `deploy-downloads.ps1` (8 new file entries across all sub-batches)
+
+**Verification**:
+
+1. `dotnet build src/LiPi.Web/LiPi.Web.csproj` → 0 warnings, 0 errors
+2. `/test/compound` — three scenarios (Mobile, Landline, Aadhaar) with auto-advance, focus-leaves-compound touched-state, and per-segment validation aggregation all working
+3. `/test/multi` — five scenarios (Allergies, Departments, Insurance, Tags, Specialties) covering Q1-Q6 behaviors
+4. `/test/multicombo` — five scenarios (Diagnoses, Medications, Lab tests, Specialties, Allergens) covering templated rendering + caps + AllowFreeText interactions
+5. `/styleguide` — new "Compound & Multi-Select" section renders, all demos accept input, nav link works
+6. Regression check: `/test/textbox`, `/test/textarea`, `/test/number`, `/test/select`, `/styleguide` Section 7 alignment row — all components render at family-consistent 32px field height
+7. Cache version `v=20260514` across all 15 references in `App.razor`
+
+**Coordination notes**:
+
+- Phase 2.3 closes here. Tag: `phase-2-sub-2-3-may07`.
+- Phase 2.4 (Date/Time family) queued. `DateSegment` will close the deferred
+  `LipiCompoundField` extension — currently `LipiCompoundField` supports only
+  `SelectSegment` and `TextSegment`. Adding `DateSegment` requires no base
+  changes; segment registration via `ICompoundSegment` is the extensibility
+  point.
+- Path 3 trigger watch: `LipiMultiCombobox` is the SECOND consumer of the
+  multi-select dropdown panel. The third consumer (whenever it arrives)
+  triggers extraction of the dropdown panel into a base method/component.
+  Same trigger applies to the LipiSelect dropdown panel (currently 2
+  consumers: `LipiSelect`, `SelectSegment`).
+- Memory rule #25 now has 7 bullets (added bullet 7 in this amendment for
+  CSS class scaffolding). Pre-delivery quality check applies all 7 bullets
+  to every component ship going forward.
+
+**Phase 2 status (post-A19)**:
+
+- ✅ Phase 2.0 (StyleGuide foundation)
+- ✅ Phase 2.1 (LipiButton + tokens) — A11 visual review, A14 env-gated retrofit
+- ✅ Phase 2.2 (5-component TextInput family) — A12 token foundation, A13 base infrastructure, A15 component completion
+- ✅ Phase 2.2.5 (LipiInputBase + EditContext auto-population) — A16, tagged `phase-2-sub-2-2-5-may06`
+- ✅ Build hygiene closed — A17 (package warnings) + A18 (C# warnings)
+- ✅ Phase 2.3 (Compound + Multi-Select family) — A19, tagged `phase-2-sub-2-3-may07`
+- 🟢 Phase 2.4 ready to start (Date/Time family — `LipiDate`, `LipiDateRange`, `DateSegment` for `LipiCompoundField`)
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)
@@ -982,6 +1323,7 @@ The user has confirmed adoption of bullet 6 and will handle the formal memory ed
 - [ ] **High-contrast theme mode** (accessibility)
 - [ ] **Density toggle** (user preference: comfortable/compact/spacious)
 - [ ] **A7 — ThemeProvider spec/code reconciliation** (see Known divergences above)
+- [ ] **LipiSelectBase scroll-highlighted-option-into-view fix** (latent gap surfaced during A19 / Batch 9b.3). `LipiSelectBase`'s keyboard navigation has the same defect that `LipiMultiSelectBase` had pre-9b.3 — ArrowUp/Down past the visible scroll region updates `_highlightedIndex` but doesn't scroll the option DOM element into view. Currently rare because `Searchable=true` is the default for `LipiSelect` (users filter rather than jump). Address as a focused 1-file batch when the symptom surfaces in production. Reuse the `lipiInput.scrollOptionIntoView` JS helper shipped in 9b.3.
 
 ### Infrastructure Phases (Triggered by Real Module Demand — see A17 strategic context)
 

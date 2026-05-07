@@ -1,0 +1,402 @@
+@* SPEC: docs/00-COMPONENTS/01.4-MultiSelect.md (shipping in Batch 9c-b)
+   PHASE: 2.3 Batch 9c-a — verification page for LipiMultiCombobox.
+
+   Five scenarios exercising the templated rendering surface:
+   1. Active diagnoses    — ICD code + name + severity badge in dropdown;
+                            ICD-styled chip in field bar
+   2. Medications         — drug name + dose + frequency in dropdown;
+                            compact chip in field bar
+   3. Lab tests           — test code + name + STAT badge for urgent;
+                            STAT-tinted chip
+   4. Specialties         — icon + name in dropdown;
+                            icon + name in chip (templated chip)
+   5. Caps + AllowFreeText — full caps testing with TValue=string
+                              (closed-list and free-text combinations)
+*@
+
+@page "/test/multicombo"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiMultiCombobox Test (Phase 2.3 Batch 9c-a)</PageTitle>
+
+<style>
+    .test-page          { max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    .test-section       { margin-bottom: 40px; }
+    .test-section h3    { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .test-section p     { color: var(--color-text-tertiary); font-size: 13px; margin-bottom: 16px; }
+    .test-status        { margin-top: 16px; padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; }
+    .test-status-valid  { background-color: var(--color-success-pale); color: var(--color-success-text-strong); }
+    .test-status-invalid{ background-color: var(--color-danger-pale); color: var(--color-danger); }
+    .live-state         { margin-top: 12px; font-size: 12px; color: var(--color-text-tertiary); font-family: monospace; }
+
+    /* Rich dropdown rendering helpers */
+    .dx-row             { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+    .dx-icd             { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--color-text-tertiary); white-space: nowrap; }
+    /* In dropdown rows, reserve a fixed-width column so diagnosis names align across rows
+       regardless of ICD code length (longest realistic ICD-10: ~7 chars; reserve 60px). */
+    .dx-row .dx-icd     { min-width: 60px; }
+    .dx-name            { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+    .dx-sev             { display: inline-flex; align-items: center; padding: 1px 6px; font-size: 10px; font-weight: 500; border-radius: var(--r-sm); text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
+    .dx-sev-mild        { background: var(--color-success-pale); color: var(--color-success-text-strong, var(--color-success)); }
+    .dx-sev-moderate    { background: var(--color-warning-pale); color: var(--color-warning-text-strong, var(--color-warning)); }
+    .dx-sev-severe      { background: var(--color-danger-pale); color: var(--color-danger); }
+
+    .med-row            { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+    .med-name           { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+    .med-dose           { font-size: 11px; color: var(--color-text-tertiary); white-space: nowrap; }
+    .med-chip-name      { font-weight: 500; }
+    .med-chip-dose      { font-size: 11px; color: var(--color-text-tertiary); margin-left: 4px; }
+
+    .lab-row            { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+    .lab-code           { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--color-text-tertiary); white-space: nowrap; }
+    /* Reserve fixed-width column for lab codes so test names align across rows.
+       Longest realistic lab code in our seed: DDIMER (6 chars); reserve 56px. */
+    .lab-row .lab-code  { min-width: 56px; }
+    .lab-name           { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+    .lab-stat-badge     { display: inline-flex; align-items: center; padding: 1px 6px; font-size: 10px; font-weight: 600; border-radius: var(--r-sm); background: var(--color-danger-pale); color: var(--color-danger); text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
+
+    .spec-row           { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+    .spec-icon          { font-size: 14px; flex-shrink: 0; }
+    .spec-name          { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+</style>
+
+<div class="test-page">
+    <h1 style="font-size: 24px; margin-bottom: 8px;">LipiMultiCombobox Test</h1>
+    <p style="color: var(--color-text-secondary); margin-bottom: 32px;">
+        Phase 2.3 Batch 9c-a — verification of templated multi-select with rich item rendering
+        (ItemTemplate) and rich chip rendering (SelectedChipTemplate). All Q1-Q6 behaviors from
+        LipiMultiSelect carry over via the shared LipiMultiSelectBase.
+    </p>
+
+    <EditForm Model="_model" OnValidSubmit="OnValidSubmit" OnInvalidSubmit="OnInvalidSubmit">
+        <DataAnnotationsValidator />
+
+        @* ===================================================================
+           SCENARIO 1 — Active diagnoses with ICD code + severity badge
+           Tests: ItemTemplate (rich dropdown), SelectedChipTemplate (rich chip),
+                  TValue=Guid with selectors
+           =================================================================== *@
+        <div class="test-section">
+            <h3>1. Active Diagnoses (ICD-coded)</h3>
+            <p>Dropdown shows ICD code + name + severity badge. Chip shows ICD code + name.</p>
+
+            <LipiMultiCombobox TValue="Guid"
+                               TItem="DiagnosisDemo"
+                               Name="diagnoses"
+                               Label="Active Diagnoses"
+                               Items="@_diagnoses"
+                               ValueSelector="@(d => d.Id)"
+                               LabelSelector="@(d => d.Name)"
+                               @bind-Value="_model.DiagnosisIds"
+                               Searchable="true"
+                               Required="true"
+                               Placeholder="Search diagnoses…">
+                <ItemTemplate Context="dx">
+                    <div class="dx-row">
+                        <span class="dx-icd">@dx.IcdCode</span>
+                        <span class="dx-name">@dx.Name</span>
+                        <span class="dx-sev dx-sev-@(dx.Severity.ToLowerInvariant())">@dx.Severity</span>
+                    </div>
+                </ItemTemplate>
+                <SelectedChipTemplate Context="dx">
+                    <span class="dx-icd">@dx.IcdCode</span>
+                    <span class="lipi-multi-chip-label">@dx.Name</span>
+                </SelectedChipTemplate>
+            </LipiMultiCombobox>
+
+            <div class="live-state">
+                Live: @_model.DiagnosisIds.Count diagnosis/diagnoses selected
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 2 — Medications with dose info
+           Tests: ItemTemplate showing dose, chip with compact dose suffix
+           =================================================================== *@
+        <div class="test-section">
+            <h3>2. Medications (with dose)</h3>
+            <p>Dropdown shows drug name + dose. Chip shows name with compact dose suffix.</p>
+
+            <LipiMultiCombobox TValue="string"
+                               TItem="MedicationDemo"
+                               Name="medications"
+                               Label="Current Medications"
+                               Items="@_medications"
+                               ValueSelector="@(m => m.Code)"
+                               LabelSelector="@(m => m.Name)"
+                               @bind-Value="_model.MedicationCodes"
+                               Searchable="true"
+                               MaxSelections="8"
+                               Placeholder="Add medications…">
+                <ItemTemplate Context="med">
+                    <div class="med-row">
+                        <span class="med-name">@med.Name</span>
+                        <span class="med-dose">@med.Dose · @med.Frequency</span>
+                    </div>
+                </ItemTemplate>
+                <SelectedChipTemplate Context="med">
+                    <span class="med-chip-name">@med.Name</span>
+                    <span class="med-chip-dose">@med.Dose</span>
+                </SelectedChipTemplate>
+            </LipiMultiCombobox>
+
+            <div class="live-state">
+                Live: [@string.Join(", ", _model.MedicationCodes)] — @_model.MedicationCodes.Count / 8
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 3 — Lab tests with STAT badge
+           Tests: conditional badge in ItemTemplate, MaxVisibleChips=4
+           =================================================================== *@
+        <div class="test-section">
+            <h3>3. Lab Tests (STAT badge for urgent)</h3>
+            <p>Dropdown shows code + name + STAT badge if urgent. MaxVisibleChips=4 with +M more.</p>
+
+            <LipiMultiCombobox TValue="string"
+                               TItem="LabTestDemo"
+                               Name="labs"
+                               Label="Lab Tests Ordered"
+                               Items="@_labTests"
+                               ValueSelector="@(l => l.Code)"
+                               LabelSelector="@(l => l.Name)"
+                               @bind-Value="_model.LabCodes"
+                               Searchable="true"
+                               MaxVisibleChips="4"
+                               Placeholder="Add lab tests…">
+                <ItemTemplate Context="lab">
+                    <div class="lab-row">
+                        <span class="lab-code">@lab.Code</span>
+                        <span class="lab-name">@lab.Name</span>
+                        @if (lab.IsStat)
+                        {
+                            <span class="lab-stat-badge">STAT</span>
+                        }
+                    </div>
+                </ItemTemplate>
+            </LipiMultiCombobox>
+
+            <div class="live-state">
+                Live: @_model.LabCodes.Count test(s) selected
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 4 — Specialties with icon (templated chip)
+           Tests: emoji icon in both dropdown and chip, no MaxSelections
+           =================================================================== *@
+        <div class="test-section">
+            <h3>4. Specialties (icon + name)</h3>
+            <p>Both dropdown and chip render an icon prefix. No caps.</p>
+
+            <LipiMultiCombobox TValue="string"
+                               TItem="SpecialtyDemo"
+                               Name="specialties"
+                               Label="Practice Specialties"
+                               Items="@_specialties"
+                               ValueSelector="@(s => s.Code)"
+                               LabelSelector="@(s => s.Name)"
+                               @bind-Value="_model.SpecialtyCodes"
+                               Searchable="true"
+                               Placeholder="Add specialties…">
+                <ItemTemplate Context="sp">
+                    <div class="spec-row">
+                        <span class="spec-icon">@sp.Icon</span>
+                        <span class="spec-name">@sp.Name</span>
+                    </div>
+                </ItemTemplate>
+                <SelectedChipTemplate Context="sp">
+                    <span class="spec-icon">@sp.Icon</span>
+                    <span class="lipi-multi-chip-label">@sp.Name</span>
+                </SelectedChipTemplate>
+            </LipiMultiCombobox>
+
+            <div class="live-state">
+                Live: [@string.Join(", ", _model.SpecialtyCodes)]
+            </div>
+        </div>
+
+        @* ===================================================================
+           SCENARIO 5 — String-typed combobox (caps test)
+           Tests: TValue=string, AllowFreeText=true with templated rendering
+           =================================================================== *@
+        <div class="test-section">
+            <h3>5. Allergens (string-typed + AllowFreeText + caps)</h3>
+            <p>String TValue with simple TItem and AllowFreeText. MaxSelections=5 + MaxVisibleChips=3.</p>
+
+            <LipiMultiCombobox TValue="string"
+                               TItem="AllergenDemo"
+                               Name="allergens"
+                               Label="Allergens (with severity)"
+                               Items="@_allergens"
+                               ValueSelector="@(a => a.Name)"
+                               LabelSelector="@(a => a.Name)"
+                               @bind-Value="_model.Allergens"
+                               Searchable="true"
+                               AllowFreeText="true"
+                               MaxSelections="5"
+                               MaxVisibleChips="3"
+                               Placeholder="Type to search or add new…">
+                <ItemTemplate Context="al">
+                    <div class="dx-row">
+                        <span class="dx-name">@al.Name</span>
+                        <span class="dx-sev dx-sev-@(al.Severity.ToLowerInvariant())">@al.Severity</span>
+                    </div>
+                </ItemTemplate>
+            </LipiMultiCombobox>
+
+            <div class="live-state">
+                Live: [@string.Join(", ", _model.Allergens)] — @_model.Allergens.Count / 5
+            </div>
+        </div>
+
+        @* ===================================================================
+           SUBMIT
+           =================================================================== *@
+        <div style="display: flex; gap: 12px; align-items: center; margin-top: 32px;">
+            <LipiButton Type="submit"
+                        Variant="ButtonVariant.Primary"
+                        AriaLabel="Submit form">
+                Submit
+            </LipiButton>
+
+            @if (_submitted)
+            {
+                <span class="test-status @(_isValid ? "test-status-valid" : "test-status-invalid")">
+                    @(_isValid ? "✓ Valid submission" : "✗ Invalid — Diagnoses required")
+                </span>
+            }
+        </div>
+    </EditForm>
+
+    @* ===================================================================
+       VERIFICATION CHECKLIST
+       =================================================================== *@
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>What to verify (Phase 2.3 Batch 9c-a):</strong>
+        <br /> • <strong>ItemTemplate:</strong> Diagnoses dropdown renders ICD code + name + colored severity badge per row.
+        <br /> • <strong>SelectedChipTemplate:</strong> Diagnosis chips show ICD code + name (no severity, compact).
+        <br /> • <strong>SelectedChipTemplate fallback:</strong> Lab tests scenario has NO SelectedChipTemplate — chips fall back to plain LabelSelector text. Verify they look exactly like LipiMultiSelect chips.
+        <br /> • <strong>× button auto-append:</strong> All chips have a × button regardless of whether SelectedChipTemplate is provided. Hover over × to confirm.
+        <br /> • <strong>TValue=Guid:</strong> Diagnoses scenario uses Guid IDs — verify selection round-trips correctly (chip remove, add, reorder all preserve TValue identity).
+        <br /> • <strong>Conditional template content:</strong> Lab tests with IsStat=true show STAT badge; non-STAT items don't.
+        <br /> • <strong>Q1 (min-height grow):</strong> Add many medications, watch field bar grow as chips wrap.
+        <br /> • <strong>Q2 (+M more):</strong> Lab tests scenario, add 5 tests → 4 chips + "+1 more" summary. Click summary → dropdown opens with selected at top.
+        <br /> • <strong>Q3 (Backspace):</strong> All scenarios — Backspace on empty search removes last chip.
+        <br /> • <strong>Q4 (AllowFreeText):</strong> Allergens scenario, type "Custom", Enter → chip added with typed value.
+        <br /> • <strong>MaxSelections cap:</strong> Medications cap=8, Allergens cap=5 — dropdown disables remaining items at cap.
+        <br /> • <strong>Caps interaction:</strong> Allergens has BOTH MaxSelections=5 AND MaxVisibleChips=3. Add 5 → see 3 chips + "+2 more" summary AND dropdown hits cap.
+    </div>
+
+    <div style="margin-top: 24px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>Regression checks (Phase 2.2/2.3 components — should be unaffected):</strong>
+        <br /> • <strong>/test/textbox, /test/textarea, /test/number, /test/select, /test/compound, /test/multi</strong> — all still render correctly.
+        <br /> • <strong>/styleguide</strong> — Section 7 alignment row still aligns at 32px baseline.
+    </div>
+</div>
+
+@code {
+    private TestModel _model = new();
+    private bool _submitted;
+    private bool _isValid;
+
+    // ---- Sample data: diagnoses with Guid IDs ----
+    public record DiagnosisDemo(Guid Id, string IcdCode, string Name, string Severity);
+    private static readonly List<DiagnosisDemo> _diagnoses = new()
+    {
+        new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "I10",     "Essential hypertension",                         "Moderate"),
+        new(Guid.Parse("22222222-2222-2222-2222-222222222222"), "E11.9",   "Type 2 diabetes mellitus, without complications", "Moderate"),
+        new(Guid.Parse("33333333-3333-3333-3333-333333333333"), "J45.909", "Asthma, unspecified",                            "Mild"),
+        new(Guid.Parse("44444444-4444-4444-4444-444444444444"), "I25.10",  "Atherosclerotic heart disease",                  "Severe"),
+        new(Guid.Parse("55555555-5555-5555-5555-555555555555"), "N18.3",   "Chronic kidney disease, stage 3",                "Severe"),
+        new(Guid.Parse("66666666-6666-6666-6666-666666666666"), "F32.9",   "Major depressive disorder, single episode",       "Moderate"),
+        new(Guid.Parse("77777777-7777-7777-7777-777777777777"), "M79.3",   "Panniculitis",                                   "Mild"),
+        new(Guid.Parse("88888888-8888-8888-8888-888888888888"), "K21.9",   "Gastro-esophageal reflux disease",               "Mild"),
+        new(Guid.Parse("99999999-9999-9999-9999-999999999999"), "G47.00",  "Insomnia, unspecified",                          "Mild"),
+        new(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), "C50.911", "Malignant neoplasm of breast",                   "Severe"),
+    };
+
+    // ---- Sample data: medications ----
+    public record MedicationDemo(string Code, string Name, string Dose, string Frequency);
+    private static readonly List<MedicationDemo> _medications = new()
+    {
+        new("AMLO5",    "Amlodipine",   "5 mg",   "OD"),
+        new("METF500",  "Metformin",    "500 mg", "BID"),
+        new("ATOR20",   "Atorvastatin", "20 mg",  "OD"),
+        new("LOSAR50",  "Losartan",     "50 mg",  "OD"),
+        new("ASA75",    "Aspirin",      "75 mg",  "OD"),
+        new("OMEP20",   "Omeprazole",   "20 mg",  "OD"),
+        new("SALBU100", "Salbutamol",   "100 mcg","PRN"),
+        new("LEVO500",  "Levofloxacin", "500 mg", "OD"),
+        new("PARA500",  "Paracetamol",  "500 mg", "QID"),
+        new("CITAL20",  "Citalopram",   "20 mg",  "OD"),
+    };
+
+    // ---- Sample data: lab tests ----
+    public record LabTestDemo(string Code, string Name, bool IsStat);
+    private static readonly List<LabTestDemo> _labTests = new()
+    {
+        new("CBC",     "Complete Blood Count",            false),
+        new("CMP",     "Comprehensive Metabolic Panel",   false),
+        new("LIPID",   "Lipid Panel (fasting)",           false),
+        new("HBA1C",   "Hemoglobin A1c",                  false),
+        new("TSH",     "Thyroid Stimulating Hormone",     false),
+        new("TROP",    "Troponin I",                       true),
+        new("DDIMER",  "D-Dimer",                          true),
+        new("LACT",    "Lactate",                          true),
+        new("UA",      "Urinalysis",                      false),
+        new("PT",      "Prothrombin Time / INR",          false),
+        new("ABG",     "Arterial Blood Gas",               true),
+        new("URC",     "Urine Culture",                   false),
+    };
+
+    // ---- Sample data: specialties with emoji icons ----
+    public record SpecialtyDemo(string Code, string Name, string Icon);
+    private static readonly List<SpecialtyDemo> _specialties = new()
+    {
+        new("CARD",  "Cardiology",          "❤️"),
+        new("DERM",  "Dermatology",         "🩺"),
+        new("NEUR",  "Neurology",           "🧠"),
+        new("ORTH",  "Orthopaedics",        "🦴"),
+        new("PED",   "Paediatrics",         "👶"),
+        new("PSYC",  "Psychiatry",          "💭"),
+        new("RAD",   "Radiology",           "🩻"),
+        new("ONCO",  "Oncology",            "🎗️"),
+        new("OBGYN", "Obstetrics & Gynae",  "🤰"),
+        new("OPHTH", "Ophthalmology",       "👁️"),
+    };
+
+    // ---- Sample data: allergens with severity ----
+    public record AllergenDemo(string Name, string Severity);
+    private static readonly List<AllergenDemo> _allergens = new()
+    {
+        new("Penicillin",   "Severe"),
+        new("Aspirin",      "Moderate"),
+        new("Latex",        "Moderate"),
+        new("Peanuts",      "Severe"),
+        new("Shellfish",    "Severe"),
+        new("Eggs",         "Mild"),
+        new("Dairy",        "Mild"),
+        new("Sulfa drugs",  "Severe"),
+        new("Iodine",       "Moderate"),
+        new("Tree nuts",    "Severe"),
+    };
+
+    private void OnValidSubmit() { _submitted = true; _isValid = true; }
+    private void OnInvalidSubmit() { _submitted = true; _isValid = false; }
+
+    public class TestModel
+    {
+        [Required(ErrorMessage = "At least one diagnosis is required.")]
+        [MinLength(1, ErrorMessage = "At least one diagnosis is required.")]
+        public List<Guid> DiagnosisIds { get; set; } = new();
+
+        public List<string> MedicationCodes { get; set; } = new();
+        public List<string> LabCodes        { get; set; } = new();
+        public List<string> SpecialtyCodes  { get; set; } = new();
+        public List<string> Allergens       { get; set; } = new();
+    }
+}

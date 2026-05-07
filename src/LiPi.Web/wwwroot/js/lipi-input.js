@@ -1,9 +1,10 @@
-// SPEC:  Phase 2.2 — JS helpers for the LiPi input component family.
-// USE:   Loaded via App.razor as a global script; exposes window.lipiInput.
+// SPEC:  Phase 2.2 / 2.3 — JS helpers for LiPi input + compound component families.
+// USE:   Loaded via App.razor as a global script; exposes window.lipiInput + window.lipiCompound.
 // SCOPE: autogrow (Batch 3) + selectAll (Batch 4) + setValue (Batch 4.3) +
-//        dropdown positioning / outside-click / scroll-reposition (Batch 5).
-// AMEND: docs/CHANGE-LOG.md A14 covers Batches 4 / 4.1 / 4.2 / 4.3 / 5 as one
-//        Phase 2.2 sub-step entry (pending).
+//        dropdown positioning / outside-click / scroll-reposition (Batch 5) +
+//        compound-field focusout listener with relatedTarget contains-check (Batch 9a) +
+//        scrollOptionIntoView for keyboard-navigated dropdown highlight (Batch 9b.3).
+// AMEND: docs/CHANGE-LOG.md A14 (Batches 4–5), A19 (Batch 9a/9b, pending).
 //
 // Why this approach (not field-sizing CSS):
 //   The CSS field-sizing: content property (Chrome 123+, Safari 17.4+, Firefox flagged)
@@ -256,6 +257,41 @@
     };
 
     // ─────────────────────────────────────────────────────────────────────────
+    // SCROLL HIGHLIGHTED OPTION INTO VIEW — Batch 9b.3 (Phase 2.3)
+    // ─────────────────────────────────────────────────────────────────────────
+    //
+    // After keyboard navigation (Arrow keys / type-ahead) changes
+    // _highlightedIndex on the C# side, the matching option DOM element may
+    // be outside the dropdown panel's visible scroll region. Without scrolling
+    // it into view, the user sees no visual feedback even though the highlight
+    // moved.
+    //
+    // The C# template renders each option with data-option-index="N" matching
+    // the global highlight index. This helper finds that element by selector
+    // and calls scrollIntoView({block:'nearest'}) — which scrolls only as much
+    // as needed to make the element visible (no jarring viewport jumps).
+    //
+    // 'nearest' is preferred over 'center' or 'start' because:
+    //   - 'nearest': scrolls the minimum needed; if already visible, does nothing
+    //   - 'center': always centers, causes jumpy feel even for adjacent items
+    //   - 'start': scrolls highlighted item to top of panel, hides items above
+
+    const scrollOptionIntoView = (panelId, index) => {
+        if (!panelId || index < 0) return;
+        try {
+            const panel = document.getElementById(panelId);
+            if (!panel) return;
+            const option = panel.querySelector(`[data-option-index="${index}"]`);
+            if (!option) return;
+            option.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        } catch (e) {
+            // Selector or scrollIntoView may fail in older browsers or unusual
+            // DOM states. Silent fail — keyboard navigation still updates the
+            // highlight; user can scroll manually.
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
     // PUBLIC API
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -267,6 +303,57 @@
         setValue:               setValue,
         positionDropdown:       positionDropdown,
         attachSelectHandlers:   attachSelectHandlers,
-        detachSelectHandlers:   detachSelectHandlers
+        detachSelectHandlers:   detachSelectHandlers,
+        scrollOptionIntoView:   scrollOptionIntoView
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // COMPOUND FIELD HELPERS — Batch 9a (Phase 2.3)
+    // ─────────────────────────────────────────────────────────────────────────
+    //
+    // Owns the focusout listener for LipiCompoundField. C# cannot do this
+    // natively because Blazor's FocusEventArgs does NOT surface RelatedTarget
+    // (that's a DOM web-API property, not exposed in the .NET event args).
+    //
+    // Strategy: native focusout listener on the wrapper element. On each
+    // focusout event, check whether event.relatedTarget is still a descendant
+    // of the wrapper. If it IS, focus moved between segments — do nothing
+    // (mid-interaction). If it ISN'T, focus actually left the compound — call
+    // back into C# via dotNetRef.invokeMethodAsync('OnFocusLeftCompound').
+    //
+    // State stored on the wrapper element itself via _lipiCompoundFocusOutHandler
+    // so detach can find and remove the listener cleanly. Idempotent —
+    // attachFocusOut on an already-attached element is a no-op.
+
+    const attachFocusOut = (wrapper, dotNetRef) => {
+        if (!wrapper || !dotNetRef) return;
+        if (wrapper._lipiCompoundFocusOutHandler) return; // already attached
+
+        const handler = (e) => {
+            // e.relatedTarget is the element receiving focus. If null (e.g.,
+            // focus moved to the document body via blur), treat as "left."
+            // If it's a descendant of wrapper, focus stayed inside — ignore.
+            if (e.relatedTarget && wrapper.contains(e.relatedTarget)) return;
+
+            // Real focus-out: tell C# to mark touched + aggregate validation.
+            dotNetRef.invokeMethodAsync('OnFocusLeftCompound').catch(() => {
+                // Circuit may have closed; swallow silently. The C# side
+                // will get re-attached on next render if circuit reconnects.
+            });
+        };
+
+        wrapper.addEventListener('focusout', handler);
+        wrapper._lipiCompoundFocusOutHandler = handler;
+    };
+
+    const detachFocusOut = (wrapper) => {
+        if (!wrapper || !wrapper._lipiCompoundFocusOutHandler) return;
+        wrapper.removeEventListener('focusout', wrapper._lipiCompoundFocusOutHandler);
+        delete wrapper._lipiCompoundFocusOutHandler;
+    };
+
+    window.lipiCompound = {
+        attachFocusOut: attachFocusOut,
+        detachFocusOut: detachFocusOut
     };
 })();

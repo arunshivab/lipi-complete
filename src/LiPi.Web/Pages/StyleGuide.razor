@@ -95,6 +95,7 @@
                 <a class="sg-nav-link" href="#buttons">Buttons</a>
                 <a class="sg-nav-link" href="#text-inputs">Text Inputs</a>
                 <a class="sg-nav-link" href="#alignment">Alignment</a>
+                <a class="sg-nav-link" href="#compound-multi">Compound &amp; Multi-Select</a>
             </div>
             <div class="sg-nav-group">
                 <h3 class="sg-nav-header">Patterns</h3>
@@ -521,8 +522,12 @@
                 <p class="sg-p">
                     Components composed in form-realistic combinations.
                     Title + First Name on one row, DOB + Age computed on another.
-                    Phase 2.2.5 will introduce a dedicated <code class="sg-code">LipiSelectTextCompound</code>
-                    that merges adjacent select+text into a single visual unit.
+                    These use individual <code class="sg-code">LipiSelect</code> +
+                    <code class="sg-code">LipiTextBox</code> instances side-by-side.
+                    For unified single-control compounds (Mobile = ISD + number,
+                    Aadhaar = 4-4-4 groups), see the
+                    <a href="#compound-multi"><code class="sg-code">LipiCompoundField</code></a>
+                    section below — shipped in Phase 2.3 Batch 9a.
                 </p>
 
                 <h3 class="sg-h3" style="font-size: 13px; color: var(--color-text-secondary);">Title + First Name</h3>
@@ -605,6 +610,164 @@
                     </div>
 
                 </div>
+            </section>
+
+            <!-- ====== COMPOUND & MULTI-SELECT (Phase 2.3) ====== -->
+            <section id="compound-multi" class="sg-section">
+                <h2 class="sg-h2">Compound &amp; Multi-Select Components</h2>
+                <p class="sg-p">
+                    Phase 2.3 family — multi-segment input scenarios and chip-based multi-value
+                    selection. <code class="sg-code">LipiCompoundField</code> hosts segments
+                    (<code class="sg-code">SelectSegment</code>, <code class="sg-code">TextSegment</code>)
+                    for unified controls like Mobile and Aadhaar.
+                    <code class="sg-code">LipiMultiSelect</code> and
+                    <code class="sg-code">LipiMultiCombobox</code> handle multi-value selection with
+                    chips, search, free-text entry, and configurable visibility caps.
+                </p>
+
+                @* ====== LipiCompoundField ====== *@
+                <h3 class="sg-h3">LipiCompoundField — multi-segment input</h3>
+                <p class="sg-p">
+                    Composes child segments under a single label and helper. Segments share
+                    field-level state aggregation (any segment in error → field shows error).
+                    Auto-advance: typing fills MaxLength → focus jumps to next segment with
+                    cursor at position 0. Touched-state (Q2 = Z) surfaces validation only when
+                    focus leaves the entire compound, not when moving between segments.
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-2">
+
+                    <LipiCompoundField Name="sg-cmp-mobile"
+                                       Label="Mobile"
+                                       Required="true"
+                                       Helper="ISD + 10-digit number">
+                        <SelectSegment TValue="string"
+                                       Name="sg-cmp-mobile-isd"
+                                       Label="ISD code"
+                                       Items="@_sg.IsdCodes"
+                                       @bind-Value="_sg.MobileIsd"
+                                       Width="80px"
+                                       SegmentAriaLabel="ISD code"
+                                       Placeholder="ISD"
+                                       Required="true" />
+                        <TextSegment Name="sg-cmp-mobile-num"
+                                     Label="Mobile number"
+                                     @bind-Value="_sg.MobileNum"
+                                     MaxLength="10"
+                                     Type="tel"
+                                     InputMode="numeric"
+                                     Placeholder="9876543210"
+                                     SegmentAriaLabel="Number"
+                                     Required="true" />
+                    </LipiCompoundField>
+
+                    <LipiCompoundField Name="sg-cmp-aadhaar"
+                                       Label="Aadhaar Number"
+                                       Helper="12 digits, grouped 4-4-4">
+                        <TextSegment Name="sg-cmp-aadhaar-1"
+                                     Label="Aadhaar group 1"
+                                     @bind-Value="_sg.Aadhaar1"
+                                     MaxLength="4"
+                                     Type="tel"
+                                     InputMode="numeric"
+                                     Placeholder="XXXX"
+                                     SegmentAriaLabel="Aadhaar group 1" />
+                        <TextSegment Name="sg-cmp-aadhaar-2"
+                                     Label="Aadhaar group 2"
+                                     @bind-Value="_sg.Aadhaar2"
+                                     MaxLength="4"
+                                     Type="tel"
+                                     InputMode="numeric"
+                                     Placeholder="XXXX"
+                                     SegmentAriaLabel="Aadhaar group 2" />
+                        <TextSegment Name="sg-cmp-aadhaar-3"
+                                     Label="Aadhaar group 3"
+                                     @bind-Value="_sg.Aadhaar3"
+                                     MaxLength="4"
+                                     Type="tel"
+                                     InputMode="numeric"
+                                     Placeholder="XXXX"
+                                     SegmentAriaLabel="Aadhaar group 3" />
+                    </LipiCompoundField>
+
+                </div>
+
+                @* ====== LipiMultiSelect ====== *@
+                <h3 class="sg-h3">LipiMultiSelect&lt;TValue&gt; — chip-style multi-selection</h3>
+                <p class="sg-p">
+                    Identity-typed multi-select. Caller binds to
+                    <code class="sg-code">List&lt;TValue&gt;</code>; component manages selection,
+                    search, and chip rendering. <code class="sg-code">AllowFreeText</code> requires
+                    <code class="sg-code">TValue=string</code>.
+                    <code class="sg-code">MaxSelections</code> caps total picks;
+                    <code class="sg-code">MaxVisibleChips</code> caps visible chips with a
+                    <code class="sg-code">+M more</code> summary chip that reveals the rest in
+                    the dropdown sorted selected-first.
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-2">
+
+                    <LipiMultiSelect TValue="string"
+                                     Name="sg-ms-allergies"
+                                     Label="Allergies (free-text allowed)"
+                                     Items="@_sg.AllergyOptions"
+                                     @bind-Value="_sg.MsAllergies"
+                                     Searchable="true"
+                                     AllowFreeText="true"
+                                     Required="true"
+                                     Placeholder="Type to search or add new" />
+
+                    <LipiMultiSelect TValue="string"
+                                     Name="sg-ms-tags"
+                                     Label="Project tags (max-visible 4)"
+                                     Items="@_sg.TagOptions"
+                                     @bind-Value="_sg.MsTags"
+                                     Searchable="true"
+                                     MaxVisibleChips="4"
+                                     Placeholder="Add tags…"
+                                     Helper="Add 5+ to see +M more summary" />
+
+                </div>
+
+                @* ====== LipiMultiCombobox ====== *@
+                <h3 class="sg-h3">LipiMultiCombobox&lt;TValue, TItem&gt; — templated multi-select</h3>
+                <p class="sg-p">
+                    Caller provides <code class="sg-code">ValueSelector</code>,
+                    <code class="sg-code">LabelSelector</code>, optional
+                    <code class="sg-code">ItemTemplate</code> (rich dropdown rendering), and
+                    optional <code class="sg-code">SelectedChipTemplate</code> (rich chip rendering).
+                    The × button is auto-appended to every chip — do not include one in your
+                    SelectedChipTemplate.
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-1">
+
+                    <LipiMultiCombobox TValue="string"
+                                       TItem="StyleGuide.DiagnosisDemo"
+                                       Name="sg-mcb-dx"
+                                       Label="Active diagnoses (ICD code + severity)"
+                                       Items="@_sg.DiagnosisOptions"
+                                       ValueSelector="@(d => d.Code)"
+                                       LabelSelector="@(d => d.Name)"
+                                       @bind-Value="_sg.McbDiagnoses"
+                                       Searchable="true"
+                                       Placeholder="Search diagnoses…"
+                                       Helper="Try searching by ICD code or name">
+                        <ItemTemplate Context="dx">
+                            <div style="display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0;">
+                                <span style="font-family: ui-monospace, monospace; font-size: 11px; color: var(--color-text-tertiary); white-space: nowrap; min-width: 60px;">@dx.Code</span>
+                                <span style="flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis;">@dx.Name</span>
+                                <span style="display: inline-flex; padding: 1px 6px; font-size: 10px; font-weight: 500; border-radius: var(--r-sm); text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; background: @(dx.Severity == "Severe" ? "var(--color-danger-pale)" : dx.Severity == "Moderate" ? "var(--color-warning-pale)" : "var(--color-success-pale)"); color: @(dx.Severity == "Severe" ? "var(--color-danger)" : dx.Severity == "Moderate" ? "var(--color-warning)" : "var(--color-success)");">@dx.Severity</span>
+                            </div>
+                        </ItemTemplate>
+                        <SelectedChipTemplate Context="dx">
+                            <span style="font-family: ui-monospace, monospace; font-size: 11px; color: var(--color-text-tertiary); white-space: nowrap;">@dx.Code</span>
+                            <span class="lipi-multi-chip-label">@dx.Name</span>
+                        </SelectedChipTemplate>
+                    </LipiMultiCombobox>
+
+                </div>
+
             </section>
 
         </main>
@@ -766,6 +929,18 @@
         public string? AlignText    { get; set; } = "Sample text";
         public string? AlignSelect  { get; set; } = "Female";
 
+        // Phase 2.3 — Compound field demos (Mobile + Aadhaar)
+        public string? MobileIsd    { get; set; }
+        public string? MobileNum    { get; set; }
+        public string? Aadhaar1     { get; set; }
+        public string? Aadhaar2     { get; set; }
+        public string? Aadhaar3     { get; set; }
+
+        // Phase 2.3 — Multi-select demos
+        public List<string> MsAllergies   { get; set; } = new();
+        public List<string> MsTags        { get; set; } = new();
+        public List<string> McbDiagnoses  { get; set; } = new();
+
         // ----- Sample data -----
         public string[] Genders     => new[] { "Male", "Female", "Other", "Prefer not to say" };
         public string[] BloodGroups => new[] { "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-" };
@@ -774,6 +949,35 @@
         {
             "Self", "GP referral", "Specialist referral", "Insurance referral",
             "Hospital network", "Online search", "Friend/family"
+        };
+
+        // Phase 2.3 — Compound field sample data
+        public string[] IsdCodes => new[] { "+91", "+1", "+44", "+61", "+971" };
+
+        // Phase 2.3 — Multi-select sample data
+        public string[] AllergyOptions => new[]
+        {
+            "Penicillin", "Aspirin", "Latex", "Peanuts", "Shellfish",
+            "Eggs", "Dairy", "Sulfa drugs", "Iodine", "Tree nuts"
+        };
+        public string[] TagOptions => new[]
+        {
+            "Urgent", "Follow-up", "Lab pending", "Imaging pending",
+            "Referral", "Consult required", "Discharge ready"
+        };
+
+        // Phase 2.3 — Multi-combobox sample data (templated)
+        public DiagnosisDemo[] DiagnosisOptions => _diagnosisCache;
+        private static readonly DiagnosisDemo[] _diagnosisCache =
+        {
+            new("I10",     "Essential hypertension",                          "Moderate"),
+            new("E11.9",   "Type 2 diabetes mellitus, without complications", "Moderate"),
+            new("J45.909", "Asthma, unspecified",                             "Mild"),
+            new("I25.10",  "Atherosclerotic heart disease",                   "Severe"),
+            new("F32.9",   "Major depressive disorder, single episode",        "Moderate"),
+            new("K21.9",   "Gastro-esophageal reflux disease",                "Mild"),
+            new("N18.3",   "Chronic kidney disease, stage 3",                 "Severe"),
+            new("G47.00",  "Insomnia, unspecified",                           "Mild"),
         };
 
         public CountryDemo[] Countries => _countriesCache;
@@ -814,6 +1018,7 @@
     // StyleGuide.CountryDemo / StyleGuide.ReferralDemo from the .razor template.
     public record CountryDemo(string Iso, string Name, string Flag, string Isd);
     public record ReferralDemo(string Code, string Label, string Category);
+    public record DiagnosisDemo(string Code, string Name, string Severity);
 
     // ---------- Token data tables ----------
     private record ColorGroup(string Title, string[] Tokens);
