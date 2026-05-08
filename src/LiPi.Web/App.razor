@@ -29,49 +29,28 @@
         7. lipi-multi.css — Phase 2.3 Batch 9b multi-select chip / summary / search input
         8. Blazor CSS Isolation bundle (LiPi.Web.styles.css)
 
-        Version bumped 20260513 → 20260514 for cache busting on Phase 2.3 Batch 9b.3 fix.
-        lipi-input.js extended with scrollOptionIntoView helper that scrolls
-        the highlighted dropdown option into the visible scroll region after
-        keyboard navigation (ArrowUp/Down/Type-ahead). Without this, type-ahead
-        for items below the dropdown's visible region updated _highlightedIndex
-        correctly but the user saw no visual feedback. This same gap exists
-        latently in LipiSelectBase (Phase 2.2) — to be addressed in a future
-        focused batch when LipiSelect dropdowns also need keyboard scroll-
-        into-view (currently rare since LipiSelect uses Searchable=true by
-        default which side-steps the issue via filter-then-jump).
-
-        Prior bump: 20260512 → 20260513 was Phase 2.3 Batch 9b deploy.
-        Phase 2.3 Batch 9b ships LipiMultiSelectBase + LipiMultiSelect (chip-style
-        multi-selection with searchable filter, AllowFreeText for string TValue,
-        MaxSelections cap, MaxVisibleChips with +M more summary chip per Q2,
-        Backspace-removes-last-chip per Q3, Pattern B replacement semantics for
-        List<TValue> mutations). New lipi-multi.css holds the field-bar flex-wrap
-        layout, chip styling, summary chip, search input embedded in field bar,
-        and a Q1 min-height override (.lipi-multi-select.lipi-input-{size}) that
-        replaces the family-level fixed `height` with `min-height` so chips can
-        wrap to multiple rows.
-
-        Multi-select is now the SECOND intentional family height override —
-        LipiTextArea's autogrow `min-height` pattern is the first. Both are
-        documented as legitimate component-specific deltas (memory rule #25
-        bullet 7).
-
-        Prior history: 20260511 → 20260512 was Phase 2.3 Batch 9a.1 CSS architecture
-        cleanup (family-level height rules promoted to lipi-inputs.css).
-        20260510 → 20260511 was Phase 2.3 Batch 9a (compound field family).
-        20260509 → 20260510 was Phase 2.2 Batch 5.4.
+        CACHE VERSION HISTORY (reverse-chronological)
+        | Version  | Phase / Batch                       | What shipped                                        |
+        |----------|-------------------------------------|-----------------------------------------------------|
+        | 20260516 | Phase 2.4 Batch 9d post-ship fix    | Outside-click + keyboard-trap JS for date pickers   |
+        | 20260515 | Phase 2.4 Batch 9d-a foundation     | Date/Time component family (4 components)           |
+        | 20260514 | Phase 2.3 Batch 9b.3 fix            | scrollOptionIntoView for keyboard nav in dropdowns  |
+        | 20260513 | Phase 2.3 Batch 9b deploy           | LipiMultiSelectBase + LipiMultiSelect chips         |
+        | 20260512 | Phase 2.3 Batch 9a.1 CSS cleanup    | Family-level height rules promoted to lipi-inputs   |
+        | 20260511 | Phase 2.3 Batch 9a                  | LipiCompoundField + segments                        |
+        | 20260510 | Phase 2.2 Batch 5.4                 | Earlier text-input family work                      |
     *@
 
-    <link rel="stylesheet" href="css/00-baseline.css?v=20260514" />
-    <link rel="stylesheet" href="css/app.css?v=20260514" />
-    <link rel="stylesheet" href="css/dashboard.css?v=20260514" />
-    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260514" />
-    <link rel="stylesheet" href="themes/mode-light.css?v=20260514" />
-    <link rel="stylesheet" href="themes/mode-dark.css?v=20260514" />
-    <link rel="stylesheet" href="css/admin.css?v=20260514" />
-    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260514" />
-    <link rel="stylesheet" href="css/lipi-compound.css?v=20260514" />
-    <link rel="stylesheet" href="css/lipi-multi.css?v=20260514" />
+    <link rel="stylesheet" href="css/00-baseline.css?v=20260516" />
+    <link rel="stylesheet" href="css/app.css?v=20260516" />
+    <link rel="stylesheet" href="css/dashboard.css?v=20260516" />
+    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260516" />
+    <link rel="stylesheet" href="themes/mode-light.css?v=20260516" />
+    <link rel="stylesheet" href="themes/mode-dark.css?v=20260516" />
+    <link rel="stylesheet" href="css/admin.css?v=20260516" />
+    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260516" />
+    <link rel="stylesheet" href="css/lipi-compound.css?v=20260516" />
+    <link rel="stylesheet" href="css/lipi-multi.css?v=20260516" />
     <link rel="stylesheet" href="LiPi.Web.styles.css" />
 
     <style>
@@ -96,11 +75,15 @@
         FOUC PREVENTION — MUST be blocking script (no async/defer), MUST be in <head>.
         Runs before browser paints content.
     *@
-    <script src="js/theme-switcher.js?v=20260514"></script>
+    <script src="js/theme-switcher.js?v=20260516"></script>
 
     <HeadOutlet @rendermode="@InteractiveServer" />
 </head>
 <body>
+    @* CRITICAL: <CascadingAuthenticationState> wrapper required for SSR
+       prerender + interactive circuit auth flow. Do not remove — removal
+       breaks authentication on initial page load. See
+       docs/00-PROJECT-BASELINE.md §Development & Debugging. *@
     <CascadingAuthenticationState>
         <ThemeProvider>
             <Router AppAssembly="@typeof(App).Assembly">
@@ -128,13 +111,13 @@
 
     @* Body scripts — order preserved; theme-switcher.js is in <head>, not here.
        Cache version added to ALL JS scripts in this batch — previously only CSS was versioned. *@
-    <script src="js/lipi-login.js?v=20260514"></script>
-    <script src="js/lipi-topnav.js?v=20260514"></script>
-    <script src="js/lipi-shortcuts.js?v=20260514"></script>
+    <script src="js/lipi-login.js?v=20260516"></script>
+    <script src="js/lipi-topnav.js?v=20260516"></script>
+    <script src="js/lipi-shortcuts.js?v=20260516"></script>
 
     @* Phase 2.2: input family helpers (autogrow Batch 3, selectAll Batch 4).
        Loaded BEFORE blazor.web.js so window.lipiInput is available when components first render. *@
-    <script src="js/lipi-input.js?v=20260514"></script>
+    <script src="js/lipi-input.js?v=20260516"></script>
 
     <script src="_framework/blazor.web.js"></script>
 </body>

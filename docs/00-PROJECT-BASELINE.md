@@ -112,6 +112,29 @@ Every input/select/textarea needs:
 
 ---
 
+## PAGE CONVENTIONS
+
+### Topnav page title via `SectionContent`
+
+Every page sets its title through `SectionContent`, NOT through an `<h1>` or `ap-header` element on the page body:
+
+```razor
+@page "/some-route"
+<SectionContent SectionName="page-title">My Page Title</SectionContent>
+
+<div class="page-content">
+    @* ...page body... *@
+</div>
+```
+
+`MainLayout` exposes a matching `<SectionOutlet SectionName="page-title" />` slot inside the topnav. This pattern keeps the page title visually inside the topnav (correct UX) while letting each page declare its own title locally (correct authoring ergonomics).
+
+### `ap-header` reserved for the topnav
+
+The `ap-header` class is reserved for the topnav itself. Pages must NOT emit `ap-header` markup in their body — doing so produces a duplicate visual header that competes with the topnav slot. This rule applies to every page in the app without exception.
+
+---
+
 ## ROLE SYSTEM (LOCKED)
 
 ### 15 Primary Role Groups (Mutually Exclusive)
@@ -326,6 +349,29 @@ Required for SSR prerender + interactive circuits.
 | Auth state crash on prerender | `CascadingAuthenticationState` in App.razor + `AddCascadingAuthenticationState()` in Program.cs |
 | Dictionary jsonb error | Npgsql 8+ requires opt-in; use `string` instead |
 | Escaped quotes in lambdas | Never use `\"` in Razor attributes; use named methods |
+
+---
+
+## DEVELOPMENT & DEBUGGING
+
+### Where errors surface
+
+Blazor InteractiveServer pushes UI from the server but renders in the browser, so a single user action can produce errors in either log. Always check both before declaring a bug.
+
+| Error origin | Where to look |
+|---|---|
+| Client-side (Blazor render, JS interop, browser) | F12 → Console |
+| Server-side (.NET runtime, EF Core, controllers) | PowerShell terminal running `dotnet run` |
+
+A "button does nothing" bug is usually missing `@rendermode InteractiveServer` (silent client-side failure → check F12 first). A NullReferenceException with a stack trace is server-side (→ check the PowerShell terminal). When both logs are clean but the UI still misbehaves, the bug is likely a binding or render-cycle issue rather than an exception.
+
+### `CascadingAuthenticationState` criticality
+
+CRITICAL BLAZOR RULES Rule 6 mandates `<CascadingAuthenticationState>` in `App.razor`. The deeper reason matters:
+
+The wrapper bridges two auth-state worlds. **SSR prerender** reads auth state from cookies and produces server-rendered HTML. The **interactive circuit** then attaches to the client and reads auth state from DI. Without the cascading wrapper, descendant `<AuthorizeView>` and `<AuthorizeRouteView>` components see different auth state in each phase — prerender renders logged-out HTML, the interactive circuit attaches with logged-in state, and the resulting state mismatch throws on any auth evaluation during the transition. The wrapper unifies both phases into a single observable `Task<AuthenticationState>` cascade.
+
+`src/LiPi.Web/App.razor` carries an inline tombstone comment above the wrapper pointing back to this section. Do not remove either.
 
 ---
 
