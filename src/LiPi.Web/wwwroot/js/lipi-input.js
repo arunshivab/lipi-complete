@@ -1,5 +1,6 @@
 // SPEC:  Phase 2.2 / 2.3 — JS helpers for LiPi input + compound component families.
-// USE:   Loaded via App.razor as a global script; exposes window.lipiInput + window.lipiCompound.
+// USE:   Loaded via App.razor as a global script; exposes window.lipiInput +
+//        window.lipiCompound + window.lipiDatePicker.
 // SCOPE: autogrow (Batch 3) + selectAll (Batch 4) + setValue (Batch 4.3) +
 //        dropdown positioning / outside-click / scroll-reposition (Batch 5) +
 //        compound-field focusout listener with relatedTarget contains-check (Batch 9a) +
@@ -355,5 +356,252 @@
     window.lipiCompound = {
         attachFocusOut: attachFocusOut,
         detachFocusOut: detachFocusOut
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DATE PICKER POPOVER POSITIONING — Batch 9d (Phase 2.4)
+    // ─────────────────────────────────────────────────────────────────────────
+    //
+    // Position strategy: position: fixed, JS-calculated viewport coordinates.
+    // (Corrected from original Phase 2.4 design's portal-via-JS approach;
+    // see CHANGE-LOG A20 for rationale.)
+    //
+    // Why position:fixed not absolute:
+    //   - position:fixed is relative to viewport, NOT to nearest positioned
+    //     ancestor. This means popover escapes overflow:hidden on parent
+    //     wrappers (modals, dialogs, scrollable side panels) without needing
+    //     to be detached from its DOM location. Same pattern as LipiSelect's
+    //     dropdown panel (Phase 2.2 Batch 5).
+    //   - One known gotcha: ancestors with `transform`, `filter`, or
+    //     `will-change` properties create a new containing block that DOES
+    //     constrain position:fixed. LiPi components don't currently use
+    //     these, but if they're introduced (e.g., for animation), document
+    //     and revisit.
+    //
+    // Why JS for the math (not pure CSS):
+    //   - Edge-aware flip up/down based on available viewport space requires
+    //     reading getBoundingClientRect() of the anchor — purely CSS can't
+    //     do this. CSS @media queries operate on viewport, not on per-anchor
+    //     position.
+    //   - Reposition on scroll/resize keeps popover anchored as user scrolls
+    //     the page underneath. Native DOM events; no Blazor SignalR roundtrip.
+    //
+    // Mobile fallback:
+    //   - Below 640px viewport, CSS @media query overrides position:fixed
+    //     to a full-overlay modal style. No JS change needed; positionPopover
+    //     still runs but the CSS overrides take precedence.
+
+    const positionPopover = (anchorEl, popoverEl) => {
+        if (!anchorEl || !popoverEl) return;
+
+        const rect = anchorEl.getBoundingClientRect();
+        const popHeight = popoverEl.offsetHeight;
+        const popWidth = popoverEl.offsetWidth;
+        const viewportH = window.innerHeight;
+        const viewportW = window.innerWidth;
+
+        // Vertical: prefer below anchor. Flip up if not enough space below
+        // AND there IS enough space above. The 16px buffer matches typical
+        // form-bar margins so popover never visually touches anchor edges.
+        const spaceBelow = viewportH - rect.bottom;
+        const spaceAbove = rect.top;
+        const flipUp = spaceBelow < popHeight + 16 && spaceAbove > popHeight + 16;
+
+        // Horizontal: anchor left edge is the default. If popover would
+        // overflow viewport right edge, shift left by the overflow amount + 8px buffer.
+        // If popover is wider than viewport (extreme case), align left at 8px from edge.
+        let leftPx;
+        if (popWidth >= viewportW - 16) {
+            leftPx = 8;
+        } else {
+            const overflowRight = (rect.left + popWidth) - viewportW;
+            leftPx = overflowRight > 0
+                ? Math.max(8, rect.left - overflowRight - 8)
+                : rect.left;
+        }
+
+        popoverEl.style.position   = 'fixed';
+        popoverEl.style.left       = `${leftPx}px`;
+        popoverEl.style.top        = flipUp
+            ? `${rect.top - popHeight - 8}px`
+            : `${rect.bottom + 8}px`;
+        popoverEl.style.visibility = 'visible';
+    };
+
+    // Attach scroll + resize listeners that call positionPopover whenever the
+    // page geometry changes. Returns a detach function so C# can clean up
+    // when the popover closes.
+    //
+    // We pass useCapture=true on the scroll listener so we catch scroll events
+    // on ANY ancestor (not just window) — the user may be scrolling inside a
+    // modal body or a scrollable side panel, and we want the popover to track.
+    //
+    // The repositioning is throttled via requestAnimationFrame — without this,
+    // every scroll pixel triggers a layout read + write, which is laggy.
+    const attachReposition = (anchorEl, popoverEl) => {
+        if (!anchorEl || !popoverEl) return null;
+
+        let rafId = 0;
+        const reposition = () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(() => {
+                positionPopover(anchorEl, popoverEl);
+                rafId = 0;
+            });
+        };
+
+        window.addEventListener('scroll', reposition, true);  // capture phase
+        window.addEventListener('resize', reposition);
+
+        // Return detach function — C# stores this and calls on popover close.
+        // JUDGMENT: returning a function is JS-idiomatic but Blazor JS interop
+        // doesn't round-trip functions cleanly. We work around this by attaching
+        // the detach function to the popover element itself, and providing a
+        // separate detachReposition helper that finds and calls it. Callers
+        // that don't need explicit detach can ignore the return.
+        const detach = () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            window.removeEventListener('scroll', reposition, true);
+            window.removeEventListener('resize', reposition);
+        };
+
+        // Stash on element so detachReposition can find it
+        popoverEl._lipiDatePickerDetach = detach;
+
+        return null;  // don't attempt to round-trip the function across interop
+    };
+
+    const detachReposition = (popoverEl) => {
+        if (!popoverEl || !popoverEl._lipiDatePickerDetach) return;
+        popoverEl._lipiDatePickerDetach();
+        delete popoverEl._lipiDatePickerDetach;
+    };
+
+    // Focus a specific element. Used by date pickers for:
+    //   - Auto-focus first segment when popover opens
+    //   - Auto-focus next segment after auto-advance
+    //   - Auto-focus time field after date picked (LipiDateTimePicker D2.1)
+    // Defensive against null + non-focusable elements.
+    const focusElement = (el) => {
+        if (!el || typeof el.focus !== 'function') return;
+        try {
+            el.focus();
+            // For text inputs, also select-all so user can re-type immediately
+            // without manually clearing. Matches Phase 2.2 LipiTextBox pattern.
+            if (typeof el.select === 'function' &&
+                (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+                // JUDGMENT: select-all on focus is intentional for date segments —
+                // user typing replaces the existing value, which is what they want
+                // when re-entering a segment. Matches lipi-input selectAll behavior.
+                el.select();
+            }
+        } catch (_) {
+            // Some elements throw on focus when in a weird state (detached
+            // from DOM, hidden, etc.). Silently ignore — focus is a "best
+            // effort" UX nicety, not a correctness requirement.
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // OUTSIDE-CLICK DISMISSAL — Issue 1 fix (May 8 patch)
+    //
+    // When the popover is open and user clicks anywhere outside the wrapper,
+    // close the popover. Standard popover-library pattern.
+    //
+    // Why mousedown not click:
+    //   - mousedown fires before click. By the time we get a click event,
+    //     focus may have already shifted, validation may have run, etc.
+    //     Catching the user's intent at mousedown gives the cleanest UX.
+    //   - Mobile/touch: synthesized mousedown fires for taps too. No
+    //     additional handler needed.
+    //
+    // Why we still skip when target is inside wrapper:
+    //   - Calendar cells, year/month dropdowns, today button — all live
+    //     inside the wrapper (or inside the popover, which is positioned
+    //     by JS but not detached from DOM). Their own click handlers
+    //     close the popover when appropriate. We don't want to interfere.
+    //
+    // Idempotent: attaching twice is a no-op.
+
+    const attachOutsideClick = (wrapper, dotNetRef) => {
+        if (!wrapper || !dotNetRef) return;
+        if (wrapper._lipiDatePickerOutsideHandler) return;
+
+        const handler = (e) => {
+            // If click is inside the wrapper (or popover descendants),
+            // ignore — let the inner click handlers do their thing.
+            if (wrapper.contains(e.target)) return;
+            // Outside click — tell C# to close the popover.
+            dotNetRef.invokeMethodAsync('OnOutsideClick').catch(() => {
+                // Circuit may have closed or been re-rendered; swallow.
+            });
+        };
+
+        document.addEventListener('mousedown', handler, true);  // capture phase
+        wrapper._lipiDatePickerOutsideHandler = handler;
+    };
+
+    const detachOutsideClick = (wrapper) => {
+        if (!wrapper || !wrapper._lipiDatePickerOutsideHandler) return;
+        document.removeEventListener('mousedown', wrapper._lipiDatePickerOutsideHandler, true);
+        delete wrapper._lipiDatePickerOutsideHandler;
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // KEYBOARD-NAV PREVENT-DEFAULT — Issue 2 fix (May 8 patch)
+    //
+    // Calendar grid uses PageUp/PageDown/Home/End/Arrow keys for navigation.
+    // Browser default is to scroll the page. We need to preventDefault on
+    // these keys WHEN THE POPOVER IS THE ACTIVE FOCUS — not globally, since
+    // those keys serve other purposes elsewhere on the page.
+    //
+    // Approach: attach a keydown listener to the popover element itself
+    // (or its descendants via bubbling). On the navigation keys, call
+    // preventDefault. Blazor's @onkeydown handler still fires because it's
+    // wired to the same event — preventDefault stops the browser default
+    // (scroll), not the event itself.
+    //
+    // Razor's :preventDefault modifier doesn't accept runtime expressions
+    // for "preventDefault iff key matches a list", so JS interception is
+    // the simplest path.
+
+    const NAV_KEYS = new Set([
+        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+        'PageUp', 'PageDown',
+        'Home', 'End',
+        ' ',  // Space — browser default is scroll
+    ]);
+
+    const attachKeyboardTrap = (popoverEl) => {
+        if (!popoverEl) return;
+        if (popoverEl._lipiDatePickerKeyTrap) return;
+
+        const handler = (e) => {
+            if (NAV_KEYS.has(e.key)) {
+                e.preventDefault();
+                // Note: do NOT stopPropagation — Blazor's @onkeydown still
+                // needs to fire to update _highlightedDate state.
+            }
+        };
+
+        popoverEl.addEventListener('keydown', handler);
+        popoverEl._lipiDatePickerKeyTrap = handler;
+    };
+
+    const detachKeyboardTrap = (popoverEl) => {
+        if (!popoverEl || !popoverEl._lipiDatePickerKeyTrap) return;
+        popoverEl.removeEventListener('keydown', popoverEl._lipiDatePickerKeyTrap);
+        delete popoverEl._lipiDatePickerKeyTrap;
+    };
+
+    window.lipiDatePicker = {
+        positionPopover:    positionPopover,
+        attachReposition:   attachReposition,
+        detachReposition:   detachReposition,
+        focusElement:       focusElement,
+        attachOutsideClick: attachOutsideClick,
+        detachOutsideClick: detachOutsideClick,
+        attachKeyboardTrap: attachKeyboardTrap,
+        detachKeyboardTrap: detachKeyboardTrap
     };
 })();

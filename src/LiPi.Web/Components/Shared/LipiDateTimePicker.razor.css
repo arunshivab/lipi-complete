@@ -1,0 +1,113 @@
+/* ============================================================
+   LipiDateTimePicker.razor.css — Blazor CSS Isolation
+   ============================================================
+   SPEC:    docs/00-COMPONENTS/01.5-DateTime.md
+   PHASE:   Phase 2 Sub-step 2.4 (Batch 9d)
+   ============================================================ */
+
+/* The composed wrapper holds two child input wrappers + a Now button.
+   Each child is a full LipiDatePicker / LipiTimePicker with its own
+   label and helper. We hide the inner labels because the outer
+   LipiDateTimePicker already renders the unified label. */
+
+.lipi-datetime-composed {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+/* Hide inner labels — outer label is sufficient. JUDGMENT: keeping the
+   inner labels in the markup for accessibility (screen readers can still
+   navigate to "Date" / "Time" sub-fields), but visually hiding them. */
+.lipi-datetime-composed ::deep .lipi-input-label {
+    /* Visually hidden but not display:none — preserves screen reader access */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.lipi-datetime-date,
+.lipi-datetime-time {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   STACKED LAYOUT (default)
+   ───────────────────────────────────────────────────────────── */
+
+.lipi-datetime.lipi-datetime-stacked .lipi-datetime-composed {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.lipi-datetime.lipi-datetime-stacked .lipi-datetime-now {
+    align-self: flex-start;
+    margin-top: 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   INLINE LAYOUT
+   ───────────────────────────────────────────────────────────── */
+
+.lipi-datetime.lipi-datetime-inline .lipi-datetime-composed {
+    flex-direction: row;
+    align-items: flex-end;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   NOW BUTTON
+   ───────────────────────────────────────────────────────────── */
+
+.lipi-datetime-now {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    background: var(--color-bg-surface);
+    font: inherit;
+    font-size: var(--ts-small);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: background var(--tr-fast), border-color var(--tr-fast), color var(--tr-fast);
+    flex-shrink: 0;
+}
+
+.lipi-datetime-now:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.lipi-datetime-now:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-pale);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE — Inline collapses to Stacked at <640px
+   ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .lipi-datetime.lipi-datetime-inline .lipi-datetime-composed {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .lipi-datetime.lipi-datetime-inline .lipi-datetime-now {
+        align-self: flex-start;
+        margin-top: 4px;
+    }
+}

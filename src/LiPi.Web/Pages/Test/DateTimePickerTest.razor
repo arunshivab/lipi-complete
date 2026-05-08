@@ -1,0 +1,119 @@
+@page "/test/datetimepicker"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiDateTimePicker Test (Phase 2.4 Batch 9d)</PageTitle>
+
+<style>
+    .test-page         { max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    .test-section      { margin-bottom: 40px; }
+    .test-section h3   { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .test-section p    { color: var(--color-text-tertiary); font-size: 13px; margin-bottom: 16px; }
+    .live-state        { margin-top: 12px; font-size: 12px; color: var(--color-text-tertiary); font-family: monospace; }
+</style>
+
+<div class="test-page">
+    <h1 style="font-size: 24px; margin-bottom: 8px;">LipiDateTimePicker Test</h1>
+    <p style="color: var(--color-text-secondary); margin-bottom: 32px;">
+        Phase 2.4 Batch 9d — verification of composite date+time picker bound to DateTimeOffset?.
+        Tests Stacked/Inline layouts, Now button (sets both), Step pass-through.
+    </p>
+
+    <EditForm Model="_model" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+
+        <div class="test-section">
+            <h3>1. Layout=Stacked (default)</h3>
+            <p>Date on top, Time below. Now button sets both.</p>
+            <LipiDateTimePicker Name="stacked"
+                                Label="Visit timestamp"
+                                @bind-Value="_model.Stacked"
+                                Required="true"
+                                Helper="Defaults to clinic-local Asia/Kolkata timezone" />
+            <div class="live-state">Live: @(_model.Stacked?.ToString("yyyy-MM-dd HH:mm zzz") ?? "null")</div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Layout=Inline</h3>
+            <p>Date left, Time right. Collapses to Stacked under 640px.</p>
+            <LipiDateTimePicker Name="inline"
+                                Label="Procedure datetime"
+                                Layout="DateTimeLayout.Inline"
+                                @bind-Value="_model.Inline"
+                                Helper="Inline at desktop, stacked on mobile" />
+            <div class="live-state">Live: @(_model.Inline?.ToString("yyyy-MM-dd HH:mm zzz") ?? "null")</div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Step=15, 12h mode</h3>
+            <p>Time picker uses 12h with 15-min step. Now snaps both date AND time.</p>
+            <LipiDateTimePicker Name="step15"
+                                Label="Appointment"
+                                Step="15"
+                                TimeFormat="12h"
+                                @bind-Value="_model.Step15"
+                                MinDate="@DateOnly.FromDateTime(DateTime.Today)"
+                                MaxDate="@DateOnly.FromDateTime(DateTime.Today.AddMonths(3))" />
+            <div class="live-state">Live: @(_model.Step15?.ToString("yyyy-MM-dd hh:mm tt zzz") ?? "null")</div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Time disabled until date set</h3>
+            <p>Time picker is grayed until you pick a date first (sequential entry pattern).</p>
+            <LipiDateTimePicker Name="seq"
+                                Label="Sequential entry"
+                                @bind-Value="_model.Sequential" />
+            <div class="live-state">Live: @(_model.Sequential?.ToString("yyyy-MM-dd HH:mm") ?? "null")</div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Read-only</h3>
+            <LipiDateTimePicker Name="readonly"
+                                Label="Read-only datetime"
+                                @bind-Value="_model.StateReadOnly"
+                                ReadOnly="true"
+                                Helper="Shows value but cannot be edited" />
+        </div>
+
+        <div class="test-section">
+            <h3>6. Disabled</h3>
+            <LipiDateTimePicker Name="disabled"
+                                Label="Locked datetime"
+                                @bind-Value="_model.StateDisabled"
+                                Disabled="true" />
+        </div>
+
+        <div style="margin-top: 32px;">
+            <LipiButton Type="submit" Variant="ButtonVariant.Primary" AriaLabel="Submit">Submit</LipiButton>
+        </div>
+    </EditForm>
+
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>What to verify (Phase 2.4 Batch 9d):</strong>
+        <br /> • <strong>Stacked vs Inline:</strong> Section 1 vertical; section 2 horizontal at desktop, vertical on mobile.
+        <br /> • <strong>Now button (D2.2 lock):</strong> Click Now → BOTH date and time set to current. "Now means Now."
+        <br /> • <strong>Time disabled until date:</strong> Section 4 — time picker is disabled. Pick a date → time enables.
+        <br /> • <strong>DateTimeOffset:</strong> Live state shows clinic-local "+05:30" offset (India default, no DST).
+        <br /> • <strong>Step pass-through:</strong> Section 3 minute selector enforces 15-minute boundaries.
+        <br /> • <strong>India-only correctness lock (Flag 5):</strong> All offsets are +05:30. Documented v1.1 gap for DST-observing zones.
+    </div>
+</div>
+
+@code {
+    private TestModel _model = new();
+
+    private void OnValidSubmit() { }
+
+    public class TestModel
+    {
+        [Required(ErrorMessage = "Visit timestamp required.")]
+        public DateTimeOffset? Stacked { get; set; }
+        public DateTimeOffset? Inline { get; set; }
+        public DateTimeOffset? Step15 { get; set; }
+        public DateTimeOffset? Sequential { get; set; }
+        public DateTimeOffset? StateReadOnly { get; set; } = new DateTimeOffset(2026, 5, 8, 14, 30, 0, new TimeSpan(5, 30, 0));
+        public DateTimeOffset? StateDisabled { get; set; } = new DateTimeOffset(2026, 5, 8, 9, 0, 0, new TimeSpan(5, 30, 0));
+    }
+}

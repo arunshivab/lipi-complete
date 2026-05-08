@@ -96,6 +96,7 @@
                 <a class="sg-nav-link" href="#text-inputs">Text Inputs</a>
                 <a class="sg-nav-link" href="#alignment">Alignment</a>
                 <a class="sg-nav-link" href="#compound-multi">Compound &amp; Multi-Select</a>
+                <a class="sg-nav-link" href="#date-time">Date &amp; Time</a>
             </div>
             <div class="sg-nav-group">
                 <h3 class="sg-nav-header">Patterns</h3>
@@ -770,6 +771,97 @@
 
             </section>
 
+            <!-- ====== DATE & TIME (Phase 2.4) ====== -->
+            <section id="date-time" class="sg-section">
+                <h2 class="sg-h2">Date &amp; Time Components</h2>
+                <p class="sg-p">
+                    Phase 2.4 family — date, time, datetime, and date-range pickers.
+                    All components respect clinic configuration via
+                    <code class="sg-code">IDateFormatService</code> (date/time format)
+                    and <code class="sg-code">IClinicTimezoneService</code> (timezone).
+                    Default for India: <code class="sg-code">DD/MM/YYYY</code>, 24-hour time,
+                    Sunday-first week, Asia/Kolkata timezone.
+                </p>
+
+                @* ====== LipiDatePicker ====== *@
+                <h3 class="sg-h3">LipiDatePicker — single date</h3>
+                <p class="sg-p">
+                    Bound to <code class="sg-code">DateOnly?</code>. InputMode controls whether
+                    rendering uses a single text field or compound segments. Calendar popover
+                    with month + year dropdowns and full WAI-ARIA keyboard navigation.
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-2">
+                    <LipiDatePicker Name="sg-dp-field"
+                                    Label="Field mode (default)"
+                                    @bind-Value="_sg.DpField"
+                                    Helper="Type DD/MM/YYYY or click icon" />
+
+                    <LipiDatePicker Name="sg-dp-segments"
+                                    Label="Segments mode"
+                                    InputMode="DatePickerInputMode.Segments"
+                                    @bind-Value="_sg.DpSegments"
+                                    Helper="Auto-advance between segments" />
+                </div>
+
+                @* ====== LipiTimePicker ====== *@
+                <h3 class="sg-h3">LipiTimePicker — time of day</h3>
+                <p class="sg-p">
+                    Bound to <code class="sg-code">TimeOnly?</code>. 24h or 12h format. Step
+                    parameter validates user input strictly; Now button snaps to nearest past
+                    Step boundary (asymmetry is deliberate per locked Q4 / C2 decision).
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-2">
+                    <LipiTimePicker Name="sg-tp-24h"
+                                    Label="24-hour"
+                                    @bind-Value="_sg.Tp24"
+                                    Helper="Default 24h format" />
+
+                    <LipiTimePicker Name="sg-tp-12h"
+                                    Label="12-hour with AM/PM"
+                                    TimeFormat="12h"
+                                    Step="15"
+                                    @bind-Value="_sg.Tp12"
+                                    Helper="15-min steps" />
+                </div>
+
+                @* ====== LipiDateTimePicker ====== *@
+                <h3 class="sg-h3">LipiDateTimePicker — date + time composed</h3>
+                <p class="sg-p">
+                    Bound to <code class="sg-code">DateTimeOffset?</code>. Composes
+                    <code class="sg-code">LipiDatePicker</code> +
+                    <code class="sg-code">LipiTimePicker</code>. Stacked or Inline layout
+                    (Inline collapses to Stacked at &lt;640px viewport).
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-1">
+                    <LipiDateTimePicker Name="sg-dtp-stacked"
+                                        Label="Visit timestamp (Stacked)"
+                                        @bind-Value="_sg.DtpStacked"
+                                        Helper="Default stacked layout" />
+                </div>
+
+                @* ====== LipiDateRangePicker ====== *@
+                <h3 class="sg-h3">LipiDateRangePicker — date range</h3>
+                <p class="sg-p">
+                    Dual-bound — <code class="sg-code">@@bind-StartValue</code> +
+                    <code class="sg-code">@@bind-EndValue</code> (separate
+                    <code class="sg-code">DateOnly?</code> properties). Two-calendar popover.
+                    Optional preset panel via <code class="sg-code">Presets</code> parameter.
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-1">
+                    <LipiDateRangePicker Name="sg-drp"
+                                         Label="Reporting period (with preset bundle)"
+                                         @bind-StartValue="_sg.DrpStart"
+                                         @bind-EndValue="_sg.DrpEnd"
+                                         Presets="LipiDateRangePresets.CommonReports"
+                                         HelperText="Try the preset panel on left of calendars" />
+                </div>
+
+            </section>
+
         </main>
     </div>
 </div>
@@ -979,6 +1071,15 @@
             new("N18.3",   "Chronic kidney disease, stage 3",                 "Severe"),
             new("G47.00",  "Insomnia, unspecified",                           "Mild"),
         };
+
+        // Phase 2.4 — Date/Time demo state
+        public DateOnly? DpField     { get; set; }
+        public DateOnly? DpSegments  { get; set; }
+        public TimeOnly? Tp24        { get; set; }
+        public TimeOnly? Tp12        { get; set; }
+        public DateTimeOffset? DtpStacked { get; set; }
+        public DateOnly? DrpStart    { get; set; }
+        public DateOnly? DrpEnd      { get; set; }
 
         public CountryDemo[] Countries => _countriesCache;
         public ReferralDemo[] Referrals => _referralsCache;

@@ -132,6 +132,29 @@ $files = @{
     "LipiMultiSelect.razor"          = "src\LiPi.Web\Components\Shared\LipiMultiSelect.razor"
     "LipiMultiCombobox.razor"        = "src\LiPi.Web\Components\Shared\LipiMultiCombobox.razor"
 
+    # -- Components -- Phase 2.4 (Date/Time family) ----------------------------
+    # SPEC: docs/00-COMPONENTS/01.5-DateTime.md (shipping in Batch 9d)
+    # AMEND: CHANGE-LOG.md A20 (pending)
+    # Batch 9d (May 7): Single-batch ship of full Date/Time family.
+    # Architecture: LipiDatePicker / LipiTimePicker / LipiDateTimePicker inherit
+    # LipiInputBase. LipiDateRangePicker inherits ComponentBase directly (dual-
+    # value binding shape). Services + types support all four.
+    "LipiDateTimeTypes.cs"           = "src\LiPi.Web\Components\Shared\LipiDateTimeTypes.cs"
+    "LipiDatePicker.razor"           = "src\LiPi.Web\Components\Shared\LipiDatePicker.razor"
+    "LipiDatePicker.razor.css"       = "src\LiPi.Web\Components\Shared\LipiDatePicker.razor.css"
+    "LipiTimePicker.razor"           = "src\LiPi.Web\Components\Shared\LipiTimePicker.razor"
+    "LipiTimePicker.razor.css"       = "src\LiPi.Web\Components\Shared\LipiTimePicker.razor.css"
+    "LipiDateTimePicker.razor"       = "src\LiPi.Web\Components\Shared\LipiDateTimePicker.razor"
+    "LipiDateTimePicker.razor.css"   = "src\LiPi.Web\Components\Shared\LipiDateTimePicker.razor.css"
+    "LipiDateRangePicker.razor"      = "src\LiPi.Web\Components\Shared\LipiDateRangePicker.razor"
+    "LipiDateRangePicker.razor.css"  = "src\LiPi.Web\Components\Shared\LipiDateRangePicker.razor.css"
+
+    # -- Services -- Phase 2.4 -------------------------------------------------
+    "IDateFormatService.cs"          = "src\LiPi.Web\Services\IDateFormatService.cs"
+    "DateFormatService.cs"           = "src\LiPi.Web\Services\DateFormatService.cs"
+    "IClinicTimezoneService.cs"      = "src\LiPi.Web\Services\IClinicTimezoneService.cs"
+    "ClinicTimezoneService.cs"       = "src\LiPi.Web\Services\ClinicTimezoneService.cs"
+
     # -- Pages -- Admin --------------------------------------------------------
     "Admin.razor"                    = "src\LiPi.Web\Pages\Admin.razor"
     "Dashboard.razor"                = "src\LiPi.Web\Pages\Dashboard.razor"
@@ -177,6 +200,11 @@ $files = @{
     "CompoundFieldTest.razor"        = "src\LiPi.Web\Pages\Test\CompoundFieldTest.razor"
     "MultiSelectTest.razor"          = "src\LiPi.Web\Pages\Test\MultiSelectTest.razor"
     "MultiComboboxTest.razor"        = "src\LiPi.Web\Pages\Test\MultiComboboxTest.razor"
+    # Phase 2.4 (Batch 9d) — Date/Time family test pages
+    "DatePickerTest.razor"           = "src\LiPi.Web\Pages\Test\DatePickerTest.razor"
+    "TimePickerTest.razor"           = "src\LiPi.Web\Pages\Test\TimePickerTest.razor"
+    "DateTimePickerTest.razor"       = "src\LiPi.Web\Pages\Test\DateTimePickerTest.razor"
+    "DateRangePickerTest.razor"      = "src\LiPi.Web\Pages\Test\DateRangePickerTest.razor"
 
     # -- Pages -- Auth ---------------------------------------------------------
     "Login.razor"                    = "src\LiPi.Web\Pages\Login.razor"
@@ -296,8 +324,10 @@ $files = @{
     "01.2-TextInputs.md"             = "docs\00-COMPONENTS\01.2-TextInputs.md"
     "01.3-CompoundField.md"          = "docs\00-COMPONENTS\01.3-CompoundField.md"
     "01.4-MultiSelect.md"            = "docs\00-COMPONENTS\01.4-MultiSelect.md"
+    "01.5-DateTime.md"               = "docs\00-COMPONENTS\01.5-DateTime.md"
 
     # -- Docs -- Top-level -----------------------------------------------------
+    "00-PROJECT-BASELINE.md"         = "docs\00-PROJECT-BASELINE.md"
     "CHANGE-LOG.md"                  = "docs\CHANGE-LOG.md"
 }
 

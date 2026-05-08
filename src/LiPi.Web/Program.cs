@@ -103,6 +103,24 @@ builder.Services.AddScoped<IThemeContextService, ThemeContextService>();
 //   });
 builder.Services.Configure<LipiInputDefaults>(_ => { });  // accept built-in defaults
 
+// ── Phase 2.4 Date/Time services (Sub-step 2.4 — Batch 9d) ─────────────────
+// SPEC: docs/00-COMPONENTS/01.5-DateTime.md
+// AMEND: docs/CHANGE-LOG.md A20
+//
+// IDateFormatService:    clinic-configurable date/time format (parse + format
+//                        + segment order). Phase 2.4 default impl hardcodes
+//                        India (DD/MM/YYYY, 24h, Sunday-first week).
+// IClinicTimezoneService: clinic timezone resolution (NOT system clock).
+//                        Phase 2.4 default hardcodes "Asia/Kolkata" (UTC+5:30,
+//                        no DST). Defensive fallback to fixed +05:30 offset
+//                        if ICU TZ database unavailable.
+//
+// Both are scoped — instances are recreated per circuit / per request, which
+// allows future swap-in of clinic-context-aware impls without registration
+// changes when the master.clinics config columns land.
+builder.Services.AddScoped<IDateFormatService, DateFormatService>();
+builder.Services.AddScoped<IClinicTimezoneService, ClinicTimezoneService>();
+
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();

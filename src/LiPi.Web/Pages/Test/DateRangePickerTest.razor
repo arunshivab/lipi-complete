@@ -1,0 +1,118 @@
+@page "/test/daterangepicker"
+@rendermode InteractiveServer
+
+@using LiPi.Web.Components.Shared
+
+<PageTitle>LipiDateRangePicker Test (Phase 2.4 Batch 9d)</PageTitle>
+
+<style>
+    .test-page         { max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    .test-section      { margin-bottom: 40px; }
+    .test-section h3   { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .test-section p    { color: var(--color-text-tertiary); font-size: 13px; margin-bottom: 16px; }
+    .live-state        { margin-top: 12px; font-size: 12px; color: var(--color-text-tertiary); font-family: monospace; }
+</style>
+
+<div class="test-page">
+    <h1 style="font-size: 24px; margin-bottom: 8px;">LipiDateRangePicker Test</h1>
+    <p style="color: var(--color-text-secondary); margin-bottom: 32px;">
+        Phase 2.4 Batch 9d — verification of date range picker with two-calendar popover.
+        Tests StartValue/EndValue dual binding, presets, AllowOpenEnd, range visualization.
+    </p>
+
+    <div class="test-section">
+        <h3>1. Basic — no presets, both ends required</h3>
+        <p>Click date 1 = start. Click date 2 = end. Picking before start swaps.</p>
+        <LipiDateRangePicker Name="basic"
+                             Label="Reporting period"
+                             @bind-StartValue="_basicStart"
+                             @bind-EndValue="_basicEnd"
+                             HelperText="Pick start, then end" />
+        <div class="live-state">Live: Start=@(_basicStart?.ToString() ?? "null"), End=@(_basicEnd?.ToString() ?? "null")</div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. With CommonReports presets</h3>
+        <p>Preset panel on left. Click preset = sets range + closes.</p>
+        <LipiDateRangePicker Name="reports"
+                             Label="Report window"
+                             @bind-StartValue="_reportsStart"
+                             @bind-EndValue="_reportsEnd"
+                             Presets="LipiDateRangePresets.CommonReports"
+                             HelperText="Today, Last 7 days, Last 30 days, This month, Last month" />
+        <div class="live-state">Live: Start=@(_reportsStart?.ToString() ?? "null"), End=@(_reportsEnd?.ToString() ?? "null")</div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. With CommonScheduling presets</h3>
+        <p>Forward-looking presets for appointment scheduling.</p>
+        <LipiDateRangePicker Name="sched"
+                             Label="Schedule window"
+                             @bind-StartValue="_schedStart"
+                             @bind-EndValue="_schedEnd"
+                             Presets="LipiDateRangePresets.CommonScheduling"
+                             MinDate="@DateOnly.FromDateTime(DateTime.Today)"
+                             HelperText="Today, Tomorrow, Next 7 days, Next week, Next month" />
+        <div class="live-state">Live: Start=@(_schedStart?.ToString() ?? "null"), End=@(_schedEnd?.ToString() ?? "null")</div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. AllowOpenEnd=true</h3>
+        <p>End can be left null (ongoing). Pick start → "Set as ongoing" button appears.</p>
+        <LipiDateRangePicker Name="ongoing"
+                             Label="Active medication"
+                             @bind-StartValue="_ongoingStart"
+                             @bind-EndValue="_ongoingEnd"
+                             AllowOpenEnd="true"
+                             HelperText="End date optional for ongoing prescriptions" />
+        <div class="live-state">
+            Live: Start=@(_ongoingStart?.ToString() ?? "null"),
+            End=@(_ongoingEnd?.ToString() ?? "null (ongoing)")
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>5. Read-only</h3>
+        <LipiDateRangePicker Name="readonly"
+                             Label="Read-only range"
+                             StartValue="@DateOnly.FromDateTime(DateTime.Today.AddDays(-30))"
+                             EndValue="@DateOnly.FromDateTime(DateTime.Today)"
+                             ReadOnly="true"
+                             HelperText="Shows value but cannot be edited" />
+    </div>
+
+    <div class="test-section">
+        <h3>6. Disabled</h3>
+        <LipiDateRangePicker Name="disabled"
+                             Label="Locked range"
+                             StartValue="@DateOnly.FromDateTime(DateTime.Today.AddDays(-7))"
+                             EndValue="@DateOnly.FromDateTime(DateTime.Today)"
+                             Disabled="true" />
+    </div>
+
+    <div style="margin-top: 32px; padding: 12px; background: var(--color-bg-subtle); border-radius: var(--r-sm); font-size: 12px; color: var(--color-text-secondary);">
+        <strong>What to verify (Phase 2.4 Batch 9d):</strong>
+        <br /> • <strong>Two calendars (E1):</strong> Popover shows left + right calendars side-by-side. Right = month + 1 from left.
+        <br /> • <strong>Sequential picking:</strong> Click 1 = staged start (solid blue circle). Click 2 = staged end + commits + closes.
+        <br /> • <strong>Reverse pick:</strong> Click date AFTER existing start → end. Click date BEFORE existing start → swap.
+        <br /> • <strong>Range visualization (E3):</strong> In-range cells light blue. Hover preview while picking end shows dashed pattern.
+        <br /> • <strong>Presets (E2):</strong> Section 2/3 — preset panel on left. Click preset = sets range + closes.
+        <br /> • <strong>AllowOpenEnd (E4):</strong> Section 4 — pick start, click "Set as ongoing" → end stays null. Field shows "→ ongoing".
+        <br /> • <strong>Mobile:</strong> Below 640px, popover collapses to full overlay with single calendar (right hidden).
+        <br /> • <strong>Path 3 status:</strong> Calendar grid duplicated from LipiDatePicker (2nd consumer). 3rd consumer would trigger extraction.
+    </div>
+</div>
+
+@code {
+    private DateOnly? _basicStart;
+    private DateOnly? _basicEnd;
+
+    private DateOnly? _reportsStart;
+    private DateOnly? _reportsEnd;
+
+    private DateOnly? _schedStart;
+    private DateOnly? _schedEnd;
+
+    private DateOnly? _ongoingStart;
+    private DateOnly? _ongoingEnd;
+}

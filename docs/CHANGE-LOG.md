@@ -1301,7 +1301,7 @@ EDITED:
   CSS class scaffolding). Pre-delivery quality check applies all 7 bullets
   to every component ship going forward.
 
-**Phase 2 status (post-A19)**:
+**Phase 2 status (post-A20)**:
 
 - ✅ Phase 2.0 (StyleGuide foundation)
 - ✅ Phase 2.1 (LipiButton + tokens) — A11 visual review, A14 env-gated retrofit
@@ -1309,7 +1309,272 @@ EDITED:
 - ✅ Phase 2.2.5 (LipiInputBase + EditContext auto-population) — A16, tagged `phase-2-sub-2-2-5-may06`
 - ✅ Build hygiene closed — A17 (package warnings) + A18 (C# warnings)
 - ✅ Phase 2.3 (Compound + Multi-Select family) — A19, tagged `phase-2-sub-2-3-may07`
-- 🟢 Phase 2.4 ready to start (Date/Time family — `LipiDate`, `LipiDateRange`, `DateSegment` for `LipiCompoundField`)
+- ✅ Phase 2.4 (Date/Time family) — A20, tagged `phase-2-sub-2-4-may07`
+- 🟢 Phase 2.5 ready to start (Checkbox + Radio + Toggle family per locked roadmap)
+
+### A20 — Phase 2.4 close: Date/Time family complete
+
+**Phase**: 2 Sub-step 2.4 — Date/Time Component Family
+**Date**: 2026-05-07
+**Status**: ✅ DEPLOYED, tagged `phase-2-sub-2-4-may07`
+
+> A20 documents Phase 2.4 — the Date/Time component family. One single-batch
+> ship (Batch 9d) covering 4 user-facing components, 2 services, supporting
+> types, JS helpers, and StyleGuide additions. Phase 2.4 closes here.
+
+**Added**:
+
+Single-batch ship (Batch 9d, May 7) over two turns due to context budget.
+Four user-facing components plus 2 services and supporting infrastructure.
+
+**Components** (`src/LiPi.Web/Components/Shared/`):
+
+- `LipiDatePicker.razor` (949 lines) — single date picker, `DateOnly?`, with
+  `InputMode=Field|Segments` toggle. Calendar popover with month + year
+  dropdowns, edge-aware position:fixed positioning, full WAI-ARIA keyboard
+  navigation (Arrow ±1d/±7d, PageUp/Down ±1m, Shift+PageUp/Down ±1y, Home/End
+  weekly nav, Ctrl+Home/End monthly nav, Enter/Space commit, Escape close).
+  Supports `MinDate`, `MaxDate`, `IsDateAllowed` predicate, `IsDateDisabled` +
+  `GetDisabledReason` predicate pair (with "Date unavailable" fallback).
+
+- `LipiTimePicker.razor` (499 lines) — time-of-day picker, `TimeOnly?`. No
+  popover — pure segmented input (HH:MM in 24h, HH:MM AM/PM in 12h). `Step`
+  parameter validates user input strictly (rejects with error) but Now button
+  snaps to nearest past Step boundary. The asymmetry IS the locked behavior.
+  Now button reads `IClinicTimezoneService.GetClinicLocalNow()` (NOT system
+  clock).
+
+- `LipiDateTimePicker.razor` (350 lines) — composite date+time picker,
+  `DateTimeOffset?`. Composes `LipiDatePicker` + `LipiTimePicker` internally.
+  `Layout=Stacked|Inline` with Inline auto-collapsing to Stacked at <640px.
+  Combined Now button sets BOTH date and time ("Now means Now"). Time picker
+  is disabled until date is set (sequential entry pattern).
+
+- `LipiDateRangePicker.razor` (656 lines) — date range picker with separate
+  `StartValue` + `EndValue` bindings (BOTH `DateOnly?`). Two-calendar popover
+  side-by-side. Optional preset panel (12 individual presets + 2 starter
+  bundles). `AllowOpenEnd` parameter for ongoing ranges with "Set as ongoing"
+  button. Range visualization with start/end solid circles, in-range
+  continuous bar, hover preview dashed pattern. Mobile collapses to single
+  calendar with sequential picking.
+
+- `LipiDateTimeTypes.cs` (251 lines) — `DatePickerInputMode` enum
+  (`Field|Segments`), `DateTimeLayout` enum (`Stacked|Inline`),
+  `DateRangePreset` record, `LipiDateRangePresets` static class with 12
+  individual presets (Today, Yesterday, Tomorrow, Last7Days, Last30Days,
+  Next7Days, Next30Days, NextWeek, NextMonth, ThisMonth, LastMonth, ThisYear)
+  plus 2 starter bundles (`CommonReports`, `CommonScheduling`).
+
+**Services** (`src/LiPi.Web/Services/`):
+
+- `IDateFormatService` + `DateFormatService` — clinic-configurable date and
+  time formats. Phase 2.4 default hardcodes India (DD/MM/YYYY, 24h, Sunday
+  week-start). Token vocabulary: `D/DD`, `M/MM/MMM/MMMM`, `YY/YYYY` with
+  `/-. ` separators. Forgiving parse with ISO 8601 fallback. `GetSegmentOrder`
+  collapses word-month formats to numeric MM for segment input mode.
+
+- `IClinicTimezoneService` + `ClinicTimezoneService` — clinic timezone
+  resolution (NOT system clock). Phase 2.4 default hardcodes "Asia/Kolkata"
+  (UTC+5:30, no DST). Defensive fallback to fixed +05:30 offset if ICU TZ
+  database unavailable. Cached `TimeZoneInfo` for process lifetime.
+
+**Test pages** (`src/LiPi.Web/Pages/Test/`):
+
+- `DatePickerTest.razor` (`/test/datepicker`) — 5 scenarios: Field mode, Segments
+  mode, IsDateAllowed (weekdays only), IsDateDisabled with holidays + null-reason
+  fallback test, Disabled state.
+- `TimePickerTest.razor` (`/test/timepicker`) — 6 scenarios: 24h default, 12h
+  with AM/PM, Step=15, Step=30 12h, ShowNow=false, Disabled.
+- `DateTimePickerTest.razor` (`/test/datetimepicker`) — 4 scenarios: Stacked,
+  Inline, Step=15 12h, sequential (time disabled until date set).
+- `DateRangePickerTest.razor` (`/test/daterangepicker`) — 5 scenarios: basic,
+  CommonReports presets, CommonScheduling presets, AllowOpenEnd, Disabled.
+
+**Edits**:
+
+- `lipi-input.js` extended with `window.lipiDatePicker` module (positionPopover,
+  attachReposition with rAF-throttled scroll/resize listeners, detachReposition,
+  focusElement). Net +153 lines.
+
+- `App.razor` cache version bump 20260514 → 20260515 (15 references updated).
+
+- `StyleGuide.razor` — added "Date & Time" navigation link + new section
+  with 4 demos (LipiDatePicker Field+Segments, LipiTimePicker 24h+12h with
+  Step, LipiDateTimePicker Stacked, LipiDateRangePicker with CommonReports
+  presets). Added 7 new state fields to TextInputDemo class for binding.
+
+- `deploy-downloads.ps1` — added Phase 2.4 component section + services
+  section with 14 new entries.
+
+**Architectural decisions locked**:
+
+- **F3** — `DateSegment` absorbed into `LipiDatePicker InputMode=Segments`.
+  Original design considered a separate `DateSegment` for `LipiCompoundField`,
+  rejected because it would duplicate calendar-popover wiring. Single
+  component with two render modes is simpler.
+
+- **A1** — ISO 8601 storage, configurable display per clinic. Storage and
+  display evolve independently.
+
+- **A2.2 corrected** — Popover positioning uses `position: fixed` with
+  JS-calculated viewport coordinates, NOT portal/body-level repatriation.
+  Matches LipiSelect existing pattern. `position: fixed` escapes ancestor
+  `overflow: hidden` naturally including modal containers. Known limitation:
+  ancestors with `transform`/`filter`/`will-change` create new containing
+  blocks — none currently exist in LiPi but flag if introduced. Original
+  Phase 2.4 design specified portal pattern; build chat objected and the lock
+  was corrected to position:fixed.
+
+- **A4** — Type-aware bindings. Each component binds to the most precise
+  type (DateOnly?, TimeOnly?, DateTimeOffset?, dual DateOnly?). Catches
+  misuse at compile time.
+
+- **A6** — `GetDisabledReason` null/empty/whitespace returns "Date
+  unavailable" fallback. Empty tooltip on disabled cell is never rendered.
+
+- **B5** — Full WAI-ARIA keyboard pattern for `LipiDatePicker` calendar grid.
+  ~50 extra lines vs MVP. User explicitly chose β over pragmatic γ during
+  design discussion. Cost is real and accepted.
+
+- **C2** — `LipiTimePicker.Step` asymmetric behavior. User-typed input
+  violating Step is REJECTED with error in helper slot (preserves user
+  intent). Now button SNAPS to nearest past Step boundary (convenience
+  action, user sees and can edit). This asymmetry IS the locked decision.
+
+- **D1** — `LipiDateTimePicker` uses composition pattern (composes
+  LipiDatePicker + LipiTimePicker) rather than single combined popover.
+  Cleaner state management.
+
+- **D2.1** — Auto-focus from date to time relies on natural Tab order rather
+  than explicit cross-component focus. Deferred unless real-world UX surfaces
+  a gap.
+
+- **D2.2** — Combined Now button sets BOTH date and time. "Now means Now."
+  No state-dependent logic.
+
+- **E1** — `LipiDateRangePicker` exposes `StartValue` + `EndValue` as
+  SEPARATE bindings, not a single composite. Matches database storage
+  shape and avoids forcing callers to invent a synthetic record/class.
+
+- **E2** — 12 individual presets + 2 starter bundles only. Real bundles
+  emerge from module needs in Phase 4.x. Starter bundles are examples, not
+  the production catalog.
+
+- **E3** — Range visualization: solid circles for start/end, continuous
+  light-blue bar for in-range, dashed pattern for hover preview while
+  selecting end.
+
+- **E4** — `AllowOpenEnd` parameter with "Set as ongoing" footer button.
+  Field displays `13/01/2026 → ongoing`.
+
+- **Path 3** — Calendar grid duplicated in LipiDatePicker AND
+  LipiDateRangePicker (declarative duplication, 2 consumers). Trigger to
+  extract = 3rd consumer. Path 3 status post-2.4: all three repeated patterns
+  (LipiSelect dropdown, LipiMultiSelect dropdown, calendar grid) at exactly 2
+  consumers each.
+
+- **Single-file `@code {}` pattern** (Flag 2 lock) — All four components
+  follow the existing LiPi family pattern (LipiTextBox, LipiSelect, etc.).
+  Rejected `.razor.cs` code-behind partials. `LipiDatePicker.razor` at 949
+  lines slightly over the ~800-line trigger; engineering judgment kept it
+  inline because abstract-base-with-single-concrete-subclass is anti-pattern.
+  Revisit if it grows beyond ~1200 lines.
+
+- **LipiContainerBase NOT used** for LipiDateRangePicker. Container base is
+  for "container with multiple bound segments via ICompoundSegment", which
+  doesn't fit dual-value range picker. Direct ComponentBase derivation with
+  hand-rolled visual scaffolding is cleaner.
+
+- **CS0102 collision resolution** — `LipiDateTimePicker` had injected
+  `IDateFormatService DateFormat` colliding with `[Parameter] public string?
+  DateFormat`. Resolved by renaming the injected service to `DateFmt` for
+  this component only. The parameter keeps the user-facing name `DateFormat`.
+
+**Engineering process notes**:
+
+- User overrode build chat's engineering objection to single-batch ship.
+  Build chat registered objection, user reaffirmed confidence. Ship proceeded
+  in two turns (foundation slice + remaining files) due to context budget,
+  not architectural blockers. The escape hatch ("if it goes into iterations
+  we can stop and batch it at that time") was used as designed.
+
+- Three corrections made during build vs original Phase 2.4 design:
+  (1) F2 autoadvance → γ smart auto-advance (user pushback corrected from
+  conservative α). (2) A2.2 popover → position:fixed (build chat pushback
+  corrected from portal pattern). (3) Code-behind → single-file `@code{}`
+  pattern (build chat pushback corrected from `.razor.cs` spec).
+
+**Files**:
+
+```
+NEW (16):
+src/LiPi.Web/Services/IDateFormatService.cs                    103 lines
+src/LiPi.Web/Services/DateFormatService.cs                     264 lines
+src/LiPi.Web/Services/IClinicTimezoneService.cs                 81 lines
+src/LiPi.Web/Services/ClinicTimezoneService.cs                  97 lines
+src/LiPi.Web/Components/Shared/LipiDateTimeTypes.cs            251 lines
+src/LiPi.Web/Components/Shared/LipiDatePicker.razor            949 lines
+src/LiPi.Web/Components/Shared/LipiDatePicker.razor.css        412 lines
+src/LiPi.Web/Components/Shared/LipiTimePicker.razor            499 lines
+src/LiPi.Web/Components/Shared/LipiTimePicker.razor.css        ~150 lines
+src/LiPi.Web/Components/Shared/LipiDateTimePicker.razor        350 lines
+src/LiPi.Web/Components/Shared/LipiDateTimePicker.razor.css    ~110 lines
+src/LiPi.Web/Components/Shared/LipiDateRangePicker.razor       656 lines
+src/LiPi.Web/Components/Shared/LipiDateRangePicker.razor.css   ~290 lines
+src/LiPi.Web/Pages/Test/DatePickerTest.razor                   ~150 lines
+src/LiPi.Web/Pages/Test/TimePickerTest.razor                   ~120 lines
+src/LiPi.Web/Pages/Test/DateTimePickerTest.razor               ~110 lines
+src/LiPi.Web/Pages/Test/DateRangePickerTest.razor              ~120 lines
+docs/00-COMPONENTS/01.5-DateTime.md                            ~644 lines
+
+EDITS (4):
+src/LiPi.Web/wwwroot/js/lipi-input.js                          +153 lines
+src/LiPi.Web/App.razor                                         cache 20260515
+src/LiPi.Web/Pages/StyleGuide.razor                            +101 lines (date & time section)
+deploy-downloads.ps1                                           +14 entries
+```
+
+**Verification recipe**:
+
+1. `dotnet build src/LiPi.Web` → 0 warnings, 0 errors
+2. Add to `Program.cs` service registration:
+   ```
+   builder.Services.AddScoped<IDateFormatService, DateFormatService>();
+   builder.Services.AddScoped<IClinicTimezoneService, ClinicTimezoneService>();
+   ```
+3. Visit each test page in turn:
+   - `/test/datepicker` — verify Field/Segments modes, popover, keyboard, constraints
+   - `/test/timepicker` — verify 12h/24h, Step asymmetry, Now button reads clinic-local
+   - `/test/datetimepicker` — verify Stacked/Inline, Now sets both, time disabled until date
+   - `/test/daterangepicker` — verify two calendars, presets, AllowOpenEnd, range viz
+4. Visit `/styleguide` — verify "Date & Time" section renders all 4 components
+
+**Coordination notes**:
+
+- Phase 2.5 (Checkbox + Radio + Toggle) is next per the locked roadmap.
+- LipiDobPicker deferred to Phase 4.2 (alongside patient registration migration).
+  `LabelConfidence` parameter on `LipiDatePicker` already supports the visual
+  pill — Phase 4.2 will compose with override-flow UX.
+- DST handling deferred to v1.1 (international expansion concern). India has
+  no DST so Phase 2.4 has no logic gap for current market.
+- Path 3 status: 3 patterns at 2 consumers each. Next 3rd consumer of any
+  pattern triggers extraction.
+
+**Post-ship cleanup (May 8)**:
+
+Memory rule consolidation moved Blazor debugging context (F12 console = client
+errors, PowerShell terminal = server errors) and `SectionContent` page
+conventions to `docs/00-PROJECT-BASELINE.md` as new sections — these were
+previously held in working-memory rules deleted during cleanup and now have a
+permanent home in the baseline doc. Inline tombstone comment added to
+`App.razor` above the `<CascadingAuthenticationState>` wrapper to signal its
+SSR-prerender criticality at the source. Cache-version comment block in
+`App.razor` refreshed to a reverse-chronological version table covering
+20260510 through 20260516 (current); the prose-history format had grown
+unmaintainable. Zero code or CSS changes in this cleanup — pure documentation
+housekeeping. Files touched: `docs/00-PROJECT-BASELINE.md` (additions only),
+`src/LiPi.Web/App.razor` (comment refresh + tombstone), `deploy-downloads.ps1`
+(baseline-doc entry added).
 
 ## v1.1 — PLANNED (Future)
 
@@ -1318,6 +1583,29 @@ EDITED:
 - [ ] Auto patient identifier verification (Aadhaar, ABHA via DigiLocker)
 - [ ] Real-time bed management (IPD)
 - [ ] PACS integration (Radiology)
+- [ ] **DST ambiguity handling for `LipiDateTimePicker`** (deferred from Phase 2.4
+      — A20). Component composes `DateOnly + TimeOnly → DateTimeOffset` using
+      clinic timezone offset. For timezones without DST (Asia/Kolkata IST,
+      current LiPi market), this is unambiguous always. For timezones with DST,
+      the fall-back hour creates two valid offsets for one wall-clock time and
+      the spring-forward hour creates invalid times. Resolve when international
+      expansion requires DST handling. Will need explicit UI to disambiguate
+      (e.g., "Was this {std} or {dst}?" radio for fall-back hour).
+- [ ] **IME composition support** for date/time segment inputs (deferred from
+      Phase 2.4 — A20). CJK/IME composition fires intermediate `oninput` events
+      that may trigger auto-advance prematurely. India + Latin scripts unaffected.
+      Resolve when international expansion adds fields with composed-script input.
+- [ ] **Smart paste in Segments mode** (deferred from Phase 2.4 — A20). Pasting
+      a full ISO date string into a Segments-mode `LipiDatePicker` should split
+      across segments with correct token mapping. Currently truncates first
+      segment to MaxLength. Implement when real users start pasting in Segments
+      mode.
+- [ ] **`LipiDatePicker` explicit auto-focus from date to time HH** (deferred
+      from Phase 2.4 — A20, decision D2.1). Currently relies on natural Tab
+      order — user tabbing forward from the date popover lands on time HH next.
+      Auto-focus would need component-level coordination (e.g., exposing a
+      `FocusFirstSegmentAsync` method on `LipiTimePicker`). Implement if
+      real-world UX shows users miss this.
 - [ ] **Armoki brand theme** (after Armoki finalizes brand identity)
 - [ ] **Auto theme mode** (follows OS preference)
 - [ ] **High-contrast theme mode** (accessibility)
