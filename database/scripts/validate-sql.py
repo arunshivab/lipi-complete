@@ -9,18 +9,44 @@ import re
 import sys
 from pathlib import Path
 
+# All valid top-level SQL constructs that constitute a legitimate SQL file.
+# A file containing any one of these is considered valid content.
+VALID_CONSTRUCTS = [
+    r'CREATE\s+TABLE',
+    r'CREATE\s+SCHEMA',
+    r'CREATE\s+(OR\s+REPLACE\s+)?FUNCTION',
+    r'CREATE\s+(OR\s+REPLACE\s+)?PROCEDURE',
+    r'CREATE\s+(OR\s+REPLACE\s+)?TRIGGER',
+    r'CREATE\s+EXTENSION',
+    r'CREATE\s+DOMAIN',
+    r'CREATE\s+TYPE',
+    r'CREATE\s+INDEX',
+    r'CREATE\s+(UNIQUE\s+)?SEQUENCE',
+    r'INSERT\s+INTO',
+    r'ALTER\s+TABLE',
+    r'GRANT\s+',
+    r'DO\s+\$',          # anonymous DO blocks (e.g. uuid_v7 function install)
+]
+
+def has_valid_construct(content):
+    """Return True if content contains at least one recognised SQL construct."""
+    for pattern in VALID_CONSTRUCTS:
+        if re.search(pattern, content, re.IGNORECASE):
+            return True
+    return False
+
 def validate_sql_file(filepath):
     """Check SQL file for common issues."""
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     issues = []
-    
+
     # Check for unclosed strings
-    single_quote_count = content.count("'") - content.count("\'")
+    single_quote_count = content.count("'") - content.count("\\'")
     if single_quote_count % 2 != 0:
         issues.append("Unclosed single quotes")
-    
+
     # Check for matching parentheses
     paren_balance = 0
     for char in content:
@@ -30,21 +56,22 @@ def validate_sql_file(filepath):
             paren_balance -= 1
     if paren_balance != 0:
         issues.append(f"Unbalanced parentheses (balance: {paren_balance})")
-    
-    # Check for common syntax issues
+
+    # Check for double semicolons
     if re.search(r';\s*;', content):
         issues.append("Double semicolons found")
-    
-    if re.search(r'CREATE\s+TABLE.*?;', content, re.IGNORECASE | re.DOTALL) is None:
-        if 'CREATE SCHEMA' not in content and 'CREATE FUNCTION' not in content:
-            issues.append("No table/schema/function creation found")
-    
+
+    # Check that the file contains at least one recognised SQL construct
+    if not has_valid_construct(content):
+        issues.append("No recognised SQL construct found (CREATE TABLE/SCHEMA/"
+                       "FUNCTION/TRIGGER/EXTENSION/DOMAIN/TYPE, INSERT INTO, etc.)")
+
     return issues
 
 def main():
     """Validate all SQL files in database directory."""
     db_dir = Path(__file__).parent.parent
-    
+
     # Order of file execution
     sql_files = [
         "00_common/001_extensions.sql",
@@ -61,16 +88,16 @@ def main():
         "clinic/07_certs.sql",
         "clinic/08_sigma.sql",
     ]
-    
+
     errors = []
-    
+
     for sql_file in sql_files:
         filepath = db_dir / sql_file
-        
+
         if not filepath.exists():
             errors.append(f"❌ Missing: {sql_file}")
             continue
-        
+
         issues = validate_sql_file(filepath)
         if issues:
             errors.append(f"⚠️  {sql_file}:")
@@ -78,7 +105,7 @@ def main():
                 errors.append(f"   - {issue}")
         else:
             print(f"✅ {sql_file}")
-    
+
     if errors:
         print("\nErrors found:")
         for error in errors:
