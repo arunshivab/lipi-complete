@@ -4,13 +4,11 @@ SQL Schema Validation Script
 Checks for syntax errors, missing dependencies, and ordering issues.
 """
 
-import os
 import re
 import sys
 from pathlib import Path
 
 # All valid top-level SQL constructs that constitute a legitimate SQL file.
-# A file containing any one of these is considered valid content.
 VALID_CONSTRUCTS = [
     r'CREATE\s+TABLE',
     r'CREATE\s+SCHEMA',
@@ -25,54 +23,68 @@ VALID_CONSTRUCTS = [
     r'INSERT\s+INTO',
     r'ALTER\s+TABLE',
     r'GRANT\s+',
-    r'DO\s+\$',          # anonymous DO blocks (e.g. uuid_v7 function install)
+    r'DO\s+\$',
 ]
 
+
 def has_valid_construct(content):
-    """Return True if content contains at least one recognised SQL construct."""
     for pattern in VALID_CONSTRUCTS:
         if re.search(pattern, content, re.IGNORECASE):
             return True
     return False
 
+
+def strip_dollar_quotes(content):
+    """Remove dollar-quoted bodies so single quotes inside $$ blocks are not counted."""
+    # Named: $tag$...$tag$
+    content = re.sub(r'\$([A-Za-z_][A-Za-z0-9_]*)\$.*?\$\1\$', '', content, flags=re.DOTALL)
+    # Anonymous: $$...$$
+    content = re.sub(r'\$\$.*?\$\$', '', content, flags=re.DOTALL)
+    return content
+
+
+def strip_sql_comments(content):
+    content = re.sub(r'--[^\n]*', '', content)
+    content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+    return content
+
+
 def validate_sql_file(filepath):
-    """Check SQL file for common issues."""
-    with open(filepath, 'r') as f:
+    with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
 
     issues = []
 
-    # Check for unclosed strings
-    single_quote_count = content.count("'") - content.count("\\'")
-    if single_quote_count % 2 != 0:
+    # Strip dollar-quoted blocks and comments before structural checks
+    stripped = strip_sql_comments(strip_dollar_quotes(content))
+
+    # Unclosed single quotes (outside dollar-quoted blocks only)
+    if stripped.count("'") % 2 != 0:
         issues.append("Unclosed single quotes")
 
-    # Check for matching parentheses
-    paren_balance = 0
-    for char in content:
-        if char == '(':
-            paren_balance += 1
-        elif char == ')':
-            paren_balance -= 1
+    # Unbalanced parentheses (outside dollar-quoted blocks only)
+    paren_balance = stripped.count('(') - stripped.count(')')
     if paren_balance != 0:
         issues.append(f"Unbalanced parentheses (balance: {paren_balance})")
 
-    # Check for double semicolons
+    # Double semicolons
     if re.search(r';\s*;', content):
         issues.append("Double semicolons found")
 
-    # Check that the file contains at least one recognised SQL construct
+    # At least one recognised SQL construct
     if not has_valid_construct(content):
-        issues.append("No recognised SQL construct found (CREATE TABLE/SCHEMA/"
-                       "FUNCTION/TRIGGER/EXTENSION/DOMAIN/TYPE, INSERT INTO, etc.)")
+        issues.append(
+            "No recognised SQL construct found "
+            "(CREATE TABLE/SCHEMA/FUNCTION/TRIGGER/EXTENSION/DOMAIN/TYPE, "
+            "INSERT INTO, ALTER TABLE, GRANT, etc.)"
+        )
 
     return issues
 
+
 def main():
-    """Validate all SQL files in database directory."""
     db_dir = Path(__file__).parent.parent
 
-    # Order of file execution
     sql_files = [
         "00_common/001_extensions.sql",
         "00_common/002_uuid_v7.sql",
@@ -93,11 +105,9 @@ def main():
 
     for sql_file in sql_files:
         filepath = db_dir / sql_file
-
         if not filepath.exists():
             errors.append(f"❌ Missing: {sql_file}")
             continue
-
         issues = validate_sql_file(filepath)
         if issues:
             errors.append(f"⚠️  {sql_file}:")
@@ -114,6 +124,7 @@ def main():
     else:
         print("\n✅ All SQL files validated successfully!")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
