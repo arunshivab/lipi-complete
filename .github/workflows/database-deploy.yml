@@ -71,7 +71,7 @@ jobs:
         run: |
           pg_dump -h ${{ secrets.PROD_DB_HOST }} -U postgres -d lipi_prod -F custom -f backup_$(date +%Y%m%d_%H%M%S).dump
       - name: Upload backup
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: prod-backup
           path: backup_*.dump
