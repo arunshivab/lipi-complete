@@ -33,7 +33,8 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     needs: validate
-    if: github.ref == 'refs/heads/develop'
+    # Only runs on manual trigger targeting staging
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +62,8 @@ jobs:
   deploy-production:
     name: Deploy to Production
     needs: validate
-    if: github.ref == 'refs/heads/main'
+    # Only runs on manual trigger targeting production
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
     runs-on: ubuntu-latest
     environment: production
     steps:
