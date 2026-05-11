@@ -1,0 +1,372 @@
+@* SPEC:  docs/03-Phase-2.5-Selection-Components/03-LipiRadio-and-Group.md
+           §"What carries from Section 1" + substantive divergences
+   PHASE: 2.5 Step 10 (re-shipped at step 11 with GroupName + LabelTemplate)
+   AMEND: docs/CHANGE-LOG.md A15 (pending — Phase 2.5 close-out)
+          Step 11 additions:
+            GroupName (string?) — separates HTML radio grouping name from the
+              Blazor Name parameter used for EffectiveId. All radios in a group
+              share GroupName (= group's _resolvedName) for native radio
+              exclusion semantics, while each gets a unique Blazor Name for
+              unique HTML ids and aria-describedby wiring.
+            LabelTemplate (RenderFragment?) — enables LipiRadioGroup's
+              ItemTemplate to pass rich per-item content to each child radio.
+              Mirrors LipiCheckbox.LabelTemplate; LabelTemplate wins over Label.
+
+   LipiRadio<TValue> is the individual radio button. Typically rendered inside a
+   LipiRadioGroup for "exactly one of N" selection, but also works standalone for
+   binary choices (e.g., Yes/No as two radios with shared name).
+
+   Key differences from LipiCheckbox:
+     - TValue is generic (string/enum/int/Guid/any) — no bool whitelist check
+     - `RadioValue` parameter identifies what this radio represents when selected
+     - IsSelected = EqualityComparer<TValue>.Default.Equals(CurrentValue, RadioValue)
+     - Circle indicator (50% border-radius) + inner dot (not a checkmark)
+     - No tri-state (radios are binary: selected or not)
+     - No LabelTemplate (group's ItemTemplate handles rich rendering at group level)
+     - `TabIndex` parameter allows LipiRadioGroup to implement Pattern A roving tabindex
+     - `InputRef` exposes the hidden input's ElementReference for group focus management
+     - `aria-checked` is always "true"/"false" (no "mixed" state)
+
+   Cascade: LipiRadioGroupContext (same 2-field record as LipiCheckboxGroupContext)
+     ReadOnly → group read-only forces all child radios read-only
+     OnChildInteracted → fires on @onchange to coordinate touched-state at group level
+
+   Audit-item alignments:
+     #4  AllowClear/AllowDeselect: group-level concept; radio itself just selects
+     #12 2-field cascade context (ReadOnly, OnChildInteracted)
+     #15c InputLabelPosition (shared enum, not LipiRadioLabelPosition)
+     #19 lock 6 Label/AriaLabel filter — applied here (mirrors LipiCheckbox)
+*@
+
+@typeparam TValue
+@inherits LipiInputBase<TValue>
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+
+<label class="@WrapperCssClasses" for="@EffectiveId" style="@InlineStyle">
+
+    @* Hidden native input — form semantics, screen reader, click, tab stop.
+       `name` groups radios for native browser selection exclusion.
+       `tabindex` is controlled by the group for Pattern A roving tabindex;
+       defaults to 0 for standalone usage.
+       `checked` reflects IsSelected; @onchange fires on user selection only
+       (a radio's change event only fires when it becomes checked, not unchecked). *@
+    <input id="@EffectiveId"
+           name="@EffectiveGroupName"
+           type="radio"
+           class="lipi-radio-input-hidden"
+           checked="@IsSelected"
+           disabled="@Disabled"
+           required="@Required"
+           tabindex="@TabIndex"
+           value="@RadioValueString"
+           aria-required="@(Required ? "true" : null)"
+           aria-invalid="@AriaInvalidAttr"
+           aria-describedby="@AriaDescribedByAttr"
+           aria-label="@(string.IsNullOrEmpty(_resolvedLabel) ? AriaLabel : null)"
+           @ref="_inputRef"
+           @onchange="HandleChange" />
+
+    @* Custom circle indicator. Inner dot renders only when selected.
+       Shape (50% border-radius, dimensions, dot sizing) live in scoped CSS.
+       State colors live in scoped CSS.
+       Layout (flex, gap, alignment) lives in family CSS. *@
+    <span class="@IndicatorCssClasses" aria-hidden="true">
+        @if (IsSelected)
+        {
+            <span class="lipi-radio-dot"></span>
+        }
+    </span>
+
+    @* Label text or template. LabelTemplate wins over Label string (same
+       pattern as LipiCheckbox). Group passes ItemTemplate content via
+       LabelTemplate; standalone usage passes plain Label string. *@
+    <span class="lipi-radio-label-text">
+        @if (LabelTemplate is not null)
+        {
+            @LabelTemplate
+        }
+        else
+        {
+            @_resolvedLabel
+        }
+        @if (Required)
+        {
+            @* Locked Decision 6 Approach D (Phase 2.2 precedent): asterisk ALWAYS
+               renders when Required, regardless of RequiredVisualStyle. *@
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+    </span>
+</label>
+
+@* Helper slot — sibling outside <label> per Decision 1.13 (clicking helper
+   does not select the radio). All states render in this single bottom slot
+   per audit item #2. *@
+@if (HasHelperContent || Defaults.Value.AlwaysReserveHelperSlot)
+{
+    <div id="@HelperId"
+         class="@HelperCssClasses"
+         role="@HelperRole"
+         aria-live="@HelperAriaLive">
+        @HelperText
+    </div>
+}
+
+
+@code {
+    // ==========================================================================
+    // CASCADE PARAMETER (audit item #12 — 2-field record)
+    // ==========================================================================
+
+    [CascadingParameter(Name = "LipiRadioGroupContext")]
+    public LipiRadioGroupContext? GroupContext { get; set; }
+
+    private bool ResolvedReadOnly =>
+        (GroupContext?.ReadOnly ?? false) || ReadOnly;
+
+
+    // ==========================================================================
+    // ELEMENT REFERENCE — exposed for LipiRadioGroup Pattern A focus management
+    // ──────────────────────────────────────────────────────────────────────────
+    // LipiRadioGroup (step 11) uses this to call InputRef.FocusAsync() when
+    // arrow keys or type-ahead move selection to this radio.
+    // ==========================================================================
+
+    private ElementReference _inputRef;
+
+    /// <summary>ElementReference to the hidden native radio input. LipiRadioGroup
+    /// calls <c>InputRef.FocusAsync()</c> for Pattern A keyboard navigation.</summary>
+    public ElementReference InputRef => _inputRef;
+
+
+    // ==========================================================================
+    // LIPIRADIO-SPECIFIC PARAMETERS
+    // ==========================================================================
+
+    /// <summary>The value this radio represents when selected. LipiRadioGroup passes
+    /// the item's resolved value; standalone usage passes the choice constant.
+    /// <code>IsSelected = EqualityComparer&lt;TValue&gt;.Default.Equals(CurrentValue, RadioValue)</code>
+    /// </summary>
+    [Parameter] public TValue? RadioValue { get; set; }
+
+    /// <summary>Label position relative to the circle indicator.
+    /// Default <see cref="InputLabelPosition.Right"/> — indicator on left,
+    /// label on right (LTR reading order, matches native HTML).</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; }
+        = InputLabelPosition.Right;
+
+    /// <summary>Accessible label for screen readers when Label is intentionally empty.
+    /// Either Label or AriaLabel must be non-empty per WCAG 2.1 SC 4.1.2.</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    /// <summary>Tab index for this radio input. Default 0 for standalone usage.
+    /// LipiRadioGroup overrides to 0 (selected/first non-disabled) or -1 (all others)
+    /// to implement Pattern A roving tabindex per Decision 3.2.16.</summary>
+    [Parameter] public int TabIndex { get; set; } = 0;
+
+    /// <summary>HTML name attribute for the native radio input — shared across all
+    /// radios in the same group for native browser exclusion semantics. Defaults to
+    /// <see cref="LipiInputBase{TValue}._resolvedName"/> when not set (standalone
+    /// usage). LipiRadioGroup always passes the group's <c>_resolvedName</c> here
+    /// so all children share one HTML name while each gets a unique Blazor Name
+    /// (and thus a unique id / aria-describedby).</summary>
+    [Parameter] public string? GroupName { get; set; }
+
+    /// <summary>Render fragment that wins over <see cref="LipiInputBase{TValue}.Label"/>
+    /// when both are provided. Use for items that need rich content (icons, badges).
+    /// Plain-text labels: use the Label string. LipiRadioGroup passes ItemTemplate
+    /// content via this parameter when ItemTemplate is non-null.</summary>
+    [Parameter] public RenderFragment? LabelTemplate { get; set; }
+
+
+    // ==========================================================================
+    // BASE CLASS OVERRIDES
+    // ==========================================================================
+
+    protected override string ComponentIdPrefix => "rb";
+
+    protected override string ComponentTypeName => "LipiRadio";
+
+    /// <summary>Selected for nullable TValue means null (nothing chosen).
+    /// For non-nullable TValue, every value represents a real selection — the
+    /// group controls required validation via [Required] on the bound property.</summary>
+    protected override bool IsEmpty
+    {
+        get
+        {
+            // Nullable TValue: empty when CurrentValue is null
+            if (default(TValue) is null) return CurrentValue is null;
+            // Non-nullable: IsEmpty is always false at the individual radio level;
+            // the group handles required validation on the bound single value.
+            return false;
+        }
+    }
+
+    /// <summary>Vestigial override required by InputBase. Radio groups use direct
+    /// TValue binding via OnItemSelectedAsync (group) or HandleChange (standalone).
+    /// This path handles EditContext rehydration and form-submission scenarios.</summary>
+    protected override bool TryParseValueFromString(
+        string? value,
+        out TValue result,
+        out string validationErrorMessage)
+    {
+        validationErrorMessage = string.Empty;
+
+        if (string.IsNullOrEmpty(value) && default(TValue) is null)
+        {
+            result = default!;
+            return true;
+        }
+
+        try
+        {
+            // Handles string, int, Guid, enum cases via Convert.ChangeType.
+            result = (TValue)Convert.ChangeType(value, typeof(TValue))!;
+            return true;
+        }
+        catch
+        {
+            result = default!;
+            validationErrorMessage =
+                $"Cannot parse '{value}' as {typeof(TValue).Name}.";
+            return false;
+        }
+    }
+
+    /// <summary>Label/AriaLabel filter fix per audit item #19 lock 6.
+    /// Suppresses base class's "Label parameter is required" when AriaLabel
+    /// provides the accessible name.</summary>
+    protected override List<string> CollectParameterValidationErrors()
+    {
+        var errors = base.CollectParameterValidationErrors();
+
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+        }
+
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.Add("AriaLabel is required when Label is empty (accessible name).");
+        }
+
+        return errors;
+    }
+
+
+    // ==========================================================================
+    // SELECTION STATE
+    // ==========================================================================
+
+    /// <summary>Selection state computed via structural equality. Works correctly
+    /// for string, enum, int, Guid without TValue constraints.</summary>
+    private bool IsSelected
+        => EqualityComparer<TValue>.Default.Equals(CurrentValue, RadioValue);
+
+    /// <summary>Effective HTML name for radio grouping. When GroupName is provided
+    /// (by LipiRadioGroup), all children share this name for native radio exclusion.
+    /// For standalone usage, falls back to the Blazor-resolved Name parameter.</summary>
+    private string EffectiveGroupName => GroupName ?? _resolvedName;
+
+    /// <summary>String representation of RadioValue for the native input's value
+    /// attribute. Used for form submission semantics.</summary>
+    private string? RadioValueString
+        => RadioValue?.ToString();
+
+
+    // ==========================================================================
+    // EVENT HANDLER — fires on selection only (@onchange on radio = becoming checked)
+    // ──────────────────────────────────────────────────────────────────────────
+    // A radio's change event fires ONLY when it becomes checked (the browser
+    // fires it when the user clicks, or Space-key selects). It does NOT fire
+    // when the radio becomes unchecked (that happens via the group updating
+    // CurrentValue to another radio's value, causing a re-render).
+    // ==========================================================================
+
+    private async Task HandleChange(ChangeEventArgs e)
+    {
+        if (Disabled || ResolvedReadOnly) return;
+
+        CurrentValue = RadioValue!;
+        await ValueChanged.InvokeAsync(RadioValue!);
+        EditContext?.NotifyFieldChanged(FieldIdentifier);
+
+        // Touched-state coordination (audit item #12 + Decision 2.13).
+        // Fire only on @onchange — not focus/blur. Tab-through doesn't trigger touched.
+        if (GroupContext is not null)
+            await GroupContext.OnChildInteracted.InvokeAsync();
+        else
+            MarkFieldAsTouched();
+    }
+
+
+    // ==========================================================================
+    // CSS CLASS COMPOSITION
+    // ==========================================================================
+
+    private string WrapperCssClasses
+    {
+        get
+        {
+            var classes = new List<string>(8)
+            {
+                "lipi-radio-wrapper",
+                $"lipi-input-{Size.ToString().ToLowerInvariant()}",
+                $"lipi-input-label-pos-{LabelPosition.ToString().ToLowerInvariant()}"
+            };
+
+            if (Disabled)                    classes.Add("lipi-input-disabled");
+            if (ResolvedReadOnly)            classes.Add("lipi-input-readonly");
+            if (HasErrorState)               classes.Add("lipi-input-error");
+            if (IsSelected)                  classes.Add("lipi-radio-selected");
+            if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    private string IndicatorCssClasses
+    {
+        get
+        {
+            var classes = new List<string>(3) { "lipi-radio-indicator" };
+
+            if (Disabled)
+                classes.Add("lipi-radio-indicator-disabled");
+            else if (ResolvedReadOnly)
+                classes.Add("lipi-radio-indicator-readonly");
+            else if (HasErrorState)
+                classes.Add("lipi-radio-indicator-error");
+            else if (IsSelected)
+                classes.Add("lipi-radio-indicator-selected");
+            else if (Required && IsEmpty
+                     && EffectiveRequiredStyle
+                        == LiPi.Web.Components.Shared.RequiredVisualStyle.ApricotTint)
+                classes.Add("lipi-radio-indicator-required-empty");
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    private bool HasErrorState => ResolvedState == InputState.Error;
+
+    private string HelperCssClasses
+    {
+        get
+        {
+            var stateClass = ResolvedState switch
+            {
+                InputState.Error   => "lipi-input-helper-error",
+                InputState.Warning => "lipi-input-helper-warning",
+                InputState.Success => "lipi-input-helper-success",
+                _                  => null
+            };
+            return stateClass is null
+                ? "lipi-input-helper lipi-input-helper-bottom lipi-radio-helper-indent"
+                : $"lipi-input-helper lipi-input-helper-bottom lipi-radio-helper-indent {stateClass}";
+        }
+    }
+}

@@ -86,6 +86,10 @@
    ───────────────────────────────────────────────────────────── */
 
 .lipi-daterange-popover {
+    /* position: fixed keeps this out of document flow at all times.
+       Phase 2.5.5 fix — prevents blank grid row when popover is visibility:hidden. */
+    position: fixed;
+    /* JS sets: left, top, visibility */
     visibility: hidden;
     z-index: 1000;
     background: var(--color-bg-surface);

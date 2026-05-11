@@ -1,0 +1,57 @@
+/* SPEC:  docs/03-Phase-2.5-Selection-Components/03-LipiRadio-and-Group.md
+          §"CSS class catalog — LipiRadioGroup" (Decision 3.2)
+   PHASE: 2.5 Step 11
+   AMEND: docs/CHANGE-LOG.md A15 (pending — Phase 2.5 close-out)
+
+   Shape-only per audit item #1 (Layout-vs-Shape rule).
+   All wrapper LAYOUT (fieldset reset, options display/flex/grid, orientation,
+   density, required-tint, error-state cue) lives in lipi-selection-family.css.
+
+   What lives here:
+     - Legend per-size font scaling (mirrors LipiCheckboxGroup.razor.css pattern)
+     - Fieldset :disabled opacity (native disabled cascade fallback)
+     - Readonly cursor on legend
+
+   What lives in family CSS (already shipped in step 6 / step 9 amendment):
+     - .lipi-rg-wrapper (fieldset reset, display: block)
+     - .lipi-rg-options (flex/grid layout)
+     - .lipi-rg-label (legend base styles)
+     - .lipi-rg-clear (Clear button shape, hover, focus ring)
+     - .lipi-input-required-tint .lipi-rg-options (apricot left-border + bg-fade)
+     - .lipi-rg-wrapper.lipi-input-error .lipi-rg-options (danger left-border)
+     - .lipi-input-disabled / .lipi-input-readonly (family cursor/opacity)
+*/
+
+
+/* =========================================================================
+   LEGEND PER-SIZE FONT SCALING (mirrors LipiCheckboxGroup.razor.css)
+   ========================================================================= */
+
+.lipi-input-small  .lipi-rg-label { font-size: 13px; }
+.lipi-input-medium .lipi-rg-label { font-size: 14px; }
+.lipi-input-large  .lipi-rg-label { font-size: 15px; }
+
+
+/* =========================================================================
+   FIELDSET-DISABLED OPACITY (native :disabled pseudo-class fallback)
+   Mirrors LipiCheckboxGroup.razor.css — covers both the class-based path
+   (.lipi-input-disabled) and the native HTML disabled attribute path.
+   ========================================================================= */
+
+.lipi-rg-wrapper:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+
+/* =========================================================================
+   READONLY GROUP (cursor on legend)
+   ========================================================================= */
+
+.lipi-rg-wrapper.lipi-input-readonly {
+    cursor: default;
+}
+
+.lipi-rg-wrapper.lipi-input-readonly .lipi-rg-label {
+    cursor: default;
+}

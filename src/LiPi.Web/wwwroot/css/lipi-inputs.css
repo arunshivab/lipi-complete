@@ -25,6 +25,125 @@
     min-width: 0;
 }
 
+
+/* ===================== LABEL POSITION — body wrapper =====================
+   Phase 2.5.5 — LabelPosition cross-family retrofit.
+
+   .lipi-input-body groups the field + helper as a single unit.
+   In Top (default) layout it is transparent — column flex, no visual change.
+   In Left/Right layouts it occupies the input column of the grid,
+   keeping helper text indented to align with the field, not the label.
+   In Bottom layout it sits in the reverse-column flex before the label.
+
+   WHY NEEDED: without this wrapper, the helper slot is a direct flex child
+   of .lipi-input-wrapper and spans the full grid width in Left/Right layouts.
+   With the wrapper, helper is scoped to the input column. */
+
+.lipi-input-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+
+
+/* ===================== LABEL POSITION — LEFT =====================
+   Label in first column (fixed width), body (field+helper) in second.
+   align-items: start so the label column starts at the top of the body
+   (not centered against body height which includes helper text).
+   Per-size padding-top on the label optically centers it with the FIELD only.
+   Formula: (field-height - label-line-height≈16px) / 2
+     Small:  (28 - 16) / 2 = 6px
+     Medium: (32 - 16) / 2 = 8px  ← default
+     Large:  (40 - 16) / 2 = 12px */
+
+.lipi-input-label-left {
+    display: grid;
+    grid-template-columns: var(--lipi-label-w, 180px) 1fr;
+    align-items: start;
+    gap: 0;
+}
+
+.lipi-input-label-left .lipi-input-label {
+    padding-right: 10px;
+    padding-top: 8px; /* Medium default */
+    justify-content: flex-end;
+    text-align: right;
+    align-items: flex-start;
+    display: flex;
+}
+
+.lipi-input-label-left.lipi-input-small  .lipi-input-label { padding-top: 6px; }
+.lipi-input-label-left.lipi-input-medium .lipi-input-label { padding-top: 8px; }
+.lipi-input-label-left.lipi-input-large  .lipi-input-label { padding-top: 12px; }
+
+
+/* ===================== LABEL POSITION — RIGHT =====================
+   Body (field+helper) in first column, label in second.
+   Same start-aligned + padding-top approach as Left. */
+
+.lipi-input-label-right {
+    display: grid;
+    grid-template-columns: 1fr var(--lipi-label-w, 180px);
+    align-items: start;
+    gap: 0;
+}
+
+.lipi-input-label-right .lipi-input-label {
+    padding-left: 10px;
+    padding-top: 8px; /* Medium default */
+    order: 2;
+    justify-content: flex-start;
+    text-align: left;
+    align-items: flex-start;
+    display: flex;
+}
+
+.lipi-input-label-right.lipi-input-small  .lipi-input-label { padding-top: 6px; }
+.lipi-input-label-right.lipi-input-medium .lipi-input-label { padding-top: 8px; }
+.lipi-input-label-right.lipi-input-large  .lipi-input-label { padding-top: 12px; }
+
+.lipi-input-label-right .lipi-input-body {
+    order: 1;
+}
+
+
+/* ===================== LABEL POSITION — BOTTOM =====================
+   Label below field (column-reverse on wrapper).
+   Helper sits between field and label — in the same .lipi-input-body
+   flex column, which renders before the label in column-reverse order. */
+
+.lipi-input-label-bottom {
+    flex-direction: column-reverse;
+}
+
+
+/* ===================== MULTI-LINE OVERRIDE =====================
+   For LipiTextArea and LipiMultiSelect in Left/Right position:
+   switches from center-aligned to top-aligned so the label aligns
+   with the first line of the textarea rather than the vertical midpoint.
+   padding-top: 8px visually aligns the label baseline with the first
+   row of text content. */
+
+.lipi-input-label-left.lipi-input-multiline,
+.lipi-input-label-right.lipi-input-multiline {
+    align-items: flex-start;
+}
+
+.lipi-input-label-left.lipi-input-multiline .lipi-input-label,
+.lipi-input-label-right.lipi-input-multiline .lipi-input-label {
+    padding-top: 8px;
+    align-items: flex-start;
+}
+
+
+/* ===================== LABEL WIDTH CUSTOM PROPERTY =====================
+   --lipi-label-w defaults to 130px. Override per-field or per-section:
+     style="--lipi-label-w: 190px"                 (per field, inline)
+     <div style="--lipi-label-w: 160px"> ... </div> (per section)
+   The property cascades automatically. No new CSS needed. */
+
 /* ===================== LABEL ROW ===================== */
 .lipi-input-label {
     display: inline-flex;

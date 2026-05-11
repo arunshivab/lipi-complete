@@ -28,7 +28,7 @@
     <div class="af-card-header">
       <div class="af-card-num" style="background:#0B2545">&#9670;</div>
       <span class="af-card-title">Select Clinic</span>
-      <span style="margin-left:auto;font-size:10px;padding:2px 8px;border-radius:10px;background:#FFF7ED;color:#C2410C;border:0.5px solid #FED7AA;font-family:'DM Mono',monospace">SysAdmin / GlobalAdmin</span>
+      <span style="margin-left:auto;font-size:10px;padding:2px 8px;border-radius:10px;background:#FFF7ED;color:#C2410C;border:0.5px solid #FED7AA;font-family:'LiPi Mono',monospace">SysAdmin / GlobalAdmin</span>
     </div>
     <div class="af-card-body">
       @if (_clinics.Count == 0)
@@ -269,7 +269,7 @@
 
 <style>
 .us-seg-row { display:flex; gap:4px; margin-bottom:0; flex-wrap:wrap; }
-.us-seg { padding:6px 12px; font-size:12px; font-family:'DM Sans',system-ui,sans-serif; cursor:pointer; background:#F8FAFC; border:0.5px solid #E2E8F0; border-radius:7px; color:#475569; transition:all .12s; }
+.us-seg { padding:6px 12px; font-size:12px; font-family:'LiPi Sans',system-ui,sans-serif; cursor:pointer; background:#F8FAFC; border:0.5px solid #E2E8F0; border-radius:7px; color:#475569; transition:all .12s; }
 .us-seg-on { background:#0B2545; color:#fff; border-color:#0B2545; }
 .us-toggle-row { display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:0.5px solid #F1F5F9; gap:16px; }
 .us-toggle-row:last-child { border-bottom:none; }
@@ -280,28 +280,28 @@
 .us-toggle::after { content:''; position:absolute; width:16px; height:16px; border-radius:50%; background:#fff; top:3px; left:3px; transition:left .2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
 .us-toggle-on::after { left:21px; }
 .us-preview-box { background:#0B2545; border-radius:10px; padding:14px 16px; }
-.us-preview-kicker { font-family:'DM Mono',monospace; font-size:8px; letter-spacing:.18em; color:rgba(255,255,255,.32); text-transform:uppercase; margin-bottom:8px; }
-.us-preview-uhid { font-family:'DM Mono',monospace; font-size:22px; font-weight:700; color:#C49A22; letter-spacing:.04em; margin-bottom:3px; }
-.us-preview-next { font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,.4); margin-bottom:8px; }
+.us-preview-kicker { font-family:'LiPi Mono',monospace; font-size:8px; letter-spacing:.18em; color:rgba(255,255,255,.32); text-transform:uppercase; margin-bottom:8px; }
+.us-preview-uhid { font-family:'LiPi Mono',monospace; font-size:22px; font-weight:700; color:#C49A22; letter-spacing:.04em; margin-bottom:3px; }
+.us-preview-next { font-family:'LiPi Mono',monospace; font-size:11px; color:rgba(255,255,255,.4); margin-bottom:8px; }
 .us-preview-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; border-top:1px solid rgba(255,255,255,.1); padding-top:10px; margin-top:10px; }
-.us-stat-lbl { font-family:'DM Mono',monospace; font-size:8px; letter-spacing:.1em; color:rgba(255,255,255,.3); text-transform:uppercase; margin-bottom:2px; }
+.us-stat-lbl { font-family:'LiPi Mono',monospace; font-size:8px; letter-spacing:.1em; color:rgba(255,255,255,.3); text-transform:uppercase; margin-bottom:2px; }
 .us-stat-val { font-size:12px; font-weight:500; color:rgba(255,255,255,.85); }
 .us-ok   { color:#10B981 !important; }
 .us-warn { color:#F59E0B !important; }
 .us-err  { color:#EF4444 !important; }
-.us-mono { font-family:'DM Mono',monospace; font-size:11px; }
+.us-mono { font-family:'LiPi Mono',monospace; font-size:11px; }
 .us-alert { border-radius:8px; padding:9px 12px; font-size:12px; line-height:1.5; display:flex; gap:8px; align-items:flex-start; }
 .us-alert-red    { background:#FEF2F2; border:0.5px solid #FCA5A5; color:#991B1B; }
 .us-alert-amber  { background:#FFFBEB; border:0.5px solid #FCD34D; color:#92400E; }
 .us-alert-green  { background:#ECFDF5; border:0.5px solid #6EE7B7; color:#065F46; }
 .us-alert-blue   { background:#EFF6FF; border:0.5px solid #BFDBFE; color:#1E40AF; }
-.af-btn-ghost { padding:8px 14px; border-radius:8px; border:0.5px solid #E2E8F0; background:#fff; color:#475569; font-size:12px; cursor:pointer; font-family:'DM Sans',system-ui,sans-serif; }
-.af-btn-save  { padding:8px 18px; border-radius:8px; border:none; background:#0B2545; color:#fff; font-size:12px; font-weight:500; cursor:pointer; font-family:'DM Sans',system-ui,sans-serif; }
+.af-btn-ghost { padding:8px 14px; border-radius:8px; border:0.5px solid #E2E8F0; background:#fff; color:#475569; font-size:12px; cursor:pointer; font-family:'LiPi Sans',system-ui,sans-serif; }
+.af-btn-save  { padding:8px 18px; border-radius:8px; border:none; background:#0B2545; color:#fff; font-size:12px; font-weight:500; cursor:pointer; font-family:'LiPi Sans',system-ui,sans-serif; }
 .af-btn-save:disabled { opacity:.5; cursor:not-allowed; }
 .af-hint { font-size:10px; color:#94A3B8; margin-top:3px; }
 .af-hint.ok  { color:#059669; }
 .af-hint.err { color:#DC2626; }
-.mono { font-family:'DM Mono',monospace; }
+.mono { font-family:'LiPi Mono',monospace; }
 </style>
 
 @code {

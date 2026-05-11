@@ -11,6 +11,23 @@
 /*                  brighter Tailwind 300/400 family for dark surface contrast) */
 /*                + --color-confidence-{verified,self,estimated,unknown}        */
 /*                  (composed from semantic + neutral tokens)                   */
+/*           A15 (2026-05-09): Phase 2.5 Selection Components family            */
+/*                + --sh-thumb (toggle thumb shadow — single-layer black 0.50,  */
+/*                  matching dark-mode convention; --sh-sm/md/lg also           */
+/*                  single-layer in this file)                                  */
+/*                  SPEC: docs/03-Phase-2.5-Selection-Components/                */
+/*                        05-Cross-Cutting.md §5.2                              */
+/*                  SPEC: docs/03-Phase-2.5-Selection-Components/                */
+/*                        04-LipiToggle.md §"Visual anatomy"                    */
+/*                Item #17 (2026-05-09): Phase 2.5 token gap correction         */
+/*                + --color-required-strong (rgba(254,215,170,0.70) — apricot   */
+/*                  at higher alpha than --color-required-border (0.40), so the */
+/*                  border reads as deliberate without becoming a glow. Stays   */
+/*                  within the alpha-tint convention for dark-mode required    */
+/*                  state. Light mode uses #EA580C orange-600 — see             */
+/*                  mode-light.css for the full rationale.)                     */
+/*                  CONSUMED BY: LipiCheckbox indicator Required-Empty border;  */
+/*                               LipiCheckboxGroup T-G2 left-border treatment.  */
 /*                                                                              */
 /* NOTE:     Dark mode pales follow Phase 1 mixed convention:                   */
 /*             primary/accent/info → rgba alpha tints over dark surface         */
@@ -39,12 +56,17 @@
     --color-border-strong:  #484f58;
     --color-border-focus:   rgba(74, 155, 212, 0.6); /* alpha in dark (light uses solid) */
 
-    /* ── Form field state — required (A12 Phase 2.2) ─────────────────────── */
+    /* ── Form field state — required (A12 Phase 2.2 + A15 item #17) ───────── */
     /* Apricot wash on empty required fields. Alpha tints on dark surface so   */
     /* the apricot reads as a faint warm hint rather than a solid orange box.  */
     /* Filled fields revert to surface bg + standard border.                   */
+    /* Token tier (alpha increases with strength tier):                       */
+    /*   --color-required-bg     — 0.06 (faintest wash)                       */
+    /*   --color-required-border — 0.40 (visible, not glowing)                */
+    /*   --color-required-strong — 0.70 (strong, for outline/3px treatments)  */
     --color-required-bg:     rgba(254, 215, 170, 0.06); /* faint apricot wash on dark surface */
     --color-required-border: rgba(254, 215, 170, 0.40); /* visible but not glowing            */
+    --color-required-strong: rgba(254, 215, 170, 0.70); /* A15 item #17: strong border tier   */
 
     /* ── Brand primary ───────────────────────────────────────────────────── */
     --color-primary:          #4A9BD4; /* admin.css --sky — lighter for dark bg */
@@ -107,4 +129,13 @@
     --sh-sm: 0 1px 3px rgba(0, 0, 0, 0.30);
     --sh-md: 0 4px 12px rgba(0, 0, 0, 0.40);
     --sh-lg: 0 8px 24px rgba(0, 0, 0, 0.50);
+    /* A15 (2026-05-09): Phase 2.5 toggle thumb shadow.                       */
+    /* Single-layer matching dark-mode shadow convention (--sh-sm/md/lg are   */
+    /* all single-layer in this file). Higher alpha than --sh-sm (0.50 vs     */
+    /* 0.30) for thumb prominence on the primary-colored track. Light mode    */
+    /* uses two-layer (see mode-light.css) — needed there because shadow hue  */
+    /* ≈ track hue. Dark mode has natural contrast (black on sky-blue), so    */
+    /* single-layer with higher alpha is sufficient. Tune alpha if smoke test */
+    /* reveals thumb separation issues — 0.40 lighter, 0.55-0.60 stronger.    */
+    --sh-thumb: 0 1px 3px rgba(0, 0, 0, 0.50);
 }

@@ -110,6 +110,20 @@ public abstract class LipiMultiSelectBase<TValue, TItem> : LipiInputBase<List<TV
     /// at >50 items.</summary>
     [Parameter] public bool? UseVirtualization { get; set; }
 
+    // ── Phase 2.5.5 — LabelPosition cross-family retrofit ─────────────────────────────────
+
+    /// <summary>Position of the label relative to the input field.
+    /// Top (default) — label above. Left — saves vertical space. Right — RTL. Bottom — caption.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; }
+        = InputLabelPosition.Top;
+
+    /// <summary>Accessible name when Label is empty. Required when Label="" (WCAG 2.1 SC 4.1.2).</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    /// <summary>Resolved CSS class for label position. Protected so concrete razor markup can bind.
+    /// Computed in OnParametersSet.</summary>
+    protected string _resolvedLabelPositionClass = string.Empty;
+
     // Note: Placeholder is inherited from LipiInputBase — no need to redeclare here.
     // (Memory rule #25 bullet 6 — inheritance shadowing check caught a duplicate
     // Placeholder declaration in this slot during the Batch 9b CS0108 cleanup.)
@@ -188,6 +202,19 @@ public abstract class LipiMultiSelectBase<TValue, TItem> : LipiInputBase<List<TV
     {
         var errors = base.CollectParameterValidationErrors();
 
+        // Phase 2.5.5 — Label/AriaLabel filter (same pattern as SelectBase).
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+        }
+
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.Add(
+                "AriaLabel is required when Label is empty " +
+                "(accessible name for assistive tech).");
+        }
+
         if (Items is null)
             errors.Add("Items parameter is required.");
 
@@ -203,6 +230,15 @@ public abstract class LipiMultiSelectBase<TValue, TItem> : LipiInputBase<List<TV
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
+
+        // Phase 2.5.5 — resolve label position CSS class each render.
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
 
         // Q4 — env-gated AllowFreeText validation. AllowFreeText creates new
         // values from typed strings, which only makes sense for TValue=string.

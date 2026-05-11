@@ -29,7 +29,7 @@
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
 
-<div class="lipi-input-wrapper @CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
+<div class="lipi-input-wrapper @CssClasses @_resolvedLabelPositionClass @(Class ?? string.Empty)" style="@InlineStyle">
 
     @* ===== LABEL ROW ===== *@
     <label class="lipi-input-label" for="@EffectiveId">
@@ -52,6 +52,9 @@
             <span class="lipi-input-unit-pill" aria-hidden="true">@Unit</span>
         }
     </label>
+
+    @* ===== INPUT BODY (field + helper grouped for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
 
     @* ===== INPUT FIELD ===== *@
     <div class="lipi-input-field">
@@ -130,6 +133,8 @@
             @HelperText
         </div>
     }
+
+    </div>@* end lipi-input-body *@
 </div>
 
 @code {
@@ -211,6 +216,16 @@
     /// (e.g., "kg", "mg/dL", "₹"). For display only — does NOT affect parsing.</summary>
     [Parameter] public string? Unit { get; set; }
 
+    // ── Phase 2.5.5 — LabelPosition cross-family retrofit ─────────────────────────────────
+
+    /// <summary>Position of the label relative to the input field. Top (default) — label above.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; } = InputLabelPosition.Top;
+
+    /// <summary>Accessible name when Label is empty. Required when Label="" (WCAG 2.1 SC 4.1.2).</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    private string _resolvedLabelPositionClass = string.Empty;
+
     /// <summary>When true (default), filter rejects non-numeric characters before parse.
     /// When false, user can type anything and parse-time validation rejects on blur.
     /// Documented limitation: brief letter-flash on Blazor Server (~20-60ms LAN) due to
@@ -273,6 +288,12 @@
     {
         var errors = base.CollectParameterValidationErrors();
 
+        // Phase 2.5.5 — AriaLabel filter
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+            errors.Add("AriaLabel is required when Label is empty (accessible name for assistive tech).");
+
         if (OnIconRightClick.HasDelegate && string.IsNullOrWhiteSpace(IconRightAriaLabel))
         {
             errors.Add("IconRightAriaLabel is required when OnIconRightClick is wired (WCAG 2.1 SC 4.1.2)");
@@ -290,6 +311,18 @@
         }
 
         return errors;
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
     }
 
     /// <summary>

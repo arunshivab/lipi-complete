@@ -48,7 +48,7 @@
 @inject IJSRuntime JS
 @inject IDateFormatService DateFmt
 
-<div class="lipi-input-wrapper lipi-daterange @CssClasses @(Class ?? string.Empty)"
+<div class="lipi-input-wrapper lipi-daterange @CssClasses @_resolvedLabelPositionClass @(Class ?? string.Empty)"
      style="@InlineStyle"
      @ref="_wrapperRef">
 
@@ -64,6 +64,9 @@
     </label>
 
     @* ===== FIELD ROW ===== *@
+    @* ===== INPUT BODY (field + helper grouped for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
+
     <div class="lipi-input-field lipi-daterange-field" @ref="_anchorRef">
 
         @* Read-only display of the range — clicking opens popover *@
@@ -161,6 +164,8 @@
         <div class="lipi-input-helper" id="@HelperId">@HelperText</div>
     }
 
+    </div>@* end lipi-input-body *@
+
 </div>
 
 @code {
@@ -236,6 +241,16 @@
     /// <summary>Component size — Small/Medium/Large. Default Medium.</summary>
     [Parameter] public InputSize Size { get; set; } = InputSize.Medium;
 
+    // ── Phase 2.5.5 — LabelPosition cross-family retrofit ─────────────────────────────────
+
+    /// <summary>Position of the label relative to the input field. Top (default) — label above.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; } = InputLabelPosition.Top;
+
+    /// <summary>Accessible name when Label is empty. Required when Label="" (WCAG 2.1 SC 4.1.2).</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    private string _resolvedLabelPositionClass = string.Empty;
+
     // ==========================================================================
     // INTERNAL STATE
     // ==========================================================================
@@ -259,6 +274,14 @@
 
     protected override void OnParametersSet()
     {
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
+
         _resolvedFormat = Format ?? DateFmt.GetClinicDateFormat();
         var weekStart = DateFmt.GetClinicWeekStart();
         for (var i = 0; i < 7; i++)

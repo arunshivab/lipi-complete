@@ -190,6 +190,14 @@ public abstract class LipiInputBase<TValue> : InputBase<TValue>, IDisposable
                 EditContext.OnValidationStateChanged += HandleValidationStateChanged;
 
             _previousEditContext = EditContext;
+
+            // Tier 1 reset: a new EditContext means the model was replaced (e.g.,
+            // "Discard changes" swaps the bound object, EditForm creates a fresh
+            // EditContext). Clear touched state so validation errors stop showing
+            // and the apricot required cue re-appears on empty required fields.
+            // This is the idiomatic Blazor reset path — no extra plumbing needed.
+            _isTouched       = false;
+            _editContextError = null;
         }
 
         // Snapshot caller-provided values into resolved fields. We never mutate
@@ -221,6 +229,32 @@ public abstract class LipiInputBase<TValue> : InputBase<TValue>, IDisposable
     private void HandleValidationStateChanged(object? sender, ValidationStateChangedEventArgs e)
     {
         if (EditContext is null) return;
+
+        // Tier 2 reset heuristic: detect the MarkAsUnmodified() + NotifyValidationStateChanged()
+        // protocol used by "Discard changes" buttons that keep the SAME EditContext instance.
+        //
+        // Signal: validation state event fires AND this field has no messages AND is not modified.
+        // This combination is conservative — normal validation-cleared events leave IsModified true
+        // (user typed something). A genuine reset calls MarkAsUnmodified() first (clears IsModified)
+        // then NotifyValidationStateChanged() (fires this handler).
+        //
+        // Documented reset protocol for LiPi forms:
+        //   editContext.MarkAsUnmodified();
+        //   editContext.NotifyValidationStateChanged();
+        //
+        // If Tier 3 (LipiFormContext) ships later, this heuristic can be replaced with
+        // an explicit OnReset event subscription.
+        if (!EditContext.IsModified(FieldIdentifier)
+            && !EditContext.GetValidationMessages(FieldIdentifier).Any())
+        {
+            if (_isTouched || _editContextError is not null)
+            {
+                _isTouched        = false;
+                _editContextError  = null;
+                InvokeAsync(StateHasChanged);
+            }
+            return;
+        }
 
         string? first = null;
         foreach (var msg in EditContext.GetValidationMessages(FieldIdentifier))
@@ -457,6 +491,13 @@ public abstract class LipiInputBase<TValue> : InputBase<TValue>, IDisposable
     // ==========================================================================
 
     protected virtual bool IsEmpty => CurrentValue is null;
+
+    /// <summary>True when the input component renders multi-line content
+    /// (LipiTextArea, LipiMultiSelect, LipiMultiCombobox). Used to apply
+    /// top-alignment for the label in Left/Right LabelPosition layouts
+    /// instead of center-alignment. Phase 2.5.5 — LabelPosition cross-family
+    /// retrofit. Default false; overridden in multi-line components.</summary>
+    protected virtual bool IsMultiLine => false;
 
     protected RequiredVisualStyle EffectiveRequiredStyle =>
         RequiredVisualStyle ?? Defaults.Value.RequiredVisualStyle;

@@ -1,0 +1,566 @@
+@* SPEC:  docs/03-Phase-2.5-Selection-Components/03-LipiRadio-and-Group.md
+           — single-selection semantics + substantive divergences from LipiCheckboxGroup
+   PHASE: 2.5 Step 11
+   AMEND: docs/CHANGE-LOG.md A15 (pending — Phase 2.5 close-out)
+
+   LipiRadioGroup<TItem, TValue> orchestrates single-selection from N options.
+   Bound to TValue (single value) rather than List<TValue>.
+
+   Key divergences from LipiCheckboxGroup:
+     - TValue (single selection) not List<TValue>
+     - Pattern A keyboard nav (roving tabindex) not Pattern B (native tab order)
+     - Type-ahead (alphanumeric, StartsWith, 1s buffer) implemented in v1.0
+     - AllowClear parameter (Clear button in legend + Esc key to deselect)
+     - HTML name coordination: all child radios share the same name attribute
+     - No MinSelections / MaxSelections / ShowSelectionCount
+
+   Audit-item alignments:
+     #2   helper single-bottom slot (no top slot per always-below lock)
+     #4   AllowClear (renamed from AllowDeselect); default false (item #4 lock)
+     #6   ValueSelector uniqueness check (env-gated, same pattern as CBG)
+     #12  cascade context = 2 fields (ReadOnly, OnChildInteracted); same record
+     #19  lock 6 Label/AriaLabel filter fix (mirrors LipiCheckboxGroup)
+     #19  lock 5 error-state left-border rule already in family CSS (.lipi-rg-wrapper)
+*@
+
+@typeparam TItem
+@typeparam TValue
+@inherits LipiInputBase<TValue>
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+
+@*
+   @onkeydown on the fieldset catches keyboard events bubbling up from focused
+   child radio inputs. Pattern A: ArrowDown/Right moves forward, ArrowUp/Left
+   moves backward. Esc clears (when AllowClear). Alphanumeric triggers type-ahead.
+   Tab/Shift+Tab pass through naturally (no preventDefault on Tab).
+*@
+<fieldset class="@WrapperCssClasses"
+          disabled="@Disabled"
+          aria-describedby="@HelperId"
+          aria-label="@(string.IsNullOrEmpty(_resolvedLabel) ? AriaLabel : null)"
+          style="@InlineStyle"
+          @onkeydown="HandleKeyDownAsync">
+
+    @* ===== LEGEND ===== *@
+    @if (!string.IsNullOrEmpty(_resolvedLabel))
+    {
+        <legend class="lipi-rg-label">
+            <span class="lipi-rg-label-text">@_resolvedLabel</span>
+            @if (Required)
+            {
+                <span class="lipi-input-required-asterisk"
+                      aria-label="required field"
+                      title="Required">*</span>
+            }
+            @if (ResolvedAllowClear && CurrentValue is not null)
+            {
+                @* Clear button — visible only when value is non-null.
+                   Hidden by family CSS when .lipi-input-disabled or .lipi-input-readonly. *@
+                <button type="button"
+                        class="lipi-rg-clear"
+                        @onclick="ClearSelectionAsync"
+                        aria-label="Clear selection">
+                    Clear
+                </button>
+            }
+        </legend>
+    }
+
+    @* ===== OPTIONS CONTAINER + CASCADE ===== *@
+    <CascadingValue Value="@_groupContext"
+                    Name="LipiRadioGroupContext"
+                    IsFixed="false">
+        <div class="lipi-rg-options">
+            @{
+                var itemIndex = 0;
+            }
+            @foreach (var item in _materializedItems)
+            {
+                var v = ResolvedValueSelector(item);
+                var capturedV = v;
+                var capturedItem = item;
+                var idx = itemIndex++;
+
+                @* Name: unique per radio (for unique id/aria) → "{groupName}-{v}"
+                   GroupName: shared across all radios → group's resolved name
+                   TabIndex: 0 for the tab-target radio, -1 for all others (Pattern A)
+                   The component ref dictionary is populated by Blazor via @ref. *@
+                <LipiRadio TValue="TValue"
+                           Name="@($"{_resolvedName}-{capturedV}")"
+                           GroupName="@_resolvedName"
+                           Value="@CurrentValue"
+                           ValueChanged="@(EventCallback.Factory.Create<TValue>(this, val => OnItemSelectedAsync(val)))"
+                           ValueExpression="@(() => _childRadioBacking)"
+                           RadioValue="@capturedV"
+                           Label="@(ItemTemplate is null ? ResolvedLabelSelector(capturedItem) : null)"
+                           AriaLabel="@(ItemTemplate is null ? null : ResolvedLabelSelector(capturedItem))"
+                           LabelTemplate="@(ItemTemplate is null ? null : (RenderFragment)(b => ItemTemplate(capturedItem)(b)))"
+                           Helper="@(HelperSelector?.Invoke(capturedItem))"
+                           Disabled="@IsItemDisabledForRender(capturedItem)"
+                           Size="@Size"
+                           TabIndex="@GetTabIndexForItem(capturedV)"
+                           @ref="_refs[idx]"
+                           @key="capturedV" />
+            }
+        </div>
+    </CascadingValue>
+
+    @* ===== HELPER SLOT (single-bottom per audit item #2) ===== *@
+    @if (HasHelperContent || Defaults.Value.AlwaysReserveHelperSlot)
+    {
+        <div id="@HelperId"
+             class="@HelperCssClasses"
+             role="@HelperRole"
+             aria-live="@HelperAriaLive">
+            @HelperText
+        </div>
+    }
+</fieldset>
+
+
+@code {
+    // ==========================================================================
+    // CASCADE STATE — 2-field record (audit item #12)
+    // ==========================================================================
+
+    private LipiRadioGroupContext _groupContext = default!;
+    private EventCallback _onChildInteracted;
+
+    // Dummy backing field used only to satisfy InputBase<TValue>'s ValueExpression
+    // requirement. FieldIdentifier.ParseAccessor requires a simple member accessor;
+    // () => CurrentValue fails because CurrentValue is a protected base-class property
+    // that compiles to an InstanceMethodCallExpression. This field is never read or
+    // written at runtime — the group handles EditContext notifications itself.
+    private TValue _childRadioBacking = default!;
+
+    private bool ResolvedReadOnly => ReadOnly;
+
+
+    // ==========================================================================
+    // COMPONENT REF DICTIONARY — for Pattern A focus management (no JS needed)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Keyed by materialized-list index (int) rather than TValue because
+    // Dictionary<TKey> requires TKey : notnull and TValue may be nullable.
+    // SelectAtIndexAsync already holds the materialized index, so int-keyed
+    // lookup is natural and avoids the CS8714 nullable constraint warning.
+    // ==========================================================================
+
+    private Dictionary<int, LipiRadio<TValue>?> _refs = new();
+
+    /// <summary>Materialized items list — enables O(1) index access for keyboard
+    /// navigation without re-enumerating Items on every keystroke.</summary>
+    private List<TItem> _materializedItems = new();
+
+
+    // ==========================================================================
+    // TYPE-AHEAD STATE
+    // ──────────────────────────────────────────────────────────────────────────
+    // Buffer accumulates typed characters. Resets after 1000ms silence.
+    // Matches LipiMultiSelectBase precedent (1s window). StartsWith, case-insensitive.
+    // ==========================================================================
+
+    private string _typeAheadBuffer = string.Empty;
+    private DateTime _typeAheadLastKeyAt = DateTime.MinValue;
+    private static readonly TimeSpan TypeAheadResetWindow = TimeSpan.FromSeconds(1);
+
+
+    // ==========================================================================
+    // COMPONENT-SPECIFIC PARAMETERS (Decision 3.2 parameter list)
+    // ==========================================================================
+
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items { get; set; }
+        = Array.Empty<TItem>();
+
+    [Parameter] public Func<TItem, TValue>? ValueSelector { get; set; }
+
+    [Parameter] public Func<TItem, string>? LabelSelector { get; set; }
+
+    [Parameter] public Func<TItem, bool>? DisabledSelector { get; set; }
+
+    [Parameter] public Func<TItem, string?>? HelperSelector { get; set; }
+
+    [Parameter] public RenderFragment<TItem>? ItemTemplate { get; set; }
+
+    [Parameter] public CheckboxGroupOrientation Orientation { get; set; }
+        = CheckboxGroupOrientation.Vertical;
+
+    [Parameter] public int Columns { get; set; } = 2;
+
+    [Parameter] public CheckboxGroupDensity? Density { get; set; }
+
+    [Parameter] public string? AriaLabel { get; set; }
+
+    // ── Phase 2.5.5 — LabelPosition (deferred from Phase 2.5 Decision 2.7) ──────────────
+
+    /// <summary>Position of the group legend relative to the options container.
+    /// Top (default) — legend above options. Left — legend left column. Right — legend right.
+    /// Bottom — legend below options.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; } = InputLabelPosition.Top;
+
+    private string _resolvedLabelPositionClass = string.Empty;
+
+    /// <summary>Allow user to clear the selection back to null via the Clear button
+    /// (in legend) or Esc key (while focus is in group). Default: false per audit
+    /// item #4 — opt-in because Esc collision risk in overlay contexts (Modal,
+    /// drawers). Clinical workflows that need revision support opt in explicitly.
+    /// Null = inherit from <see cref="LipiInputDefaults.RadioGroupAllowClear"/>.</summary>
+    [Parameter] public bool? AllowClear { get; set; }
+
+
+    // ==========================================================================
+    // RESOLVED SELECTORS + DENSITY
+    // ==========================================================================
+
+    private TValue ResolvedValueSelector(TItem item)
+    {
+        if (ValueSelector is not null) return ValueSelector(item);
+        if (item is TValue tv) return tv;
+        throw new InvalidOperationException(
+            $"ValueSelector is required when TItem ({typeof(TItem).Name}) " +
+            $"is not assignable to TValue ({typeof(TValue).Name}).");
+    }
+
+    private string ResolvedLabelSelector(TItem item)
+        => LabelSelector?.Invoke(item) ?? item?.ToString() ?? string.Empty;
+
+    private CheckboxGroupDensity ResolvedDensity
+        => Density ?? Defaults.Value.CheckboxGroupDensity;
+
+    private bool ResolvedAllowClear
+        => AllowClear ?? Defaults.Value.RadioGroupAllowClear;
+
+
+    // ==========================================================================
+    // BASE CLASS OVERRIDES
+    // ==========================================================================
+
+    protected override string ComponentIdPrefix => "rg";
+    protected override string ComponentTypeName => "LipiRadioGroup";
+
+    protected override bool IsEmpty => CurrentValue is null;
+
+    protected override bool TryParseValueFromString(
+        string? value, out TValue result, out string validationErrorMessage)
+    {
+        result = CurrentValue!;
+        validationErrorMessage = string.Empty;
+        return true;
+    }
+
+    protected override List<string> CollectParameterValidationErrors()
+    {
+        var errors = base.CollectParameterValidationErrors();
+
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+            errors.Add("Either Label or AriaLabel is required (accessible name for assistive tech).");
+
+        if (Orientation == CheckboxGroupOrientation.Grid && (Columns < 2 || Columns > 6))
+            errors.Add($"Columns must be between 2 and 6 when Orientation=Grid. Got {Columns}.");
+
+        // ValueSelector uniqueness (audit item #6)
+        if (ValueSelector is not null && Items is not null)
+        {
+            var seen = new HashSet<TValue>();
+            var nullCount = 0;
+            foreach (var item in Items)
+            {
+                var v = ValueSelector(item);
+                if (v is null) { if (++nullCount > 1) { errors.Add("ValueSelector returned null for multiple items."); break; } continue; }
+                if (!seen.Add(v)) { errors.Add($"ValueSelector returned duplicate value '{v}'."); break; }
+            }
+        }
+
+        return errors;
+    }
+
+
+    // ==========================================================================
+    // LIFECYCLE
+    // ==========================================================================
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _onChildInteracted = EventCallback.Factory.Create(this, OnChildInteractedHandler);
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        // Phase 2.5.5 — resolve label position CSS class.
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
+
+        // Materialize items and pre-populate ref dictionary with null slots.
+        // Blazor's @ref will populate actual instances after render.
+        _materializedItems = Items.ToList();
+
+        var newRefs = new Dictionary<int, LipiRadio<TValue>?>();
+        for (var i = 0; i < _materializedItems.Count; i++)
+        {
+            // Preserve existing ref at the same index (avoids losing ref on re-render
+            // when unrelated params change and Items hasn't been replaced).
+            _refs.TryGetValue(i, out var existing);
+            newRefs[i] = existing;
+        }
+        _refs = newRefs;
+
+        _groupContext = new LipiRadioGroupContext(ResolvedReadOnly, _onChildInteracted);
+    }
+
+
+    // ==========================================================================
+    // SELECTION
+    // ==========================================================================
+
+    private async Task OnItemSelectedAsync(TValue value)
+    {
+        CurrentValue = value;
+        await ValueChanged.InvokeAsync(value);
+        EditContext?.NotifyFieldChanged(FieldIdentifier);
+    }
+
+    private async Task ClearSelectionAsync()
+    {
+        if (Disabled || ResolvedReadOnly) return;
+        CurrentValue = default!;
+        await ValueChanged.InvokeAsync(default!);
+        EditContext?.NotifyFieldChanged(FieldIdentifier);
+        MarkFieldAsTouched();
+    }
+
+    private bool IsItemDisabledForRender(TItem item)
+        => DisabledSelector?.Invoke(item) ?? false;
+
+    private void OnChildInteractedHandler() => MarkFieldAsTouched();
+
+
+    // ==========================================================================
+    // PATTERN A TABINDEX MANAGEMENT
+    // ──────────────────────────────────────────────────────────────────────────
+    // Selected radio → tabindex 0. All others → tabindex -1.
+    // When no selection → first non-disabled radio → tabindex 0.
+    // ==========================================================================
+
+    private int GetTabIndexForItem(TValue v)
+    {
+        if (CurrentValue is not null)
+        {
+            return EqualityComparer<TValue>.Default.Equals(CurrentValue, v) ? 0 : -1;
+        }
+
+        // No selection: first non-disabled radio gets tab stop
+        foreach (var item in _materializedItems)
+        {
+            if (IsItemDisabledForRender(item)) continue;
+            var firstV = ResolvedValueSelector(item);
+            return EqualityComparer<TValue>.Default.Equals(firstV, v) ? 0 : -1;
+        }
+
+        return -1; // all disabled
+    }
+
+
+    // ==========================================================================
+    // PATTERN A KEYBOARD NAVIGATION (Decision 3.2.16)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Arrow keys: move + select in one action (WAI-ARIA APG radiogroup pattern).
+    // Type-ahead: StartsWith match, 1s buffer reset.
+    // Esc: clear (when AllowClear).
+    // Tab/Shift+Tab: pass through naturally (not captured).
+    // ==========================================================================
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+            case "ArrowRight":
+                await MoveSelectionAsync(1);
+                break;
+            case "ArrowUp":
+            case "ArrowLeft":
+                await MoveSelectionAsync(-1);
+                break;
+            case "Home":
+                await SelectAtIndexAsync(FindFirstNonDisabledIndex());
+                break;
+            case "End":
+                await SelectAtIndexAsync(FindLastNonDisabledIndex());
+                break;
+            case "Escape":
+                if (ResolvedAllowClear && CurrentValue is not null)
+                    await ClearSelectionAsync();
+                break;
+            default:
+                await HandleTypeAheadAsync(e);
+                break;
+        }
+    }
+
+    private async Task MoveSelectionAsync(int direction)
+    {
+        if (_materializedItems.Count == 0) return;
+
+        var enabledItems = _materializedItems
+            .Select((item, i) => (item, index: i))
+            .Where(x => !IsItemDisabledForRender(x.item))
+            .ToList();
+
+        if (enabledItems.Count == 0) return;
+
+        var currentEnabledIndex = CurrentValue is not null
+            ? enabledItems.FindIndex(x =>
+                EqualityComparer<TValue>.Default.Equals(
+                    ResolvedValueSelector(x.item), CurrentValue))
+            : -1;
+
+        var nextEnabledIndex = currentEnabledIndex < 0
+            ? (direction > 0 ? 0 : enabledItems.Count - 1)
+            : ((currentEnabledIndex + direction + enabledItems.Count) % enabledItems.Count);
+
+        await SelectAtIndexAsync(enabledItems[nextEnabledIndex].index);
+    }
+
+    private async Task SelectAtIndexAsync(int materializedIndex)
+    {
+        if (materializedIndex < 0 || materializedIndex >= _materializedItems.Count) return;
+
+        var item = _materializedItems[materializedIndex];
+        if (IsItemDisabledForRender(item)) return;
+
+        var v = ResolvedValueSelector(item);
+        await OnItemSelectedAsync(v);
+        MarkFieldAsTouched();
+
+        // Focus the newly-selected radio (Pattern A — move + select together)
+        // FocusAsync uses Blazor's built-in ElementReference.FocusAsync() — no JS injection needed.
+        if (_refs.TryGetValue(materializedIndex, out var radioRef) && radioRef is not null)
+        {
+            await radioRef.InputRef.FocusAsync();
+        }
+    }
+
+    private int FindFirstNonDisabledIndex()
+    {
+        for (var i = 0; i < _materializedItems.Count; i++)
+            if (!IsItemDisabledForRender(_materializedItems[i])) return i;
+        return -1;
+    }
+
+    private int FindLastNonDisabledIndex()
+    {
+        for (var i = _materializedItems.Count - 1; i >= 0; i--)
+            if (!IsItemDisabledForRender(_materializedItems[i])) return i;
+        return -1;
+    }
+
+
+    // ==========================================================================
+    // TYPE-AHEAD (Decision 3.2.17)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Alphanumeric key appends to buffer. Buffer resets after 1000ms silence.
+    // StartsWith match (case-insensitive) on label text. Skips disabled items.
+    // ==========================================================================
+
+    private async Task HandleTypeAheadAsync(KeyboardEventArgs e)
+    {
+        if (e.Key.Length != 1 || !char.IsLetterOrDigit(e.Key[0])) return;
+
+        var now = DateTime.UtcNow;
+        if (now - _typeAheadLastKeyAt > TypeAheadResetWindow)
+            _typeAheadBuffer = string.Empty;
+
+        _typeAheadBuffer += e.Key.ToLowerInvariant();
+        _typeAheadLastKeyAt = now;
+
+        var matchIndex = FindNextMatchingIndex(_typeAheadBuffer);
+        if (matchIndex >= 0)
+            await SelectAtIndexAsync(matchIndex);
+    }
+
+    private int FindNextMatchingIndex(string buffer)
+    {
+        for (var i = 0; i < _materializedItems.Count; i++)
+        {
+            var item = _materializedItems[i];
+            if (IsItemDisabledForRender(item)) continue;
+
+            var label = ResolvedLabelSelector(item).ToLowerInvariant();
+            if (label.StartsWith(buffer, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+        return -1;
+    }
+
+
+    // ==========================================================================
+    // CSS CLASS COMPOSITION
+    // ==========================================================================
+
+    private string WrapperCssClasses
+    {
+        get
+        {
+            var classes = new List<string>(9) { "lipi-rg-wrapper" };
+            if (!string.IsNullOrEmpty(_resolvedLabelPositionClass))
+                classes.Add(_resolvedLabelPositionClass);
+            classes.Add($"lipi-input-{Size.ToString().ToLowerInvariant()}");
+            classes.Add($"lipi-input-orient-{Orientation.ToString().ToLowerInvariant()}");
+
+            if (Orientation == CheckboxGroupOrientation.Grid)
+            {
+                var cols = Columns < 2 ? 2 : Columns > 6 ? 2 : Columns;
+                classes.Add($"lipi-input-cols-{cols}");
+            }
+
+            classes.Add($"lipi-input-density-{ResolvedDensity.ToString().ToLowerInvariant()}");
+
+            if (Disabled)         classes.Add("lipi-input-disabled");
+            if (ResolvedReadOnly) classes.Add("lipi-input-readonly");
+
+            if (HasErrorState)
+                classes.Add("lipi-input-error");
+            else if (ShouldShowRequiredAmbientCue)
+                classes.Add("lipi-input-required-tint");
+
+            if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    private bool HasErrorState => ResolvedState == InputState.Error;
+
+    private bool ShouldShowRequiredAmbientCue
+        => Required && IsEmpty && !HasErrorState && !Disabled && !ResolvedReadOnly
+           && EffectiveRequiredStyle == LiPi.Web.Components.Shared.RequiredVisualStyle.ApricotTint;
+
+    private string HelperCssClasses
+    {
+        get
+        {
+            var stateClass = ResolvedState switch
+            {
+                InputState.Error   => "lipi-input-helper-error",
+                InputState.Warning => "lipi-input-helper-warning",
+                InputState.Success => "lipi-input-helper-success",
+                _                  => null
+            };
+            return stateClass is null
+                ? "lipi-input-helper lipi-input-helper-bottom"
+                : $"lipi-input-helper lipi-input-helper-bottom {stateClass}";
+        }
+    }
+}

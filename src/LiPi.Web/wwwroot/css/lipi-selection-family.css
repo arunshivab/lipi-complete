@@ -1,0 +1,506 @@
+/* SPEC:     docs/03-Phase-2.5-Selection-Components/05-Cross-Cutting.md §5.3, §5.4
+   PHASE:    Phase 2 Sub-step 2.5 — Selection Components family
+   AMEND:    docs/CHANGE-LOG.md A15 (May 9, 2026): file ships
+             A15 step-9 amendment (May 16, 2026): error-state left-border rule
+             added per audit item #19 lock 5 — covers both .lipi-cbg-* and
+             .lipi-rg-* selectors upfront so step 11 LipiRadioGroup ships
+             without further family-CSS amendment.
+
+   Shared family CSS for the LiPi selection component family:
+     LipiCheckbox, LipiCheckboxGroup, LipiRadio, LipiRadioGroup, LipiToggle.
+
+   Per-component scoped CSS files (LipiCheckbox.razor.css, etc.) hold ONLY
+   component shape rules — indicator dimensions, border-radius, transforms,
+   transitions on the indicator itself, etc.
+
+   ─────────────────────────────────────────────────────────────────────────
+   LAYOUT-VS-SHAPE RULE (audit item #1 — LOCKED architectural principle)
+   ─────────────────────────────────────────────────────────────────────────
+   Scoped .razor.css contains COMPONENT SHAPE only. All LAYOUT lives here.
+
+   PROPERTY CLASSIFICATION:
+     LAYOUT (this file ONLY):
+       display, flex-direction, flex-wrap, justify-content, align-items,
+       align-self, grid-template-columns, grid-template-rows, grid-area,
+       gap, place-items, order
+     SHAPE (scoped .razor.css):
+       border-radius, width, height, transform, transition, animation,
+       box-shadow, color, background-color, border, ::before/::after geometry
+
+   Reason: Blazor scoped CSS appends [b-{hash}] attributes to selectors,
+   raising specificity above same-class selectors in plain stylesheets. If
+   layout primitives lived in scoped files, family-level orientation/density
+   modifiers would silently fail to apply (specificity battle, source-order
+   tiebreak). Eliminating overlap on layout properties prevents the battle.
+
+   ─────────────────────────────────────────────────────────────────────────
+   ONE-SENTENCE TEST FOR EVERY CSS RULE
+   ─────────────────────────────────────────────────────────────────────────
+   "Does this property have a class modifier defined in family CSS?"
+     If YES → family.    If NO → scoped is OK.
+
+   ─────────────────────────────────────────────────────────────────────────
+   LOAD ORDER (App.razor cascade)
+   ─────────────────────────────────────────────────────────────────────────
+   Loaded AFTER 00-baseline.css (so var(--*) tokens resolve), AFTER theme
+   files (mode-light / mode-dark for color tokens), AFTER lipi-inputs.css
+   (Phase 2.2 family base — selection family extends those classes), and
+   BEFORE LiPi.Web.styles.css (Blazor scoped CSS bundle has highest
+   specificity via [b-{hash}] attributes; loading last reinforces this).
+*/
+
+
+/* =========================================================================
+   WRAPPERS — individual selection components (Checkbox, Radio, Toggle)
+   ========================================================================= */
+
+.lipi-checkbox-wrapper,
+.lipi-radio-wrapper,
+.lipi-toggle-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-sm); /* 8px between indicator and label, matches LipiCheckbox §1.8 */
+    font-family: var(--font-ui);
+    font-size: var(--ts-body);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+
+/* =========================================================================
+   LABEL POSITION (individual components — InputLabelPosition enum)
+   InputLabelPosition.Right (default)  → indicator on left, label on right
+   InputLabelPosition.Left              → label on left, indicator on right
+   InputLabelPosition.Top               → indicator above, label below
+   InputLabelPosition.Bottom            → label above, indicator below
+   ========================================================================= */
+
+.lipi-input-label-pos-right {
+    flex-direction: row;
+}
+
+.lipi-input-label-pos-left {
+    flex-direction: row-reverse;
+}
+
+.lipi-input-label-pos-top {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-xs); /* 4px — tighter for column layouts per §1.8 */
+}
+
+.lipi-input-label-pos-bottom {
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: var(--sp-xs);
+}
+
+
+/* =========================================================================
+   GROUP WRAPPERS — Checkbox group, Radio group (fieldset semantics)
+   <fieldset> default styling (border, padding, margin) reset here so the
+   group renders flush; the visual border treatment for required-tint is
+   applied via .lipi-input-required-tint below.
+   ========================================================================= */
+
+.lipi-cbg-wrapper,
+.lipi-rg-wrapper {
+    display: block;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+    font-family: var(--font-ui);
+    color: var(--color-text-primary);
+}
+
+
+/* =========================================================================
+   GROUP LABEL (legend element) — top label only for v1.0
+   Per audit item #2 (decision 2.12 reversed): selection family is
+   always-below; no LabelPosition parameter on groups in v1.0. The group
+   legend always sits at the top.
+   ========================================================================= */
+
+.lipi-cbg-label,
+.lipi-rg-label {
+    display: block;
+    font-size: var(--ts-label);
+    font-weight: var(--fw-medium);
+    color: var(--color-text-strong-secondary);
+    line-height: 1.3;
+    margin-bottom: var(--sp-xs);
+    /* legend reset */
+    padding: 0;
+}
+
+
+/* =========================================================================
+   OPTIONS CONTAINERS — child checkbox/radio rendering area
+   Default layout: vertical flex column (Orientation.Vertical, the default).
+   Orientation modifier classes below override flex-direction or display
+   for horizontal/grid variants.
+   ========================================================================= */
+
+.lipi-cbg-options,
+.lipi-rg-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cbg-row-gap, var(--sp-sm));
+}
+
+
+/* =========================================================================
+   GROUP ORIENTATION MODIFIERS
+   Applied to .lipi-cbg-wrapper / .lipi-rg-wrapper (the fieldset). The
+   descendant .lipi-cbg-options / .lipi-rg-options inherits the layout.
+   ========================================================================= */
+
+.lipi-input-orient-vertical .lipi-cbg-options,
+.lipi-input-orient-vertical .lipi-rg-options {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: var(--cbg-row-gap, var(--sp-sm));
+}
+
+.lipi-input-orient-horizontal .lipi-cbg-options,
+.lipi-input-orient-horizontal .lipi-rg-options {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--cbg-row-gap, var(--sp-sm)) var(--cbg-col-gap, var(--sp-lg));
+}
+
+.lipi-input-orient-grid .lipi-cbg-options,
+.lipi-input-orient-grid .lipi-rg-options {
+    display: grid;
+    grid-template-columns: repeat(var(--cbg-cols, 2), 1fr);
+    gap: var(--cbg-row-gap, var(--sp-sm)) var(--cbg-col-gap, var(--sp-lg));
+}
+
+
+/* =========================================================================
+   GRID COLUMN COUNT (--cbg-cols custom property via class modifier)
+   Per audit item #1 lock — Path A class-based (consistent with all other
+   family-level modifiers). Range 2-6 enforced in Razor; only these classes
+   exist. Out-of-range Columns parameter is caught by env-gated validation
+   in OnParametersSet (Dev throws, Prod clamps to 2 + logs).
+   ========================================================================= */
+
+.lipi-input-cols-2 { --cbg-cols: 2; }
+.lipi-input-cols-3 { --cbg-cols: 3; }
+.lipi-input-cols-4 { --cbg-cols: 4; }
+.lipi-input-cols-5 { --cbg-cols: 5; }
+.lipi-input-cols-6 { --cbg-cols: 6; }
+
+
+/* =========================================================================
+   GROUP DENSITY MODIFIERS
+   Custom properties --cbg-row-gap and --cbg-col-gap consumed by orientation
+   rules above. Three tiers per CheckboxGroupDensity enum.
+   ========================================================================= */
+
+.lipi-input-density-tight {
+    --cbg-row-gap: 2px;
+    --cbg-col-gap: var(--sp-md);  /* 12px */
+}
+
+.lipi-input-density-standard {
+    --cbg-row-gap: var(--sp-sm);  /* 8px — default */
+    --cbg-col-gap: var(--sp-lg);  /* 16px */
+}
+
+.lipi-input-density-spacious {
+    --cbg-row-gap: var(--sp-lg);  /* 16px */
+    --cbg-col-gap: var(--sp-xl);  /* 24px */
+}
+
+
+/* =========================================================================
+   STATE MODIFIERS — disabled, readonly, error
+   Per Decision 2.9: Wrapper-level opacity covers legend, options, helper.
+   No per-element opacity stacking (children inherit cleanly via cascade).
+   Disabled cascade for child inputs is handled by native <fieldset disabled>
+   on group components — no C# wiring per child.
+   ========================================================================= */
+
+.lipi-input-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.lipi-input-disabled .lipi-checkbox-wrapper,
+.lipi-input-disabled .lipi-radio-wrapper,
+.lipi-input-disabled .lipi-toggle-wrapper {
+    cursor: not-allowed;
+}
+
+.lipi-input-readonly {
+    cursor: default;
+}
+
+.lipi-input-readonly .lipi-checkbox-wrapper,
+.lipi-input-readonly .lipi-radio-wrapper,
+.lipi-input-readonly .lipi-toggle-wrapper {
+    cursor: default;
+}
+
+.lipi-input-error .lipi-cbg-label,
+.lipi-input-error .lipi-rg-label {
+    color: var(--color-danger);
+}
+
+
+/* =========================================================================
+   REQUIRED ASTERISK — red marker on group legend / individual labels
+   Matches Phase 2.2 lipi-inputs.css convention (--color-danger, weight 600).
+   ========================================================================= */
+
+.lipi-input-required-asterisk {
+    color: var(--color-danger);
+    font-weight: var(--fw-semi);
+    line-height: 1;
+    margin-left: 2px;
+}
+
+
+/* =========================================================================
+   REQUIRED AMBIENT CUE (T-G2) — apricot left-border + bg-fade on group
+   Applied via .lipi-input-required-tint class on group wrapper when
+   Required && IsEmpty && RequiredVisualStyle == ApricotTint.
+   Cue retracts (class removed) when any selection is made; transition
+   smooths the visual change.
+   Per audit item #17: --color-required-strong defined in mode files.
+   ========================================================================= */
+
+.lipi-input-required-tint .lipi-cbg-options,
+.lipi-input-required-tint .lipi-rg-options {
+    border-left: 3px solid var(--color-required-strong);
+    padding-left: var(--sp-md);
+    background: linear-gradient(
+        90deg,
+        var(--color-required-bg) 0%,
+        transparent 40%
+    );
+    border-radius: var(--r-sm);
+    transition: border-color var(--tr-fast),
+                background var(--tr-fast);
+}
+
+
+/* =========================================================================
+   ERROR STATE CUE — danger left-border + danger-tinted bg-fade on group
+   Applied via .lipi-input-error class on group wrapper when ResolvedState
+   is Error (validation message present, _groupTouched is true, etc).
+   Phase 2.5 step 9 amendment per audit item #19 lock 5.
+
+   Selectors include both .lipi-cbg-wrapper (LipiCheckboxGroup) AND
+   .lipi-rg-wrapper (LipiRadioGroup, ships in step 11) so the family CSS
+   covers both groups upfront — no further amendment needed when LipiRadioGroup
+   ships.
+
+   Layout-vs-Shape compliance: border-left + background are SHAPE properties
+   (not display/flex/grid). Family CSS retains them per item #1 because
+   they are family-shared (both groups need identical treatment).
+
+   State precedence: Error class wins over Required-Empty class (state cascade
+   in C# composition). When error and required-empty would both apply, only
+   .lipi-input-error is emitted, so this rule fires alone.
+   ========================================================================= */
+
+.lipi-cbg-wrapper.lipi-input-error .lipi-cbg-options,
+.lipi-rg-wrapper.lipi-input-error .lipi-rg-options {
+    border-left: 3px solid var(--color-danger);
+    padding-left: var(--sp-md);
+    background: linear-gradient(
+        90deg,
+        var(--color-danger-pale) 0%,
+        transparent 40%
+    );
+    border-radius: var(--r-sm);
+    transition: border-color var(--tr-fast),
+                background var(--tr-fast);
+}
+
+
+/* =========================================================================
+   HELPER SLOT — ALWAYS BELOW (audit item #2 LOCKED)
+   Default helper, error, warning, success — all render in the SAME slot
+   below the options container. Top slot was removed entirely from Phase 2.5.
+   Reason: cross-family consistency with LipiTextBox/Select/Date (all below);
+   auto-scroll-to-first-error is a project rule (handles tall-group case).
+   ========================================================================= */
+
+.lipi-input-helper {
+    display: flex;
+    align-items: flex-start;
+    margin-top: var(--sp-xs);
+    font-size: var(--ts-small);
+    line-height: 1.3;
+    color: var(--color-text-secondary);
+    font-weight: var(--fw-regular);
+}
+
+/* min-height reserves space when AlwaysReserveHelperSlot=true (default).
+   Prevents layout shift when validation fires. */
+.lipi-input-helper-bottom {
+    min-height: 16px;
+}
+
+/* State-specific color modifiers on helper text */
+.lipi-input-helper-error   { color: var(--color-danger); }
+.lipi-input-helper-warning { color: var(--color-warning-text-strong); }
+.lipi-input-helper-success { color: var(--color-success-text-strong); }
+
+
+/* =========================================================================
+   SELECTION COUNT DISPLAY (LipiCheckboxGroup)
+   Live count of selected items, optionally shown via ShowSelectionCount.
+   State modifiers per Decision 2.11 + audit item #8b:
+     near-max  — Count == MaxSelections - 1 (warning color)
+     at-max    — Count == MaxSelections     (emphatic)
+     over-max  — Count > MaxSelections      (danger; should not normally
+                                              occur — env-gated check in
+                                              OnParametersSet logs in Prod)
+   ========================================================================= */
+
+.lipi-cbg-count {
+    font-size: var(--ts-small);
+    color: var(--color-text-tertiary);
+    font-weight: var(--fw-regular);
+    line-height: 1;
+}
+
+.lipi-cbg-count-near-max {
+    color: var(--color-warning-text-strong);
+    font-weight: var(--fw-medium);
+}
+
+.lipi-cbg-count-at-max {
+    color: var(--color-text-primary);
+    font-weight: var(--fw-semi);
+}
+
+/* Audit item #8b: bound Value.Count > MaxSelections.
+   Production renders the over-max state with this danger-color cue
+   while ValidateOrFallback logs the violation. User can recover by
+   deselecting items. */
+.lipi-cbg-count-over-max {
+    color: var(--color-danger);
+    font-weight: var(--fw-semi);
+}
+
+
+/* =========================================================================
+   CLEAR BUTTON (LipiRadioGroup) — opt-in via AllowClear="true"
+   Per audit item #4: AllowClear default false; pages opt in per use case.
+   Rendered in the legend area when ResolvedAllowClear && CurrentValue is not null.
+   ========================================================================= */
+
+.lipi-rg-clear {
+    display: inline-flex;
+    align-items: center;
+    margin-left: var(--sp-sm);
+    padding: 0 var(--sp-xs);
+    font-family: var(--font-ui);
+    font-size: var(--ts-small);
+    font-weight: var(--fw-medium);
+    color: var(--color-primary);
+    background: transparent;
+    border: 0;
+    border-radius: var(--r-2xs);
+    cursor: pointer;
+    line-height: 1.3;
+    transition: color var(--tr-fast), background-color var(--tr-fast);
+}
+
+.lipi-rg-clear:hover {
+    color: var(--color-primary-hover);
+    background-color: var(--color-primary-pale);
+}
+
+.lipi-rg-clear:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+}
+
+.lipi-rg-clear:active {
+    color: var(--color-primary-active);
+}
+
+/* Disabled + readonly cascade: Clear button hidden in those states
+   (group's parent state propagates via the wrapper's class) */
+.lipi-input-disabled .lipi-rg-clear,
+.lipi-input-readonly .lipi-rg-clear {
+    display: none;
+}
+
+
+/* ===================== GROUP LABEL POSITION — Phase 2.5.5 =====================
+   LipiCheckboxGroup and LipiRadioGroup gain LabelPosition.
+
+   WHY NOT display:grid ON FIELDSET:
+   <fieldset> cannot be a CSS Grid container for <legend> — browsers treat
+   <legend> as a special element that floats above the fieldset content
+   regardless of display:grid. Grid applies only to non-legend children.
+
+   SOLUTION: position:absolute on the legend + padding-left/right on the
+   fieldset to create the label column. The options and helper flow naturally
+   in the padded content area (right column). No component markup changes needed.
+   ============================================================================= */
+
+/* ===================== GROUP LABEL POSITION — LEFT =====================
+   Legend absolute-positioned in left column; fieldset padded left to
+   leave that column space for the options + helper. */
+
+.lipi-input-label-left.lipi-cbg-wrapper,
+.lipi-input-label-left.lipi-rg-wrapper {
+    position: relative;
+    padding-left: var(--lipi-label-w, 180px);
+    /* display: block already (fieldset default) — no grid override needed */
+}
+
+.lipi-input-label-left .lipi-cbg-label,
+.lipi-input-label-left .lipi-rg-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--lipi-label-w, 180px);
+    box-sizing: border-box;
+    padding-right: 12px;
+    padding-top: 2px;
+    text-align: right;
+    justify-content: flex-end;
+}
+
+
+/* ===================== GROUP LABEL POSITION — RIGHT =====================
+   Legend absolute-positioned in right column; fieldset padded right. */
+
+.lipi-input-label-right.lipi-cbg-wrapper,
+.lipi-input-label-right.lipi-rg-wrapper {
+    position: relative;
+    padding-right: var(--lipi-label-w, 180px);
+}
+
+.lipi-input-label-right .lipi-cbg-label,
+.lipi-input-label-right .lipi-rg-label {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: var(--lipi-label-w, 180px);
+    box-sizing: border-box;
+    padding-left: 12px;
+    padding-top: 4px;
+    text-align: left;
+    justify-content: flex-start;
+}
+
+
+/* ===================== GROUP LABEL POSITION — BOTTOM =====================
+   Legend below options (column-reverse on the fieldset). */
+
+.lipi-input-label-bottom.lipi-cbg-wrapper,
+.lipi-input-label-bottom.lipi-rg-wrapper {
+    flex-direction: column-reverse;
+}

@@ -44,7 +44,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 
-<div class="@CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
+<div class="@CssClasses @_resolvedLabelPositionClass lipi-input-multiline @(Class ?? string.Empty)" style="@InlineStyle">
 
     @* ===== LABEL ROW ===== *@
     <label class="lipi-input-label" for="@EffectiveId">
@@ -63,6 +63,9 @@
             </span>
         }
     </label>
+
+    @* ===== INPUT BODY (field + helper grouped for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
 
     @* ===== FIELD BAR ===== *@
     <div class="lipi-input-field"
@@ -319,12 +322,17 @@
             @HelperText
         </div>
     }
+
+    </div>@* end lipi-input-body *@
 </div>
 
 @code {
     // ==========================================================================
     // CALLER PARAMETERS — combobox-specific (selectors + templates)
     // ==========================================================================
+
+    /// <summary>MultiCombobox renders multi-line chip container. Phase 2.5.5.</summary>
+    protected override bool IsMultiLine => true;
 
     /// <summary>Extract the bound value from an option item. REQUIRED.
     /// e.g., (Diagnosis d) =&gt; d.Id</summary>

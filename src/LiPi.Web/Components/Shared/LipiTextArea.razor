@@ -23,7 +23,7 @@
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
 
-<div class="lipi-input-wrapper @CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
+<div class="lipi-input-wrapper @CssClasses @_resolvedLabelPositionClass @(IsMultiLine ? "lipi-input-multiline" : null) @(Class ?? string.Empty)" style="@InlineStyle">
 
     @* ===== LABEL ROW ===== *@
     <label class="lipi-input-label" for="@EffectiveId">
@@ -44,6 +44,9 @@
             </span>
         }
     </label>
+
+    @* ===== INPUT BODY (field + helper grouped for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
 
     @* ===== TEXTAREA ROW ===== *@
     <div class="lipi-input-field">
@@ -96,6 +99,8 @@
             @HelperText
         </div>
     }
+
+    </div>@* end lipi-input-body *@
 </div>
 
 @code {
@@ -125,6 +130,29 @@
     /// <summary>Browser-enforced maximum character count. Forwarded to the textarea
     /// element's maxlength attribute.</summary>
     [Parameter] public int? MaxLength { get; set; }
+
+    // ── Phase 2.5.5 — LabelPosition cross-family retrofit ─────────────────────────────────
+
+    /// <summary>Position of the label relative to the textarea. Top (default) — label above.
+    /// Left/Right — label side-by-side (always top-aligned for multiline). Bottom — caption.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; } = InputLabelPosition.Top;
+
+    /// <summary>Accessible name when Label is empty. Required when Label="" (WCAG 2.1 SC 4.1.2).</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    private string _resolvedLabelPositionClass = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
+    }
 
     /// <summary>Initial visible row count — autogrows up from this minimum. Default 2.</summary>
     [Parameter] public int MinRows { get; set; } = 2;
@@ -171,12 +199,22 @@
     /// trigger when a user clears the textarea.</summary>
     protected override bool IsEmpty => string.IsNullOrEmpty(CurrentValueAsString);
 
+    /// <summary>True — LipiTextArea is multi-line. Triggers top-alignment of labels
+    /// in Left/Right LabelPosition layouts. Phase 2.5.5.</summary>
+    protected override bool IsMultiLine => true;
+
     /// <summary>Append the LipiTextArea-specific component-validation checks
     /// (IconRightAriaLabel required when OnIconRightClick is wired; MinRows/MaxRows
     /// bounds and ordering).</summary>
     protected override List<string> CollectParameterValidationErrors()
     {
         var errors = base.CollectParameterValidationErrors();
+
+        // Phase 2.5.5 — AriaLabel filter
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+            errors.Add("AriaLabel is required when Label is empty (accessible name for assistive tech).");
 
         if (OnIconRightClick.HasDelegate && string.IsNullOrWhiteSpace(IconRightAriaLabel))
         {

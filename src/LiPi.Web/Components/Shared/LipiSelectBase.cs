@@ -89,6 +89,19 @@ public abstract class LipiSelectBase<TValue, TItem> : LipiInputBase<TValue>, IAs
     /// Items.Count > VirtualizationThreshold = 50). True/false forces explicit choice.</summary>
     [Parameter] public bool? UseVirtualization { get; set; }
 
+    // ── Phase 2.5.5 — LabelPosition cross-family retrofit ─────────────────────────────────
+
+    /// <summary>Position of the label relative to the input field.
+    /// Top (default) — label above. Left — label left, saves vertical space.
+    /// Right — label right (RTL scenarios). Bottom — label below (caption style).
+    /// When Left or Right, use AriaLabel or ensure Label has content.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; }
+        = InputLabelPosition.Top;
+
+    /// <summary>Accessible name when Label is empty (e.g., inline-left layout).
+    /// Required when Label="" to satisfy WCAG 2.1 SC 4.1.2.</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
     // ==========================================================================
     // ABSTRACT — implemented by LipiSelect (identity) and LipiCombobox (caller-provided)
     // ==========================================================================
@@ -106,6 +119,15 @@ public abstract class LipiSelectBase<TValue, TItem> : LipiInputBase<TValue>, IAs
     /// LipiCombobox uses the caller-provided ItemTemplate when supplied, otherwise falls
     /// back to ItemLabel.</summary>
     protected abstract RenderFragment<TItem> ItemContent { get; }
+
+    // ==========================================================================
+    // PHASE 2.5.5 — resolved label position class (protected for subclass markup)
+    // ==========================================================================
+
+    /// <summary>CSS class emitted on the wrapper for non-Top LabelPosition values.
+    /// Protected so LipiSelect.razor and LipiCombobox.razor markup can bind to it.
+    /// Computed in OnParametersSet from LabelPosition each render.</summary>
+    protected string _resolvedLabelPositionClass = string.Empty;
 
     // ==========================================================================
     // STATE MACHINE
@@ -236,12 +258,41 @@ public abstract class LipiSelectBase<TValue, TItem> : LipiInputBase<TValue>, IAs
     {
         var errors = base.CollectParameterValidationErrors();
 
+        // Phase 2.5.5 — Label/AriaLabel filter (same pattern as Phase 2.5 selection family).
+        // When AriaLabel provides the accessible name, suppress base class "Label parameter
+        // is required" error. Gating rule: LabelPosition + AriaLabel ship together.
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+        }
+
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.Add(
+                "AriaLabel is required when Label is empty " +
+                "(accessible name for assistive tech).");
+        }
+
         if (Items is null)
         {
             errors.Add("Items parameter is required (the options to render in the dropdown)");
         }
 
         return errors;
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        // Phase 2.5.5 — resolve label position CSS class each render.
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
     }
 
     // ==========================================================================

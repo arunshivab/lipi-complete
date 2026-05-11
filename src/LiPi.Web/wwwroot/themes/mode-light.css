@@ -13,6 +13,21 @@
 /*                + --color-{success,warning,info}-text-strong (badge text)    */
 /*                + --color-confidence-{verified,self,estimated,unknown}        */
 /*                  (composed from semantic + neutral tokens)                   */
+/*           A15 (2026-05-09): Phase 2.5 Selection Components family            */
+/*                + --sh-thumb (toggle thumb shadow — two-layer navy-tinted,    */
+/*                  stronger than --sh-sm; mode-specific per Layer 3 arch)      */
+/*                  SPEC: docs/03-Phase-2.5-Selection-Components/                */
+/*                        05-Cross-Cutting.md §5.2                              */
+/*                  SPEC: docs/03-Phase-2.5-Selection-Components/                */
+/*                        04-LipiToggle.md §"Visual anatomy"                    */
+/*                Item #17 (2026-05-09): Phase 2.5 token gap correction         */
+/*                + --color-required-strong (#EA580C orange-600 — strong tier   */
+/*                  in apricot family for indicator outlines and 3px group      */
+/*                  borders. Token tier: -bg < -border < -strong matches        */
+/*                  Tailwind apricot family pattern. 3.86:1 contrast on white   */
+/*                  meets WCAG 1.4.11 non-text minimum (3:1) with margin.)      */
+/*                  CONSUMED BY: LipiCheckbox indicator Required-Empty border;  */
+/*                               LipiCheckboxGroup T-G2 left-border treatment.  */
 /*                                                                              */
 /* VALUES:   Reconciled against production admin.css on May 2, 2026.            */
 /*           Production admin.css values are authoritative where conflict.      */
@@ -39,12 +54,19 @@
     --color-border-strong:  #CBD5E1;
     --color-border-focus:   #4A9BD4; /* admin.css --border-focus (solid in light) */
 
-    /* ── Form field state — required (A12 Phase 2.2) ─────────────────────── */
+    /* ── Form field state — required (A12 Phase 2.2 + A15 item #17) ───────── */
     /* Apricot tint on empty required fields. Filled fields revert to white   */
     /* bg + standard border (calmer at scale). State precedence: error >      */
     /* success > warning > required-tint > default.                           */
+    /* Token tier:                                                            */
+    /*   --color-required-bg     — fill   (lightest, orange-50)              */
+    /*   --color-required-border — quiet border for input fields (orange-200) */
+    /*   --color-required-strong — strong border for indicator outlines       */
+    /*                              (1.5px LipiCheckbox) and 3px group cues   */
+    /*                              (orange-600). Item #17 token-gap fix.    */
     --color-required-bg:     #FFF7ED; /* orange-50  — empty required field fill   */
     --color-required-border: #FED7AA; /* orange-200 — required field border       */
+    --color-required-strong: #EA580C; /* A15 item #17: orange-600 — strong border tier */
 
     /* ── Brand primary ───────────────────────────────────────────────────── */
     --color-primary:          #0F2D5E; /* admin.css --navy */
@@ -107,4 +129,11 @@
     --sh-sm: 0 1px 3px rgba(15, 45, 94, 0.08), 0 1px 2px rgba(15, 45, 94, 0.06);
     --sh-md: 0 4px 12px rgba(15, 45, 94, 0.10), 0 2px 6px rgba(15, 45, 94, 0.06);
     --sh-lg: 0 8px 24px rgba(15, 45, 94, 0.14);
+    /* A15 (2026-05-09): Phase 2.5 toggle thumb shadow.                       */
+    /* Two-layer matches light-mode convention. Stronger than --sh-sm because */
+    /* the thumb sits on a primary-colored track in ON state — shadow hue ≈   */
+    /* track hue, so the layered formula compensates for low natural contrast.*/
+    /* Dark mode uses single-layer (see mode-dark.css) where natural contrast */
+    /* between black shadow and sky-blue track is already high.               */
+    --sh-thumb: 0 1px 3px rgba(15, 45, 94, 0.20), 0 1px 2px rgba(15, 45, 94, 0.10);
 }

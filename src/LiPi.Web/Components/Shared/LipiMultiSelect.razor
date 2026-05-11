@@ -33,7 +33,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 
-<div class="@CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
+<div class="@CssClasses @_resolvedLabelPositionClass lipi-input-multiline @(Class ?? string.Empty)" style="@InlineStyle">
 
     @* ===== LABEL ROW ===== *@
     <label class="lipi-input-label" for="@EffectiveId">
@@ -52,6 +52,9 @@
             </span>
         }
     </label>
+
+    @* ===== INPUT BODY (field + helper grouped for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
 
     @* ===== FIELD BAR ===== *@
     <div class="lipi-input-field"
@@ -301,12 +304,18 @@
             @HelperText
         </div>
     }
+
+    </div>@* end lipi-input-body *@
 </div>
 
 @code {
     // ==========================================================================
     // ABSTRACT IMPLEMENTATIONS — identity selectors (TItem = TValue)
     // ==========================================================================
+
+    /// <summary>MultiSelect renders the chip container (multi-line by nature).
+    /// Top-aligns label in Left/Right LabelPosition. Phase 2.5.5.</summary>
+    protected override bool IsMultiLine => true;
 
     protected override TValue? ItemValue(TValue item) => item;
 

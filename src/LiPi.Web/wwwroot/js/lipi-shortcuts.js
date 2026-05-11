@@ -86,7 +86,7 @@
                 el.style.cssText =
                     'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
                     'background:#0B2545;color:#fff;padding:9px 16px;border-radius:6px;' +
-                    'font-family:"DM Mono",ui-monospace,Menlo,monospace;font-size:12px;' +
+                    'font-family:"LiPi Mono",ui-monospace,Menlo,monospace;font-size:12px;' +
                     'letter-spacing:0.5px;z-index:99999;box-shadow:0 6px 16px rgba(11,37,69,0.25);' +
                     'pointer-events:none;';
                 document.body.appendChild(el);
@@ -109,7 +109,7 @@
             'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
             'background:' + palette.bg + ';color:' + palette.fg + ';' +
             'border:1px solid ' + palette.bd + ';padding:9px 16px;border-radius:6px;' +
-            'font-family:"DM Sans",system-ui,sans-serif;font-size:13px;font-weight:500;' +
+            'font-family:"LiPi Sans",system-ui,sans-serif;font-size:13px;font-weight:500;' +
             'z-index:99999;box-shadow:0 6px 16px rgba(11,37,69,0.18);' +
             'transition:opacity 0.3s;';
         el.textContent = msg;

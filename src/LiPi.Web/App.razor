@@ -11,15 +11,18 @@
     <title>LiPi - HIPAA Compliant Healthcare Information System</title>
     <base href="/" />
     <meta name="description" content="LiPi: Enterprise multi-tenant SaaS Hospital Information System (HIS) with HIPAA, DPDP, ABDM, and Six Sigma compliance.">
-    <meta name="theme-color" content="#06b6d4">
+    <meta name="theme-color" content="#0B2545">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%2306b6d4' width='180' height='180'/><text x='50%25' y='50%25' font-size='100' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>L</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- LiPi Sans + LiPi Mono — self-hosted, no CDN (HIPAA/DPDP compliance) -->
+    <link rel="preload" href="/lipi-sans/fonts/LiPi-Sans-Latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/lipi-sans/fonts/LiPi-Mono.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/lipi-sans/lipi-sans.css">
 
     @*
         CSS CASCADE ORDER — Decision #12 §12.4 (SPEC: 00.2-THEMING-ARCHITECTURE.md)
+        0. lipi-sans.css — @font-face declarations (self-hosted; loaded before tokens so
+                           baseline's --font-ui / --font-mono resolve against real faces)
         1. 00-baseline.css — structural tokens
         2. Existing layout/module CSS
         3. Theme: brand → mode-light → mode-dark
@@ -27,11 +30,28 @@
         5. lipi-inputs.css — Phase 2.2 Batch 3 shared input-family base styles
         6. lipi-compound.css — Phase 2.3 Batch 9a compound-field visual primitives
         7. lipi-multi.css — Phase 2.3 Batch 9b multi-select chip / summary / search input
-        8. Blazor CSS Isolation bundle (LiPi.Web.styles.css)
+        8. lipi-selection-family.css — Phase 2.5 Step 6 selection-family shared rules
+        9. lipi-form-utilities.css — Phase 2.5 Step 6 form layout utilities (.lipi-form-row)
+        10. Blazor CSS Isolation bundle (LiPi.Web.styles.css)
 
         CACHE VERSION HISTORY (reverse-chronological)
         | Version  | Phase / Batch                       | What shipped                                        |
         |----------|-------------------------------------|-----------------------------------------------------|
+        | 20260516h| Phase 2.5.5 CSS                     | lipi-inputs.css + lipi-selection-family.css:        |
+        |          |                                     | LabelPosition cross-family CSS added                |
+        | 20260516g| Font cleanup batch 2                | app.css @import removed; index.html patched;        |
+        |          |                                     | StyleGuide.razor font names updated                 |
+        | 20260516f| Font swap                           | DM Sans/Mono → LiPi Sans/Mono (self-hosted);        |
+        |          |                                     | Google Fonts CDN removed; lipi-sans.css added        |
+        | 20260516e| Cosmetic patch                      | meta theme-color + loading spinner: cyan→navy       |
+        | 20260516d| Phase 2.5 Step 12                   | LipiToggle.razor + .razor.css — Phase 2.5 complete  |
+        | 20260516c| Phase 2.5 Step 11                   | LipiRadioGroup.razor + .razor.css; LipiRadio        |
+        |          |                                     | re-shipped with GroupName + LabelTemplate params    |
+        | 20260516b| Phase 2.5 Step 9                    | LipiCheckboxGroup.razor + .razor.css; family CSS    |
+        |          |                                     | error-state group left-border rule; LipiCheckbox    |
+        |          |                                     | re-shipped with Label/AriaLabel filter fix          |
+        | 20260516a| Phase 2.5 Step 6                    | lipi-selection-family.css + lipi-form-utilities.css; |
+        |          |                                     | --color-required-strong added to mode-light/dark    |
         | 20260516 | Phase 2.4 Batch 9d post-ship fix    | Outside-click + keyboard-trap JS for date pickers   |
         | 20260515 | Phase 2.4 Batch 9d-a foundation     | Date/Time component family (4 components)           |
         | 20260514 | Phase 2.3 Batch 9b.3 fix            | scrollOptionIntoView for keyboard nav in dropdowns  |
@@ -41,16 +61,18 @@
         | 20260510 | Phase 2.2 Batch 5.4                 | Earlier text-input family work                      |
     *@
 
-    <link rel="stylesheet" href="css/00-baseline.css?v=20260516" />
-    <link rel="stylesheet" href="css/app.css?v=20260516" />
-    <link rel="stylesheet" href="css/dashboard.css?v=20260516" />
-    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260516" />
-    <link rel="stylesheet" href="themes/mode-light.css?v=20260516" />
-    <link rel="stylesheet" href="themes/mode-dark.css?v=20260516" />
-    <link rel="stylesheet" href="css/admin.css?v=20260516" />
-    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260516" />
-    <link rel="stylesheet" href="css/lipi-compound.css?v=20260516" />
-    <link rel="stylesheet" href="css/lipi-multi.css?v=20260516" />
+    <link rel="stylesheet" href="css/00-baseline.css?v=20260516h" />
+    <link rel="stylesheet" href="css/app.css?v=20260516h" />
+    <link rel="stylesheet" href="css/dashboard.css?v=20260516h" />
+    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260516h" />
+    <link rel="stylesheet" href="themes/mode-light.css?v=20260516h" />
+    <link rel="stylesheet" href="themes/mode-dark.css?v=20260516h" />
+    <link rel="stylesheet" href="css/admin.css?v=20260516h" />
+    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260516h" />
+    <link rel="stylesheet" href="css/lipi-compound.css?v=20260516h" />
+    <link rel="stylesheet" href="css/lipi-multi.css?v=20260516h" />
+    <link rel="stylesheet" href="css/lipi-selection-family.css?v=20260516h" />
+    <link rel="stylesheet" href="css/lipi-form-utilities.css?v=20260516h" />
     <link rel="stylesheet" href="LiPi.Web.styles.css" />
 
     <style>
@@ -61,8 +83,8 @@
             transform: translate(-50%, -50%);
             width: 50px;
             height: 50px;
-            border: 4px solid rgba(6, 182, 212, 0.2);
-            border-top-color: #06b6d4;
+            border: 4px solid rgba(11, 37, 69, 0.15);
+            border-top-color: var(--color-primary);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -75,7 +97,7 @@
         FOUC PREVENTION — MUST be blocking script (no async/defer), MUST be in <head>.
         Runs before browser paints content.
     *@
-    <script src="js/theme-switcher.js?v=20260516"></script>
+    <script src="js/theme-switcher.js?v=20260516h"></script>
 
     <HeadOutlet @rendermode="@InteractiveServer" />
 </head>
@@ -111,13 +133,13 @@
 
     @* Body scripts — order preserved; theme-switcher.js is in <head>, not here.
        Cache version added to ALL JS scripts in this batch — previously only CSS was versioned. *@
-    <script src="js/lipi-login.js?v=20260516"></script>
-    <script src="js/lipi-topnav.js?v=20260516"></script>
-    <script src="js/lipi-shortcuts.js?v=20260516"></script>
+    <script src="js/lipi-login.js?v=20260516h"></script>
+    <script src="js/lipi-topnav.js?v=20260516h"></script>
+    <script src="js/lipi-shortcuts.js?v=20260516h"></script>
 
     @* Phase 2.2: input family helpers (autogrow Batch 3, selectAll Batch 4).
        Loaded BEFORE blazor.web.js so window.lipiInput is available when components first render. *@
-    <script src="js/lipi-input.js?v=20260516"></script>
+    <script src="js/lipi-input.js?v=20260516h"></script>
 
     <script src="_framework/blazor.web.js"></script>
 </body>

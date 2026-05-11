@@ -1,0 +1,318 @@
+/* SPEC:  docs/03-Phase-2.5-Selection-Components/01-LipiCheckbox.md
+          §"Sizes" (1.2), §"Indicator shape" (1.3), §"State machine" (1.4),
+          §"Helper text rendering" (1.13), §"Animation timing" (1.16)
+   PHASE: 2.5 Step 7 — first selection-family component
+   AMEND: docs/CHANGE-LOG.md A15 (pending — Phase 2.5 close-out)
+
+   Component-specific SHAPE only per audit item #1 (Layout-vs-Shape rule).
+   All wrapper LAYOUT primitives (display: inline-flex, gap, label-position
+   modifiers) live in lipi-selection-family.css.
+
+   What lives here:
+     - Hidden native <input> visually-hidden treatment
+     - Indicator dimensions (14/16/20 per size) and border-radius (--r-2xs)
+     - Indicator state visual treatments (border, fill, transitions)
+     - Checkmark SVG sizing and stroke
+     - Tri-state dash bar dimensions
+     - Long-label vertical alignment (margin-top per size to align indicator
+       with first line of label text per Decision 1.12)
+     - Helper indent per size (per Decision 1.13 — hardcoded values, see lock 3)
+
+   What lives in family CSS:
+     - Wrapper display, flex-direction (label position), gap
+     - Disabled/readonly cursor
+     - Required-tint group treatment
+     - Helper slot base styles + state colors
+
+   Token references — verified against 00-baseline.css and mode files:
+     --r-2xs (2px, baseline)
+     --color-border-strong, --color-bg-surface (mode files)
+     --color-primary, --color-primary-hover, --color-primary-pale,
+       --color-primary-active (mode files)
+     --color-danger, --color-danger-pale (mode files)
+     --color-text-tertiary, --color-bg-subtle (mode files)
+     --color-required-strong, --color-required-bg (mode files, item #17)
+     --color-border-default (mode files)
+     --tr-fast (0.15s ease, baseline)
+     --color-border-focus (mode files)
+*/
+
+
+/* =========================================================================
+   HIDDEN NATIVE INPUT
+   The native <input type="checkbox"> stays in the DOM for form semantics,
+   click events, screen-reader semantics, and Tab order. It is visually
+   replaced by the custom .lipi-checkbox-indicator span. Standard "visually
+   hidden but accessible" pattern (Bootstrap's .visually-hidden, MDN's
+   recommendation for replacing native form controls with custom visuals).
+   ========================================================================= */
+
+.lipi-checkbox-input-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+
+/* =========================================================================
+   LONG-LABEL VERTICAL ALIGNMENT (Decision 1.12)
+   Wrapper uses align-items: flex-start so the indicator sits at the top of
+   long labels (rather than centered in the middle of multi-line text).
+   Indicator gets a small top margin per size to optically align with the
+   first line of label text.
+   ========================================================================= */
+
+.lipi-checkbox-wrapper {
+    align-items: flex-start;
+}
+
+.lipi-input-small  .lipi-checkbox-indicator { margin-top: 1.5px; }
+.lipi-input-medium .lipi-checkbox-indicator { margin-top: 2px;   }
+.lipi-input-large  .lipi-checkbox-indicator { margin-top: 3px;   }
+
+
+/* =========================================================================
+   INDICATOR — base shape, sizes, default state visual
+   border-radius: --r-2xs = 2px. Square corners with very slight softening
+   per Decision 1.3 — distinct from radio's full circle.
+   border-width: 1.5px in all states per Decision 1.4 — thicker than 1px
+   feels grippy; 2px would be too heavy.
+   ========================================================================= */
+
+.lipi-checkbox-indicator {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--r-2xs);
+    background-color: var(--color-bg-surface);
+    transition:
+        background-color var(--tr-fast),
+        border-color var(--tr-fast),
+        box-shadow var(--tr-fast);
+}
+
+/* Per-size dimensions — Decision 1.2 */
+.lipi-input-small  .lipi-checkbox-indicator { width: 14px; height: 14px; }
+.lipi-input-medium .lipi-checkbox-indicator { width: 16px; height: 16px; }
+.lipi-input-large  .lipi-checkbox-indicator { width: 20px; height: 20px; }
+
+
+/* =========================================================================
+   INDICATOR STATE VISUAL TREATMENTS
+   Class composition done in C# (LipiCheckbox.razor's IndicatorCssClasses).
+   State precedence cascade per Decision 1.4:
+     Disabled > ReadOnly > Error > Checked > Required-Empty > Default
+   ========================================================================= */
+
+/* CHECKED (and indeterminate — both render with primary fill).
+   The dash vs check differentiation happens via the SVG/dash element inside. */
+.lipi-checkbox-indicator-checked {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary);
+}
+
+/* REQUIRED-EMPTY (apricot tint per item #17 token).
+   Lower priority than Error/Checked/Disabled/ReadOnly — only shown when
+   field is Required, IsEmpty, and RequiredVisualStyle is ApricotTint. */
+.lipi-checkbox-indicator-required-empty {
+    border-color: var(--color-required-strong);
+    background-color: var(--color-required-bg);
+}
+
+/* ERROR — both unchecked and checked variants.
+   Combined with .lipi-checkbox-indicator-checked when both apply: the
+   composition order in C# guarantees Error wins (placed above Checked
+   in the if/else chain). Border + fill colors swap accordingly. */
+.lipi-checkbox-indicator-error {
+    border-color: var(--color-danger);
+    background-color: var(--color-danger-pale);
+}
+.lipi-checkbox-checked .lipi-checkbox-indicator-error {
+    background-color: var(--color-danger);
+}
+
+/* DISABLED — terminal, no interaction. 55% opacity at the wrapper level
+   (.lipi-input-disabled in family CSS). Indicator-specific colors fade
+   to neutral border + subtle bg (unchecked) or tertiary text (checked). */
+.lipi-checkbox-indicator-disabled {
+    border-color: var(--color-border-default);
+    background-color: var(--color-bg-subtle);
+}
+.lipi-checkbox-checked .lipi-checkbox-indicator-disabled {
+    border-color: var(--color-text-tertiary);
+    background-color: var(--color-text-tertiary);
+}
+
+/* READONLY — looks like default but Space is intercepted in C# event handler.
+   No visual difference from default (matches Decision 1.4 state table row). */
+.lipi-checkbox-indicator-readonly {
+    /* Same as default — explicit class for cascade-safety (in case parent
+       wrapper later adds a readonly-specific rule, this scoped class still
+       exists to extend). */
+}
+
+
+/* =========================================================================
+   HOVER STATES — only when not disabled / readonly / error
+   The :not() selectors keep hover quiet on terminal states.
+   ========================================================================= */
+
+.lipi-checkbox-wrapper:not(.lipi-input-disabled):not(.lipi-input-readonly):not(.lipi-input-error):hover
+    .lipi-checkbox-indicator:not(.lipi-checkbox-indicator-checked) {
+    border-color: var(--color-primary-hover);
+    background-color: var(--color-primary-pale);
+}
+
+.lipi-checkbox-wrapper:not(.lipi-input-disabled):not(.lipi-input-readonly):not(.lipi-input-error):hover
+    .lipi-checkbox-indicator-checked {
+    border-color: var(--color-primary-hover);
+    background-color: var(--color-primary-hover);
+}
+
+
+/* =========================================================================
+   FOCUS RING — keyboard navigation only via :focus-visible
+   The hidden native input receives keyboard focus; we project the focus
+   ring onto the visible indicator via the :focus-visible + sibling combinator.
+   Mouse clicks do not trigger the ring (browser :focus-visible heuristic).
+   ========================================================================= */
+
+.lipi-checkbox-input-hidden:focus-visible + .lipi-checkbox-indicator {
+    box-shadow: 0 0 0 3px rgba(74, 155, 212, 0.25);
+}
+
+
+/* =========================================================================
+   PRESSED STATE — active/click feedback
+   Brief darker fill on click, restoring on release. Excludes disabled/readonly.
+   ========================================================================= */
+
+.lipi-checkbox-wrapper:not(.lipi-input-disabled):not(.lipi-input-readonly):active
+    .lipi-checkbox-indicator-checked {
+    background-color: var(--color-primary-active);
+}
+
+
+/* =========================================================================
+   CHECKMARK — SVG inside the indicator
+   ViewBox 0 0 16 16; the SVG itself scales to fill the indicator.
+   stroke-width: 2 with rounded line caps gives a clean, slightly bold check
+   that reads at all three sizes. White on primary fill (or on text-tertiary
+   when disabled+checked, etc. — color: currentColor on the polyline picks
+   up the indicator's text color naturally).
+   ========================================================================= */
+
+.lipi-checkbox-checkmark {
+    width: 100%;
+    height: 100%;
+    color: white;
+    /* The polyline uses stroke="currentColor" so disabled state's white
+       checkmark on text-tertiary fill renders correctly. */
+    transition: color var(--tr-fast);
+}
+
+/* Disabled+checked: checkmark remains white but on tertiary fill */
+.lipi-checkbox-indicator-disabled.lipi-checkbox-indicator-checked .lipi-checkbox-checkmark {
+    color: white;
+}
+
+
+/* =========================================================================
+   TRI-STATE DASH — visible when CurrentValue is null
+   60% indicator width × 2px height, white, 1px radius, centered.
+   Per Decision 1.5 — same primary fill as checked; the dash icon does the
+   differentiation, not a different fill color.
+   ========================================================================= */
+
+.lipi-checkbox-dash {
+    display: block;
+    height: 2px;
+    background-color: white;
+    border-radius: 1px;
+}
+
+.lipi-input-small  .lipi-checkbox-dash { width: 8px;  } /* 60% of 14 ≈ 8 */
+.lipi-input-medium .lipi-checkbox-dash { width: 10px; } /* 60% of 16 ≈ 10 */
+.lipi-input-large  .lipi-checkbox-dash { width: 12px; } /* 60% of 20 = 12 */
+
+
+/* =========================================================================
+   LABEL TEXT SIZING (Decision 1.2)
+   Phase 2.2 lipi-inputs.css already defines .lipi-input-small/medium/large
+   font-size cascades for .lipi-input-control / .lipi-input-label. For our
+   .lipi-checkbox-label-text we override with the per-Decision-1.2 values:
+     Small  → --ts-label  (12px) medium weight
+     Medium → --ts-body   (13px) regular weight
+     Large  → 14px regular weight
+   ========================================================================= */
+
+.lipi-checkbox-label-text {
+    color: var(--color-text-primary);
+    line-height: 1.4;
+    /* No font-size here — inherited from per-size rules below. */
+}
+
+.lipi-input-small  .lipi-checkbox-label-text {
+    font-size: var(--ts-label);
+    font-weight: var(--fw-medium);
+}
+.lipi-input-medium .lipi-checkbox-label-text {
+    font-size: var(--ts-body);
+    font-weight: var(--fw-regular);
+}
+.lipi-input-large  .lipi-checkbox-label-text {
+    font-size: 14px;
+    font-weight: var(--fw-regular);
+}
+
+/* Error-state label coloring (Decision 1.4 state table — error state colors
+   the label text in danger-color, both checked and unchecked variants). */
+.lipi-input-error .lipi-checkbox-label-text {
+    color: var(--color-danger);
+}
+
+
+/* =========================================================================
+   HELPER TEXT INDENT (Decision 1.13 + lock 3)
+   Helper renders OUTSIDE the wrapper as a sibling div. Sibling combinator
+   (.lipi-checkbox-wrapper + .lipi-input-helper) targets it precisely.
+   Indent values = indicator-width + 8px gap, per the spec's calc formula.
+   Hardcoded per size because custom properties on the wrapper don't cascade
+   to siblings (per lock 3 reasoning).
+   ========================================================================= */
+
+.lipi-checkbox-wrapper + .lipi-input-helper {
+    padding-left: 24px;  /* default Medium = 16 + 8 */
+}
+
+.lipi-input-small.lipi-checkbox-wrapper + .lipi-input-helper {
+    padding-left: 22px;  /* Small = 14 + 8 */
+}
+
+.lipi-input-large.lipi-checkbox-wrapper + .lipi-input-helper {
+    padding-left: 28px;  /* Large = 20 + 8 */
+}
+
+
+/* =========================================================================
+   REDUCED-MOTION ACCESSIBILITY
+   Honor prefers-reduced-motion per Decision 1.16. Disables transitions
+   without removing the visual changes themselves — checked state still
+   renders, just without the fade.
+   ========================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    .lipi-checkbox-indicator,
+    .lipi-checkbox-checkmark {
+        transition: none;
+    }
+}

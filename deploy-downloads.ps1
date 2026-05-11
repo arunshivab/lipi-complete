@@ -27,7 +27,27 @@ $files = @{
 
     # -- CSS / JS --------------------------------------------------------------
     "admin.css"                      = "src\LiPi.Web\wwwroot\css\admin.css"
+
+    # -- Self-hosted fonts (LiPi Sans + LiPi Mono) ----------------------------
+    # Font swap: DM Sans/Mono → LiPi Sans/Mono (HIPAA/DPDP — no external CDN)
+    # Manual step: copy lipi-sans/ folder to src\LiPi.Web\wwwroot\ first.
+    # Deploy script handles lipi-sans.css; font binaries deploy via folder copy.
+    "lipi-sans.css"                  = "src\LiPi.Web\wwwroot\lipi-sans\lipi-sans.css"
+    "LiPi-Sans-Latin.woff2"          = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Latin.woff2"
+    "LiPi-Sans-Latin-Italic.woff2"   = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Latin-Italic.woff2"
+    "LiPi-Sans-Devanagari.woff2"     = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Devanagari.woff2"
+    "LiPi-Sans-Bengali.woff2"        = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Bengali.woff2"
+    "LiPi-Sans-Tamil.woff2"          = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Tamil.woff2"
+    "LiPi-Sans-Telugu.woff2"         = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Telugu.woff2"
+    "LiPi-Sans-Malayalam.woff2"      = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Malayalam.woff2"
+    "LiPi-Sans-Kannada.woff2"        = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Kannada.woff2"
+    "LiPi-Sans-Gujarati.woff2"       = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Gujarati.woff2"
+    "LiPi-Sans-Gurmukhi.woff2"       = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Gurmukhi.woff2"
+    "LiPi-Sans-Odia.woff2"           = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Sans-Odia.woff2"
+    "LiPi-Mono.woff2"                = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Mono.woff2"
+    "LiPi-Mono-Italic.woff2"         = "src\LiPi.Web\wwwroot\lipi-sans\fonts\LiPi-Mono-Italic.woff2"
     "app.css"                        = "src\LiPi.Web\wwwroot\css\app.css"
+    "index.html"                     = "src\LiPi.Web\wwwroot\index.html"
     "dashboard.css"                  = "src\LiPi.Web\wwwroot\css\dashboard.css"
     "LiPi-TopNav.css"                = "src\LiPi.Web\wwwroot\css\LiPi-TopNav.css"
     "lipi-topnav.js"                 = "src\LiPi.Web\wwwroot\js\lipi-topnav.js"
@@ -154,6 +174,76 @@ $files = @{
     "DateFormatService.cs"           = "src\LiPi.Web\Services\DateFormatService.cs"
     "IClinicTimezoneService.cs"      = "src\LiPi.Web\Services\IClinicTimezoneService.cs"
     "ClinicTimezoneService.cs"       = "src\LiPi.Web\Services\ClinicTimezoneService.cs"
+
+    # -- Components -- Phase 2.5 (Selection Components family) ----------------
+    # SPEC: docs/03-Phase-2.5-Selection-Components/05-Cross-Cutting.md
+    # AMEND: CHANGE-LOG.md A15 (pending — Phase 2.5 close-out)
+    # Staged ship across multiple steps:
+    # Step 1 (May 9): tokens — --r-2xs, --tr-toggle (00-baseline.css);
+    #                 --sh-thumb (mode-light.css, mode-dark.css)
+    # Step 2 (May 9): LipiInputDefaults extended (3 selection-family properties);
+    #                 LipiSelectionTypes.cs ships with CheckboxGroupDensity
+    # Step 3 (May 9): MustBeTrueAttribute.cs ships (validation attribute for
+    #                 terms acceptance / HIPAA consent / required toggles per
+    #                 audit item #10 contract; path per audit item #16)
+    # Step 4 (May 9): LipiSelectionTypes.cs gains CheckboxGroupOrientation and
+    #                 InputLabelPosition (no new file; same path; per audit
+    #                 item #15c shared-enum lock)
+    # Step 5 (May 9): cascade context records — LipiCheckboxGroupContext.cs
+    #                 and LipiRadioGroupContext.cs (separate files per
+    #                 ThemeContext.cs precedent; distinct types per audit
+    #                 item #12 cascade-safety lock)
+    # Step 6 (May 9): family CSS — lipi-selection-family.css (layout-vs-shape
+    #                 architecture per item #1, always-below helper per
+    #                 item #2, .lipi-cbg-count-over-max per item #8b);
+    #                 form utilities — lipi-form-utilities.css (.lipi-form-row
+    #                 per item #5); --color-required-strong added to
+    #                 mode-light.css and mode-dark.css per item #17;
+    #                 App.razor link tags + cache version 20260516 → 20260516a
+    # Step 7 (May 9): LipiCheckbox component — first selection-family component;
+    #                 cascade parameter from day one per item #11; Pattern A
+    #                 binding via @onchange + (TValue)(object) cast per item-12
+    #                 lock; OnChildInteracted fires on @onchange ONLY (not blur
+    #                 or focus per item-12 lock 2); helper indent hardcoded
+    #                 per size in scoped CSS per lock 3
+    # Step 9 (May 16): LipiCheckboxGroup component — multi-selection group;
+    #                  fieldset + legend per Decision 2.6; cascade emits via
+    #                  CascadingValue with 2-field LipiCheckboxGroupContext per
+    #                  item #12; ValueSelector uniqueness check + over-max bound
+    #                  defensive check per items #6 + #8b; replacement-mutation
+    #                  pattern (new List per toggle) per Decision 2.2; helper
+    #                  single-bottom slot per item #2; family CSS amended with
+    #                  error-state left-border rule (covers .lipi-cbg-* AND
+    #                  .lipi-rg-* upfront for step 11) per item #19 lock 5;
+    #                  LipiCheckbox re-shipped with Label/AriaLabel filter fix
+    #                  per item #19 lock 6; cache version 20260516a → 20260516b
+    # Step 11 (May 10): LipiRadioGroup + LipiRadio re-ship; Pattern A roving
+    #                  tabindex via ElementReference.FocusAsync() (no JS needed);
+    #                  type-ahead (StartsWith, 1s buffer); AllowClear default
+    #                  false per item #4; GroupName + LabelTemplate added to
+    #                  LipiRadio; cache 20260516b → 20260516c
+    # Step 12 (May 10): LipiToggle — final Phase 2.5 component; non-generic
+    #                  bool-only; track+thumb anatomy; --tr-toggle slide +
+    #                  M3 pressed-stretch; IconWhenOn for clinical confirmation;
+    #                  IsEmpty always false (both on/off valid); role="switch";
+    #                  no cascade parameter; cache 20260516c → 20260516d
+    #                  Phase 2.5 COMPLETE — all 5 selection components shipped
+    "LipiSelectionTypes.cs"          = "src\LiPi.Web\Components\Shared\LipiSelectionTypes.cs"
+    "MustBeTrueAttribute.cs"         = "src\LiPi.Web\Components\Shared\MustBeTrueAttribute.cs"
+    "LipiCheckboxGroupContext.cs"    = "src\LiPi.Web\Components\Shared\LipiCheckboxGroupContext.cs"
+    "LipiRadioGroupContext.cs"       = "src\LiPi.Web\Components\Shared\LipiRadioGroupContext.cs"
+    "lipi-selection-family.css"      = "src\LiPi.Web\wwwroot\css\lipi-selection-family.css"
+    "lipi-form-utilities.css"        = "src\LiPi.Web\wwwroot\css\lipi-form-utilities.css"
+    "LipiCheckbox.razor"             = "src\LiPi.Web\Components\Shared\LipiCheckbox.razor"
+    "LipiCheckbox.razor.css"         = "src\LiPi.Web\Components\Shared\LipiCheckbox.razor.css"
+    "LipiCheckboxGroup.razor"        = "src\LiPi.Web\Components\Shared\LipiCheckboxGroup.razor"
+    "LipiCheckboxGroup.razor.css"    = "src\LiPi.Web\Components\Shared\LipiCheckboxGroup.razor.css"
+    "LipiRadio.razor"                = "src\LiPi.Web\Components\Shared\LipiRadio.razor"
+    "LipiRadio.razor.css"            = "src\LiPi.Web\Components\Shared\LipiRadio.razor.css"
+    "LipiRadioGroup.razor"           = "src\LiPi.Web\Components\Shared\LipiRadioGroup.razor"
+    "LipiRadioGroup.razor.css"       = "src\LiPi.Web\Components\Shared\LipiRadioGroup.razor.css"
+    "LipiToggle.razor"               = "src\LiPi.Web\Components\Shared\LipiToggle.razor"
+    "LipiToggle.razor.css"           = "src\LiPi.Web\Components\Shared\LipiToggle.razor.css"
 
     # -- Pages -- Admin --------------------------------------------------------
     "Admin.razor"                    = "src\LiPi.Web\Pages\Admin.razor"

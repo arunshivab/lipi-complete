@@ -17,7 +17,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Web
 
-<div class="lipi-input-wrapper @CssClasses @(Class ?? string.Empty)" style="@InlineStyle">
+<div class="lipi-input-wrapper @CssClasses @_resolvedLabelPositionClass @(Class ?? string.Empty)" style="@InlineStyle">
 
     @* ===== LABEL ROW ===== *@
     <label class="lipi-input-label" for="@EffectiveId">
@@ -39,6 +39,9 @@
             </span>
         }
     </label>
+
+    @* ===== INPUT BODY (field + helper grouped — required for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
 
     @* ===== INPUT ROW ===== *@
     <div class="lipi-input-field">
@@ -63,6 +66,7 @@
                maxlength="@MaxLengthAttr"
                aria-invalid="@AriaInvalidAttr"
                aria-describedby="@AriaDescribedByAttr"
+               aria-label="@(string.IsNullOrEmpty(_resolvedLabel) ? AriaLabel : null)"
                @oninput="HandleInput"
                @onblur="HandleBlur" />
 
@@ -99,6 +103,8 @@
         </div>
     }
 
+    </div>@* end lipi-input-body *@
+
 </div>
 
 @code {
@@ -133,6 +139,19 @@
 
     /// <summary>HTML maxlength attribute. Null = unlimited.</summary>
     [Parameter] public int? MaxLength { get; set; }
+
+    // ── Phase 2.5.5 — LabelPosition cross-family retrofit ─────────────────────────────────
+
+    /// <summary>Position of the label relative to the input field.
+    /// Top (default) — label above. Left — saves vertical space. Right — label right. Bottom — caption.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; }
+        = InputLabelPosition.Top;
+
+    /// <summary>Accessible name when Label is empty (inline-left layout or icon-only context).
+    /// Required when Label="" to satisfy WCAG 2.1 SC 4.1.2.</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    private string _resolvedLabelPositionClass = string.Empty;
 
     // ==========================================================================
     // INPUTBASE OVERRIDE
@@ -173,6 +192,18 @@
     {
         var errors = base.CollectParameterValidationErrors();
 
+        // Phase 2.5.5 — suppress base's "Label parameter is required" when AriaLabel covers
+        // the accessible-name requirement (inline-left layout pattern).
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+        }
+
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.Add("AriaLabel is required when Label is empty (accessible name for assistive tech).");
+        }
+
         if (OnIconRightClick.HasDelegate && string.IsNullOrWhiteSpace(IconRightAriaLabel))
         {
             errors.Add("IconRightAriaLabel is required when OnIconRightClick is wired " +
@@ -180,6 +211,18 @@
         }
 
         return errors;
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
     }
 
     // ==========================================================================

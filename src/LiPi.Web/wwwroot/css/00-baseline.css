@@ -41,7 +41,7 @@
     --ts-th: 10px;             /* Table headers (uppercase) */
     --ts-badge: 10px;          /* Badges, pills */
     --ts-micro: 9px;           /* Captions, footnotes */
-    --ts-mono-data: 12px;      /* DM Mono: IDs, dates */
+    --ts-mono-data: 12px;      /* LiPi Mono: IDs, dates */
 
     /* ---------- Typography weights ---------- */
     --fw-regular: 400;
@@ -73,10 +73,10 @@
 
     /* ---------- Fonts ----------
        Two-font system per BASELINE §"Typography":
-         DM Sans  → ALL UI (headings, labels, buttons, nav, body, badges)
-         DM Mono  → ONLY: IDs, timestamps, dates, codes, clinical data */
-    --font-ui: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-mono: 'DM Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
+         LiPi Sans  → ALL UI (headings, labels, buttons, nav, body, badges)
+         LiPi Mono  → ONLY: IDs, timestamps, dates, codes, clinical data */
+    --font-ui: 'LiPi Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'LiPi Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
 }
 
 /* ============================================================

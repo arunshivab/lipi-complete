@@ -1,5 +1,4 @@
 /* LiPi HIS - Design System with Machine Panorama Login */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
 
 /* ===== Design Tokens ===== */
 :root {
@@ -55,7 +54,7 @@
 }
 
 html, body {
-    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-ui);
     background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
     color: var(--text);
     line-height: 1.6;
@@ -531,7 +530,7 @@ html, body {
 }
 
 .imagiqa-label {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--font-mono);
     font-size: var(--text-sm);
     color: rgba(255, 255, 255, 0.35);
     letter-spacing: 0.2em;
@@ -548,7 +547,7 @@ html, body {
     color: #a0bdd0;
     border: none;
     border-radius: 20px;
-    font-family: 'DM Mono', monospace;
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
     cursor: pointer;
     transition: all 0.3s;
@@ -573,7 +572,7 @@ html, body {
 }
 
 .machine-label-dept {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
     color: var(--sky-blue);
     letter-spacing: 0.2em;
@@ -582,7 +581,7 @@ html, body {
 }
 
 .machine-label-name {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--font-mono);
     font-size: var(--text-hero);
     color: var(--white);
     font-weight: 700;
@@ -617,7 +616,7 @@ html, body {
 }
 
 .ticker-label {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 8px;
     color: rgba(255, 255, 255, 0.5);
     position: absolute;
@@ -670,7 +669,7 @@ html, body {
 }
 
 .login-brand-text h3 {
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-ui);
     font-size: 20px;
     font-weight: 700;
     color: #0f2d5e;
@@ -714,7 +713,7 @@ html, body {
     border-radius: var(--radius-sm);
     padding: var(--input-padding);
     padding-left: 36px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-ui);
     font-size: var(--text-base);
     color: #1a3a5c;
     transition: all 0.2s ease;
@@ -774,7 +773,7 @@ html, body {
 }
 
 .captcha-code {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 18px;
     font-weight: 500;
     letter-spacing: 0.25em;
@@ -855,7 +854,7 @@ html, body {
     border: none;
     background: linear-gradient(135deg, var(--cobalt) 0%, var(--sky-blue) 100%);
     color: var(--white);
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-ui);
     font-size: var(--text-md);
     font-weight: 600;
     cursor: pointer;

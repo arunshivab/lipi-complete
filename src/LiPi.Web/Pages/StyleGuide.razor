@@ -97,6 +97,7 @@
                 <a class="sg-nav-link" href="#alignment">Alignment</a>
                 <a class="sg-nav-link" href="#compound-multi">Compound &amp; Multi-Select</a>
                 <a class="sg-nav-link" href="#date-time">Date &amp; Time</a>
+                <a class="sg-nav-link" href="#label-positions">Label Positions</a>
             </div>
             <div class="sg-nav-group">
                 <h3 class="sg-nav-header">Patterns</h3>
@@ -136,8 +137,8 @@
             <section id="typography" class="sg-section">
                 <h2 class="sg-h2">Typography</h2>
                 <p class="sg-p">
-                    Two-font system: <strong>DM Sans</strong> for all UI,
-                    <strong>DM Mono</strong> for IDs / dates / clinical data.
+                    Two-font system: <strong>LiPi Sans</strong> for all UI,
+                    <strong>LiPi Mono</strong> for IDs / dates / clinical data.
                 </p>
                 <div class="sg-typo-list">
                     @foreach (var t in _typoSamples)
@@ -862,6 +863,176 @@
 
             </section>
 
+            <!-- ====== LABEL POSITIONS (Phase 2.5.5) ====== -->
+            <section id="label-positions" class="sg-section">
+                <h2 class="sg-h2">Label Positions — Phase 2.5.5</h2>
+                <p class="sg-p">
+                    All input components now support <code class="sg-code">LabelPosition</code>
+                    (<code class="sg-code">InputLabelPosition.Top</code> default,
+                    <code class="sg-code">Left</code>, <code class="sg-code">Right</code>,
+                    <code class="sg-code">Bottom</code>). The label column width defaults to
+                    <strong>130px</strong> and is overridable per-field or per-section via
+                    <code class="sg-code">style="--lipi-label-w: 190px"</code>.
+                    Two-font system: <strong>LiPi Sans</strong> for all UI,
+                    <strong>LiPi Mono</strong> for IDs / dates / clinical data.
+                </p>
+
+                @* ====== Error state in Left position ====== *@
+                <h3 class="sg-h3">Error state — Left position</h3>
+                <p class="sg-p">
+                    The red border and helper text both stay in the input column.
+                    The label turns red to match.
+                </p>
+                <div style="max-width: 520px;">
+                    <LipiTextBox Name="sg-lp-error"
+                                 Label="Patient name"
+                                 LabelPosition="InputLabelPosition.Left"
+                                 Error="Name is required for registration"
+                                 @bind-Value="_sg.LpError" />
+                </div>
+
+                @* ====== Apricot required tint in Left position ====== *@
+                <h3 class="sg-h3">Apricot required tint — Left position</h3>
+                <p class="sg-p">
+                    The apricot tint covers the input column only — not the label column.
+                    Leave the field empty to see the tint; fill it to watch it retract.
+                </p>
+                <div style="max-width: 520px;">
+                    <LipiTextBox Name="sg-lp-apricot"
+                                 Label="Mobile number"
+                                 LabelPosition="InputLabelPosition.Left"
+                                 Required="true"
+                                 Helper="10 digits, no spaces"
+                                 @bind-Value="_sg.LpApricot" />
+                </div>
+
+                @* ====== All four positions ====== *@
+                <h3 class="sg-h3">All four positions — LipiTextBox</h3>
+                <div class="sg-input-grid sg-input-grid-2">
+                    <LipiTextBox Name="sg-lp-top"
+                                 Label="Top (default)"
+                                 Helper="Label above the input — default for all components"
+                                 @bind-Value="_sg.LpTop" />
+                    <LipiTextBox Name="sg-lp-left"
+                                 Label="Patient name"
+                                 LabelPosition="InputLabelPosition.Left"
+                                 Helper="Legal name as on government ID"
+                                 @bind-Value="_sg.LpLeft" />
+                    <LipiTextBox Name="sg-lp-right"
+                                 Label="Patient name"
+                                 LabelPosition="InputLabelPosition.Right"
+                                 Helper="Label to the right of the field"
+                                 @bind-Value="_sg.LpRight" />
+                    <LipiTextBox Name="sg-lp-bottom"
+                                 Label="Patient name"
+                                 LabelPosition="InputLabelPosition.Bottom"
+                                 Helper="Label below — caption style"
+                                 @bind-Value="_sg.LpBottom" />
+                </div>
+
+                @* ====== Dense left-label clinical form ====== *@
+                <h3 class="sg-h3">Dense left-label form — clinical context</h3>
+                <p class="sg-p">
+                    Left position saves vertical space on data-entry forms. The
+                    <code class="sg-code">--lipi-label-w</code> custom property is inherited,
+                    so setting it once on a wrapper div aligns all labels in that block.
+                </p>
+                <div style="max-width: 520px; --lipi-label-w: 140px;">
+                    <LipiTextBox Name="sg-lp-dense-name"
+                                 Label="Patient name"
+                                 LabelPosition="InputLabelPosition.Left"
+                                 Helper="Legal name as on Aadhaar"
+                                 @bind-Value="_sg.LpDenseName" />
+                    <div style="margin-top: 12px;">
+                        <LipiDatePicker Name="sg-lp-dense-dob"
+                                        Label="Date of birth"
+                                        LabelPosition="InputLabelPosition.Left"
+                                        @bind-Value="_sg.LpDenseDob" />
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <LipiNumberInput TValue="int?"
+                                         Name="sg-lp-dense-age"
+                                         Label="Age (years)"
+                                         LabelPosition="InputLabelPosition.Left"
+                                         Helper="Calculated from DOB or enter manually"
+                                         @bind-Value="_sg.LpDenseAge" />
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <LipiTextBox Name="sg-lp-dense-uhid"
+                                     Label="UHID"
+                                     LabelPosition="InputLabelPosition.Left"
+                                     ReadOnly="true"
+                                     Helper="Assigned at registration"
+                                     @bind-Value="_sg.LpDenseUhid" />
+                    </div>
+                </div>
+
+                @* ====== TextArea — top-aligned label in Left position ====== *@
+                <h3 class="sg-h3">TextArea — Left position (label top-aligned)</h3>
+                <p class="sg-p">
+                    Multi-line components (<code class="sg-code">LipiTextArea</code>,
+                    <code class="sg-code">LipiMultiSelect</code>) use
+                    <code class="sg-code">lipi-input-multiline</code> to top-align the label
+                    at the first row of content rather than center it.
+                </p>
+                <div style="max-width: 520px;">
+                    <LipiTextArea Name="sg-lp-notes"
+                                  Label="Clinical notes"
+                                  LabelPosition="InputLabelPosition.Left"
+                                  Helper="Allergies, special instructions, etc."
+                                  @bind-Value="_sg.LpNotes" />
+                </div>
+
+                @* ====== Empty Label + AriaLabel accessibility pattern ====== *@
+                <h3 class="sg-h3">Label="" + AriaLabel — accessible empty-label pattern</h3>
+                <p class="sg-p">
+                    When the visible label is omitted (e.g., a search field inside a labelled
+                    container), set <code class="sg-code">Label=""</code> and provide
+                    <code class="sg-code">AriaLabel</code> for screen readers. No Dev error
+                    fires; inspect the element to confirm <code class="sg-code">aria-label</code>
+                    is present on the native input.
+                </p>
+                <div style="max-width: 320px;">
+                    <LipiTextBox Name="sg-lp-arialabel"
+                                 Label=""
+                                 AriaLabel="Search patients by name or UHID"
+                                 Placeholder="Search patients…"
+                                 @bind-Value="_sg.LpAriaLabel" />
+                </div>
+
+                @* ====== Custom --lipi-label-w override ====== *@
+                <h3 class="sg-h3">Custom label width — <code class="sg-code">--lipi-label-w</code></h3>
+                <p class="sg-p">
+                    Set on a single field inline (190px), or on a wrapper div for an entire
+                    form section. Default is 130px.
+                </p>
+                <div style="max-width: 560px;">
+                    <LipiTextBox Name="sg-lp-wide-label"
+                                 Label="Referring physician"
+                                 LabelPosition="InputLabelPosition.Left"
+                                 Helper="190px label column — wider for long labels"
+                                 style="--lipi-label-w: 190px"
+                                 @bind-Value="_sg.LpWideLabel" />
+                </div>
+
+                @* ====== CheckboxGroup Left position ====== *@
+                <h3 class="sg-h3">CheckboxGroup — Left position</h3>
+                <p class="sg-p">
+                    Group components use grid layout — legend left, options container right,
+                    helper text scoped to the options column.
+                </p>
+                <div style="max-width: 520px;">
+                    <LipiCheckboxGroup TItem="string" TValue="string"
+                                       Name="sg-lp-cbg"
+                                       Label="Comorbidities"
+                                       LabelPosition="InputLabelPosition.Left"
+                                       Items="_sg.LpComorbidities"
+                                       @bind-Value="_sg.LpComorbiditiesSelected"
+                                       Helper="Select all that apply" />
+                </div>
+
+            </section>
+
         </main>
     </div>
 </div>
@@ -1080,6 +1251,31 @@
         public DateTimeOffset? DtpStacked { get; set; }
         public DateOnly? DrpStart    { get; set; }
         public DateOnly? DrpEnd      { get; set; }
+
+        // Phase 2.5.5 — Label Positions demo state
+        public string LpTop        { get; set; } = string.Empty;
+        public string LpLeft       { get; set; } = string.Empty;
+        public string LpRight      { get; set; } = string.Empty;
+        public string LpBottom     { get; set; } = string.Empty;
+        public string LpError      { get; set; } = string.Empty;
+        public string LpApricot    { get; set; } = string.Empty;
+        public string LpDenseName  { get; set; } = string.Empty;
+        public DateOnly? LpDenseDob { get; set; }
+        public int? LpDenseAge     { get; set; }
+        public string LpDenseUhid  { get; set; } = "PT-2026-000001";
+        public string LpNotes      { get; set; } = string.Empty;
+        public string LpAriaLabel  { get; set; } = string.Empty;
+        public string LpWideLabel  { get; set; } = string.Empty;
+        public List<string> LpComorbiditiesSelected { get; set; } = new();
+        public List<string> LpComorbidities { get; } = new()
+        {
+            "Diabetes mellitus",
+            "Hypertension",
+            "Chronic kidney disease",
+            "Asthma / COPD",
+            "Hypothyroidism",
+            "Coronary artery disease"
+        };
 
         public CountryDemo[] Countries => _countriesCache;
         public ReferralDemo[] Referrals => _referralsCache;

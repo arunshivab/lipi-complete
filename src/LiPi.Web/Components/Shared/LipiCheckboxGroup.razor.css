@@ -1,0 +1,106 @@
+/* SPEC:  docs/03-Phase-2.5-Selection-Components/02-LipiCheckboxGroup.md
+          §"Live count display" (Decision 2.11 extension)
+   PHASE: 2.5 Step 9 — second selection-family component
+   AMEND: docs/CHANGE-LOG.md A15 (pending — Phase 2.5 close-out)
+
+   Component-specific SHAPE only per audit item #1 (Layout-vs-Shape rule).
+   All wrapper LAYOUT primitives (display, flex/grid, gap, orientation
+   modifiers, density modifiers, --cbg-cols class-based grid mechanism)
+   live in lipi-selection-family.css.
+
+   What lives here:
+     - Legend label color override (legend default browser styling reset
+       partly handled by family CSS; emphasis/weight is component-specific)
+     - Count display typography (DM Mono per spec line 579, monospace
+       feel for numeric data)
+     - Per-size legend font-size scaling (Decision 2.6 — legend mirrors
+       label sizing convention from lipi-inputs.css for visual consistency)
+
+   What lives in family CSS:
+     - .lipi-cbg-wrapper, .lipi-cbg-options layout (display, fieldset reset)
+     - .lipi-cbg-label (legend) base reset
+     - .lipi-cbg-count base color (--color-text-tertiary) + state colors
+       (.lipi-cbg-count-near-max / -at-max / -over-max)
+     - Orientation/density/columns modifiers
+     - Required-tint and error-state group cues (left-border + bg-fade)
+     - Helper slot base styles + state colors
+
+   Token references — all verified against 00-baseline.css and mode files:
+     --font-mono   (baseline)
+     --ts-small    (baseline, 11px)
+     --sp-sm       (baseline, 8px)
+     --fw-medium   (baseline, 500)
+*/
+
+
+/* =========================================================================
+   COUNT DISPLAY — typography in legend
+   Family CSS owns base color + state-modifier colors. Scoped CSS adds
+   typography (DM Mono, letter-spacing) and legend layout adjustments.
+   Per Decision 2.11 spec line 578-585.
+   ========================================================================= */
+
+.lipi-cbg-count {
+    font-family: var(--font-mono);
+    margin-left: var(--sp-sm);
+    letter-spacing: 0.02em;
+    /* font-size, color, font-weight — set by family CSS base + state modifiers */
+}
+
+
+/* =========================================================================
+   LEGEND PER-SIZE FONT SCALING (Decision 2.6 alignment with lipi-inputs.css)
+   Phase 2.2's lipi-inputs.css scales .lipi-input-label font-size by
+   .lipi-input-{small,medium,large}. The group's <legend> uses
+   .lipi-cbg-label which doesn't pick up that cascade automatically (legend
+   isn't .lipi-input-label). Mirror the per-size scaling here for visual
+   consistency with the rest of the input family.
+   ========================================================================= */
+
+.lipi-input-small  .lipi-cbg-label { font-size: 13px; }
+.lipi-input-medium .lipi-cbg-label { font-size: 14px; }
+.lipi-input-large  .lipi-cbg-label { font-size: 15px; }
+
+
+/* =========================================================================
+   FIELDSET-DISABLED OPACITY (Decision 2.9)
+   Family CSS sets .lipi-input-disabled { opacity: 0.55 } via class. But
+   <fieldset disabled> is the canonical mechanism — not all callers will set
+   the class explicitly. Cover the native :disabled pseudo-class here so the
+   visual treatment fires for both paths.
+   ========================================================================= */
+
+.lipi-cbg-wrapper:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* When fieldset is disabled, child checkboxes inherit the disabled visual
+   via the .lipi-input-disabled class on each LipiCheckbox wrapper (the group
+   propagates Disabled to children explicitly via Disabled="@IsItemDisabledForRender").
+   No additional cascade rule needed here — natural CSS inheritance handles it. */
+
+
+/* =========================================================================
+   READONLY GROUP CURSOR (Decision 2.9 cont.)
+   Family CSS sets cursor: default on .lipi-input-readonly + child wrappers.
+   Repeat at the fieldset level to cover the legend area too — clicking the
+   legend in a readonly group should not produce a text-selection cursor,
+   which is the browser default for legend.
+   ========================================================================= */
+
+.lipi-cbg-wrapper.lipi-input-readonly {
+    cursor: default;
+}
+
+.lipi-cbg-wrapper.lipi-input-readonly .lipi-cbg-label {
+    cursor: default;
+}
+
+
+/* =========================================================================
+   REDUCED-MOTION ACCESSIBILITY
+   Family CSS already disables transitions on the apricot-tint and error-state
+   rules under prefers-reduced-motion. No additional component-specific
+   transitions live in this file, so no media query needed here.
+   ========================================================================= */

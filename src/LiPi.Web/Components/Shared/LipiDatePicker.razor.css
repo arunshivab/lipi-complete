@@ -159,7 +159,13 @@
    ───────────────────────────────────────────────────────────── */
 
 .lipi-datepicker-popover {
-    /* JS sets: position, left, top, visibility */
+    /* position: fixed keeps this out of document flow at all times.
+       Without this, the popover div is a 3rd direct child of the grid container
+       (.lipi-input-wrapper with .lipi-input-label-left/right) and auto-places
+       into a new grid row, creating a blank gap even when visibility: hidden.
+       Phase 2.5.5 fix. */
+    position: fixed;
+    /* JS sets: left, top, visibility */
     /* Visibility starts hidden; JS toggles after positioning to avoid jump */
     visibility: hidden;
     z-index: 1000;
