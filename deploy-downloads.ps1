@@ -25,8 +25,109 @@ $files = @{
     "Program.cs"                     = "src\LiPi.Web\Program.cs"
     "CLAUDE.md"                      = "CLAUDE.md"
 
-    # -- CSS / JS --------------------------------------------------------------
-    "admin.css"                      = "src\LiPi.Web\wwwroot\css\admin.css"
+    # -- Phase 2.6.1 — Layout components (LipiTabs + LipiAlert + LipiCard) ----
+    # LipiTabs (Step 1): Underline/Pill/Vertical variants, TabState, IconOnly,
+    #   keyboard nav (WAI-ARIA Pattern A), TabShortcutPattern, RenderMode Lazy/Eager
+    "LipiTabsTypes.cs"               = "src\LiPi.Web\Components\Shared\LipiTabsTypes.cs"
+    "LipiTabRegistration.cs"         = "src\LiPi.Web\Components\Shared\LipiTabRegistration.cs"
+    "LipiTabs.razor"                 = "src\LiPi.Web\Components\Shared\LipiTabs.razor"
+    "LipiTabs.razor.css"             = "src\LiPi.Web\Components\Shared\LipiTabs.razor.css"
+    "LipiTab.razor"                  = "src\LiPi.Web\Components\Shared\LipiTab.razor"
+    "lipi-tabs.css"                  = "src\LiPi.Web\wwwroot\css\lipi-tabs.css"
+
+    # LipiAlert (Step 2): 5 severities, 4 styles, auto-dismiss + progress bar,
+    #   AlertActions slot, Critical safety rules (no ✕, no auto-dismiss, Outline→Filled)
+    "LipiAlertTypes.cs"              = "src\LiPi.Web\Components\Shared\LipiAlertTypes.cs"
+    "LipiAlert.razor"                = "src\LiPi.Web\Components\Shared\LipiAlert.razor"
+    "LipiAlert.razor.css"            = "src\LiPi.Web\Components\Shared\LipiAlert.razor.css"
+    "lipi-alerts.css"                = "src\LiPi.Web\wwwroot\css\lipi-alerts.css"
+
+    # -- Phase 2.6.1 — LipiCard --------------------------------------------------
+    "LipiCardTypes.cs"               = "src\LiPi.Web\Components\Shared\LipiCardTypes.cs"
+    "LipiCard.razor"                 = "src\LiPi.Web\Components\Shared\LipiCard.razor"
+    "LipiCard.razor.css"             = "src\LiPi.Web\Components\Shared\LipiCard.razor.css"
+    "CardHeader.razor"               = "src\LiPi.Web\Components\Shared\CardHeader.razor"
+    "CardBody.razor"                 = "src\LiPi.Web\Components\Shared\CardBody.razor"
+    "CardFooter.razor"               = "src\LiPi.Web\Components\Shared\CardFooter.razor"
+    "lipi-cards.css"                 = "src\LiPi.Web\wwwroot\css\lipi-cards.css"
+
+    # -- Phase 2.6.2 — Overlay Surfaces (Modal + Drawer + DynamicTabs) -----------
+    # AMENDMENTS:
+    #   A30 (2026-05-14): LipiModalTypes.cs recovered from spec §4 after file loss
+    #   A31 (2026-05-14): LipiModal.razor family added (declarative path per spec §2)
+    #   A32 (2026-05-14): CSS fallbacks, modal stack guard fix, drawer 6 missing
+    #                     params + pin mode completion, dynamic tabs IDisposable +
+    #                     MaxTabs cap + arrow keys, overlay host drawer-via-LipiDrawer
+    #                     refactor + aria-live writes + drawer-on-modal warning.
+    #                     Files revised: lipi-overlays.css, lipi-dynamic-tabs.css,
+    #                     LipiModalService.cs, ILipiDynamicTabsService.cs,
+    #                     LipiDynamicTabsService.cs, LipiDynamicTabs.razor,
+    #                     LipiOverlayHost.razor, LipiDrawer.razor.
+    #   A33 (2026-05-14): StyleGuideOverlays showcase rewritten — 30-demo coverage
+    #                     across Modal §12 (11) + Drawer §11 (8) + DynamicTabs §14
+    #                     (11). New helper components: SampleCustomModal.razor +
+    #                     SampleDrawerPanel.razor (ShowAsync demo bodies);
+    #                     StyleGuideOverlayTabDemo.razor stub @page for dtabs nav
+    #                     demos. Existing 5–6 stub demos discarded wholesale.
+    #   A34 (2026-05-14): DynamicTabs overflow redesign — native scrollbar
+    #                     replaced with chevron buttons on both ends per spec
+    #                     §8 amendment. Hidden when no overflow, greyed at edges,
+    #                     page-width click scroll, hold-to-scroll with accel.
+    #                     Files revised: lipi-dynamic-tabs.css (wrapper + chevron
+    #                     rules, scrollbar hidden), LipiDynamicTabs.razor (wrapper
+    #                     markup, JS interop wiring, DisposeAsync cleanup),
+    #                     lipi-overlay-interop.js (new lipiDtabs namespace).
+    #                     Spec doc 03-LipiDynamicTabs-Spec.md §8 amended.
+    #                     Folded into A34: A29-pattern deploy-mapping fix —
+    #                     four Phase 2.6.2 spec docs (00-Phase2.6.2-Overview,
+    #                     01-LipiModal-Spec, 02-LipiDrawer-Spec,
+    #                     03-LipiDynamicTabs-Spec) added to the Docs section
+    #                     under docs\00-COMPONENTS\2.6.2\.
+    # Shared infrastructure
+    "IFocusTrapService.cs"           = "src\LiPi.Web\Services\IFocusTrapService.cs"
+    "FocusTrapService.cs"            = "src\LiPi.Web\Services\FocusTrapService.cs"
+    "IScrollLockService.cs"          = "src\LiPi.Web\Services\IScrollLockService.cs"
+    "ScrollLockService.cs"           = "src\LiPi.Web\Services\ScrollLockService.cs"
+    "lipi-overlay-interop.js"        = "src\LiPi.Web\wwwroot\js\lipi-overlay-interop.js"
+    "LipiOverlayHost.razor"          = "src\LiPi.Web\Components\Shared\LipiOverlayHost.razor"
+    # LipiModal
+    # NOTE: LipiModalTypes.cs rebuilt 2026-05-14 from spec §4 after loss (A30).
+    # NOTE: LipiModal.razor family added 2026-05-14 (A31) — declarative path
+    #       per spec §2. Single-file (no .razor.cs) matching project pattern.
+    "LipiModalTypes.cs"              = "src\LiPi.Web\Components\Shared\LipiModalTypes.cs"
+    "LipiModal.razor"                = "src\LiPi.Web\Components\Shared\LipiModal.razor"
+    "LipiModal.razor.css"            = "src\LiPi.Web\Components\Shared\LipiModal.razor.css"
+    "ModalBody.razor"                = "src\LiPi.Web\Components\Shared\ModalBody.razor"
+    "ModalFooter.razor"              = "src\LiPi.Web\Components\Shared\ModalFooter.razor"
+    # A33: StyleGuide demo body for Modal.ShowAsync<T, string?>
+    "SampleCustomModal.razor"        = "src\LiPi.Web\Components\Shared\SampleCustomModal.razor"
+    "ILipiModalService.cs"           = "src\LiPi.Web\Services\ILipiModalService.cs"
+    "LipiModalService.cs"            = "src\LiPi.Web\Services\LipiModalService.cs"
+    "ConfirmDialog.razor"            = "src\LiPi.Web\Components\Shared\ConfirmDialog.razor"
+    "AlertDialog.razor"              = "src\LiPi.Web\Components\Shared\AlertDialog.razor"
+    "PromptDialog.razor"             = "src\LiPi.Web\Components\Shared\PromptDialog.razor"
+    # LipiDrawer
+    "LipiDrawerTypes.cs"             = "src\LiPi.Web\Components\Shared\LipiDrawerTypes.cs"
+    "ILipiDrawerService.cs"          = "src\LiPi.Web\Services\ILipiDrawerService.cs"
+    "LipiDrawerService.cs"           = "src\LiPi.Web\Services\LipiDrawerService.cs"
+    "LipiDrawer.razor"               = "src\LiPi.Web\Components\Shared\LipiDrawer.razor"
+    "LipiDrawer.razor.css"           = "src\LiPi.Web\Components\Shared\LipiDrawer.razor.css"
+    "DrawerBody.razor"               = "src\LiPi.Web\Components\Shared\DrawerBody.razor"
+    "DrawerFooter.razor"             = "src\LiPi.Web\Components\Shared\DrawerFooter.razor"
+    # A33: StyleGuide demo body for Drawer.ShowAsync<T, bool>
+    "SampleDrawerPanel.razor"        = "src\LiPi.Web\Components\Shared\SampleDrawerPanel.razor"
+    # LipiDynamicTabs
+    "LipiDynamicTabsTypes.cs"        = "src\LiPi.Web\Components\Shared\LipiDynamicTabsTypes.cs"
+    "DynamicTabAttribute.cs"         = "src\LiPi.Web\Components\Shared\DynamicTabAttribute.cs"
+    "ILipiDynamicTabsService.cs"     = "src\LiPi.Web\Services\ILipiDynamicTabsService.cs"
+    "LipiDynamicTabsService.cs"      = "src\LiPi.Web\Services\LipiDynamicTabsService.cs"
+    "LipiDynamicTabs.razor"          = "src\LiPi.Web\Components\Shared\LipiDynamicTabs.razor"
+    "LipiDynamicTabs.razor.css"      = "src\LiPi.Web\Components\Shared\LipiDynamicTabs.razor.css"
+    "LipiDynamicTab.razor"           = "src\LiPi.Web\Components\Shared\LipiDynamicTab.razor"
+    "DirtyTabConfirmDialog.razor"    = "src\LiPi.Web\Components\Shared\DirtyTabConfirmDialog.razor"
+    # Shared CSS + modified files
+    "lipi-overlays.css"              = "src\LiPi.Web\wwwroot\css\lipi-overlays.css"
+    "lipi-dynamic-tabs.css"          = "src\LiPi.Web\wwwroot\css\lipi-dynamic-tabs.css"
 
     # -- Self-hosted fonts (LiPi Sans + LiPi Mono) ----------------------------
     # Font swap: DM Sans/Mono → LiPi Sans/Mono (HIPAA/DPDP — no external CDN)
@@ -274,6 +375,12 @@ $files = @{
 
     # -- Pages -- Phase 2.0 (Style Guide, Decision #12 Sub-step 2.0) ----------
     "StyleGuide.razor"               = "src\LiPi.Web\Pages\StyleGuide.razor"
+    "StyleGuideLayout.razor"         = "src\LiPi.Web\Pages\StyleGuideLayout.razor"
+    "StyleGuideLayout.razor.css"     = "src\LiPi.Web\Pages\StyleGuideLayout.razor.css"
+    "StyleGuideOverlays.razor"       = "src\LiPi.Web\Pages\StyleGuideOverlays.razor"
+    "StyleGuideOverlays.razor.css"   = "src\LiPi.Web\Pages\StyleGuideOverlays.razor.css"
+    # A33: Stub @page navigated to by DynamicTabs demos (§14 demos 2–9)
+    "StyleGuideOverlayTabDemo.razor" = "src\LiPi.Web\Pages\StyleGuideOverlayTabDemo.razor"
     "StyleGuide.razor.css"           = "src\LiPi.Web\Pages\StyleGuide.razor.css"
 
     # -- Pages -- Test scaffolds (Phase 2.2 verification — coexist alongside the
@@ -415,6 +522,17 @@ $files = @{
     "01.3-CompoundField.md"          = "docs\00-COMPONENTS\01.3-CompoundField.md"
     "01.4-MultiSelect.md"            = "docs\00-COMPONENTS\01.4-MultiSelect.md"
     "01.5-DateTime.md"               = "docs\00-COMPONENTS\01.5-DateTime.md"
+    "02-LipiTabs-Spec.md"            = "docs\02-LipiTabs-Spec.md"
+    "03-LipiAlert-Spec.md"           = "docs\03-LipiAlert-Spec.md"
+    "04-LipiCard-Spec.md"            = "docs\04-LipiCard-Spec.md"
+
+    # -- Docs -- Phase 2.6.2 specs (A34 close-out, fold of A29 pattern) --------
+    # Mirrors A29's 2.6.1-spec mapping fix. Without these entries, edits to the
+    # four 2.6.2 spec docs could not flow through the standard deploy workflow.
+    "00-Phase2.6.2-Overview.md"      = "docs\00-COMPONENTS\2.6.2\00-Phase2.6.2-Overview.md"
+    "01-LipiModal-Spec.md"           = "docs\00-COMPONENTS\2.6.2\01-LipiModal-Spec.md"
+    "02-LipiDrawer-Spec.md"          = "docs\00-COMPONENTS\2.6.2\02-LipiDrawer-Spec.md"
+    "03-LipiDynamicTabs-Spec.md"     = "docs\00-COMPONENTS\2.6.2\03-LipiDynamicTabs-Spec.md"
 
     # -- Docs -- Top-level -----------------------------------------------------
     "00-PROJECT-BASELINE.md"         = "docs\00-PROJECT-BASELINE.md"

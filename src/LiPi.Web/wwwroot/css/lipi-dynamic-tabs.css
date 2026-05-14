@@ -1,0 +1,291 @@
+/* SPEC:  docs/03-LipiDynamicTabs-Spec.md §8, §10
+   PHASE: 2.6.2 — Overlay Surfaces
+   AMEND: docs/CHANGE-LOG.md A32 — --color-border-tertiary fallbacks
+          docs/CHANGE-LOG.md A34 — overflow redesign: native scrollbar
+                                    replaced with chevron buttons on both ends
+                                    (per spec §8 amendment).
+
+   Multi-industry tokens:
+     --lipi-dtab-min-width:   140px
+     --lipi-dtab-max-width:   220px
+     --lipi-dtab-height:      40px
+     --lipi-dtab-active-bar:  var(--color-primary)
+     --lipi-dtab-strip-bg:    var(--color-bg-subtle)
+     --lipi-dtab-chevron-w:   32px      (A34)
+
+   A32 self-sufficiency: every --color-border-tertiary reference now falls back
+   to --color-border-default. Matches A22/A26 pattern locked for LipiTabs/Card.
+
+   A34 overflow model (locked design decisions from build chat):
+     1. Chevron visibility: hidden when no overflow, fade in when overflow
+        exists (Chrome / Firefox / JetBrains pattern).
+     2. At-edge state: greyed/disabled, never hidden (preserves layout, no
+        spatial jumping). VS Code / JetBrains / Chrome pattern.
+     3. Click scroll: scrollBy(clientWidth - tabWidth, smooth) — page-like.
+     4. Hold-to-scroll: pointerdown → immediate, then 400ms delay → 120ms
+        interval, accelerates to 60ms after 1 second.
+
+   The native scrollbar is still present mechanically — the strip's
+   overflow-x: auto is required so programmatic scrollIntoView() works for
+   keyboard navigation. The scrollbar is HIDDEN visually via scrollbar-width:
+   none + ::-webkit-scrollbar { display: none }. Chevrons drive scrollBy().
+*/
+
+/* ==========================================================================
+   STRIP WRAPPER (A34)
+   The wrapper hosts the strip + left/right chevron buttons in a flex row.
+   The strip itself flex-grows to fill remaining space; chevrons are fixed
+   width (--lipi-dtab-chevron-w) and only become visible when overflow exists
+   on the strip (driven by data-overflow attribute set from JS).
+   ========================================================================== */
+
+.lipi-dtabs-strip-wrapper {
+    display: flex;
+    align-items: stretch;
+    background: var(--lipi-dtab-strip-bg, var(--color-bg-subtle));
+    border-bottom: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+    min-height: var(--lipi-dtab-height, 40px);
+    flex-shrink: 0;
+    position: relative;
+}
+
+
+/* ==========================================================================
+   CHEVRON BUTTONS (A34)
+   Hidden by default (width: 0, opacity: 0). When the wrapper has
+   data-overflow="true", chevrons fade in to --lipi-dtab-chevron-w wide.
+
+   At-edge state: data-can-scroll-left="false" / data-can-scroll-right="false"
+   on the wrapper greys out the corresponding chevron. The chevron stays in
+   the layout — only opacity + cursor changes (no jumping).
+   ========================================================================== */
+
+.lipi-dtabs-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 0;
+    border: 0;
+    background: var(--lipi-dtab-strip-bg, var(--color-bg-subtle));
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    flex-shrink: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+        width   180ms ease-out,
+        opacity 180ms ease-out,
+        background var(--tr-fast),
+        color var(--tr-fast);
+    outline: none;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none; /* disable browser pan during hold-to-scroll */
+}
+
+/* Show chevrons when strip overflows */
+.lipi-dtabs-strip-wrapper[data-overflow="true"] .lipi-dtabs-chevron {
+    width: var(--lipi-dtab-chevron-w, 32px);
+    opacity: 1;
+}
+
+.lipi-dtabs-chevron-left {
+    border-right: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+}
+
+.lipi-dtabs-chevron-right {
+    border-left: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+}
+
+.lipi-dtabs-chevron:hover:not(:disabled) {
+    background: var(--color-bg-hover, rgba(11, 37, 69, 0.05));
+    color: var(--color-text-primary);
+}
+
+.lipi-dtabs-chevron:active:not(:disabled) {
+    background: var(--color-bg-hover-strong, rgba(11, 37, 69, 0.08));
+}
+
+.lipi-dtabs-chevron:focus-visible {
+    outline: 2px solid var(--color-border-focus, var(--color-primary));
+    outline-offset: -3px;
+}
+
+/* At-edge / disabled — preserve layout, only visual fade */
+.lipi-dtabs-chevron:disabled,
+.lipi-dtabs-chevron[aria-disabled="true"] {
+    opacity: 0.35;
+    cursor: default;
+    pointer-events: none; /* stop hover ripple when disabled */
+}
+
+/* Reduced motion — skip the fade-in transition */
+@media (prefers-reduced-motion: reduce) {
+    .lipi-dtabs-chevron {
+        transition: none;
+    }
+}
+
+
+/* ==========================================================================
+   TAB STRIP
+   A34: native scrollbar hidden visually; overflow-x: auto kept for
+   programmatic scrollBy / scrollIntoView. Scrollbar is invisible on all
+   browsers (Firefox via scrollbar-width: none, WebKit via display: none).
+   ========================================================================== */
+
+.lipi-dtabs-strip {
+    display: flex;
+    align-items: stretch;
+    background: var(--lipi-dtab-strip-bg, var(--color-bg-subtle));
+    /* A34: border-bottom moved to wrapper. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-height: var(--lipi-dtab-height, 40px);
+    flex: 1 1 auto;          /* fill wrapper between chevrons */
+    min-width: 0;            /* allow shrink so flex-1 children can size */
+    scroll-behavior: smooth; /* smooth scrollBy() for chevron clicks */
+
+    /* Hide native scrollbar */
+    scrollbar-width: none;        /* Firefox */
+    -ms-overflow-style: none;     /* legacy IE / old Edge */
+}
+
+.lipi-dtabs-strip::-webkit-scrollbar { display: none; }
+
+/* Reduced-motion: instant scroll instead of smooth */
+@media (prefers-reduced-motion: reduce) {
+    .lipi-dtabs-strip {
+        scroll-behavior: auto;
+    }
+}
+
+
+/* ==========================================================================
+   INDIVIDUAL TAB
+   ========================================================================== */
+
+.lipi-dtab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px 0 14px;
+    border-right: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+    background: var(--color-bg-subtle);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background var(--tr-fast), color var(--tr-fast);
+    max-width: var(--lipi-dtab-max-width, 220px);
+    min-width: var(--lipi-dtab-min-width, 140px);
+    flex-shrink: 0;
+    user-select: none;
+    outline: none;
+}
+
+.lipi-dtab:hover { background: var(--color-bg-hover); }
+
+.lipi-dtab:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+}
+
+.lipi-dtab-active {
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font-weight: var(--fw-medium);
+    box-shadow: inset 0 -2px 0 var(--lipi-dtab-active-bar, var(--color-primary));
+}
+
+
+/* ==========================================================================
+   TAB PARTS
+   ========================================================================== */
+
+.lipi-dtab-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.lipi-dtab-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Dirty marker — amber asterisk after title */
+.lipi-dtab-dirty .lipi-dtab-title::after {
+    content: " *";
+    color: var(--color-warning, #BA7517);
+    font-weight: 700;
+}
+
+.lipi-dtab-close {
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+    padding: 0;
+    transition: background var(--tr-fast), color var(--tr-fast);
+}
+
+.lipi-dtab-close:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.lipi-dtab-close:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+}
+
+
+/* ==========================================================================
+   ADD BUTTON
+   ========================================================================== */
+
+.lipi-dtab-add {
+    width: 36px;
+    min-width: 36px;
+    border: none;
+    border-right: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--tr-fast), color var(--tr-fast);
+}
+
+.lipi-dtab-add:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+
+/* ==========================================================================
+   EMPTY STATE
+   ========================================================================== */
+
+.lipi-dtabs-empty {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    font-style: italic;
+}

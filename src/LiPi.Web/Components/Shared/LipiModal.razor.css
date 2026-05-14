@@ -1,0 +1,17 @@
+/* SPEC:  docs/01-LipiModal-Spec.md §7
+   PHASE: 2.6.2 — Overlay Surfaces
+   RULE:  Shape-only — layout rules live in lipi-overlays.css.
+
+   This file currently only suppresses the focus ring on the modal CONTAINER
+   itself. The container is a focus host for the trap (tabindex="-1" makes it
+   programmatically focusable), but it is NEVER a target the user wants to
+   visually focus — focus visibly lands on inner controls via their own
+   focus-ring rules. Without `outline: none` here, some browsers paint a
+   2px outline around the whole modal box when programmatic focus lands on
+   it during trap activation.
+*/
+
+.lipi-modal:focus,
+.lipi-modal:focus-visible {
+    outline: none;
+}

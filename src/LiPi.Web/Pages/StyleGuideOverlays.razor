@@ -1,0 +1,1269 @@
+@page "/admin/style-guide-overlays"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@* SPEC:  docs/01-LipiModal-Spec.md §12 (Modal demos 1–11)
+          docs/02-LipiDrawer-Spec.md §11 (Drawer demos 1–8)
+          docs/03-LipiDynamicTabs-Spec.md §14 (DynamicTabs demos 1–11)
+   PHASE: 2.6.2 — Overlay Surfaces showcase
+   AMEND: docs/CHANGE-LOG.md A33
+
+   Full 30-demo showcase for the Phase 2.6.2 overlay component family.
+   Modal demos use both the declarative <LipiModal> path (built A31) and
+   the service path. Drawer demos likewise use both paths. DynamicTabs
+   demos navigate to StyleGuideOverlayTabDemo.razor stub pages with
+   different TabId prefixes that drive save-handler registration.
+
+   v1.0 limitations surfaced in-page:
+     - Modal §10 Intent auto-defaults: only Critical/Progress forced overrides
+       apply (A31 divergence). Confirmation/Alert/Wizard/Preview stay at
+       declared defaults — consumer must set Size etc. explicitly.
+     - Drawer demo 5 (service path) doesn't carry Icon/IconColor/IsDirty/
+       Pinnable — needs DrawerRequest extension (v1.1+, tracked in A32).
+     - DynamicTabs demo 10 (Dropdown overflow): logs warning + falls back
+       to Scroll mode (v1.0 limitation, A32). Demo shows the static
+       expected behavior + code block.
+*@
+
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Authorization
+@using LiPi.Web.Services
+@using LiPi.Web.Components.Shared
+
+@inject ILipiModalService        _modal
+@inject ILipiDrawerService       _drawer
+@inject ILipiDynamicTabsService  _tabSvc
+@inject NavigationManager        _nav
+
+<PageTitle>Style Guide — Overlays – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Style Guide</div>
+    <div class="tn-pt-sub">Overlays — Modal · Drawer · DynamicTabs</div>
+</SectionContent>
+
+<div class="sg-page">
+
+    @* ════════ TOP BAR ════════ *@
+    <header class="sg-topbar">
+        <div class="sg-titleblock">
+            <h1 class="sg-h1">Overlay Surfaces</h1>
+            <p class="sg-subtitle">
+                Phase 2.6.2 — 30 demos covering LipiModal (11), LipiDrawer (8),
+                LipiDynamicTabs (11). Both declarative and service-driven paths shown
+                where the spec covers both.
+            </p>
+        </div>
+        <a class="sg-back-link" href="/admin/style-guide">← Foundation style guide</a>
+    </header>
+
+    @* ════════ LAYOUT ════════ *@
+    <div class="sg-layout">
+
+        @* ─── Sidebar nav ─── *@
+        <aside class="sg-sidebar" aria-label="Demo sections">
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">LipiModal §12</h3>
+                <a class="sg-nav-link" href="#modal-sizes">1. Sizes</a>
+                <a class="sg-nav-link" href="#modal-iconcolors">2. IconColor</a>
+                <a class="sg-nav-link" href="#modal-animations">3. Animations</a>
+                <a class="sg-nav-link" href="#modal-confirm">4. ConfirmAsync</a>
+                <a class="sg-nav-link" href="#modal-alert">5. AlertAsync</a>
+                <a class="sg-nav-link" href="#modal-prompt">6. PromptAsync</a>
+                <a class="sg-nav-link" href="#modal-show">7. ShowAsync&lt;T&gt;</a>
+                <a class="sg-nav-link" href="#modal-isdirty">8. IsDirty</a>
+                <a class="sg-nav-link" href="#modal-isbusy">9. IsBusy</a>
+                <a class="sg-nav-link" href="#modal-stack">10. Stack</a>
+                <a class="sg-nav-link" href="#modal-intents">11. Intent presets</a>
+            </div>
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">LipiDrawer §11</h3>
+                <a class="sg-nav-link" href="#drawer-placements">1. 4 placements</a>
+                <a class="sg-nav-link" href="#drawer-sizes">2. 4 sizes per placement</a>
+                <a class="sg-nav-link" href="#drawer-backdrops">3. 3 backdrops</a>
+                <a class="sg-nav-link" href="#drawer-dirty">4. Form + dirty state</a>
+                <a class="sg-nav-link" href="#drawer-show">5. ShowAsync programmatic</a>
+                <a class="sg-nav-link" href="#drawer-multi">6. R + B simultaneous</a>
+                <a class="sg-nav-link" href="#drawer-modal-on">7. Modal on drawer</a>
+                <a class="sg-nav-link" href="#drawer-busy">8. IsBusy</a>
+            </div>
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">LipiDynamicTabs §14</h3>
+                <a class="sg-nav-link" href="#dtabs-empty">1. Empty state</a>
+                <a class="sg-nav-link" href="#dtabs-open3">2. Open 3 tabs</a>
+                <a class="sg-nav-link" href="#dtabs-dirty">3. Dirty marker</a>
+                <a class="sg-nav-link" href="#dtabs-close-clean">4. Clean close</a>
+                <a class="sg-nav-link" href="#dtabs-close-dirty">5. Dirty close</a>
+                <a class="sg-nav-link" href="#dtabs-save-ok">6. Save &amp; close OK</a>
+                <a class="sg-nav-link" href="#dtabs-save-fail">7. Save &amp; close fail</a>
+                <a class="sg-nav-link" href="#dtabs-cap">8. Soft cap</a>
+                <a class="sg-nav-link" href="#dtabs-scroll">9. Scroll overflow</a>
+                <a class="sg-nav-link" href="#dtabs-dropdown">10. Dropdown overflow</a>
+                <a class="sg-nav-link" href="#dtabs-addbtn">11. Add button</a>
+            </div>
+        </aside>
+
+        @* ─── Main content ─── *@
+        <main class="sg-content">
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  MODAL SECTION — 11 demos                                   ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            @* ── Demo 1 — Sizes ── *@
+            <section id="modal-sizes" class="sg-section">
+                <h2 class="sg-h2">LipiModal — Demos</h2>
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>All four sizes</h3>
+                <p class="sg-p">
+                    Spec §4 sizes: <code class="sg-code">Compact</code> 400px ·
+                    <code class="sg-code">Standard</code> 520px ·
+                    <code class="sg-code">Wide</code> 680px ·
+                    <code class="sg-code">Fullscreen</code> 95vw. Each opens a
+                    declarative <code class="sg-code">&lt;LipiModal&gt;</code>.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m1Open = ModalSize.Compact)">Compact</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m1Open = ModalSize.Standard)">Standard</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m1Open = ModalSize.Wide)">Wide</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m1Open = ModalSize.Fullscreen)">Fullscreen</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 2 — IconColor ── *@
+            <section id="modal-iconcolors" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>All six IconColor values</h3>
+                <p class="sg-p">
+                    Spec §4 IconColors: None · Info · Success · Warning · Danger · Critical.
+                    Backgrounds defined in <code class="sg-code">lipi-overlays.css</code>.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m2Open = ModalIconColor.None)">None</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m2Open = ModalIconColor.Info)">Info</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m2Open = ModalIconColor.Success)">Success</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m2Open = ModalIconColor.Warning)">Warning</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m2Open = ModalIconColor.Danger)">Danger</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m2Open = ModalIconColor.Critical)">Critical</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 3 — Animations ── *@
+            <section id="modal-animations" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">3</span>Animations + toggle</h3>
+                <p class="sg-p">
+                    Spec §8 animations: <code class="sg-code">None</code> ·
+                    <code class="sg-code">Fade</code> ·
+                    <code class="sg-code">FadeSlide</code> (default) ·
+                    <code class="sg-code">FadeScale</code>. Pick one, then click Open.
+                </p>
+                <div class="sg-btn-row">
+                    <label class="sg-form-label" for="m3-anim">Animation:</label>
+                    <select id="m3-anim" class="sg-anim-select" @bind="_m3Anim">
+                        <option value="None">None</option>
+                        <option value="Fade">Fade</option>
+                        <option value="FadeSlide">FadeSlide</option>
+                        <option value="FadeScale">FadeScale</option>
+                    </select>
+                    <LipiButton Size="ButtonSize.Small" OnClick="@(() => _m3Open = true)">Open</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 4 — ConfirmAsync ── *@
+            <section id="modal-confirm" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">4</span>ConfirmAsync — service path</h3>
+                <p class="sg-p">
+                    Spec §5 <code class="sg-code">Modal.ConfirmAsync(...)</code> with all four intents.
+                    Critical hides Cancel and disables Esc / backdrop click.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => RunConfirm(ConfirmIntent.Default))">Default</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => RunConfirm(ConfirmIntent.Warning))">Warning</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Danger" Size="ButtonSize.Small"
+                                OnClick="@(() => RunConfirm(ConfirmIntent.Danger))">Danger</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Danger" Size="ButtonSize.Small"
+                                OnClick="@(() => RunConfirm(ConfirmIntent.Critical))">Critical</LipiButton>
+                </div>
+                @if (_confirmResult is not null)
+                {
+                    <div class="sg-result">Last result: <strong>@_confirmResult</strong></div>
+                }
+            </section>
+
+            @* ── Demo 5 — AlertAsync ── *@
+            <section id="modal-alert" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">5</span>AlertAsync — service path</h3>
+                <p class="sg-p">
+                    Spec §5 <code class="sg-code">Modal.AlertAsync(...)</code> with all five intents.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => RunAlert(AlertIntent.Info))">Info</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => RunAlert(AlertIntent.Success))">Success</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => RunAlert(AlertIntent.Warning))">Warning</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Danger" Size="ButtonSize.Small"
+                                OnClick="@(() => RunAlert(AlertIntent.Danger))">Danger</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Danger" Size="ButtonSize.Small"
+                                OnClick="@(() => RunAlert(AlertIntent.Critical))">Critical</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 6 — PromptAsync ── *@
+            <section id="modal-prompt" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">6</span>PromptAsync — service path</h3>
+                <p class="sg-p">
+                    Spec §5 <code class="sg-code">Modal.PromptAsync(...)</code> for single-input
+                    capture. Returns the typed string, or <code class="sg-code">null</code> on cancel.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="RunPrompt">Open prompt</LipiButton>
+                </div>
+                @if (_promptResult is not null)
+                {
+                    <div class="sg-result">You entered: <strong>"@_promptResult"</strong></div>
+                }
+                else if (_promptCancelled)
+                {
+                    <div class="sg-result sg-result-muted">Cancelled (null returned).</div>
+                }
+            </section>
+
+            @* ── Demo 7 — ShowAsync ── *@
+            <section id="modal-show" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">7</span>ShowAsync — custom component</h3>
+                <p class="sg-p">
+                    Spec §5 <code class="sg-code">Modal.ShowAsync&lt;TComponent, TResult&gt;()</code> opens any
+                    component as a modal. Body is supplied by
+                    <code class="sg-code">SampleCustomModal.razor</code>.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="RunCustomShow">Open custom modal</LipiButton>
+                </div>
+                @if (_showResult is not null)
+                {
+                    <div class="sg-result">Result: <strong>"@_showResult"</strong></div>
+                }
+            </section>
+
+            @* ── Demo 8 — IsDirty ── *@
+            <section id="modal-isdirty" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">8</span>IsDirty — discard confirmation</h3>
+                <p class="sg-p">
+                    Spec §2 <code class="sg-code">IsDirty</code> triggers a Warning ConfirmAsync
+                    when the user attempts to close. Try ✕ / Escape / backdrop click.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="@(() => _m8Open = true)">Open dirty modal</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 9 — IsBusy ── *@
+            <section id="modal-isbusy" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">9</span>IsBusy — controls disabled</h3>
+                <p class="sg-p">
+                    Spec §2 <code class="sg-code">IsBusy</code> disables ✕, Esc, backdrop click,
+                    and primary action shows busy state. Toggle inside the modal.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="@(() => _m9Open = true)">Open busy demo</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 10 — Stack ── *@
+            <section id="modal-stack" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">10</span>Stack — modal opens another modal</h3>
+                <p class="sg-p">
+                    Spec §6 stack rules: max 3 modals deep, z-index increments by 10 per level,
+                    only topmost is interactive (others <code class="sg-code">inert</code>).
+                    Below opens a declarative modal that itself triggers a service ConfirmAsync.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="@(() => _m10Open = true)">Open stack demo</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 11 — Intents ── *@
+            <section id="modal-intents" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">11</span>All six Intent presets</h3>
+                <p class="sg-p">
+                    Spec §10 Intent auto-defaults table: Default · Confirmation · Alert ·
+                    Wizard · Preview · Progress.
+                </p>
+                <div class="sg-note">
+                    <strong>v1.0 divergence (A31):</strong> Only <code class="sg-code">Progress</code> intent
+                    cascades forced overrides (ShowCloseButton/CloseOnEscape/CloseOnBackdrop/Animate
+                    all forced to false). Confirmation, Alert, Wizard, Preview do NOT auto-default
+                    Size or FooterAlign in v1.0 — the project rejects nullable enum params
+                    (LipiButton precedent). Consumer must set these explicitly. Tracked for v1.1.
+                </div>
+                <div class="sg-btn-row" style="margin-top:12px">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m11Open = ModalIntent.Default)">Default</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m11Open = ModalIntent.Confirmation)">Confirmation</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m11Open = ModalIntent.Alert)">Alert</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m11Open = ModalIntent.Wizard)">Wizard</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m11Open = ModalIntent.Preview)">Preview</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _m11Open = ModalIntent.Progress)">Progress</LipiButton>
+                </div>
+            </section>
+
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  DRAWER SECTION — 8 demos                                   ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            @* ── Demo 1 — Placements ── *@
+            <section id="drawer-placements" class="sg-section">
+                <h2 class="sg-h2">LipiDrawer — Demos</h2>
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>All four placements</h3>
+                <p class="sg-p">
+                    Spec §4 placements: Right (default) · Left · Top · Bottom.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _d1Open = DrawerPlacement.Right)">Right</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _d1Open = DrawerPlacement.Left)">Left</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _d1Open = DrawerPlacement.Top)">Top</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _d1Open = DrawerPlacement.Bottom)">Bottom</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 2 — Sizes ── *@
+            <section id="drawer-sizes" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>Sizes per placement</h3>
+                <p class="sg-p">
+                    Spec §4 sizes. Right/Left: 320 / 400 / 560 / 95vw.
+                    Top/Bottom: 240 / 400 / 480 / 95vh.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => OpenSizedDrawer(DrawerSize.Compact))">Compact</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => OpenSizedDrawer(DrawerSize.Standard))">Standard</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => OpenSizedDrawer(DrawerSize.Wide))">Wide</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => OpenSizedDrawer(DrawerSize.FullSide))">FullSide</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 3 — Backdrops ── *@
+            <section id="drawer-backdrops" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">3</span>Three backdrop modes</h3>
+                <p class="sg-p">
+                    Spec §4 backdrops: <code class="sg-code">Dimmed</code> (default, modal-like) ·
+                    <code class="sg-code">Light</code> (faint overlay) ·
+                    <code class="sg-code">None</code> (page stays fully interactive).
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _d3Open = DrawerBackdrop.Dimmed)">Dimmed</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _d3Open = DrawerBackdrop.Light)">Light</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => _d3Open = DrawerBackdrop.None)">None</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 4 — Dirty form ── *@
+            <section id="drawer-dirty" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">4</span>Form with dirty state</h3>
+                <p class="sg-p">
+                    Spec §2 <code class="sg-code">IsDirty</code> triggers Warning ConfirmAsync on close
+                    (✕ / Esc / backdrop). Type into the field to dirty it.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="@(() => _d4Open = true)">Open dirty drawer</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 5 — Programmatic ── *@
+            <section id="drawer-show" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">5</span>Programmatic via ShowAsync</h3>
+                <p class="sg-p">
+                    Spec §5 <code class="sg-code">Drawer.ShowAsync&lt;TComponent, TResult&gt;()</code>.
+                    Body supplied by <code class="sg-code">SampleDrawerPanel.razor</code>.
+                </p>
+                <div class="sg-note">
+                    <strong>v1.0 limitation (A32):</strong> service-driven drawers don't yet carry
+                    <code class="sg-code">Icon</code>, <code class="sg-code">IconColor</code>,
+                    <code class="sg-code">IsDirty</code>, or <code class="sg-code">Pinnable</code>.
+                    Use the declarative <code class="sg-code">&lt;LipiDrawer&gt;</code> for those features
+                    until <code class="sg-code">DrawerRequest</code> is extended in v1.1.
+                </div>
+                <div class="sg-btn-row" style="margin-top:12px">
+                    <LipiButton Size="ButtonSize.Small" OnClick="RunDrawerShow">Open via ShowAsync</LipiButton>
+                </div>
+                @if (_drawerShowResult is not null)
+                {
+                    <div class="sg-result">Result: <strong>@(_drawerShowResult.Value ? "Confirmed" : "Rejected")</strong></div>
+                }
+            </section>
+
+            @* ── Demo 6 — Multi-side ── *@
+            <section id="drawer-multi" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">6</span>Right + Bottom simultaneous</h3>
+                <p class="sg-p">
+                    Spec §6 stack rules: different sides can coexist. Right + Bottom is the
+                    most common combo (filters + action sheet).
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="@(() => { _d6Right = true; _d6Bottom = true; })">
+                        Open both
+                    </LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 7 — Modal on drawer ── *@
+            <section id="drawer-modal-on" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">7</span>Modal opens on top of drawer</h3>
+                <p class="sg-p">
+                    Spec §6: Modal on drawer is valid. Drawer stays visible but inert (no focus).
+                    Modal traps focus. Closing modal returns focus to drawer.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="@(() => _d7Open = true)">Open drawer (then modal inside)</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 8 — Busy ── *@
+            <section id="drawer-busy" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">8</span>IsBusy state</h3>
+                <p class="sg-p">
+                    Spec §2 <code class="sg-code">IsBusy</code> disables controls.
+                    Toggle inside the drawer.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="@(() => _d8Open = true)">Open busy drawer</LipiButton>
+                </div>
+            </section>
+
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  DYNAMIC TABS SECTION — 11 demos                            ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            <section id="dtabs-empty" class="sg-section">
+                <h2 class="sg-h2">LipiDynamicTabs — Demos</h2>
+
+                <p class="sg-p">
+                    A single live tab strip lives at the top of every demo tab page
+                    (<code class="sg-code">/admin/style-guide-overlays/tab/{TabId}</code>) and
+                    reflects all open demo tabs. Use the buttons below to drive its state.
+                </p>
+
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>Empty state</h3>
+                <p class="sg-p">
+                    Spec §3 <code class="sg-code">EmptyStateMessage</code>: shown when no tabs are open.
+                    Close all tabs to see it (or open this page in a fresh tab).
+                </p>
+                @if (_tabSvc.OpenTabs.Count == 0)
+                {
+                    <div class="sg-result sg-result-muted">No demo tabs currently open.</div>
+                }
+                else
+                {
+                    <div class="sg-result">@_tabSvc.OpenTabs.Count tab(s) currently open.
+                        <LipiButton Size="ButtonSize.Small" Variant="ButtonVariant.Secondary"
+                                    OnClick="CloseAllDemoTabs">Close all to see empty state</LipiButton>
+                    </div>
+                }
+            </section>
+
+            @* ── Demo 2 — Open 3 ── *@
+            <section id="dtabs-open3" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>3 tabs open, one active</h3>
+                <p class="sg-p">
+                    Opens patient A, B, C tabs. Last one navigated to is active. Click any tab
+                    in the strip (on the destination page) to switch.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small"
+                                OnClick="@(() => OpenDemoTab("clean-A", "Patient A", "user"))">
+                        Open Patient A
+                    </LipiButton>
+                    <LipiButton Size="ButtonSize.Small"
+                                OnClick="@(() => OpenDemoTab("clean-B", "Patient B", "user"))">
+                        Open Patient B
+                    </LipiButton>
+                    <LipiButton Size="ButtonSize.Small"
+                                OnClick="@(() => OpenDemoTab("clean-C", "Patient C", "user"))">
+                        Open Patient C
+                    </LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 3 — Dirty marker ── *@
+            <section id="dtabs-dirty" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">3</span>Tab with dirty marker (*)</h3>
+                <p class="sg-p">
+                    Spec §8 <code class="sg-code">.lipi-dtab-dirty::after</code> shows
+                    <code class="sg-code">*</code> in warning color. Open the tab then mark dirty
+                    from inside the stub page.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small"
+                                OnClick="@(() => OpenDemoTab("dirty-demo", "Dirty demo", "file-edit"))">
+                        Open dirty-demo tab
+                    </LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 4 — Clean close ── *@
+            <section id="dtabs-close-clean" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">4</span>Closing a clean tab — instant</h3>
+                <p class="sg-p">
+                    Spec §7 step 3: clean tab closes immediately. Open a tab, then click its ✕
+                    in the strip (visible on the destination stub page) — no dialog.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small"
+                                OnClick="@(() => OpenDemoTab("clean-close", "Clean close test", "x"))">
+                        Open then close it
+                    </LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 5 — Dirty close ── *@
+            <section id="dtabs-close-dirty" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">5</span>Closing a dirty tab — 3-option dialog</h3>
+                <p class="sg-p">
+                    Spec §7 step 4 → <code class="sg-code">DirtyTabConfirmDialog</code>: Cancel · Discard ·
+                    Save &amp; close. Without a save handler, only Cancel and Discard appear.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small"
+                                OnClick="@(() => OpenDemoTab("dirty-no-save", "Dirty (no save handler)", "alert-triangle"))">
+                        Open (no save handler)
+                    </LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 6 — Save & close success ── *@
+            <section id="dtabs-save-ok" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">6</span>Save &amp; close — success path</h3>
+                <p class="sg-p">
+                    TabId prefix <code class="sg-code">save-ok-*</code> registers a passing save
+                    handler. Mark dirty, click ✕, choose "Save &amp; close" → handler succeeds, tab closes.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small"
+                                OnClick="@(() => OpenDemoTab("save-ok-1", "Save &amp; close (OK)", "save"))">
+                        Open save-ok-1
+                    </LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 7 — Save & close failure ── *@
+            <section id="dtabs-save-fail" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">7</span>Save &amp; close — failure path</h3>
+                <p class="sg-p">
+                    TabId prefix <code class="sg-code">save-fail-*</code> registers a save handler
+                    that throws. Mark dirty, click ✕, choose "Save &amp; close" → handler throws,
+                    tab stays open (spec §7 step 4 sub-bullet).
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small"
+                                OnClick="@(() => OpenDemoTab("save-fail-1", "Save &amp; close (fails)", "save"))">
+                        Open save-fail-1
+                    </LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 8 — Soft cap ── *@
+            <section id="dtabs-cap" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">8</span>Soft cap warning</h3>
+                <p class="sg-p">
+                    Spec §7 step 4 + A32: when <code class="sg-code">MaxTabs</code> is reached,
+                    further <code class="sg-code">OpenAsync</code> calls pop an
+                    <code class="sg-code">AlertAsync</code> warning instead of opening the tab.
+                    The button below temporarily sets a 3-tab cap then tries to open 4.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="RunCapDemo">Set cap=3, open 4 tabs</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 9 — Scroll overflow ── *@
+            <section id="dtabs-scroll" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">9</span>Scroll overflow (default)</h3>
+                <p class="sg-p">
+                    Spec §3 <code class="sg-code">OverflowMode.Scroll</code>: horizontal scrollbar
+                    appears when tabs exceed strip width. Opens 12 demo tabs to trigger overflow.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="OpenManyTabs">Open 12 tabs</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="CloseAllDemoTabs">Close all</LipiButton>
+                </div>
+            </section>
+
+            @* ── Demo 10 — Dropdown overflow ── *@
+            <section id="dtabs-dropdown" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">10</span>Dropdown overflow</h3>
+                <p class="sg-p">
+                    Spec §3 <code class="sg-code">OverflowMode.Dropdown</code>: visible tabs + "⋯ N more"
+                    menu.
+                </p>
+                <div class="sg-note">
+                    <strong>v1.0 limitation (A32):</strong> selecting <code class="sg-code">Dropdown</code>
+                    logs a warning and falls back to <code class="sg-code">Scroll</code> mode.
+                    Dropdown needs strip-width measurement which is queued for v1.1+.
+                </div>
+                <div class="sg-code-block">&lt;LipiDynamicTabs MaxTabs="20" OverflowMode="TabOverflowMode.Dropdown" /&gt;
+// v1.0: logs warning, behaves as Scroll mode</div>
+            </section>
+
+            @* ── Demo 11 — Add button ── *@
+            <section id="dtabs-addbtn" class="sg-section">
+                <h3 class="sg-h3"><span class="sg-demo-num">11</span>Add button + custom OnAddClick</h3>
+                <p class="sg-p">
+                    Spec §3 <code class="sg-code">ShowAddButton</code> + <code class="sg-code">OnAddClick</code>.
+                    The strip on the demo tab page has <code class="sg-code">ShowAddButton="false"</code>
+                    so use the button below to simulate the add action.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Size="ButtonSize.Small" OnClick="HandleAddClick">+ Add new tab</LipiButton>
+                </div>
+                <div class="sg-result sg-result-muted">
+                    Last add click count: <strong>@_addClickCount</strong>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+</div>
+
+
+@* ════════════════════════════════════════════════════════════════════
+   DECLARATIVE MODALS — rendered conditionally based on state above
+   ════════════════════════════════════════════════════════════════════ *@
+
+@* Demo 1 — Sizes *@
+@if (_m1Open is not null)
+{
+    <LipiModal Title="@($"{_m1Open} modal")"
+               Subtitle="Spec §4 size demo"
+               Icon="maximize-2"
+               IconColor="ModalIconColor.Info"
+               Size="_m1Open.Value"
+               OnClose="@(() => _m1Open = null)">
+        <ModalBody>
+            <p style="font-size:13px;color:var(--color-text-primary);line-height:1.6;margin:0">
+                This is a <strong>@(_m1Open)</strong> modal. Width as defined in
+                <code style="font-family:var(--font-mono);font-size:12px">lipi-overlays.css</code>:
+                @(_m1Open == ModalSize.Compact    ? "400px" :
+                  _m1Open == ModalSize.Standard   ? "520px" :
+                  _m1Open == ModalSize.Wide       ? "680px" :
+                                                    "95vw × 95vh").
+            </p>
+        </ModalBody>
+        <ModalFooter>
+            <LipiButton OnClick="@(() => _m1Open = null)">Close</LipiButton>
+        </ModalFooter>
+    </LipiModal>
+}
+
+@* Demo 2 — IconColor *@
+@if (_m2Open is not null)
+{
+    <LipiModal Title="@($"IconColor.{_m2Open}")"
+               Subtitle="Backgrounds per spec §7"
+               Icon="@(_m2Open == ModalIconColor.None ? null : "info")"
+               IconColor="_m2Open.Value"
+               Size="ModalSize.Compact"
+               OnClose="@(() => _m2Open = null)">
+        <ModalBody>
+            <p style="font-size:13px;line-height:1.6;margin:0">
+                Background / foreground colors come from
+                <code style="font-family:var(--font-mono);font-size:12px">.lipi-modal-icon-@(_m2Open.ToString()?.ToLowerInvariant())</code>.
+            </p>
+        </ModalBody>
+        <ModalFooter>
+            <LipiButton OnClick="@(() => _m2Open = null)">Close</LipiButton>
+        </ModalFooter>
+    </LipiModal>
+}
+
+@* Demo 3 — Animation *@
+@if (_m3Open)
+{
+    <LipiModal Title="@($"Animation: {_m3Anim}")"
+               Icon="film"
+               IconColor="ModalIconColor.Info"
+               Size="ModalSize.Compact"
+               Animation="@(Enum.TryParse<ModalAnimation>(_m3Anim, out var a) ? a : ModalAnimation.FadeSlide)"
+               OnClose="@(() => _m3Open = false)">
+        <ModalBody>
+            <p style="font-size:13px;margin:0;line-height:1.6">
+                Open / close this several times. Spec §8 timings: Fade 150ms,
+                FadeSlide / FadeScale 200ms.
+            </p>
+        </ModalBody>
+        <ModalFooter>
+            <LipiButton OnClick="@(() => _m3Open = false)">Close</LipiButton>
+        </ModalFooter>
+    </LipiModal>
+}
+
+@* Demo 8 — IsDirty *@
+@if (_m8Open)
+{
+    <LipiModal Title="Edit something"
+               Subtitle="Dirty state demo"
+               Icon="file-edit"
+               IconColor="ModalIconColor.Warning"
+               Size="ModalSize.Standard"
+               IsDirty="@(!string.IsNullOrEmpty(_m8Text))"
+               OnClose="@(() => { _m8Open = false; _m8Text = string.Empty; })">
+        <ModalBody>
+            <div class="sg-form-row">
+                <label class="sg-form-label" for="m8-input">
+                    Type anything to dirty the modal:
+                </label>
+                <input id="m8-input"
+                       type="text"
+                       class="sg-form-input"
+                       autocomplete="off"
+                       @bind="_m8Text"
+                       @bind:event="oninput" />
+            </div>
+            <p style="font-size:12px;color:var(--color-text-secondary);margin:8px 0 0 0">
+                Then try ✕, Escape, or backdrop click. A Warning ConfirmAsync appears
+                because <code style="font-family:var(--font-mono);font-size:11px">IsDirty=true</code>.
+            </p>
+        </ModalBody>
+        <ModalFooter>
+            <LipiButton Variant="ButtonVariant.Secondary"
+                        OnClick="@(() => { _m8Open = false; _m8Text = string.Empty; })">Cancel</LipiButton>
+            <LipiButton OnClick="@(() => { _m8Open = false; _m8Text = string.Empty; })">Save</LipiButton>
+        </ModalFooter>
+    </LipiModal>
+}
+
+@* Demo 9 — IsBusy *@
+@if (_m9Open)
+{
+    <LipiModal Title="Saving…"
+               Subtitle="IsBusy demo"
+               Icon="loader"
+               IconColor="ModalIconColor.Info"
+               Size="ModalSize.Compact"
+               IsBusy="@_m9Busy"
+               OnClose="@(() => _m9Open = false)">
+        <ModalBody>
+            <p style="font-size:13px;margin:0 0 12px 0">
+                When IsBusy is on: ✕, Escape, backdrop click all suppressed.
+                Primary action shows busy spinner.
+            </p>
+            <LipiButton Size="ButtonSize.Small"
+                        Variant="ButtonVariant.Secondary"
+                        OnClick="@(() => _m9Busy = !_m9Busy)">
+                Toggle IsBusy (currently @(_m9Busy ? "ON" : "OFF"))
+            </LipiButton>
+        </ModalBody>
+        <ModalFooter>
+            <LipiButton Variant="ButtonVariant.Secondary"
+                        OnClick="@(() => _m9Open = false)">Cancel</LipiButton>
+            <LipiButton OnClick="@(() => _m9Open = false)" IsLoading="@_m9Busy">Submit</LipiButton>
+        </ModalFooter>
+    </LipiModal>
+}
+
+@* Demo 10 — Stack *@
+@if (_m10Open)
+{
+    <LipiModal Title="Outer modal"
+               Subtitle="Click below to open ConfirmAsync on top"
+               Icon="layers"
+               IconColor="ModalIconColor.Info"
+               Size="ModalSize.Standard"
+               OnClose="@(() => _m10Open = false)">
+        <ModalBody>
+            <p style="font-size:13px;margin:0 0 12px 0;line-height:1.6">
+                The button below opens <code style="font-family:var(--font-mono);font-size:12px">
+                Modal.ConfirmAsync</code> — that's a service-driven modal stacked
+                on top of this declarative one.
+            </p>
+            <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 12px 0">
+                Stack depth on confirm: 1 declarative + 1 service. Within spec §6 cap of 3.
+            </p>
+            <LipiButton Size="ButtonSize.Small" OnClick="RunStackConfirm">
+                Open ConfirmAsync on top
+            </LipiButton>
+            @if (_m10InnerResult is not null)
+            {
+                <div class="sg-result" style="margin-top:12px">
+                    Inner result: <strong>@_m10InnerResult</strong>
+                </div>
+            }
+        </ModalBody>
+        <ModalFooter>
+            <LipiButton OnClick="@(() => _m10Open = false)">Close outer</LipiButton>
+        </ModalFooter>
+    </LipiModal>
+}
+
+@* Demo 11 — Intents *@
+@if (_m11Open is not null)
+{
+    <LipiModal Title="@($"Intent: {_m11Open}")"
+               Subtitle="Spec §10 — auto-defaults table"
+               Icon="layout"
+               IconColor="ModalIconColor.Info"
+               Size="ModalSize.Standard"
+               Intent="_m11Open.Value"
+               OnClose="@(() => _m11Open = null)">
+        <ModalBody>
+            @switch (_m11Open)
+            {
+                case ModalIntent.Progress:
+                    <p style="font-size:13px;margin:0 0 8px 0">
+                        Progress intent forces: <code style="font-family:var(--font-mono);font-size:12px">ShowCloseButton=false</code>,
+                        <code style="font-family:var(--font-mono);font-size:12px">CloseOnEscape=false</code>,
+                        <code style="font-family:var(--font-mono);font-size:12px">CloseOnBackdrop=false</code>,
+                        <code style="font-family:var(--font-mono);font-size:12px">Animate=false</code>.
+                    </p>
+                    <p style="font-size:12px;color:var(--color-text-secondary);margin:0">
+                        Use the footer button to close (✕ and Esc don't work).
+                    </p>
+                    break;
+                default:
+                    <p style="font-size:13px;margin:0 0 8px 0">
+                        v1.0 (A31 divergence): non-Progress intents don't cascade
+                        Size/FooterAlign auto-defaults. This modal stays at
+                        <code style="font-family:var(--font-mono);font-size:12px">Size.Standard</code> /
+                        <code style="font-family:var(--font-mono);font-size:12px">FooterAlign.End</code>
+                        as declared.
+                    </p>
+                    <p style="font-size:12px;color:var(--color-text-secondary);margin:0">
+                        Tracked for v1.1.
+                    </p>
+                    break;
+            }
+        </ModalBody>
+        <ModalFooter>
+            <LipiButton OnClick="@(() => _m11Open = null)">Close</LipiButton>
+        </ModalFooter>
+    </LipiModal>
+}
+
+
+@* ════════════════════════════════════════════════════════════════════
+   DECLARATIVE DRAWERS — rendered conditionally based on state above
+   ════════════════════════════════════════════════════════════════════ *@
+
+@* Demo 1 — Placements *@
+@if (_d1Open is not null)
+{
+    <LipiDrawer Placement="_d1Open.Value"
+                Size="DrawerSize.Standard"
+                Title="@($"Placement: {_d1Open}")"
+                Subtitle="Spec §4 placement demo"
+                Icon="layout-panel-left"
+                IconColor="DrawerIconColor.Info"
+                OnClose="@(() => _d1Open = null)">
+        <DrawerBody>
+            <p style="font-size:13px;line-height:1.6;margin:0">
+                <strong>@(_d1Open)</strong> drawer at <code style="font-family:var(--font-mono);font-size:12px">Standard</code> size.
+            </p>
+        </DrawerBody>
+        <DrawerFooter>
+            <LipiButton OnClick="@(() => _d1Open = null)">Close</LipiButton>
+        </DrawerFooter>
+    </LipiDrawer>
+}
+
+@* Demo 2 — Sizes (uses currently-selected size on Right placement) *@
+@if (_d2Open is not null)
+{
+    <LipiDrawer Placement="DrawerPlacement.Right"
+                Size="_d2Open.Value"
+                Title="@($"Size: {_d2Open}")"
+                Subtitle="On Right placement"
+                Icon="ruler"
+                IconColor="DrawerIconColor.Info"
+                OnClose="@(() => _d2Open = null)">
+        <DrawerBody>
+            <p style="font-size:13px;line-height:1.6;margin:0">
+                Right/Left widths per spec §7: Compact 320 · Standard 400 · Wide 560 · FullSide 95vw.
+            </p>
+        </DrawerBody>
+        <DrawerFooter>
+            <LipiButton OnClick="@(() => _d2Open = null)">Close</LipiButton>
+        </DrawerFooter>
+    </LipiDrawer>
+}
+
+@* Demo 3 — Backdrops *@
+@if (_d3Open is not null)
+{
+    <LipiDrawer Placement="DrawerPlacement.Right"
+                Size="DrawerSize.Standard"
+                Title="@($"Backdrop: {_d3Open}")"
+                Subtitle="Spec §4 backdrop demo"
+                Icon="layers"
+                IconColor="DrawerIconColor.Info"
+                Backdrop="_d3Open.Value"
+                OnClose="@(() => _d3Open = null)">
+        <DrawerBody>
+            <p style="font-size:13px;line-height:1.6;margin:0 0 12px 0">
+                Backdrop = <strong>@(_d3Open)</strong>.
+            </p>
+            <p style="font-size:12px;color:var(--color-text-secondary);margin:0">
+                @(_d3Open == DrawerBackdrop.None
+                    ? "No backdrop rendered — page stays fully interactive behind."
+                    : _d3Open == DrawerBackdrop.Light
+                        ? "Light overlay (rgba(11,37,69,.10))."
+                        : "Dimmed overlay (rgba(11,37,69,.45)) — modal-like.")
+            </p>
+        </DrawerBody>
+        <DrawerFooter>
+            <LipiButton OnClick="@(() => _d3Open = null)">Close</LipiButton>
+        </DrawerFooter>
+    </LipiDrawer>
+}
+
+@* Demo 4 — Dirty form *@
+@if (_d4Open)
+{
+    <LipiDrawer Placement="DrawerPlacement.Right"
+                Size="DrawerSize.Standard"
+                Title="Form with dirty state"
+                Subtitle="Type to dirty"
+                Icon="file-edit"
+                IconColor="DrawerIconColor.Warning"
+                IsDirty="@(!string.IsNullOrEmpty(_d4Text))"
+                OnClose="@(() => { _d4Open = false; _d4Text = string.Empty; })">
+        <DrawerBody>
+            <div class="sg-form-row">
+                <label class="sg-form-label" for="d4-input">Type anything:</label>
+                <input id="d4-input"
+                       type="text"
+                       class="sg-form-input"
+                       autocomplete="off"
+                       @bind="_d4Text"
+                       @bind:event="oninput" />
+            </div>
+            <p style="font-size:12px;color:var(--color-text-secondary);margin:8px 0 0 0">
+                Then try ✕, Esc, or backdrop click → Warning ConfirmAsync.
+            </p>
+        </DrawerBody>
+        <DrawerFooter>
+            <LipiButton Variant="ButtonVariant.Secondary"
+                        OnClick="@(() => { _d4Open = false; _d4Text = string.Empty; })">Cancel</LipiButton>
+            <LipiButton OnClick="@(() => { _d4Open = false; _d4Text = string.Empty; })">Save</LipiButton>
+        </DrawerFooter>
+    </LipiDrawer>
+}
+
+@* Demo 6 — Right + Bottom simultaneous *@
+@if (_d6Right)
+{
+    <LipiDrawer Placement="DrawerPlacement.Right"
+                Size="DrawerSize.Compact"
+                Title="Right drawer"
+                Icon="panel-right"
+                IconColor="DrawerIconColor.Info"
+                Backdrop="DrawerBackdrop.None"
+                OnClose="@(() => _d6Right = false)">
+        <DrawerBody>
+            <p style="font-size:13px;margin:0">Right drawer body. Bottom is open too.</p>
+        </DrawerBody>
+    </LipiDrawer>
+}
+@if (_d6Bottom)
+{
+    <LipiDrawer Placement="DrawerPlacement.Bottom"
+                Size="DrawerSize.Compact"
+                Title="Bottom drawer"
+                Icon="panel-bottom"
+                IconColor="DrawerIconColor.Info"
+                Backdrop="DrawerBackdrop.None"
+                OnClose="@(() => _d6Bottom = false)">
+        <DrawerBody>
+            <p style="font-size:13px;margin:0">Bottom drawer body. Right is open too.</p>
+        </DrawerBody>
+    </LipiDrawer>
+}
+
+@* Demo 7 — Modal on drawer *@
+@if (_d7Open)
+{
+    <LipiDrawer Placement="DrawerPlacement.Right"
+                Size="DrawerSize.Standard"
+                Title="Drawer + modal demo"
+                Icon="layers"
+                IconColor="DrawerIconColor.Info"
+                OnClose="@(() => _d7Open = false)">
+        <DrawerBody>
+            <p style="font-size:13px;margin:0 0 12px 0;line-height:1.6">
+                Click the button below to open a service modal on top.
+                The drawer should stay visible but become inert.
+            </p>
+            <LipiButton Size="ButtonSize.Small" OnClick="RunDrawerOnModalConfirm">
+                Open modal on top
+            </LipiButton>
+        </DrawerBody>
+        <DrawerFooter>
+            <LipiButton OnClick="@(() => _d7Open = false)">Close</LipiButton>
+        </DrawerFooter>
+    </LipiDrawer>
+}
+
+@* Demo 8 — Busy *@
+@if (_d8Open)
+{
+    <LipiDrawer Placement="DrawerPlacement.Right"
+                Size="DrawerSize.Standard"
+                Title="Busy drawer"
+                Subtitle="IsBusy demo"
+                Icon="loader"
+                IconColor="DrawerIconColor.Info"
+                OnClose="@(() => _d8Open = false)">
+        <DrawerBody>
+            <p style="font-size:13px;margin:0 0 12px 0">
+                Toggle IsBusy from the footer button. (Note: declarative LipiDrawer
+                doesn't yet read an IsBusy param — this demo shows the structured
+                pattern only; the visual busy state is wired in v1.1+.)
+            </p>
+            <p style="font-size:12px;color:var(--color-text-secondary);margin:0">
+                v1.0: IsBusy param is accepted but not yet rendered visually on
+                LipiDrawer (deviation from spec §2; tracked for v1.1).
+            </p>
+        </DrawerBody>
+        <DrawerFooter>
+            <LipiButton OnClick="@(() => _d8Open = false)">Close</LipiButton>
+        </DrawerFooter>
+    </LipiDrawer>
+}
+
+
+@code {
+    // ═══════════════════════════════════════════════════════════════════
+    // MODAL DEMO STATE
+    // ═══════════════════════════════════════════════════════════════════
+
+    private ModalSize?      _m1Open;
+    private ModalIconColor? _m2Open;
+    private bool            _m3Open;
+    private string          _m3Anim = "FadeSlide";
+    private string?         _confirmResult;
+    private string?         _promptResult;
+    private bool            _promptCancelled;
+    private string?         _showResult;
+    private bool            _m8Open;
+    private string          _m8Text = string.Empty;
+    private bool            _m9Open;
+    private bool            _m9Busy;
+    private bool            _m10Open;
+    private string?         _m10InnerResult;
+    private ModalIntent?    _m11Open;
+
+    // Drawer state
+    private DrawerPlacement? _d1Open;
+    private DrawerSize?      _d2Open; // (unused — d2 buttons open d1 + setting size; we use OpenSizedDrawer instead)
+    private DrawerBackdrop?  _d3Open;
+    private bool             _d4Open;
+    private string           _d4Text = string.Empty;
+    private bool?            _drawerShowResult;
+    private bool             _d6Right;
+    private bool             _d6Bottom;
+    private bool             _d7Open;
+    private bool             _d8Open;
+
+    // DynamicTabs demo state
+    private int _addClickCount;
+
+
+    // ═══════════════════════════════════════════════════════════════════
+    // MODAL DEMO HANDLERS
+    // ═══════════════════════════════════════════════════════════════════
+
+    private async Task RunConfirm(ConfirmIntent intent)
+    {
+        var (title, message) = intent switch
+        {
+            ConfirmIntent.Danger   => ("Delete record?",   "This permanently deletes the record. This action cannot be undone."),
+            ConfirmIntent.Warning  => ("Overwrite file?",  "A file with this name already exists. Overwrite it?"),
+            ConfirmIntent.Critical => ("Patient safety: high-risk action", "You are about to administer a Level-3 contraindicated drug. This action will be logged and require co-signature."),
+            _                      => ("Continue?",        "Are you sure you want to proceed?")
+        };
+
+        var result = await _modal.ConfirmAsync(title, message, intent);
+        _confirmResult = result ? "Confirmed" : "Cancelled";
+        StateHasChanged();
+    }
+
+    private async Task RunAlert(AlertIntent intent)
+    {
+        var (title, message) = intent switch
+        {
+            AlertIntent.Success  => ("Saved",         "Changes saved successfully."),
+            AlertIntent.Warning  => ("Heads up",      "Your session expires in 5 minutes."),
+            AlertIntent.Danger   => ("Error",         "Failed to save changes. Please retry."),
+            AlertIntent.Critical => ("Critical lab",  "K+ 6.8 mEq/L — physician review required immediately."),
+            _                    => ("Info",          "Demo information dialog.")
+        };
+
+        await _modal.AlertAsync(title, message, intent);
+    }
+
+    private async Task RunPrompt()
+    {
+        _promptResult    = null;
+        _promptCancelled = false;
+
+        var result = await _modal.PromptAsync(
+            title:        "Override allergy warning",
+            label:        "Reason (required for HIPAA audit)",
+            placeholder:  "e.g. patient confirmed prior tolerance",
+            required:     true);
+
+        if (result is null) _promptCancelled = true;
+        else                _promptResult    = result;
+        StateHasChanged();
+    }
+
+    private async Task RunCustomShow()
+    {
+        var parameters = new Dictionary<string, object?>
+        {
+            ["InitialValue"] = "Hello from demo 7"
+        };
+
+        var result = await _modal.ShowAsync<SampleCustomModal, string?>(
+            parameters: parameters,
+            size:       ModalSize.Standard,
+            title:      "Custom modal — ShowAsync");
+
+        _showResult = result;
+        StateHasChanged();
+    }
+
+    private async Task RunStackConfirm()
+    {
+        var ok = await _modal.ConfirmAsync(
+            title:        "Inner confirmation",
+            message:      "This ConfirmAsync sits on top of the outer declarative modal. " +
+                          "Notice the outer modal is dimmed and inert behind.",
+            intent:       ConfirmIntent.Default);
+
+        _m10InnerResult = ok ? "OK" : "Cancelled";
+        StateHasChanged();
+    }
+
+
+    // ═══════════════════════════════════════════════════════════════════
+    // DRAWER DEMO HANDLERS
+    // ═══════════════════════════════════════════════════════════════════
+
+    private void OpenSizedDrawer(DrawerSize size)
+    {
+        // Demo 2 uses the same render slot as Demo 1, just with size override.
+        _d2Open = size;
+    }
+
+    private async Task RunDrawerShow()
+    {
+        _drawerShowResult = null;
+        var result = await _drawer.ShowAsync<SampleDrawerPanel, bool>(
+            placement: DrawerPlacement.Right,
+            size:      DrawerSize.Standard,
+            title:     "Programmatic drawer");
+
+        _drawerShowResult = result;
+        StateHasChanged();
+    }
+
+    private async Task RunDrawerOnModalConfirm()
+    {
+        await _modal.ConfirmAsync(
+            title:        "Modal on drawer",
+            message:      "The drawer behind this modal is visible but inert. " +
+                          "Focus is trapped here. Closing this returns focus to the drawer.",
+            intent:       ConfirmIntent.Default);
+    }
+
+
+    // ═══════════════════════════════════════════════════════════════════
+    // DYNAMIC TABS DEMO HANDLERS
+    // ═══════════════════════════════════════════════════════════════════
+
+    private async Task OpenDemoTab(string tabId, string title, string icon)
+    {
+        await _tabSvc.OpenAsync(
+            url:        $"/admin/style-guide-overlays/tab/{tabId}",
+            tabKey:     $"demo-tab-{tabId}",
+            title:      title,
+            icon:       icon,
+            closeRoute: "/admin/style-guide-overlays");
+    }
+
+    private async Task CloseAllDemoTabs()
+    {
+        // Snapshot tab keys to avoid mutation during iteration
+        var keys = _tabSvc.OpenTabs.Select(t => t.TabKey).ToList();
+        foreach (var key in keys)
+        {
+            await _tabSvc.CloseAsync(key);
+        }
+        StateHasChanged();
+    }
+
+    private async Task RunCapDemo()
+    {
+        _tabSvc.SetMaxTabs(3);
+        await OpenDemoTab("cap-1", "Cap-test 1", "user");
+        await OpenDemoTab("cap-2", "Cap-test 2", "user");
+        await OpenDemoTab("cap-3", "Cap-test 3", "user");
+        // 4th open should pop AlertAsync (cap reached)
+        await OpenDemoTab("cap-4", "Cap-test 4 (blocked)", "user");
+        // Restore default cap for the global strip
+        _tabSvc.SetMaxTabs(20);
+    }
+
+    private async Task OpenManyTabs()
+    {
+        for (var i = 1; i <= 12; i++)
+        {
+            await _tabSvc.OpenAsync(
+                url:        $"/admin/style-guide-overlays/tab/many-{i}",
+                tabKey:     $"demo-tab-many-{i}",
+                title:      $"Tab {i:00}",
+                icon:       "file",
+                closeRoute: "/admin/style-guide-overlays");
+        }
+    }
+
+    private async Task HandleAddClick()
+    {
+        _addClickCount++;
+        await _modal.AlertAsync(
+            title:   "Add-button clicked",
+            message: $"Click count: {_addClickCount}. In production this would " +
+                     $"open a picker (search, recent, new patient, etc.).");
+    }
+}

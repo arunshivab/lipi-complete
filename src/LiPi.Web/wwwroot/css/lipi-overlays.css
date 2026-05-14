@@ -1,0 +1,384 @@
+/* SPEC:  docs/01-LipiModal-Spec.md §7, §8, §9
+          docs/02-LipiDrawer-Spec.md §7, §8, §4.5 (Pin Mode)
+   PHASE: 2.6.2 — Overlay Surfaces
+   AMEND: docs/CHANGE-LOG.md A32 — fallbacks + pin mode CSS completion
+   RULE:  Layout-vs-Shape: ALL display/flex/position/layout rules here.
+          Animation keyframes also here (they are shared).
+          Per-component .razor.css: scoped shape-only rules only.
+
+   Multi-industry tokens:
+     --lipi-modal-radius:         var(--r-lg)         14px
+     --lipi-modal-shadow:         0 20px 60px rgba(11,37,69,.3)
+     --lipi-modal-backdrop-color: rgba(11,37,69,.45)
+     --lipi-modal-padding-body:   16px 20px
+     --lipi-modal-padding-head:   14px 20px
+     --lipi-modal-padding-foot:   12px 20px
+     --lipi-drawer-shadow:        0 0 30px rgba(11,37,69,.2)
+     --lipi-drawer-anim-duration: 250ms
+     --lipi-drawer-pinned-width:  400px
+
+   A32 self-sufficiency: every reference to --color-border-tertiary now carries
+   a fallback to --color-border-default. Matches the A22/A26 pattern locked for
+   LipiTabs/LipiCard. Theme files that don't define --color-border-tertiary no
+   longer produce borderless overlays/strips.
+*/
+
+
+/* ==========================================================================
+   BACKDROP
+   Single backdrop for all modals. Separate per-drawer backdrops.
+   Ghost click rule: pointerdown captured here prevents click-through.
+   ========================================================================== */
+
+.lipi-overlay-backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--lipi-modal-backdrop-color, rgba(11, 37, 69, 0.45));
+    z-index: 799;
+    /* pointer-events: all — captures mousedown to prevent ghost clicks */
+}
+
+.lipi-drawer-backdrop-dimmed {
+    background: rgba(11, 37, 69, 0.45);
+}
+
+.lipi-drawer-backdrop-light {
+    background: rgba(11, 37, 69, 0.10);
+}
+
+
+/* ==========================================================================
+   MODAL BOX
+   ========================================================================== */
+
+.lipi-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--color-bg-surface, #ffffff);
+    border-radius: var(--lipi-modal-radius, var(--r-lg));
+    box-shadow: var(--lipi-modal-shadow, 0 20px 60px rgba(11, 37, 69, 0.3));
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    outline: none;
+    isolation: isolate;
+    /* Phase 2.6.3 stabilisation: clip header/footer solid backgrounds to rounded corners.
+       Without this the .lipi-modal-header background renders as a square overlay
+       extending beyond the parent's border-radius, producing visually square corners. */
+    overflow: hidden;
+}
+
+/* Sizes */
+.lipi-modal-compact    { width: 400px; max-width: 96vw; }
+.lipi-modal-standard   { width: 520px; max-width: 96vw; }
+.lipi-modal-wide       { width: 680px; max-width: 96vw; }
+.lipi-modal-fullscreen { width: 95vw;  height: 95vh;   }
+
+
+/* ==========================================================================
+   MODAL HEADER
+   ========================================================================== */
+
+.lipi-modal-header {
+    position: sticky;
+    top: 0;
+    background: var(--color-bg-surface, #ffffff);
+    padding: var(--lipi-modal-padding-head, 14px 20px);
+    border-bottom: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 1;
+    flex-shrink: 0;
+}
+
+.lipi-modal-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.lipi-modal-icon-info     { background: #E6F1FB; color: #185FA5; }
+.lipi-modal-icon-success  { background: #EAF3DE; color: #3B6D11; }
+.lipi-modal-icon-warning  { background: #FAEEDA; color: #854F0B; }
+.lipi-modal-icon-danger   { background: #FCEBEB; color: #A32D2D; }
+.lipi-modal-icon-critical { background: #501313; color: #F09595; }
+
+/* Header text block — A31 LipiModal: wrap title + subtitle in a column so they
+   stack instead of fighting for header row space. */
+.lipi-modal-header-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.lipi-modal-title {
+    font-size: 14px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lipi-modal-subtitle {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    margin-top: 1px;
+}
+
+.lipi-modal-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 0.5px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+    transition: background var(--tr-fast), color var(--tr-fast);
+}
+
+.lipi-modal-close:hover            { background: var(--color-bg-hover); color: var(--color-text-primary); }
+.lipi-modal-close:focus-visible    { outline: 2px solid var(--color-border-focus, var(--color-primary)); outline-offset: 2px; }
+.lipi-modal-close:disabled         { opacity: 0.5; cursor: not-allowed; }
+
+
+/* ==========================================================================
+   MODAL BODY
+   ========================================================================== */
+
+.lipi-modal-body {
+    padding: var(--lipi-modal-padding-body, 16px 20px);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+
+/* ==========================================================================
+   MODAL FOOTER
+   ========================================================================== */
+
+.lipi-modal-footer {
+    padding: var(--lipi-modal-padding-foot, 12px 20px);
+    border-top: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+    background: var(--color-bg-surface, #ffffff);
+    flex-shrink: 0;
+}
+
+.lipi-modal-footer-start         { justify-content: flex-start; }
+.lipi-modal-footer-space-between { justify-content: space-between; }
+
+
+/* ==========================================================================
+   MODAL ANIMATIONS (CSS class swap — no JS required)
+   ========================================================================== */
+
+/* Fade */
+@keyframes lipiModalFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* FadeSlide — default */
+@keyframes lipiModalFadeSlideIn {
+    from { opacity: 0; transform: translate(-50%, calc(-50% + 20px)); }
+    to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+/* FadeScale */
+@keyframes lipiModalFadeScaleIn {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.lipi-modal-anim-fade      { animation: lipiModalFadeIn      150ms ease-out forwards; }
+.lipi-modal-anim-fadeslide { animation: lipiModalFadeSlideIn 200ms ease-out forwards; }
+.lipi-modal-anim-fadescale { animation: lipiModalFadeScaleIn 200ms ease-out forwards; }
+
+
+/* ==========================================================================
+   DRAWER — base
+   ========================================================================== */
+
+.lipi-drawer {
+    position: fixed;
+    background: var(--color-bg-surface);
+    box-shadow: var(--lipi-drawer-shadow, 0 0 30px rgba(11, 37, 69, 0.2));
+    display: flex;
+    flex-direction: column;
+    outline: none;
+}
+
+/* Placement */
+.lipi-drawer-right  { top: 0; right: 0; bottom: 0; height: 100vh; border-left:   0.5px solid var(--color-border-tertiary, var(--color-border-default)); }
+.lipi-drawer-left   { top: 0; left:  0; bottom: 0; height: 100vh; border-right:  0.5px solid var(--color-border-tertiary, var(--color-border-default)); }
+.lipi-drawer-top    { top: 0; left:  0; right:  0; width:  100vw; border-bottom: 0.5px solid var(--color-border-tertiary, var(--color-border-default)); }
+.lipi-drawer-bottom { bottom: 0; left: 0; right: 0; width: 100vw; border-top:    0.5px solid var(--color-border-tertiary, var(--color-border-default)); }
+
+/* Sizes — Right / Left */
+.lipi-drawer-right.lipi-drawer-compact,  .lipi-drawer-left.lipi-drawer-compact  { width: 320px; }
+.lipi-drawer-right.lipi-drawer-standard, .lipi-drawer-left.lipi-drawer-standard { width: 400px; }
+.lipi-drawer-right.lipi-drawer-wide,     .lipi-drawer-left.lipi-drawer-wide     { width: 560px; }
+.lipi-drawer-right.lipi-drawer-fullside, .lipi-drawer-left.lipi-drawer-fullside { width: 95vw;  }
+
+/* Sizes — Top / Bottom */
+.lipi-drawer-top.lipi-drawer-compact,    .lipi-drawer-bottom.lipi-drawer-compact   { height: 240px; }
+.lipi-drawer-top.lipi-drawer-standard,   .lipi-drawer-bottom.lipi-drawer-standard  { height: 400px; }
+.lipi-drawer-top.lipi-drawer-wide,       .lipi-drawer-bottom.lipi-drawer-wide      { height: 480px; }
+.lipi-drawer-top.lipi-drawer-fullside,   .lipi-drawer-bottom.lipi-drawer-fullside  { height: 95vh;  }
+
+/* Slide animations */
+.lipi-drawer-right  { transform: translateX(100%);  transition: transform var(--lipi-drawer-anim-duration, 250ms) ease-out; }
+.lipi-drawer-left   { transform: translateX(-100%); transition: transform var(--lipi-drawer-anim-duration, 250ms) ease-out; }
+.lipi-drawer-top    { transform: translateY(-100%); transition: transform var(--lipi-drawer-anim-duration, 250ms) ease-out; }
+.lipi-drawer-bottom { transform: translateY(100%);  transition: transform var(--lipi-drawer-anim-duration, 250ms) ease-out; }
+
+.lipi-drawer-right.open,
+.lipi-drawer-left.open,
+.lipi-drawer-top.open,
+.lipi-drawer-bottom.open { transform: translate(0); }
+
+/* Animate=false opt-out (A32) — no transition, instant slide-in */
+.lipi-drawer-no-animate { transition: none !important; }
+
+
+/* ==========================================================================
+   DRAWER HEADER / BODY / FOOTER
+   ========================================================================== */
+
+.lipi-drawer-header {
+    padding: var(--lipi-drawer-padding-head, 14px 20px);
+    border-bottom: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.lipi-drawer-title {
+    font-size: 14px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    flex: 1;
+}
+
+.lipi-drawer-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 0.5px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+    transition: background var(--tr-fast);
+}
+
+.lipi-drawer-close:hover     { background: var(--color-bg-hover); color: var(--color-text-primary); }
+.lipi-drawer-close:disabled  { opacity: 0.5; cursor: not-allowed; }
+
+.lipi-drawer-body {
+    padding: var(--lipi-drawer-padding-body, 16px 20px);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.lipi-drawer-footer {
+    padding: var(--lipi-drawer-padding-foot, 12px 20px);
+    border-top: 0.5px solid var(--color-border-tertiary, var(--color-border-default));
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+
+/* ==========================================================================
+   PIN MODE — page content shift when drawer is pinned (A32 completion)
+   Spec §4.5 — Right/Left only. Responsive disable below 1024px.
+   ========================================================================== */
+
+/* Existing explicit-class form (preserved for backward compatibility / explicit application) */
+.lipi-page-shifted-right { margin-right: var(--lipi-drawer-pinned-width, 400px); transition: margin var(--lipi-drawer-anim-duration, 250ms) ease-out; }
+.lipi-page-shifted-left  { margin-left:  var(--lipi-drawer-pinned-width, 400px); transition: margin var(--lipi-drawer-anim-duration, 250ms) ease-out; }
+
+/* A32 auto-shift via :has() — no JS interop needed. Modern browser support:
+   Chrome 105+, Firefox 121+, Safari 15.4+. Graceful degradation: older
+   browsers don't shift, drawer overlays content instead (same as overlay mode). */
+body:has(.lipi-drawer.lipi-drawer-right.lipi-drawer-pinned)
+    .tn-content {
+    margin-right: var(--lipi-drawer-pinned-width, 400px);
+    transition: margin var(--lipi-drawer-anim-duration, 250ms) ease-out;
+}
+
+body:has(.lipi-drawer.lipi-drawer-left.lipi-drawer-pinned)
+    .tn-content {
+    margin-left: var(--lipi-drawer-pinned-width, 400px);
+    transition: margin var(--lipi-drawer-anim-duration, 250ms) ease-out;
+}
+
+/* Pinned drawer visual hint — slightly tighter shadow when pinned (occupies own column) */
+.lipi-drawer-pinned {
+    box-shadow: 0 0 0 transparent;
+    border-left: 0.5px solid var(--color-border-default);
+}
+.lipi-drawer-pinned.lipi-drawer-left {
+    border-left: none;
+    border-right: 0.5px solid var(--color-border-default);
+}
+
+/* Responsive: below 1024px, pin mode auto-disabled — spec §4.5 */
+@media (max-width: 1023.98px) {
+    body:has(.lipi-drawer.lipi-drawer-pinned) .tn-content {
+        margin-right: 0 !important;
+        margin-left: 0 !important;
+    }
+    /* Pinned drawer falls back to overlay positioning */
+    .lipi-drawer-pinned {
+        box-shadow: var(--lipi-drawer-shadow, 0 0 30px rgba(11, 37, 69, 0.2));
+    }
+}
+
+
+/* ==========================================================================
+   PROMPT DIALOG input
+   ========================================================================== */
+
+.lipi-prompt-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 0.5px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    font-family: var(--font-ui);
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface);
+    outline: none;
+    transition: border-color var(--tr-fast);
+}
+
+.lipi-prompt-input:focus { border-color: var(--color-primary); }
+.lipi-prompt-input-error { border-color: var(--color-danger); }

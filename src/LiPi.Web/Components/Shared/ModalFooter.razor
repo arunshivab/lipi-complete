@@ -1,0 +1,34 @@
+@* SPEC:  docs/01-LipiModal-Spec.md §3 (ModalFooter sub-component)
+   PHASE: 2.6.2 — Overlay Surfaces
+   PATTERN: Self-emitting HTML, no parent registration. Matches CardFooter.
+
+   NOTE on alignment:
+   Spec §2 places FooterAlign on the <LipiModal> parameter. That parameter
+   applies only to the STRUCTURED action shortcut path (PrimaryAction /
+   SecondaryAction without ChildContent). For the <ModalFooter> slot path,
+   Align lives on <ModalFooter> itself — keeps sub-components zero-coupled
+   (no CascadingValue plumbing). This is a v1.0 divergence from a strict
+   reading of spec §2 documented in CHANGE-LOG A31.
+*@
+
+<div class="lipi-modal-footer @AlignClass @(Class ?? string.Empty)">
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>Footer content — typically LipiButton actions.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Alignment of footer actions. Default End (right-aligned).</summary>
+    [Parameter] public ModalFooterAlign Align { get; set; } = ModalFooterAlign.End;
+
+    /// <summary>Append-only CSS class. LAYOUT UTILITIES ONLY.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    private string AlignClass => Align switch
+    {
+        ModalFooterAlign.Start        => "lipi-modal-footer-start",
+        ModalFooterAlign.SpaceBetween => "lipi-modal-footer-space-between",
+        _                             => string.Empty // End is the default in lipi-overlays.css
+    };
+}

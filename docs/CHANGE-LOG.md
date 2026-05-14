@@ -1576,6 +1576,1262 @@ housekeeping. Files touched: `docs/00-PROJECT-BASELINE.md` (additions only),
 `src/LiPi.Web/App.razor` (comment refresh + tombstone), `deploy-downloads.ps1`
 (baseline-doc entry added).
 
+## v1.0 — AMENDMENTS (May 14, 2026)
+
+> A21 documents the Phase 2.6.x LipiTabs "two Optional mechanisms" mitigation.
+> No component behaviour changes for correct usage — this amendment corrects
+> inaccurate XML docs, adds an env-gated developer guard, fixes the StyleGuide
+> demo, and documents the deliberate two-mechanism design in the LipiTabs spec
+> (new §3.1).
+
+### A21 — LipiTabs: "two Optional mechanisms" — XML-doc accuracy + env-gated guard + demo fix + spec §3.1
+
+**Phase**: 2 Sub-step 2.6.x — LipiTabs (Phase 2.6.1 component, post-2.6.3 stabilisation)
+**Date**: 2026-05-14
+**Status**: ✅ Component + demo + spec shipped together in one batch
+
+**Trigger.** Phase 2.6.3 Stage 2 testing surfaced a "missing dashed border" on the
+StyleGuide Underline demo's Review tab. Investigation found it was not a component
+bug but a demo-authoring mistake — and, underneath that, an XML-doc accuracy
+problem. `LipiTab` exposes optionality through two intentionally separate
+mechanisms:
+
+- `bool Optional` — Vertical variant only; inserts a section divider in the rail
+  before the tab. Inert (no visual effect) in Underline and Pill.
+- `State = TabState.Optional` — the dashed-border colour treatment in Underline;
+  treats the tab as stateless (no state dot) in Vertical; ignored by Pill.
+
+The `bool Optional` XML doc wrongly claimed it "renders dashed border", and both
+that doc and the `TabState.Optional` doc claimed an "excluded from required-field
+tracking" behaviour that does not exist anywhere in the component. A developer
+reading IntelliSense for `Optional` was told it produced the dashed border, set
+`Optional="true"` on an Underline tab, and got nothing — silently. That is exactly
+how the demo bug was introduced.
+
+**Decision.** The two-mechanism design is kept as locked (Phase 2.6.1 design
+session). It was a deliberate split — Vertical expresses "optional" as a rail
+divider, Underline expresses it as a dashed border — not an accident. Rather than
+merging the two or renaming the bool, the mitigation makes the design safe and
+self-documenting. Strategic + build chat weighed three options (keep both as-is,
+merge into one, rename the bool); "keep both, mitigate" was chosen by the project
+owner.
+
+**What changed.**
+
+1. **XML-doc accuracy (`LipiTab.razor`, `LipiTabsTypes.cs`).** The `bool Optional`
+   summary no longer claims a dashed border or required-field tracking — it now
+   states Vertical-divider-only and cross-references `State=TabState.Optional`.
+   The `TabState.Optional` summary drops the phantom "required-field tracking"
+   claim and cross-references `LipiTab.Optional`. The `State` parameter doc also
+   cross-references `TabState.Optional` for consistency. A canonical "TWO OPTIONAL
+   MECHANISMS" note was added to the `LipiTab.razor` header comment as the single
+   in-code source of truth.
+
+2. **Env-gated developer guard (`LipiTab.razor`).** `LipiTab.OnInitialized` now
+   detects `Optional == true` on a non-Vertical parent (`Variant` is Underline or
+   Pill) — the case where `Optional` is silently inert. Development throws
+   `InvalidOperationException` with a message pointing at `State="TabState.Optional"`;
+   Production logs via `ILogger<LipiTab>` and continues (the flag is inert, so
+   rendering is unaffected — there is nothing to "fall back" to). This mirrors the
+   env-gated validation pattern established by LipiButton (A14) /
+   `LipiInputBase.ValidateOrFallback`. The check is `OnInitialized`-scoped:
+   runtime `Variant` changes are not a supported LipiTabs pattern, so a
+   once-per-instance check is sufficient, and the delicate `OnParametersSet`
+   dirty-check (Phase 2.6.3 Stage 2 loop fix) is left untouched. `LipiTab.razor`
+   gains `@using Microsoft.AspNetCore.Hosting` + `@using Microsoft.Extensions.Logging`
+   and `@inject IWebHostEnvironment Env` + `@inject ILogger<LipiTab> Log`.
+
+3. **StyleGuide demo corrected (`StyleGuideLayout.razor`).** The Underline demo's
+   Review tab was changed from `Optional="true"` (inert on Underline, and now a
+   Development throw) to `State="TabState.Optional"` (the actual dashed-border cue
+   — this fixes the original "missing dashed border"). The Vertical demo's Notes
+   tab keeps `Optional="true"` (correct usage — the rail divider). Captions and
+   source comments were added to both demos so the showcase teaches the
+   distinction. Each demo deliberately shows one variant's mechanism with a
+   cross-reference caption, rather than stacking both on one tab where the second
+   would produce no additional visible change.
+
+4. **Spec documentation (`docs/02-LipiTabs-Spec.md`).** The §3 LipiTab parameter
+   table row for `Optional` was corrected — it previously read "Dashed border.
+   Excluded from required-field tracking.", both wrong. A new §3.1 subsection,
+   "The two 'Optional' mechanisms", documents the deliberate split, the
+   per-variant behaviour, the env-gated guard, and the rationale for keeping both.
+
+**No behaviour change for correct usage.** The component renders identically for
+every correct usage. The only runtime-visible change is the new Development-time
+throw for the specific misuse `Optional="true"` on a non-Vertical `LipiTabs` —
+which previously failed silently. A codebase sweep confirmed the only occurrence
+was the StyleGuide Underline demo (fixed in this batch); `StyleGuide.razor` and
+`StyleGuideOverlays.razor` use no tabs, and the PatientNew mapping (spec §11) is
+Vertical, where `Optional` is valid.
+
+**Files**:
+- `src/LiPi.Web/Components/Shared/LipiTab.razor` — header "TWO OPTIONAL MECHANISMS"
+  note; `bool Optional` + `State` XML docs corrected; `@using`/`@inject` for
+  `IWebHostEnvironment` + `ILogger<LipiTab>`; env-gated guard in `OnInitialized`
+- `src/LiPi.Web/Components/Shared/LipiTabsTypes.cs` — `TabState.Optional` XML doc
+  corrected (phantom "required-field tracking" claim removed; cross-reference to
+  `LipiTab.Optional` added)
+- `src/LiPi.Web/Pages/StyleGuideLayout.razor` — Underline Review tab fixed to
+  `State="TabState.Optional"`; captions + source comments on the Underline and
+  Vertical tab demos
+- `docs/02-LipiTabs-Spec.md` — §3 `Optional` row corrected; new §3.1 subsection
+  "The two 'Optional' mechanisms"
+- `deploy-downloads.ps1` — `02-LipiTabs-Spec.md` entry added (the spec doc was not
+  previously mapped); `LipiTab.razor`, `LipiTabsTypes.cs`, and
+  `StyleGuideLayout.razor` were already mapped
+
+**Forward note.** `State=TabState.Optional` on a Pill variant is also inert (Pill
+ignores `TabState` entirely). This is a separate, lower-severity case and was left
+out of the guard to keep A21 tightly scoped to the confirmed footgun. If it
+surfaces in practice, extend the same `OnInitialized` guard.
+
+### A22 — LipiTabs CSS self-sufficiency: optional-token fallbacks + robust underline overlap
+
+**Phase**: 2 Sub-step 2.6.x — LipiTabs (`lipi-tabs.css` portability / rendering fix)
+**Date**: 2026-05-14
+**Status**: ✅ Shipped
+
+**Trigger.** After A21 deployed, the Underline tabs' active navy underline AND the
+tablist's faint baseline line were both missing on `/admin/style-guide/layout`.
+DevTools computed-style inspection: the `.lipi-tablist` `border-bottom` resolved to
+`none / 0px`, and the active tab's `border-bottom` was navy `1.6px` being mostly
+consumed by a `-1px` overlap margin. A21 shipped no CSS — this was a pre-existing
+defect in `lipi-tabs.css`, surfaced (not caused) by the A21 deploy.
+
+**Root causes — two undefined-token bugs + one fragile overlap.**
+
+1. `lipi-tabs.css` referenced `var(--color-border-tertiary)` with **no fallback**,
+   in two places: the Underline tablist `border-bottom` and the Vertical rail
+   `border-right`. `--color-border-tertiary` is not part of the theme token
+   contract — `mode-light.css` / `mode-dark.css` define `--color-border-{default,
+   subtle,strong,focus}` but no `-tertiary` tier. An undefined custom property with
+   no fallback makes the entire `border` shorthand invalid, so the line renders as
+   `none`. The faint tablist baseline therefore never painted.
+
+2. The active underline used `border-bottom` + `margin-bottom: -1px` to overlap and
+   "merge" with the 1px tablist baseline (Phase 2.6.3 Stage 2C). The `-1px` was a
+   magic literal coupled to the tablist's `1px` border by assumption, not by code.
+   With the tablist border invalid (bug 1) and the underline rendering sub-pixel
+   (`1.6px`, consistent with browser zoom), the `-1px` margin pulled most of the
+   already-thin underline out of view. Net effect: no visible underline.
+
+3. Separately, `.lipi-tabs-pill .lipi-tab-active` referenced `var(--sh-xs)` with no
+   fallback. `--sh-xs` is also not in the token contract (the theme files ship
+   `--sh-{sm,md,lg,thumb}`), so the Pill active tab's lift shadow silently did not
+   render. Same bug class; fixed in the same pass.
+
+**Principle.** The component library is built for reuse across projects. A
+component must be **self-sufficient**: it may depend on the documented token
+contract (`--color-{primary,text-*,bg-*,border-{default,subtle,strong,focus}}`,
+`--sp-*`, `--r-*`, `--sh-{sm,md,lg}`, `--font-*`, `--ts-*`, `--fw-*`, `--tr-*`),
+but any reference to an *optional* token outside that contract must carry a
+fallback so the component never visually breaks in a consuming app whose theme does
+not define it. Colour is the app's decision; structural values (underline
+thickness, the overlap geometry) are the component's. A22 brings `lipi-tabs.css`
+in line with that principle.
+
+**What changed — all in `src/LiPi.Web/wwwroot/css/lipi-tabs.css`.**
+
+1. **Optional-token fallbacks.** `var(--color-border-tertiary)` →
+   `var(--color-border-tertiary, var(--color-border-subtle))` in both the Underline
+   tablist `border-bottom` and the Vertical rail `border-right`. `var(--sh-xs)` →
+   `var(--sh-xs, var(--sh-sm))` on the Pill active tab. A host theme *may* define
+   `-tertiary` / `-xs` for finer control; if it does not, the component falls back
+   to a guaranteed-present contract token and still renders correctly.
+
+2. **Robust underline overlap.** Introduced `--lipi-tab-strip-border-width`
+   (component-owned, default `1px`), joining the existing `--lipi-tab-*`
+   brand-overridable token family in the file header. The Underline tablist's
+   `border-bottom` width and the active tab's overlap margin
+   (`margin-bottom: calc(-1 * var(--lipi-tab-strip-border-width, 1px))`) now both
+   derive from this **one** token, so the overlap is always exactly the baseline
+   thickness — they cannot desync under browser zoom or a brand override. This
+   supersedes the Stage 2C fixed `-1px` literal.
+
+**Why not switch the underline to `box-shadow`.** A `box-shadow` underline is
+immune to box-model fragility, but it cannot render the dashed treatment that
+`TabState.Optional` requires. Keeping one `border-bottom` mechanism for every
+underline state (solid + dashed) is more maintainable for a reusable component than
+a hybrid. The fragility was the magic-literal margin, not the border — so the fix
+tied the margin to a token rather than switching mechanisms.
+
+**Not changed.** The `1.6px` computed underline width is consistent with browser
+zoom (the whole pixel grid scales). The Vertical rail's `border-right` keeps its
+`0.5px` width; only its colour token gained a fallback. No attempt was made to pin
+`--lipi-tab-underline-width` to a non-overridable literal — spec §17 designates it
+brand-overridable.
+
+**Follow-up correction (same-day, cache `20260518`).** The original A22 work
+(cache `20260517`) claimed the new overlap geometry "renders correctly at any
+zoom" — that was wrong, and browser testing caught it. A22 tied the overlap margin
+to `--lipi-tab-strip-border-width` (correct) but left the active tab's *visible*
+underline thickness equal to `--lipi-tab-underline-width` alone. At zoom <100% the
+nominal `2px` underline renders sub-pixel (`1.6px` at 80%); the `-1px` overlap pull
+then left only ~`0.6px` showing — effectively invisible, the exact symptom A22 set
+out to fix. The overlap-to-strip-border coupling was right; the missing piece was
+that the active tab must *compensate* for the overlap. Fix, in
+`.lipi-tabs-underline .lipi-tab-active`:
+
+```css
+border-bottom-width: calc(
+    var(--lipi-tab-underline-width, 2px) + var(--lipi-tab-strip-border-width, 1px)
+);
+```
+
+The active underline is thickened by exactly the overlap amount, so after the
+`margin-bottom` pull a full `--lipi-tab-underline-width` of colour always remains
+visible — at any zoom, under any brand override, with no fixed pixel literals.
+State-coloured active tabs (`.lipi-tab-state-{complete,partial,empty}.lipi-tab-active`)
+set only `color` / `border-bottom-color` / `background`, so the new
+`border-bottom-width` cascades through to them unchanged. `lipi-tabs.css` comments
+on both the base `.lipi-tab` rule and the active rule were corrected to describe
+the real geometry. `App.razor` cache stamp bumped `20260517` → `20260518`
+(`20260517` shipped a now-superseded `lipi-tabs.css`).
+
+**Files**:
+- `src/LiPi.Web/wwwroot/css/lipi-tabs.css` — three optional-token fallbacks;
+  `--lipi-tab-strip-border-width` token introduced; Underline tablist border width
+  and active-tab overlap margin retied to it; **follow-up: active-tab
+  `border-bottom-width` set to `underline-width + strip-border-width` so a full
+  underline-width survives the overlap pull at any zoom**; header token list +
+  inline comments updated (base `.lipi-tab` and active rule comments corrected in
+  the follow-up)
+- `src/LiPi.Web/App.razor` — cache-version stamp bumped `20260516` → `20260517`
+  → **`20260518`** (uniform across all `?v=` query strings, per the file's
+  established convention) + history-table rows added
+- `deploy-downloads.ps1` — no change; `lipi-tabs.css`, `App.razor`, and
+  `CHANGE-LOG.md` were all already mapped
+
+**Forward note (out of scope for A22).** Two latent items observed while fixing
+this, left for a deliberate pass rather than scope-creeping A22: (a) the Vertical
+rail `border-right` is `0.5px` — sub-pixel, the same rounding-fragility class
+Stage 2C addressed elsewhere; (b) whether `--color-border-tertiary` and `--sh-xs`
+should be *added* to the theme contract (so the `-tertiary` / `-xs` tiers genuinely
+exist) or left as optional-with-fallback is a token-architecture decision for the
+theme files, not the component.
+
+### A23 — LipiAlert: Critical header strip alignment fix
+
+**Phase**: 2 Sub-step 2.6.1 — LipiAlert (`LipiAlert.razor.css` rendering fix)
+**Date**: 2026-05-14
+**Status**: ✅ Shipped
+
+**Trigger.** Browser review of the Critical Filled alert on the StyleGuide Layout
+page: the dark-red header strip ("Critical alert — action required") had its icon
+and text (a) horizontally inboard of the alert body's left gutter — the shield icon
+sat ~4px left of where "Documented allergy — Penicillin" began below it — and
+(b) sitting visually high within the red band rather than vertically centred.
+
+**Root causes — three, all in `LipiAlert.razor.css`.**
+
+1. **`margin-top: -0.85rem` overshot the top edge.** The critical header strip is
+   meant to be full-bleed — pulled to the alert's outer edges by negative margins.
+   The horizontal `-1rem` correctly cancels the wrapper's `1rem` side padding. But
+   `lipi-alerts.css` sets `padding-top: 0` on the critical filled wrapper, so the
+   strip already sits flush at the alert's top edge — `margin-top: -0.85rem` then
+   pulled it a further 0.85rem *above* that edge. The wrapper's `overflow: hidden`
+   clipped the overshoot, so the strip's content box was effectively cropped at the
+   top and the icon + text rendered high within the visible red band. The prior
+   inline comment reasoned "wrapper padding-top is 0, so -0.85rem bleeds to the
+   top" — but that is backwards: if padding-top is already 0, the strip is already
+   at the top, and a negative margin-top overshoots past it.
+
+2. **Horizontal padding `12px` did not match the body gutter.** The strip used
+   `padding: 10px 12px`; the alert body content is indented by the wrapper's `1rem`
+   (16px) gutter. So the strip's icon started 12px from the edge while the body
+   title started 16px from the edge — the header content and the body content did
+   not share a left line.
+
+3. **Header text inherited `line-height: 1.5`.** `.lipi-alert-critical-header-text`
+   set `font-size` but no `line-height`, inheriting `1.5` from `.lipi-alert`. That
+   produces a tall line-box with asymmetric space above/below the glyphs; with
+   `align-items: center` on the strip, the line-box centred but the visible glyphs
+   sat high within it — compounding the strip-overshoot in (1).
+
+**What changed — all in `src/LiPi.Web/Components/Shared/LipiAlert.razor.css`.**
+
+1. `.lipi-alert-critical-header` — `margin-top: -0.85rem` → `margin-top: 0`. The
+   strip sits flush at the alert's true top edge (wrapper already has
+   `padding-top: 0`); no upward pull, nothing clipped.
+2. `.lipi-alert-critical-header` — horizontal padding `12px` → `1rem`. The strip's
+   icon + text now align on the same left edge as the title / message / actions in
+   `.lipi-alert-critical-body` below. Vertical padding stays the symmetric `10px`
+   from the Phase 2.6.3 Stage 2C fix.
+3. `.lipi-alert-critical-header-text` — `line-height: 1` pinned. The line-box hugs
+   the glyphs so `align-items: center` centres what the eye actually sees.
+
+**No spec conflict.** `docs/03-LipiAlert-Spec.md` §6 / §7 describe the critical
+header strip as `background: #A32D2D`, white text, "separates title from body" —
+they specify no padding, margin, or line-height values. A23 is a free rendering
+fix with no spec value to reconcile; the spec needs no amendment.
+
+**Not changed.** The icon span (`.lipi-alert-icon`) keeps its shared-CSS rules — it
+is `display: flex; align-items: center` holding a fixed-size `LucideIcon` SVG, so
+its own `line-height` is inert for the SVG child and it co-centres correctly with
+the now-pinned text span. The strip's vertical padding, background, colour, and
+full-bleed horizontal margins are unchanged. This fix touches the Critical Filled
+header strip only — no other severity, style, or component is affected (Critical is
+the only severity with a header strip; Banner Critical and LeftBorder Critical use
+no strip).
+
+**Files**:
+- `src/LiPi.Web/Components/Shared/LipiAlert.razor.css` — three rules in the
+  critical header strip block corrected (`margin-top`, horizontal `padding`,
+  header-text `line-height`); file-header amendment note added
+- `src/LiPi.Web/App.razor` — cache-version stamp bumped `20260518` → `20260519`
+  (uniform across all `?v=` query strings, per the file's established convention)
+  + history-table row added
+- `deploy-downloads.ps1` — no change; `LipiAlert.razor.css`, `App.razor`, and
+  `CHANGE-LOG.md` were all already mapped
+
+### A24 — LipiAlert: Critical body text aligned to the alert family's body column
+
+**Phase**: 2 Sub-step 2.6.1 — LipiAlert (CSS layout fix)
+**Date**: 2026-05-14
+**Status**: ✅ Shipped (first attempt cache `20260520` did not apply — corrected, cache `20260521`)
+
+**Trigger.** With several alerts stacked on the StyleGuide Layout page
+(Success / Warning / Danger / Critical), the Critical alert's body text and
+action buttons sat noticeably left of the body text in every alert above it —
+the stack did not share a common text column.
+
+**Root cause.** Every non-Critical alert renders as a flex row —
+`[icon span] gap [.lipi-alert-body]` — via `.lipi-alert { display: flex;
+gap: 12px }`. Their body text therefore starts at
+`wrapper-padding-left (1rem) + icon-width + 12px gap`. The Critical Filled
+alert has a different structure: its shield icon lives *inside* the header
+strip, and the body below it (`.lipi-alert-critical-body`) is a plain block
+with no inline icon beside it. So the Critical body started at
+`wrapper-padding-left (1rem)` alone — roughly 30px left of where every other
+severity's body text begins. A23 had aligned the *header strip's* content to
+the body gutter, but the body itself still lacked the icon-column offset, so
+Critical broke the family's shared reading column when stacked.
+
+**First attempt (cache `20260520`) — did not apply.** The initial fix added a
+new `.lipi-alert-critical-body { padding-left: calc(18px + 12px) }` rule to
+the *shared* `lipi-alerts.css`. It was overridden and never took effect. Two
+reasons, both missed at the time:
+- The scoped `LipiAlert.razor.css` already has a `.lipi-alert-critical-body`
+  rule that sets `padding` as a **shorthand** (`padding: 0 0 0.85rem`). A
+  shorthand sets *all four sides* — including `padding-left: 0` — explicitly.
+  A shorthand and a longhand for the same property always overlap; the A24
+  batch note that called them "non-overlapping" was wrong.
+- Blazor's scoped CSS attaches a `[b-{hash}]` attribute selector, which
+  outspecifies a plain class selector in a shared stylesheet. So the scoped
+  shorthand's implicit `padding-left: 0` beat the shared file's
+  `padding-left` longhand. DevTools confirmed: the shared rule showed as
+  empty/overridden, computed `padding-left` stayed `0`.
+
+**Correction (cache `20260521`) — what actually shipped.**
+- `src/LiPi.Web/Components/Shared/LipiAlert.razor.css` — the
+  `.lipi-alert-critical-body` rule's `padding` shorthand was expanded to
+  explicit longhands: `padding-bottom: 0.85rem` (unchanged intent) +
+  `padding-left: calc(18px + 12px)` (the icon-column offset). Both padding
+  sides now live as longhands in **one rule, in the scoped file** — the file
+  that wins the cascade. `18px` = `.lipi-alert-icon` width (holds an 18px
+  `LucideIcon`); `12px` = the same gap literal as `.lipi-alert`.
+- `src/LiPi.Web/wwwroot/css/lipi-alerts.css` — the dead
+  `.lipi-alert-critical-body` rule from the first attempt was removed and
+  replaced with an explanatory note pointing to the scoped file.
+
+**Layout-vs-Shape note.** A `padding-left` that sets the body's column
+position is arguably "layout", which the Layout-vs-Shape rule assigns to the
+shared file. But the shared file *demonstrably cannot win* against the
+scoped shorthand, and the body's `padding-bottom` (shape) already lived in
+the scoped file — splitting the body's padding across two files is what
+caused this bug. The pragmatic, correct resolution is one coherent rule in
+the file that applies: both longhands in the scoped `LipiAlert.razor.css`.
+
+**No spec conflict.** `docs/03-LipiAlert-Spec.md` §6 / §7 describe the
+Critical treatment (header strip, `#F09595` background, `1.5px` border,
+no ✕, `shield-x` icon) but specify nothing about the Critical body's left
+alignment. A24 is a free layout fix; the spec needs no amendment.
+
+**Not changed.** The header strip stays full-bleed — it bleeds to the alert's
+edges via its own `-1rem` margins in `LipiAlert.razor.css`, unaffected by a
+body padding change. Only the Critical Filled body is touched; no other
+severity, style, or component is affected (Critical is the only severity
+whose body sits without an inline icon sibling).
+
+**Files**:
+- `src/LiPi.Web/Components/Shared/LipiAlert.razor.css` —
+  `.lipi-alert-critical-body` `padding` shorthand expanded to
+  `padding-bottom` + `padding-left` longhands; file-header amendment note
+  added
+- `src/LiPi.Web/wwwroot/css/lipi-alerts.css` — first-attempt
+  `.lipi-alert-critical-body` rule removed, explanatory note left in its
+  place; file-header amendment note corrected
+- `src/LiPi.Web/App.razor` — cache-version stamp bumped `20260519` →
+  `20260520` → `20260521` (uniform across all `?v=` query strings) +
+  history-table rows added
+- `deploy-downloads.ps1` — no change; `LipiAlert.razor.css`,
+  `lipi-alerts.css`, `App.razor`, and `CHANGE-LOG.md` were all already mapped
+
+### A25 — LipiAlert: Critical header aligned to the alert family's icon+text rhythm
+
+**Phase**: 2 Sub-step 2.6.1 — LipiAlert (markup + CSS layout fix)
+**Date**: 2026-05-14
+**Status**: ✅ Shipped
+
+**Trigger.** After A24 moved the Critical alert's *body* into the alert
+family's shared text column, the Critical *header* text ("Critical alert —
+action required") was left behind — sitting ~30px left of the body text
+directly below it, and out of step with the rest of the alert stack.
+
+**Root cause — A23 and A24 fixed adjacent things and exposed this seam.**
+A23 set the header strip's horizontal padding to `1rem` so the header content
+aligned with the body's *then-current* position. A24 then moved the body
+right by the icon-column offset (`icon-width + gap` ≈ 30px) so it would match
+the non-Critical alerts. The header was not part of A24's change, so it
+stayed at `1rem` while the body moved to `1rem + 30px`. Net result: header
+text 30px left of body text.
+
+The deeper issue: every non-Critical alert is a flex row —
+`[icon] gap [text]` — with an 18px icon and a 12px gap (`.lipi-alert-icon`
+`font-size: 18px`; `.lipi-alert` `gap: 12px`). The Critical header strip is
+*also* an `[icon] gap [text]` flex row, but it was built with a 14px icon and
+an 8px gap — so it never matched the family rhythm, and after A24 it no
+longer matched the Critical alert's own body either.
+
+**What changed.** The Critical header strip now uses the same icon size and
+gap as every standard alert row:
+
+- `src/LiPi.Web/Components/Shared/LipiAlert.razor` — the header strip's
+  `<LucideIcon Name="shield-x" Size="14" />` → `Size="18"`, matching the
+  standard alert icon size used everywhere else in the component.
+- `src/LiPi.Web/Components/Shared/LipiAlert.razor.css` — the
+  `.lipi-alert-critical-header` `gap: 8px` → `gap: 12px`, matching
+  `.lipi-alert`'s gap.
+
+With the strip's existing `1rem` left padding, this makes the header
+`[1rem][18px icon][12px gap][text]`: the header **icon** lands at `1rem`
+(aligned with every other alert's icon) and the header **text** lands at
+`1rem + 18 + 12 = 1rem + 30px` — aligned with every other alert's text *and*
+with this alert's own body, which A24 placed at exactly `1rem + 30px`. One
+coherent change satisfies all three alignments at once.
+
+**No spec conflict.** `docs/03-LipiAlert-Spec.md` §6 names the Critical icon
+(`shield-x`) but pins no size; §6/§7 specify no header strip gap. A25 is a
+free layout fix; the spec needs no amendment.
+
+**Not changed.** The header strip's full-bleed background (`margin: 0 -1rem`),
+its symmetric vertical padding (`10px`, A23), `margin-top: 0` (A23), and the
+header text's `line-height: 1` (A23) are all unchanged — A25 only touches the
+icon size and the gap. No other severity, style, or component is affected
+(Critical is the only severity with a header strip).
+
+**Alert alignment series complete.** A23 (header strip vertical centring +
+top-edge fix), A24 (body text into the family column), A25 (header into the
+family rhythm) together bring the Critical Filled alert into full alignment —
+internally (header, body, actions on one column) and with the alert family
+(icons on one column, text on another).
+
+**Files**:
+- `src/LiPi.Web/Components/Shared/LipiAlert.razor` — header strip
+  `LucideIcon` `Size="14"` → `Size="18"`; explanatory comment added
+- `src/LiPi.Web/Components/Shared/LipiAlert.razor.css` —
+  `.lipi-alert-critical-header` `gap: 8px` → `gap: 12px`; file-header
+  amendment note added
+- `src/LiPi.Web/App.razor` — cache-version stamp bumped `20260521` →
+  `20260522` (uniform across all `?v=` query strings) + history-table row
+  added
+- `deploy-downloads.ps1` — no change; `LipiAlert.razor`,
+  `LipiAlert.razor.css`, `App.razor`, and `CHANGE-LOG.md` were all already
+  mapped
+
+### A26 — LipiCard CSS self-sufficiency: optional-token fallbacks
+
+**Phase**: 2 Sub-step 2.6.1 — LipiCard (`lipi-cards.css` portability fix)
+**Date**: 2026-05-14
+**Status**: ✅ Shipped
+
+**Trigger.** Pre-test audit of `lipi-cards.css` (before exercising the Card
+StyleGuide section) — applying the same self-sufficiency check that caught the
+equivalent bugs in `lipi-tabs.css` (A22).
+
+**Root cause.** `lipi-cards.css` referenced two tokens that are **not part of
+the theme token contract**, both with **no fallback**:
+
+1. `--color-border-tertiary` — used in `.lipi-card-header` `border-bottom` and
+   `.lipi-card-footer` `border-top`. The theme files (`mode-light.css` /
+   `mode-dark.css`) define `--color-border-{default,subtle,strong,focus}` — no
+   `-tertiary` tier. An undefined custom property with no fallback makes the
+   whole `border` shorthand invalid, so the line renders as nothing — the
+   header/body and footer/body divider lines silently did not paint.
+2. `--sh-xs` — used in `.lipi-card-clickable:hover` `box-shadow`. Also not in
+   the contract (the theme files ship `--sh-{sm,md,lg}`), so the clickable
+   card's hover lift silently did not render.
+
+Both are the same bug class as the `lipi-tabs.css` issues fixed in A22 —
+a component in a reusable library referencing optional tokens without a
+guaranteed-present fallback.
+
+**Principle.** A component may depend on the documented token contract
+(`--color-{primary,text-*,bg-*,border-{default,subtle,strong,focus}}`,
+`--sp-*`, `--r-*`, `--sh-{sm,md,lg}`, `--font-*`, `--ts-*`, `--fw-*`,
+`--tr-*`), but any reference to a token *outside* that contract must carry a
+fallback so the component never visually breaks in a consuming app whose
+theme does not define it.
+
+**What changed — all in `src/LiPi.Web/wwwroot/css/lipi-cards.css`.**
+
+- `.lipi-card-header` `border-bottom` and `.lipi-card-footer` `border-top`:
+  `var(--color-border-tertiary)` → `var(--color-border-tertiary,
+  var(--color-border-subtle))`. A host theme may still define `-tertiary` for
+  a finer border tier; without it, the divider falls back to the
+  guaranteed-present `--color-border-subtle` and still renders.
+- `.lipi-card-clickable:hover` `box-shadow`: `var(--sh-xs)` →
+  `var(--sh-xs, var(--sh-sm))`. Same pattern — falls back to the
+  contract-guaranteed `--sh-sm`.
+
+**Not changed.** No behaviour change for any theme that *does* define
+`-tertiary` / `-xs` — the fallbacks only engage when the optional token is
+absent. `LipiCard.razor.css` (the scoped shape file) was checked and
+references only contract tokens (`--color-primary`, `--r-md`) — no fix
+needed there. The component markup, variants, and all other CSS rules are
+untouched.
+
+**Files**:
+- `src/LiPi.Web/wwwroot/css/lipi-cards.css` — two optional-token fallbacks
+  (`--color-border-tertiary` ×2 sites, `--sh-xs` ×1 site); file-header
+  amendment note added
+- `src/LiPi.Web/App.razor` — cache-version stamp bumped `20260522` →
+  `20260523` (uniform across all `?v=` query strings) + history-table row
+  added
+- `deploy-downloads.ps1` — no change; `lipi-cards.css`, `App.razor`, and
+  `CHANGE-LOG.md` were all already mapped
+
+### A27 — LipiCard: spec reconciliation — interactivity model unified; accent radius / focus-ring / aria brought to spec
+
+**Phase**: 2 Sub-step 2.6.1 — LipiCard (component + scoped CSS + shared CSS)
+**Date**: 2026-05-14
+**Status**: ✅ Shipped
+
+**Trigger.** Build-chat review of the seven LipiCard files against
+`docs/04-LipiCard-Spec.md` ahead of exercising the Card StyleGuide section.
+Five issues surfaced: one systemic (interactivity), three written-spec
+deviations, one ARIA correctness bug.
+
+**1. Systemic — interactivity and interactive-styling were driven by different
+inputs.** `LipiCard.razor` decided the *render path* (`<a>` / `<div
+role="button">` / plain `<div>`) from `Href` / `OnClick.HasDelegate` /
+`Clickable`, but composed the `lipi-card-clickable` CSS class from `Variant`
+alone. The two never agreed, producing three footguns:
+
+- `Variant="Outlined"` + `Href` → interactive `<a>`, but styled static; and
+  `Disabled` was inert because `pointer-events: none` only exists under
+  `.lipi-card-clickable.lipi-card-disabled`.
+- `Variant="Clickable"` with no handler → got `lipi-card-clickable` styling
+  (hover, `cursor: pointer`) but fell through to a plain, non-focusable
+  `<div>` — looked clickable, was not.
+- A disabled link card still navigated — `<a href>` stayed live;
+  `aria-disabled` is advisory only.
+
+The spec itself is internally inconsistent on whether the
+`CardVariant.Clickable` *variant* alone is interactive — §4 defines it as a
+variant *with* hover/active/selected states; §5 lists only `OnClick` / `Href`
+/ `Clickable="true"` as triggers. Strategic + build chat weighed both readings
+with full pros/cons. **Decision — Option B**: honour §4. A single computed
+`IsInteractive` (`Href set || OnClick wired || Clickable=="true" ||
+Variant==CardVariant.Clickable`) now drives the render path, the
+`lipi-card-clickable` class, and `tabindex` together — they can no longer
+desync. `CardVariant.Clickable`'s base look is `lipi-card-outlined`;
+interactivity is layered on via `IsInteractive`. §5's trigger list is read as
+non-exhaustive.
+
+**2. Env-gated guard for Option B's one footgun.** Option B leaves one case —
+`Variant="Clickable"` with nothing wired renders a focusable `role="button"`
+that does nothing. `LipiCard.OnInitialized` now detects this and, in
+Development, throws `InvalidOperationException` pointing the developer at
+`OnClick` / `Href` or `Clickable="true"`; in Production it logs via
+`ILogger<LipiCard>` and renders harmlessly (the card is inert — there is
+nothing to fall back to). Mirrors the env-gated pattern of LipiTab (A21) and
+LipiButton (A14). `LipiCard.razor` gains `@using
+Microsoft.AspNetCore.Hosting` + `@using Microsoft.Extensions.Logging` and
+`@inject IWebHostEnvironment Env` + `@inject ILogger<LipiCard> Log`. The check
+is `OnInitialized`-scoped — runtime `Variant` changes are not a supported
+pattern.
+
+**3. Three written-spec deviations reconciled (code → spec).** Per the
+deviation-handling rule these are recorded explicitly, not changed silently:
+
+- **Accent border-radius.** `lipi-cards.css` `.lipi-card-accent` squared its
+  left corners (`border-radius: 0 … 0`); spec §6 specifies full radius on all
+  corners. Reconciled to spec — `border-radius: var(--lipi-card-radius,
+  var(--r-md))`.
+- **Focus-ring colour.** `LipiCard.razor.css` used `outline: 2px solid
+  var(--color-primary)`; spec §5 / §9 specify `var(--color-border-focus)`.
+  Reconciled to spec. `--color-border-focus` is in the documented token
+  contract, so A26's self-sufficiency property (this scoped file references
+  contract tokens only) is preserved.
+- **`aria-pressed` when not selected.** The button-role branch emitted
+  `aria-pressed` as `null` (attribute omitted) when `!Selected`; spec §9
+  specifies `aria-pressed="@Selected"` — an explicit `"false"` so assistive
+  tech announces the un-pressed toggle state. Reconciled to spec.
+
+**4. ARIA correctness — `aria-pressed` on the link path.** Both render
+branches set `aria-pressed`. `aria-pressed` is not valid on an `<a>`; spec §9
+specifies `aria-current="true"` for the link role's selected state. The `<a>`
+branch now emits `aria-current` (`"true"` when `Selected`, omitted otherwise);
+the button-role branch keeps `aria-pressed` (now explicit `"true"` / `"false"`
+per item 3).
+
+**5. Disabled link no longer navigates.** The `<a>` branch now emits
+`href="@(Disabled ? null : Href)"` — a disabled link card drops its live
+`href`, so it is neither navigable nor focusable. `aria-disabled="true"` and
+the `.lipi-card-clickable.lipi-card-disabled` styling (opacity, cursor,
+`pointer-events: none`) still apply, since `IsInteractive` stays true (the
+`Href` parameter is still set, just not emitted).
+
+**Also — `CascadingValue IsFixed` `false` → `true`.** The cascaded value is
+`this`, which never changes for the component's lifetime. `IsFixed="true"` is
+both more correct and avoids re-rendering the sub-component cascade on every
+LipiCard render.
+
+**One CSS rule added for a combo Option B newly enables.** `Variant="Accent"`
++ `Clickable="true"` is now a reachable combo. `.lipi-card-clickable:hover`
+sets `border-color`, which would also recolour the accent strip; a new rule
+`.lipi-card-accent.lipi-card-clickable:hover:not(.lipi-card-disabled)`
+re-pins `border-left-color` to the accent colour so the strip survives hover.
+
+**Not changed.** `CardHeader.razor`, `CardBody.razor`, `CardFooter.razor`,
+`LipiCardTypes.cs` are spec-compliant as-is. `deploy-downloads.ps1` already
+maps all seven LipiCard files plus `App.razor` and `CHANGE-LOG.md` — no
+change. The StyleGuide `#cards` section currently shows one of the nine
+demonstrations spec §15 lists; its expansion is a separate batch (component
+correctness lands first). Spec §13 / §14 list four files but the component
+ships seven (`CardHeader/Body/Footer.razor` were never enumerated) — a
+spec-doc accuracy fix queued with the §15 expansion.
+
+**Files**:
+- `src/LiPi.Web/Components/Shared/LipiCard.razor` — `IsInteractive` computed
+  property; render path + CSS class + `tabindex` unified on it; env-gated
+  `OnInitialized` guard (+ `@using` / `@inject` for `IWebHostEnvironment` +
+  `ILogger<LipiCard>`); `aria-pressed`→`aria-current` on the `<a>` branch,
+  explicit `"true"` / `"false"` on the button-role branch; disabled `<a>`
+  drops live `href`; `CascadingValue IsFixed` `false`→`true` ×3; header
+  comment updated; redundant `@using LiPi.Web.Components.Shared` removed
+- `src/LiPi.Web/Components/Shared/LipiCard.razor.css` — focus-ring outline
+  colour `--color-primary` → `--color-border-focus` (×2 rules); file-header
+  amendment note added
+- `src/LiPi.Web/wwwroot/css/lipi-cards.css` — `.lipi-card-accent`
+  `border-radius` reconciled to full radius (spec §6); new
+  `.lipi-card-accent.lipi-card-clickable:hover` rule preserving the accent
+  strip on hover; file-header amendment note added
+- `src/LiPi.Web/App.razor` — cache-version stamp bumped `20260523` →
+  `20260524` (uniform across all `?v=` query strings) + history-table row
+  added
+- `deploy-downloads.ps1` — no change; all seven LipiCard files, `App.razor`,
+  and `CHANGE-LOG.md` were all already mapped
+
+### A28 — LipiCard: StyleGuide #cards section expanded to the full spec §15 showcase
+
+**Phase**: 2 Sub-step 2.6.1 — LipiCard (StyleGuide showcase)
+**Date**: 2026-05-14
+**Status**: ✅ Shipped
+
+**Trigger.** A27 noted the StyleGuide `#cards` section showed one of the nine
+demonstrations spec §15 lists, and deferred the expansion to its own batch
+(component correctness first). This is that batch — `#cards` now exercises the
+full component surface.
+
+**What changed.** `StyleGuideLayout.razor`'s `#cards` section rebuilt from one
+clickable grid to the nine spec §15 demonstrations: (1) all five variants side
+by side; (2) clickable selection grid — four appointment slots, one selected;
+(3) accent cards in all five `CardAccentColor` values; (4) full slotted card —
+CardHeader (title + subtitle + action) + CardBody + CardFooter; (5) free-content
+body-only card (the PatientNew tab-panel pattern); (6) flat cards in a
+three-column metric dashboard; (7) elevated featured panel; (8) clickable + Href
+link card (renders as `<a>`); (9) disabled clickable card.
+
+**A27-guard-aware.** Every `Variant="CardVariant.Clickable"` demo wires
+`OnClick` or `Href` — a bare Clickable variant now throws in Development via the
+A27 env-gated guard. Demos 1, 2 and 9 wire `OnClick`; demo 8 sets `Href`.
+
+**Showcase CSS.** `StyleGuideLayout.razor.css` gains a `Phase 2.6.1 — Cards
+section` block: `.sg-card-grid` + `-3/-4/-5` responsive column helpers (2-up
+below 880px), `.sg-card-single` (width-constrained single-card demos),
+`.sg-demo-note` (per-demo caption), `.sg-metric-value` / `.sg-metric-label`
+(demo 6 inner content). Scoped to this page only — the other two
+`StyleGuide*.razor.css` files are untouched (the cards demo lives only here).
+
+**`@code` block.** `_specialties` / `_selected` (the old single grid's state)
+replaced with `_slots` / `_selectedSlot` and a named `SelectSlot(string)` method
+(per the no-assignment-lambda rule). The component owns all visual design via
+`lipi-cards.css` + `LipiCard.razor.css` — the showcase adds layout helpers only.
+
+**Not changed.** No component, `lipi-cards.css`, or `App.razor` change — this is
+a showcase-only batch. `StyleGuideLayout.razor` and `StyleGuideLayout.razor.css`
+are already mapped in `deploy-downloads.ps1`. Scoped `.razor.css` changes
+auto-bundle into `LiPi.Web.styles.css`, so no cache-stamp bump is needed.
+
+**Phase 2.6.1 — LipiCard complete.** The component (A26–A27), its seven files,
+and the StyleGuide §15 showcase (A28) are all shipped. Remaining 2.6.1 doc debt:
+spec `04-LipiCard-Spec.md` §13 / §14 still list four files (the component ships
+seven — `CardHeader/Body/Footer.razor` were never enumerated), and
+`03-LipiAlert-Spec.md` / `04-LipiCard-Spec.md` are not mapped in
+`deploy-downloads.ps1`. A doc-only follow-up.
+
+**Files**:
+- `src/LiPi.Web/Pages/StyleGuideLayout.razor` — `#cards` section rebuilt to the
+  nine spec §15 demonstrations; `@code` block `_specialties`/`_selected` →
+  `_slots`/`_selectedSlot` + `SelectSlot(string)`; section AMEND comment added
+- `src/LiPi.Web/Pages/StyleGuideLayout.razor.css` — `Phase 2.6.1 — Cards
+  section` block appended (`.sg-card-grid` family, `.sg-card-single`,
+  `.sg-demo-note`, `.sg-metric-*`)
+- `deploy-downloads.ps1` — no change; both files already mapped
+
+### A29 — Phase 2.6.1 doc cleanup: LipiCard spec §13/§14 file list corrected; Alert + Card spec docs mapped in deploy script
+
+**Phase**: 2 Sub-step 2.6.1 — LipiCard + LipiAlert (documentation only)
+**Date**: 2026-05-14
+**Status**: ✅ Shipped — Phase 2.6.1 closed
+
+**Trigger.** A27 and A28 both flagged residual Phase 2.6.1 doc debt: the
+LipiCard spec's file list was inaccurate, and two of the three 2.6.x component
+spec docs were never mapped in the deploy script. This batch clears both — no
+code, docs and deploy script only.
+
+**1. `04-LipiCard-Spec.md` §13 / §14 — file list corrected (4 → 7).** The spec
+listed four files (`LipiCardTypes.cs`, `LipiCard.razor`, `LipiCard.razor.css`,
+`lipi-cards.css`) but the component ships seven — the three named sub-components
+`CardHeader.razor`, `CardBody.razor`, `CardFooter.razor` (spec §2) were never
+enumerated in §13 ("Files to create") or §14 ("Deploy script additions"). Both
+sections now list all seven, and §13's explanatory note describes the
+sub-component files. `deploy-downloads.ps1` already mapped all seven correctly —
+the gap was in the spec doc only, so no deploy-script change for the component
+files themselves.
+
+**2. `deploy-downloads.ps1` — Alert + Card spec docs mapped.** Only
+`02-LipiTabs-Spec.md` was mapped in the deploy script's Docs section (added in
+A21). `03-LipiAlert-Spec.md` and `04-LipiCard-Spec.md` were never mapped, so
+edits to either spec doc could not be deployed via the standard workflow. Both
+are now mapped alongside the Tabs spec. (If either file is not yet physically in
+`docs/`, drop the existing copy into `Downloads\LiPi\` once — the deploy script
+skips files not present in the drop folder, so a one-time placement closes it.)
+
+**Not changed.** `03-LipiAlert-Spec.md` content is accurate as-is — LipiAlert is
+a single component with no separate sub-component files (`AlertActions` is an
+inline `RenderFragment` parameter, not a `.razor` file), so its §12 / §13 list
+of four files is correct. Only its deploy-script mapping was missing. No
+component code, CSS, or `App.razor` change in this batch — scoped doc cleanup
+only.
+
+**Files**:
+- `docs/04-LipiCard-Spec.md` — §13 "Files to create" and §14 "Deploy script
+  additions" expanded from four files to seven (`CardHeader.razor`,
+  `CardBody.razor`, `CardFooter.razor` added); §13 explanatory note extended to
+  describe the sub-component files
+- `deploy-downloads.ps1` — `03-LipiAlert-Spec.md` and `04-LipiCard-Spec.md`
+  entries added to the Docs section
+- `CHANGE-LOG.md` — this amendment (A29)
+
+**Phase 2.6.1 — CLOSED.** LipiTabs (A21–A22), LipiAlert (A23–A25), LipiCard
+(A26–A28), and this doc cleanup (A29) complete the phase. Component library,
+showcases, specs, and deploy mappings are all consistent. Next: Phase 2.6.2 —
+Overlay surfaces (LipiModal + LipiDrawer + LipiDynamicTabs); specs ready, deploy
+paths pre-mapped.
+
+### A30 — LipiModalTypes.cs recovery from spec after file loss
+
+**Phase**: 2 Sub-step 2.6.2 — LipiModal infrastructure recovery
+**Date**: 2026-05-14
+**Status**: ✅ Shipped — Phase 2.6.2 unblocked
+
+**Trigger.** Post-2.6.2-batch review found that the deployed tree referenced
+seven modal enums (`ModalSize`, `ModalIconColor`, `ModalIntent`, `ModalAnimation`,
+`ModalFooterAlign`, `ConfirmIntent`, `AlertIntent`) across `LipiOverlayHost.razor`,
+`LipiModalService`, `ILipiModalService`, `ConfirmDialog`, and `AlertDialog`, but
+the source file `LipiModalTypes.cs` was absent. Project would not compile until
+the file was reconstructed.
+
+**Filename correction.** The mid-recovery review chat temporarily called the
+file `LipiOverlayTypes.cs`. `docs/00-COMPONENTS/2.6.2/01-LipiModal-Spec.md §4`
+header is the
+authoritative source: filename is `LipiModalTypes.cs`, matching the sibling
+pattern `LipiDrawerTypes.cs` / `LipiDynamicTabsTypes.cs`. Shipped as
+`LipiModalTypes.cs`.
+
+**Rebuild fidelity.** Spec `§4` is mirrored verbatim — seven enums, no design
+changes, no value reordering, no additions. Three of the seven enums
+(`ModalIconColor`, `ModalIntent`, `ModalFooterAlign`) are not yet consumed by
+deployed code; they wait on `LipiModal.razor` (spec §2), built in A31. Their
+inclusion now closes the compile gap and pre-stages the declarative component.
+
+**Files**:
+- `src/LiPi.Web/Components/Shared/LipiModalTypes.cs` — new file, 7 enums
+- `deploy-downloads.ps1` — `LipiModalTypes.cs` entry added under
+  `# LipiModal` block in the Phase 2.6.2 section
+- `CHANGE-LOG.md` — this amendment (A30)
+
+---
+
+### A31 — LipiModal declarative component family (spec §2 implementation)
+
+**Phase**: 2 Sub-step 2.6.2 — LipiModal declarative path
+**Date**: 2026-05-14
+**Status**: ✅ Shipped
+
+**Trigger.** Spec `01-LipiModal-Spec.md §2` mandates a declarative
+`<LipiModal>` component as the primary usage path (programmatic
+`ILipiModalService.ShowAsync` is the secondary path). The 2.6.2 batch shipped
+the service path (via `LipiOverlayHost.razor` + `DynamicComponent`) but not the
+declarative component. A31 closes the gap by building `LipiModal.razor`,
+`ModalBody.razor`, `ModalFooter.razor`, and `LipiModal.razor.css`.
+
+**Architecture: declarative renders own DOM, shares services with service path.**
+`<LipiModal>` self-renders backdrop + box + header + close button. `ModalBody` /
+`ModalFooter` are sibling sub-components that emit their own HTML (no
+`CascadingValue` plumbing), matching the `LipiCard` / `CardBody` / `CardFooter`
+pattern already locked in 2.6.1. Both paths share `IFocusTrapService` +
+`IScrollLockService`. The declarative path does **not** register with the
+`ILipiModalService` stack — the spec §6 max-3 stack cap applies to the service
+path only. Two simultaneous declarative modals is the consumer's
+responsibility; documented as a v1.0 limitation.
+
+**v1.0 spec divergences (locked, with rationale).**
+
+**1. No `.razor.cs` code-behind.** Spec §file-structure lists `.razor.cs`
+files for LipiModal / Drawer / DynamicTabs / OverlayHost; project deployment
+chose single-file `@code` blocks for all four (LipiDrawer, LipiDynamicTabs,
+LipiOverlayHost already shipped this way). LipiModal matches. Spec line 110
+needs a future amendment to mirror the project convention.
+
+**2. Intent auto-defaults NOT cascaded (spec §10).** The project's locked
+rule rejects nullable enum params (LipiButton `Variant` precedent — A14). Without
+nullability we cannot distinguish "consumer set this explicitly" from
+"declared default", so the auto-default cascades for
+`Confirmation` / `Alert` / `Wizard` / `Preview` intents are NOT applied. Only
+the "forced override" rules from spec §8 + Progress are honored:
+- `Intent.Progress` → `ShowCloseButton = false`, `CloseOnEscape = false`,
+  `CloseOnBackdrop = false`, `Animate = false` (forced)
+- `Animation = None` falls out of `Animate = false`
+
+Spec §2 row notes about "Critical" auto-disabling close refer to
+`ConfirmIntent.Critical` / `AlertIntent.Critical` (service path, already handled
+by `LipiModalService`), NOT to `ModalIntent` — which has no `Critical` value.
+
+**3. ChildContent wins over structured action params; no dev warning.** Spec
+§2 says "slot wins, dev warning logged". Detection without `CascadingValue`
+plumbing is fragile. Matches LipiDrawer's same divergence; treated as a v1.0
+trade-off.
+
+**4. `ModalFooter.Align` local to sub-component, not cascaded from
+`<LipiModal FooterAlign>`.** The `<LipiModal>` `FooterAlign` parameter applies
+only to the structured action shortcut path (`PrimaryAction` /
+`SecondaryAction` without `<ModalFooter>`). For the slot path, set `Align`
+directly on `<ModalFooter>`. Keeps sub-components zero-coupled; matches the
+LipiCard family pattern.
+
+**5. `AutoFocusSelector` not yet implemented.** Parameter accepted but
+focus trap activates on the first focusable element. Future:
+`lipiOverlay.focusWithin(container, selector)` JS helper. Tracked for v1.1+.
+
+**6. Z-index defaults to 800** (matches first service modal). Simultaneous
+declarative + service overlap visually (same backdrop color, no harm).
+
+**Post-deploy fix (folded into this entry).** Demo 9 in the StyleGuide
+showcase fired a runtime exception
+(`'LipiButton' does not have a property matching the name 'IsBusy'`) on first
+click of the busy demo. Spec §1's declarative example shows
+`<LipiButton IsBusy="@_saving">`, but the deployed LipiButton's actual
+parameter is `IsLoading` (Phase 2.1). Fixed in three sites:
+- `StyleGuideOverlays.razor:791` (Modal demo 9 footer Submit button — runtime
+  bug)
+- `LipiModal.razor:144` (structured-action shortcut path primary button —
+  latent bug, only triggered when consumer used `PrimaryAction=` without
+  `<ModalBody>`)
+- `LipiModal.razor:56` (doc comment usage example — doc accuracy only)
+
+Spec doc `01-LipiModal-Spec.md §1` declarative example shows
+`<LipiButton IsBusy=...>` — should be `IsLoading`. Spec amendment TODO: align
+the example with the deployed LipiButton API. Tracked outside this entry.
+
+**Files**:
+- `src/LiPi.Web/Components/Shared/LipiModal.razor` — new file, 22 parameters,
+  single-file with `@code` block
+- `src/LiPi.Web/Components/Shared/LipiModal.razor.css` — minimal scoped focus
+  rules
+- `src/LiPi.Web/Components/Shared/ModalBody.razor` — sub-component matching
+  CardBody pattern
+- `src/LiPi.Web/Components/Shared/ModalFooter.razor` — sub-component with
+  local `Align` parameter
+- `deploy-downloads.ps1` — four new entries under `# LipiModal` block
+- `CHANGE-LOG.md` — this amendment (A31)
+
+---
+
+### A32 — Phase 2.6.2 bug sweep + drawer/host architectural cleanup
+
+**Phase**: 2 Sub-step 2.6.2 — bug sweep
+**Date**: 2026-05-14
+**Status**: ✅ Shipped — Phase 2.6.2 spec-compliant for v1.0
+
+**Trigger.** Systematic post-2.6.2-batch review against the four locked specs
+(`00-Phase2.6.2-Overview.md`, `01-LipiModal-Spec.md`, `02-LipiDrawer-Spec.md`,
+`03-LipiDynamicTabs-Spec.md`) surfaced eleven confirmed bugs and one
+architectural inconsistency. This batch closes all of them. Eight files
+revised.
+
+**1. CSS self-sufficiency: `--color-border-tertiary` fallbacks.** The A22 / A26
+pattern (locked for LipiTabs / Card) was never applied to the 2.6.2 CSS files.
+Eight occurrences in `lipi-overlays.css` (modal header/footer borders, all four
+drawer placement borders, drawer header/footer) and three in
+`lipi-dynamic-tabs.css` (strip border-bottom, tab border-right, add-button
+border-right) updated to
+`var(--color-border-tertiary, var(--color-border-default))`. Theme that doesn't
+define `--color-border-tertiary` no longer gets borderless overlays/tabs.
+
+**2. `LipiModalService` stack guard off-by-one (spec §6).** Spec defines max
+stack depth of 3. Original code warned when `_stack.Count >= 3` (allowing the
+4th push) and threw when `_stack.Count >= 4` (allowing 5). Rewrote to warn at
+projected-depth = 2 (about to reach max), throw at projected-depth >= 3.
+`MaxStackDepth = 3` constant added.
+
+**3. LipiDrawer missing six spec'd parameters (spec §2).** Added: `SizePx`
+(px override; sets width for R/L, height for T/B), `IsBusy` (aria-busy +
+disable buttons), `Animate` (no-animate class), `AutoFocusSelector` (v1.0
+no-op, accepted for forward compat), `RouteScopePrefix` (route-scoped pin
+auto-close), `DefaultPinned` (initial pinned state when no localStorage value
+exists).
+
+**4. LipiDrawer pin mode completion (spec §4.5).** Original pin button was a
+visual stub — toggling state and writing to localStorage but doing nothing
+else. Closed four gaps:
+- **localStorage read on first render** (was write-only)
+- **NavigationManager subscription** for `PinScope.PageScoped` (close on any
+  nav) and `PinScope.RouteScoped` (close when leaving `RouteScopePrefix`)
+- **`:has()`-based CSS page-shift** — pinned R/L drawers add
+  `.lipi-drawer-pinned`, CSS shifts main content via `:has()` selector (no JS
+  interop needed)
+- **Responsive @media disable below 1024px** — pin behavior auto-disabled on
+  narrow viewports per spec §4.5
+
+**5. LipiDynamicTabs `@implements IDisposable` (subscription leak).** The
+component had a `public void Dispose()` method but no `IDisposable`
+implementation, so Blazor never called it. `OnTabsChanged` event subscription
+leaked on every component unmount. Adding the interface wires the existing
+Dispose into Blazor's lifecycle.
+
+**6. LipiDynamicTabs `MaxTabs` cap enforcement (spec §7 step 4).** `MaxTabs`
+parameter was declared but never read. Added `void SetMaxTabs(int)` to
+`ILipiDynamicTabsService`; `LipiDynamicTabsService.OpenAsync` now checks the
+cap before appending. Cap hit → `AlertAsync` warning per spec §7 step 4.
+Component's `OnInitialized` and `OnParametersSet` call `SetMaxTabs` to keep
+service state in sync.
+
+**7. LipiDynamicTabs keyboard navigation (spec §13).** Original handler only
+supported Enter/Space. Added ArrowLeft / ArrowRight (move focus), Home/End
+(jump to first/last), Delete (close focused tab). v1.0 compromise: arrow keys
+also activate (navigate). Spec §13 wants focus separation from activation —
+requires JS roving-tabindex coordination, tracked for v1.1+.
+
+**8. `LipiOverlayHost` `_announcement` aria-live region (spec Overview
+line 212).** The host declared and rendered an `aria-live="polite"` region but
+never wrote to it. Now announces overlay open/close events for screen readers.
+
+**9. `LipiOverlayHost` `OnBackdropPointerDown` no-op (spec Overview §168
+ghost-click prevention).** The host bound `@onpointerdown` to a method
+containing only a comment. Replaced with declarative
+`@onpointerdown:stopPropagation="true"` — ghost-click prevention per spec.
+
+**10. `LipiOverlayHost` drawer-on-modal dev warning (spec Drawer §6).** Spec
+allows but discourages drawer-opening-while-modal-active. Host now logs a dev
+warning when this combination is detected.
+
+**11. `LipiOverlayHost` initialization edge case.** `OnInitialized` did not
+snapshot existing modal/drawer state before subscribing. If the service
+already had overlays when the host first rendered, they did not appear until
+the next state change. Now snapshots existing state. `_modalRefs` array sized
+to `MaxStackDepth = 3` (was hardcoded 4).
+
+**Architectural cleanup (Bug #12, listed separately because it changes
+shape).** `LipiOverlayHost` was rendering drawer HTML inline instead of using
+`<LipiDrawer>`. Result: service-driven drawers rendered with fewer features
+than declarative drawers (no pin button, no icon coloring, no dirty-state
+confirm). Refactored host to render `<LipiDrawer>` with parameters bound from
+the `DrawerRequest`. Service-driven and declarative drawers now feature-
+equivalent for everything `DrawerRequest` carries. Icon / IconColor /
+Pinnable / IsDirty still require `DrawerRequest` extensions — tracked for
+v1.1+.
+
+**v1.0 limitations documented (defer to v1.1+).**
+- `OverflowMode.Dropdown` (LipiDynamicTabs) — needs strip-width measurement +
+  collapse menu. Selecting `Dropdown` logs warning + falls back to Scroll.
+  (Subsequently superseded by A34's chevron overflow redesign.)
+- `AutoFocusSelector` on LipiModal and LipiDrawer — accepted but no-op; needs
+  new `lipiOverlay.focusWithin` JS helper.
+- LipiDynamicTabs arrow-key focus separation from activation (spec §13).
+- Service-driven drawers can't carry Icon/IconColor/IsDirty/Pinnable — needs
+  `DrawerRequest` extension.
+
+**Out of scope (Phase 2.10).** `Program.cs` legacy `AddServerSideBlazor()`
+cleanup and duplicate `IEmailService` registration are locked Phase 2.10 work;
+not touched here.
+
+**Files**:
+- `src/LiPi.Web/wwwroot/css/lipi-overlays.css` — 8× border fallbacks +
+  `.lipi-modal-header-text` wrapper + `.lipi-drawer-no-animate` opt-out +
+  `:has()`-based pinned page-shift + responsive disable + pinned visual tweaks
+- `src/LiPi.Web/wwwroot/css/lipi-dynamic-tabs.css` — 3× border fallbacks
+- `src/LiPi.Web/Services/LipiModalService.cs` — stack guard rewrite,
+  `MaxStackDepth` constant
+- `src/LiPi.Web/Services/ILipiDynamicTabsService.cs` — `SetMaxTabs(int)` added
+- `src/LiPi.Web/Services/LipiDynamicTabsService.cs` — `_maxTabs` field, cap
+  check in `OpenAsync`, self-navigation skip in `ActivateTab`
+- `src/LiPi.Web/Components/Shared/LipiDynamicTabs.razor` — `IDisposable`,
+  `SetMaxTabs` propagation, keyboard expansion, Dropdown fallback warning,
+  dead-ternary cleanup
+- `src/LiPi.Web/Components/Shared/LipiOverlayHost.razor` — drawer-rendering
+  refactor to `<LipiDrawer>`, `_announcement` writes, declarative
+  pointer-down, drawer-on-modal warning, initial state snapshot,
+  `_modalRefs[3]`
+- `src/LiPi.Web/Components/Shared/LipiDrawer.razor` — 6 new params,
+  localStorage read, NavigationManager subscription, `.lipi-drawer-pinned`
+  class wiring
+- `deploy-downloads.ps1` — Phase 2.6.2 header annotated with A30/A31/A32
+  summary
+- `CHANGE-LOG.md` — this amendment (A32)
+
+---
+
+### A33 — StyleGuideOverlays full 30-demo showcase rewrite
+
+**Phase**: 2 Sub-step 2.6.2 — showcase
+**Date**: 2026-05-14
+**Status**: ✅ Shipped
+
+**Trigger.** Spec coverage gap surfaced during review: the deployed
+`StyleGuideOverlays.razor` had only ~5–6 stub demos against ~30 spec-required
+(Modal §12: 11, Drawer §11: 8, DynamicTabs §14: 11). A32 closed the component
+bugs, leaving the showcase as the remaining gap. Existing stubs discarded
+wholesale; rebuilt fresh against working components.
+
+**Layout matches main StyleGuide page.** Topbar + sticky sidebar with 3 nav
+groups (Modal / Drawer / DynamicTabs) + main content area with sg-* scoped
+sections. Each demo has a numbered pill, heading, descriptive paragraph,
+trigger button(s), and inline overlay markup at the end of the file. Demos
+that cannot show live behavior (e.g., the v1.0-deferred Dropdown overflow
+mode) include a code block + sg-note callout instead.
+
+**Demo coverage.**
+- **Modal §12 (11/11):** sizes (4), IconColor (6), animations + toggle,
+  ConfirmAsync, AlertAsync, PromptAsync, ShowAsync custom component, IsDirty,
+  IsBusy, stack (modal-opens-confirm), 6 Intent presets
+- **Drawer §11 (8/8):** 4 placements, sizes per placement, 3 backdrops, dirty
+  form, programmatic ShowAsync, R+B simultaneous, modal-on-drawer, IsBusy
+- **DynamicTabs §14 (11/11):** empty state, 3-open, dirty marker, close clean,
+  close dirty, save-ok, save-fail, cap (sets 3, opens 4), scroll overflow (12
+  tabs), Dropdown fallback note, add button
+
+**Helper components introduced.**
+- `SampleCustomModal.razor` — body component for `Modal.ShowAsync<SampleCustomModal, string?>`
+  demo 7. Takes `InitialValue` parameter, returns string via `OnResult`.
+- `SampleDrawerPanel.razor` — body component for `Drawer.ShowAsync<SampleDrawerPanel, bool>`
+  demo 5. Returns bool via `OnResult`. Documents v1.0 service-path limitation
+  (no Icon/IconColor/IsDirty/Pinnable yet) inline.
+- `StyleGuideOverlayTabDemo.razor` — stub `@page "/admin/style-guide-overlays/tab/{TabId}"`
+  for DynamicTabs nav demos. Registers a save handler based on TabId prefix:
+  `save-ok-*` → succeeds; `save-fail-*` → throws (demonstrates spec §7 step 4
+  "tab stays open" behavior).
+
+**v1.0 limitations surfaced in-page via sg-note callouts.**
+- Modal demo 11 (Intents): A31 — Critical/Progress force-overrides only;
+  Confirmation/Alert/Wizard/Preview stay at declared defaults.
+- Drawer demo 5 (service path): A32 — `DrawerRequest` doesn't carry
+  Icon/IconColor/IsDirty/Pinnable (v1.1+).
+- DynamicTabs demo 10 (Dropdown overflow): A32 — falls back to Scroll with a
+  warning log; static code block + sg-note explain expected v1.1 behavior.
+
+**Build/runtime fixes folded into this entry.**
+
+**1. Missing `@using Microsoft.AspNetCore.Authorization`.** Both new `@page`
+files (`StyleGuideOverlays.razor` and `StyleGuideOverlayTabDemo.razor`) failed
+to compile with CS0246 on `[Authorize]`. The `Components/_Imports.razor`
+covers components but not page-level attributes; every page using
+`[Authorize]` needs the using directly (same pattern as `StyleGuide.razor` and
+`Admin.razor`). Added.
+
+**2. `<LipiButton IsBusy=...>` runtime exception.** See A31 fix details —
+demo 9 used the wrong parameter name; LipiButton's deployed API is
+`IsLoading`. Fixed at demo site; same fix applied to `LipiModal.razor:144`
+(latent) in A31.
+
+**3. Demo 10 garbage `@@code @{}` construct.** The Dropdown overflow demo's
+code block contained `@@code @{ string sample = "..."; }` in source — leftover
+copy-paste residue from an earlier draft. Razor evaluated `@@` as a literal
+`@` escape and the `@{}` block as a silent code block, producing visible
+text `@code <LipiDynamicTabs ... />`. Replaced with clean HTML-encoded code
+sample.
+
+**Out of scope.** No component-code changes in this batch — A33 is showcase
+plus three helper files. Phase 2.6.2 component family is locked in A30–A32.
+
+**Files**:
+- `src/LiPi.Web/Pages/StyleGuideOverlays.razor` — 1269 lines, all 30 demos
+  inline
+- `src/LiPi.Web/Pages/StyleGuideOverlays.razor.css` — sg-* scoped styles:
+  topbar, sidebar grid, section cards, demo-num pill, btn-row, result/code
+  blocks, sg-note (apricot v1.0 callout), variant grids
+- `src/LiPi.Web/Pages/StyleGuideOverlayTabDemo.razor` — stub `@page` for
+  DynamicTabs nav demos
+- `src/LiPi.Web/Components/Shared/SampleCustomModal.razor` — Modal ShowAsync
+  body component
+- `src/LiPi.Web/Components/Shared/SampleDrawerPanel.razor` — Drawer ShowAsync
+  body component
+- `deploy-downloads.ps1` — three new entries (SampleCustomModal,
+  SampleDrawerPanel, StyleGuideOverlayTabDemo); StyleGuideOverlays.razor +
+  .razor.css mappings already present
+- `CHANGE-LOG.md` — this amendment (A33)
+
+---
+
+### A34 — LipiDynamicTabs overflow redesign: native scrollbar → chevron buttons
+
+**Phase**: 2 Sub-step 2.6.2 — LipiDynamicTabs spec amendment
+**Date**: 2026-05-14
+**Status**: ✅ Shipped — Phase 2.6.2 closed
+
+**Trigger.** Smoke-testing A33's DynamicTabs demos surfaced a UX mismatch: spec
+§8 specified a thin native horizontal scrollbar for `OverflowMode.Scroll`, but
+the clinical-workstation context (10+ patient tabs typical, mouse + keyboard
+primary, touch secondary) is better served by the convergent
+desktop-productivity pattern — chevron buttons on both ends. The native
+scrollbar is touch-first / mobile-first; chevrons are desktop-productivity-
+first. Spec amendment locked after debating four design questions in build
+chat.
+
+**Industry-pattern research surfaced before locking.** Five reference apps
+audited (Chrome / Edge / VS Code / Visual Studio / JetBrains / Firefox).
+Convergent pattern (3 of 5):
+- Both-end chevrons, inside strip footprint
+- Hidden when no overflow exists (avoids visual noise)
+- Disabled (greyed, not hidden) when at that edge (preserves spatial layout)
+- Hold-to-scroll with acceleration
+
+**Locked design decisions (build chat).**
+
+**1. Chevron visibility — hidden when no overflow** (Chrome / Firefox /
+JetBrains pattern). Alternative considered: VS Code's "always shown, disabled
+when no overflow". Chose hide-when-none because the strip itself acts as the
+"you have tabs" signal when not overflowing; chevrons are pure overflow
+affordances.
+
+**2. At-edge state — greyed/disabled, never hidden** (VS Code / JetBrains /
+Chrome pattern). Alternative considered: Firefox's hide-when-at-edge. Chose
+greyed to preserve spatial layout — avoids the user re-targeting their
+pointer after the strip width shifts mid-interaction.
+
+**3. Click scroll — page-like (clientWidth − tabWidth)**. Alternative
+considered: single-tab and fixed 120px. Page-like chosen for productivity —
+one click moves a visible page's worth of tabs into view.
+
+**4. Hold-to-scroll — yes, with acceleration**. Matches all five reference
+apps. 400ms delay → 120ms interval → 60ms after 1 second of holding.
+Alternative considered: click-only for simpler v1.0. Hold chosen because
+clinical workstations with 15+ patient tabs benefit from rapid scanning
+without 15 separate clicks.
+
+**Implementation.**
+
+The strip is now wrapped in `.lipi-dtabs-strip-wrapper` — a flex container
+hosting the strip plus two chevron buttons (`.lipi-dtabs-chevron-left` and
+`.lipi-dtabs-chevron-right`). Native scrollbar hidden via
+`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`. Strip
+retains `overflow-x: auto` because programmatic `scrollIntoView` (keyboard
+navigation) needs a scrollable container — only the visible scrollbar is
+removed. Chevrons drive `scrollBy({ left: ±(clientWidth − tabWidth), behavior:
+'smooth' })`.
+
+Per-strip state lives in a JS WeakMap keyed by the strip element. Overflow
+detection uses a `ResizeObserver` (with `window.resize` fallback) plus a
+`MutationObserver` on the strip's child list — both updates set
+`data-overflow` / `data-can-scroll-left` / `data-can-scroll-right`
+attributes on the wrapper, which CSS reads for visibility (fade in 180ms
+ease-out) and at-edge state (chevron `disabled` + `aria-disabled="true"` +
+`opacity: 0.35`). Hold-to-scroll uses `setTimeout(400ms)` for the delay,
+then `setInterval(120ms)` for the repeat tier, with a second
+`setTimeout(1000ms)` swapping to `setInterval(60ms)` for acceleration.
+`pointerup` / `pointerleave` / `pointercancel` clear all timers; reaching
+the boundary mid-hold auto-stops the timer.
+
+`LipiDynamicTabs.razor` switched from `IDisposable` to `IAsyncDisposable` —
+`DisposeAsync` now also detaches the JS observers + any running scroll
+interval. Prevents the same kind of subscription leak A32 fixed for
+`OnTabsChanged`.
+
+**Spec amendment.** `docs/00-COMPONENTS/2.6.2/03-LipiDynamicTabs-Spec.md §8`
+("Visual design"
+overflow handling subsection) and §10 ("Multi-industry tokens") rewritten to
+mirror the new behavior. New token `--lipi-dtab-chevron-w: 32px` added to
+§10. `TabOverflowMode` enum unchanged — both values stay; `Scroll` is now
+chevron-driven, `Dropdown` still parks for v1.1+ with the existing
+`LogWarning` fallback.
+
+**Accessibility.**
+- Chevrons: `aria-label="Scroll tabs left"` / `"Scroll tabs right"`
+- `aria-disabled="true"` mirrored from at-edge state
+- `aria-hidden="true"` on the Lucide icon inside
+- Keyboard skips disabled chevron (browser default with `disabled` attribute)
+- `tabindex="-1"` on both chevrons — they are mouse affordances; keyboard
+  users navigate tabs with arrow keys (spec §13)
+- Reduced-motion: `@media (prefers-reduced-motion: reduce)` swaps smooth-
+  scroll for instant scroll and removes the chevron fade transition
+
+**What does NOT change.**
+- `TabOverflowMode` enum values
+- `ILipiDynamicTabsService` API
+- `LipiDynamicTabsService` implementation
+- Tab strip ARIA structure (`role="tablist"`, etc.)
+- All 30 demos in `StyleGuideOverlays.razor` — naturally exercise new chevron
+  behavior
+
+**Folded into A34: deploy-script mapping fix (A29 pattern, Phase 2.6.2
+specs).** During the close-out drop into `Downloads\LiPi\` (67 files), audit
+surfaced that `03-LipiDynamicTabs-Spec.md` was not mapped in
+`deploy-downloads.ps1`'s Docs section. Same class of gap A29 closed for the
+Phase 2.6.1 specs (LipiAlert / LipiCard). Root cause: none of the four
+Phase 2.6.2 spec docs (`00-Phase2.6.2-Overview.md`, `01-LipiModal-Spec.md`,
+`02-LipiDrawer-Spec.md`, `03-LipiDynamicTabs-Spec.md`) had ever been mapped,
+so edits to any of them could not flow through the standard deploy workflow.
+The 2.6.2 spec numbering restarts at 00 (vs 2.6.1's 02/03/04) because the
+specs live in a dedicated subfolder, `docs\00-COMPONENTS\2.6.2\`, avoiding the
+prefix collision with the 2.6.1 specs in `docs\`. All four mappings added to
+the deploy script in this batch — closes the same workflow gap A29 identified
+one phase earlier. The sibling reference doc
+`03-LipiDynamicTabs-Spec-A34-Amendment.md` (shipped earlier in this session
+so the spec maintainer could fold A34 §8 + §10 into the main spec) is now
+obsolete and removed from `Downloads\LiPi\`.
+
+**Files**:
+- `src/LiPi.Web/wwwroot/css/lipi-dynamic-tabs.css` — new wrapper + chevron
+  rules; native scrollbar hidden; existing rules preserved
+- `src/LiPi.Web/Components/Shared/LipiDynamicTabs.razor` — wrapper markup with
+  chevron buttons bracketing strip; 4 pointer handlers; `OnAfterRenderAsync`
+  wires `lipiDtabs.attach`; `IAsyncDisposable` replaces `IDisposable`
+- `src/LiPi.Web/wwwroot/js/lipi-overlay-interop.js` — new `window.lipiDtabs`
+  namespace appended: `attach` / `detach` / `startScroll` / `stopScroll`,
+  per-strip state in WeakMap, ResizeObserver + MutationObserver + scroll
+  listener
+- `src/LiPi.Web/App.razor` — cache version bumped 20260524 → 20260525 (all
+  23 stamps), version history table extended with A30–A34 row
+- `docs/00-COMPONENTS/2.6.2/03-LipiDynamicTabs-Spec.md` — §8 + §10 rewritten
+  in place, A34 amendment marker added in header
+- `deploy-downloads.ps1` — Phase 2.6.2 header annotated with A34 entry; four
+  new Docs-section mappings added for the Phase 2.6.2 specs
+  (`00-Phase2.6.2-Overview.md`, `01-LipiModal-Spec.md`, `02-LipiDrawer-Spec.md`,
+  `03-LipiDynamicTabs-Spec.md`) under `docs\00-COMPONENTS\2.6.2\`
+- `CHANGE-LOG.md` — this amendment (A34)
+
+**Phase 2.6.2 — CLOSED.** LipiModalTypes recovery (A30), LipiModal declarative
+family (A31), bug sweep + drawer pin completion (A32), StyleGuideOverlays
+30-demo rewrite (A33), and DynamicTabs chevron overflow redesign (A34)
+complete the phase. Component library, showcases, specs, and deploy mappings
+are all consistent. Next: Phase 2.7 — Feedback components (LipiSkeleton,
+LipiBadge, LipiSpinner, LipiToast, LipiValidationSummary), per the original
+Phase 2.6.2 close-out plan.
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)

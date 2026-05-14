@@ -1,0 +1,19 @@
+@* SPEC:  docs/01-LipiModal-Spec.md §3 (ModalBody sub-component)
+   PHASE: 2.6.2 — Overlay Surfaces
+   PATTERN: Self-emitting HTML, no parent registration. Matches CardBody.
+
+   Used as ChildContent inside <LipiModal>. Carries no business logic — just
+   a render-fragment wrapper that emits the correct layout class.
+*@
+
+<div class="lipi-modal-body @(Class ?? string.Empty)">
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>Body content. Scrolls internally per lipi-overlays.css rules.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Append-only CSS class. LAYOUT UTILITIES ONLY (margin, alignment).</summary>
+    [Parameter] public string? Class { get; set; }
+}

@@ -1,0 +1,134 @@
+@page "/admin/style-guide-overlays/tab/{TabId}"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@* SPEC:  docs/03-LipiDynamicTabs-Spec.md §14 demos 2–9
+   PHASE: 2.6.2 — Overlay Surfaces — StyleGuide demo helper
+   AMEND: docs/CHANGE-LOG.md A33
+
+   Stub page that real demo tabs navigate INTO. Renders the LipiDynamicTabs
+   strip at the top + simple content area below. Registers a save handler
+   based on the TabId prefix so demos 6 (Save & close success) and 7 (Save &
+   close failure) can be triggered without separate page variants.
+
+   TabId prefixes:
+     save-ok-*    — registers a save handler that succeeds (closes tab)
+     save-fail-*  — registers a save handler that throws (tab stays open)
+     anything else — no save handler (DirtyTabConfirmDialog hides Save & close)
+*@
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using LiPi.Web.Services
+@using LiPi.Web.Components.Shared
+
+@inject ILipiDynamicTabsService _tabSvc
+
+<PageTitle>Tab demo: @TabId – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Tab Demo</div>
+    <div class="tn-pt-sub">@TabId</div>
+</SectionContent>
+
+@* The strip itself — shows all currently open demo tabs *@
+<LipiDynamicTabs MaxTabs="20" />
+
+<div style="padding:32px;max-width:860px;margin:0 auto;font-family:var(--font-ui)">
+
+    <h2 style="font-size:20px;font-weight:600;margin:0 0 12px 0;color:var(--color-text-primary)">
+        Tab content area
+    </h2>
+
+    <p style="font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin:0 0 24px 0">
+        You're viewing the dynamic tab demo with TabId <code style="font-family:var(--font-mono);
+        font-size:13px;background:var(--color-bg-subtle);padding:2px 6px;border-radius:4px">@TabId</code>.
+        The strip above shows all open demo tabs.
+    </p>
+
+    <div style="background:var(--color-bg-subtle);padding:16px 20px;border-radius:8px;
+                border:0.5px solid var(--color-border-default);margin-bottom:20px">
+        <p style="font-size:13px;color:var(--color-text-primary);margin:0 0 12px 0;font-weight:500">
+            Try these interactions:
+        </p>
+        <ul style="font-size:13px;color:var(--color-text-secondary);line-height:1.8;
+                   margin:0;padding-left:20px">
+            <li>Click another tab in the strip to switch</li>
+            <li>Click the ✕ on a clean tab to close it instantly</li>
+            <li>Use the buttons below to toggle this tab's dirty state, then close it
+                to see the 3-option confirmation dialog</li>
+            @if (_isSaveOk)
+            {
+                <li><strong>Save handler is registered (success path)</strong> —
+                    closing while dirty shows "Save &amp; close" option.</li>
+            }
+            else if (_isSaveFail)
+            {
+                <li><strong>Save handler is registered (failure path)</strong> —
+                    closing while dirty shows "Save &amp; close"; clicking it throws,
+                    keeping the tab open.</li>
+            }
+            else
+            {
+                <li>No save handler registered — closing while dirty shows
+                    only "Discard changes" and "Keep open" options.</li>
+            }
+        </ul>
+
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+            <LipiButton Variant="ButtonVariant.Secondary"
+                        Size="ButtonSize.Small"
+                        OnClick="@MarkDirty">Mark dirty</LipiButton>
+            <LipiButton Variant="ButtonVariant.Secondary"
+                        Size="ButtonSize.Small"
+                        OnClick="@MarkClean">Mark clean</LipiButton>
+        </div>
+    </div>
+
+    <p style="font-size:13px;color:var(--color-text-tertiary)">
+        <a href="/admin/style-guide-overlays#dynamic-tabs"
+           style="color:var(--color-primary);text-decoration:none">
+            ← Back to style guide
+        </a>
+        &nbsp;(closes this tab if it's the last one, otherwise switches to the next)
+    </p>
+
+</div>
+
+@code {
+    [Parameter] public string TabId { get; set; } = string.Empty;
+
+    private string _tabKey  => $"demo-tab-{TabId}";
+    private bool   _isSaveOk;
+    private bool   _isSaveFail;
+
+    protected override void OnInitialized()
+    {
+        _isSaveOk   = TabId.StartsWith("save-ok",   StringComparison.OrdinalIgnoreCase);
+        _isSaveFail = TabId.StartsWith("save-fail", StringComparison.OrdinalIgnoreCase);
+
+        if (_isSaveOk)
+        {
+            _tabSvc.RegisterSaveHandler(_tabKey, async () =>
+            {
+                // Simulate a brief async save
+                await Task.Delay(500);
+                // Success: clear dirty so service knows save worked
+                _tabSvc.SetDirty(_tabKey, false);
+            });
+        }
+        else if (_isSaveFail)
+        {
+            _tabSvc.RegisterSaveHandler(_tabKey, async () =>
+            {
+                await Task.Delay(300);
+                throw new InvalidOperationException(
+                    "Demo: this save handler intentionally throws to demonstrate spec §7 step 4 — " +
+                    "the tab stays open and the error is logged.");
+            });
+        }
+    }
+
+    private void MarkDirty() => _tabSvc.SetDirty(_tabKey, true);
+    private void MarkClean() => _tabSvc.SetDirty(_tabKey, false);
+}

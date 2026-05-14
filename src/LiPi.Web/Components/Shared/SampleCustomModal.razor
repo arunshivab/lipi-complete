@@ -1,0 +1,66 @@
+@* SPEC:  docs/01-LipiModal-Spec.md §12 demo 7 (Custom modal via ShowAsync)
+   PHASE: 2.6.2 — Overlay Surfaces — StyleGuide demo helper
+   AMEND: docs/CHANGE-LOG.md A33
+
+   Used by StyleGuideOverlays.razor to demonstrate
+   `LipiModalService.ShowAsync<SampleCustomModal, string?>(...)`. The component
+   only emits the modal BODY + FOOTER — LipiOverlayHost wraps it in a modal
+   frame and provides the header.
+
+   Required contract for ShowAsync target components:
+     [Parameter] EventCallback<TResult> OnResult
+   The service injects this callback automatically; the component calls
+   OnResult.InvokeAsync(value) to dismiss the modal with a result.
+*@
+
+<div class="lipi-modal-body">
+    <p style="font-size:13px;color:var(--color-text-primary);line-height:1.5;margin:0 0 12px 0">
+        This is a <strong>custom component</strong> rendered as a modal via
+        <code style="font-family:var(--font-mono);font-size:12px">
+            Modal.ShowAsync&lt;SampleCustomModal, string?&gt;()
+        </code>.
+    </p>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 8px 0">
+        It receives an <code style="font-family:var(--font-mono);font-size:11px">InitialValue</code>
+        parameter and returns a string result to the caller. Type anything below and click Submit.
+    </p>
+    <input id="sample-custom-input"
+           type="text"
+           class="lipi-prompt-input"
+           placeholder="Anything you like…"
+           autocomplete="off"
+           @bind="_value"
+           @bind:event="oninput" />
+</div>
+
+<div class="lipi-modal-footer">
+    <LipiButton Variant="ButtonVariant.Secondary"
+                OnClick="@CancelAsync">Cancel</LipiButton>
+    <LipiButton OnClick="@SubmitAsync">Submit "@_value"</LipiButton>
+</div>
+
+@code {
+    /// <summary>Pre-fill value passed via parameters dict in ShowAsync caller.</summary>
+    [Parameter] public string? InitialValue { get; set; }
+
+    /// <summary>Required by ShowAsync contract — service injects this callback.</summary>
+    [Parameter] public EventCallback<string?> OnResult { get; set; }
+
+    private string _value = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrEmpty(_value) && !string.IsNullOrEmpty(InitialValue))
+            _value = InitialValue;
+    }
+
+    private async Task SubmitAsync()
+    {
+        await OnResult.InvokeAsync(_value);
+    }
+
+    private async Task CancelAsync()
+    {
+        await OnResult.InvokeAsync(null);
+    }
+}

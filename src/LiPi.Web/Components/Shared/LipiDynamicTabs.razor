@@ -1,0 +1,289 @@
+@* SPEC:  docs/03-LipiDynamicTabs-Spec.md §8 (amended A34) + §13
+   PHASE: 2.6.2 — Overlay Surfaces
+   AMEND: docs/CHANGE-LOG.md A32
+          docs/CHANGE-LOG.md A34 — overflow redesign: native scrollbar replaced
+                                    with chevron buttons on both ends, hold-to-
+                                    scroll with acceleration, hidden when no
+                                    overflow, greyed at edges.
+
+   A32 fixes (vs initial 2.6.2 build):
+   1. @implements IDisposable — wires existing public Dispose() into Blazor
+      lifecycle so OnTabsChanged subscription releases on unmount.
+   2. MaxTabs param now drives the service-level cap via SetMaxTabs.
+   3. Keyboard navigation per spec §13.
+   4. TabBackground class ternary fix.
+   5. OverflowMode.Dropdown — falls back to Scroll with warning log.
+
+   A34 chevron overflow (replaces native scrollbar):
+   - Outer .lipi-dtabs-strip-wrapper hosts strip + 2 chevron buttons in flex row
+   - Wrapper carries data-overflow / data-can-scroll-left/-right attrs driven
+     from JS via lipiDtabs.attach() — CSS reads these for visibility + at-edge
+   - Native scrollbar hidden via CSS (still mechanically present for
+     scrollIntoView keyboard navigation)
+   - Click chevron → JS scrollBy(clientWidth - tabWidth)
+   - Hold chevron (pointerdown sustained) → first tick immediate, then 400ms
+     delay, then 120ms interval, accelerates to 60ms after 1 second
+   - ResizeObserver + MutationObserver on strip keep overflow state in sync
+   - DisposeAsync detaches both observers + any running scroll interval
+     (prevents leaks analogous to A32 OnTabsChanged fix)
+*@
+
+
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@using LiPi.Web.Services
+@using LiPi.Web.Components.Shared
+
+@implements IAsyncDisposable
+
+@inject ILipiDynamicTabsService _tabSvc
+@inject NavigationManager       _nav
+@inject IJSRuntime              _js
+@inject Microsoft.Extensions.Logging.ILogger<LipiDynamicTabs> _log
+
+<div class="lipi-dtabs-strip-wrapper"
+     style="@(TabBackground is not null ? $"background:{TabBackground}" : (string?)null)">
+
+    @* ── Left chevron (A34) — visibility + disabled driven by JS via data-* on wrapper ── *@
+    <button type="button"
+            class="lipi-dtabs-chevron lipi-dtabs-chevron-left"
+            aria-label="Scroll tabs left"
+            tabindex="-1"
+            @onpointerdown="@OnLeftPointerDown"
+            @onpointerup="@OnPointerUp"
+            @onpointerleave="@OnPointerUp"
+            @onpointercancel="@OnPointerUp">
+        <LucideIcon Name="chevron-left" Size="16" />
+    </button>
+
+    @* ── Tab strip ── *@
+    <div @ref="_stripRef"
+         class="lipi-dtabs-strip"
+         role="tablist"
+         aria-orientation="horizontal"
+         aria-label="Open patient records">
+
+        @foreach (var tab in _tabs)
+        {
+            var capturedTab = tab;
+            <div class="lipi-dtab @(capturedTab.IsActive ? "lipi-dtab-active" : string.Empty) @(capturedTab.IsDirty ? "lipi-dtab-dirty" : string.Empty)"
+                 role="tab"
+                 aria-selected="@(capturedTab.IsActive ? "true" : "false")"
+                 tabindex="@(capturedTab.IsActive ? 0 : -1)"
+                 title="@capturedTab.Title"
+                 @onclick="@(() => _tabSvc.ActivateTab(capturedTab.TabKey))"
+                 @onkeydown="@((e) => HandleTabKeyDown(e, capturedTab.TabKey))">
+
+                @if (!string.IsNullOrEmpty(capturedTab.Icon))
+                {
+                    <span class="lipi-dtab-icon" aria-hidden="true">
+                        <LucideIcon Name="@capturedTab.Icon" Size="14" />
+                    </span>
+                }
+
+                <span class="lipi-dtab-title">@capturedTab.Title</span>
+
+                <button type="button"
+                        class="lipi-dtab-close"
+                        aria-label="@($"Close {capturedTab.Title}")"
+                        @onclick:stopPropagation="true"
+                        @onclick="@(() => CloseTabAsync(capturedTab.TabKey))">
+                    <LucideIcon Name="x" Size="12" />
+                </button>
+            </div>
+        }
+
+        @if (ShowAddButton)
+        {
+            <button type="button"
+                    class="lipi-dtab-add"
+                    aria-label="Open new tab"
+                    @onclick="OnAddClick">+</button>
+        }
+
+        @if (_tabs.Count == 0)
+        {
+            <div class="lipi-dtabs-empty" aria-live="polite">
+                @(EmptyStateMessage ?? "No open tabs")
+            </div>
+        }
+
+    </div>
+
+    @* ── Right chevron (A34) ── *@
+    <button type="button"
+            class="lipi-dtabs-chevron lipi-dtabs-chevron-right"
+            aria-label="Scroll tabs right"
+            tabindex="-1"
+            @onpointerdown="@OnRightPointerDown"
+            @onpointerup="@OnPointerUp"
+            @onpointerleave="@OnPointerUp"
+            @onpointercancel="@OnPointerUp">
+        <LucideIcon Name="chevron-right" Size="16" />
+    </button>
+
+</div>
+
+
+@code {
+    [Parameter] public int              MaxTabs           { get; set; } = 10;
+    [Parameter] public TabOverflowMode  OverflowMode      { get; set; } = TabOverflowMode.Scroll;
+    [Parameter] public bool             ShowAddButton     { get; set; }
+    [Parameter] public EventCallback    OnAddClick        { get; set; }
+    [Parameter] public string?          EmptyStateMessage { get; set; }
+    [Parameter] public string?          TabBackground     { get; set; }
+
+    private IReadOnlyList<DynamicTabInfo> _tabs = Array.Empty<DynamicTabInfo>();
+
+    // A34: strip element ref + JS interop handle.
+    private ElementReference _stripRef;
+    private bool             _jsAttached;
+    private bool             _disposed;
+
+    protected override void OnInitialized()
+    {
+        // A32: register cap with the service so OpenAsync enforces it.
+        _tabSvc.SetMaxTabs(MaxTabs);
+
+        // A32: warn (don't crash) for unsupported OverflowMode.Dropdown.
+        // A34: Dropdown still parks for v1.1+; Scroll is now chevron-driven.
+        if (OverflowMode == TabOverflowMode.Dropdown)
+        {
+            _log.LogWarning(
+                "[LipiDynamicTabs] OverflowMode.Dropdown is not yet implemented in v1.0; " +
+                "falling back to Scroll (chevron-driven per A34). Tracked for v1.1+.");
+        }
+
+        _tabSvc.OnTabsChanged += OnTabsChanged;
+        _tabs = _tabSvc.OpenTabs;
+    }
+
+    protected override void OnParametersSet()
+    {
+        // A32: re-propagate cap if MaxTabs param changes mid-session.
+        _tabSvc.SetMaxTabs(MaxTabs);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _jsAttached) return;
+
+        // A34: wire JS observers for overflow detection + scroll-state attrs.
+        // Defer one frame via JS so the strip layout is settled before first
+        // measurement (scrollWidth reads 0 mid-layout otherwise).
+        try
+        {
+            await _js.InvokeVoidAsync("lipiDtabs.attach", _stripRef);
+            _jsAttached = true;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex,
+                "[LipiDynamicTabs] lipiDtabs.attach failed; chevrons will not " +
+                "respond to overflow changes. Check that lipi-overlay-interop.js " +
+                "is loaded before blazor.web.js in App.razor.");
+        }
+    }
+
+    private void OnTabsChanged()
+    {
+        _tabs = _tabSvc.OpenTabs;
+        InvokeAsync(StateHasChanged);
+        // No need to call JS — the MutationObserver attached by lipiDtabs.attach
+        // detects the child-list change and recomputes overflow state itself.
+    }
+
+    private async Task CloseTabAsync(string tabKey)
+    {
+        await _tabSvc.CloseAsync(tabKey);
+    }
+
+    // A32: spec §13 keyboard handling.
+    //   ← / →           : move focus between tabs (v1.0 compromise: activates)
+    //   Home / End      : focus first / last tab
+    //   Enter / Space   : activate focused tab (navigates)
+    //   Delete          : close focused tab
+    private async Task HandleTabKeyDown(KeyboardEventArgs e, string tabKey)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            _tabSvc.ActivateTab(tabKey);
+            return;
+        }
+
+        if (e.Key == "Delete")
+        {
+            await _tabSvc.CloseAsync(tabKey);
+            return;
+        }
+
+        if (e.Key is "ArrowLeft" or "ArrowRight" or "Home" or "End")
+        {
+            var index = -1;
+            for (var i = 0; i < _tabs.Count; i++)
+            {
+                if (_tabs[i].TabKey == tabKey) { index = i; break; }
+            }
+            if (index < 0 || _tabs.Count == 0) return;
+
+            var target = e.Key switch
+            {
+                "ArrowLeft"  => Math.Max(0, index - 1),
+                "ArrowRight" => Math.Min(_tabs.Count - 1, index + 1),
+                "Home"       => 0,
+                "End"        => _tabs.Count - 1,
+                _            => index
+            };
+
+            // v1.0 compromise: activates rather than focus-only. Spec §13 wants
+            // focus separation from activation — tracked for v1.1.
+            _tabSvc.ActivateTab(_tabs[target].TabKey);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // A34: chevron pointer handlers — delegate to JS for the actual scrolling.
+    // Why JS: hold-to-scroll needs setInterval/clearInterval state that lives
+    // outside Blazor's render loop. JS owns the timing; C# only kicks off /
+    // ends the operation.
+    // ──────────────────────────────────────────────────────────────────────
+
+    private async Task OnLeftPointerDown(PointerEventArgs e)
+    {
+        try { await _js.InvokeVoidAsync("lipiDtabs.startScroll", _stripRef, "left"); }
+        catch (Exception ex) { _log.LogDebug(ex, "[LipiDynamicTabs] startScroll left failed"); }
+    }
+
+    private async Task OnRightPointerDown(PointerEventArgs e)
+    {
+        try { await _js.InvokeVoidAsync("lipiDtabs.startScroll", _stripRef, "right"); }
+        catch (Exception ex) { _log.LogDebug(ex, "[LipiDynamicTabs] startScroll right failed"); }
+    }
+
+    private async Task OnPointerUp(PointerEventArgs e)
+    {
+        try { await _js.InvokeVoidAsync("lipiDtabs.stopScroll", _stripRef); }
+        catch (Exception ex) { _log.LogDebug(ex, "[LipiDynamicTabs] stopScroll failed"); }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Lifecycle cleanup — detach JS observers + any running scroll interval.
+    // A34: prevents the same kind of subscription leak A32 fixed for
+    // OnTabsChanged. Without this, navigating away while observers are wired
+    // leaks ResizeObserver + MutationObserver + timer state per circuit.
+    // ──────────────────────────────────────────────────────────────────────
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        _tabSvc.OnTabsChanged -= OnTabsChanged;
+
+        if (_jsAttached)
+        {
+            try { await _js.InvokeVoidAsync("lipiDtabs.detach", _stripRef); }
+            catch { /* circuit closing — JS may already be torn down */ }
+        }
+    }
+}

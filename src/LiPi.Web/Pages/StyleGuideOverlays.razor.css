@@ -1,0 +1,271 @@
+/* SPEC:    docs/01-LipiModal-Spec.md §12, docs/02-LipiDrawer-Spec.md §11,
+            docs/03-LipiDynamicTabs-Spec.md §14
+   PHASE:   2.6.2 — Overlay Surfaces (StyleGuide showcase)
+   AMEND:   docs/CHANGE-LOG.md A33
+   PATTERN: Blazor CSS Isolation (sg-* prefix shared with main StyleGuide)
+*/
+
+/* ---------- Page wrapper ---------- */
+.sg-page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--sp-xl) var(--sp-lg);
+    font-family: var(--font-ui);
+}
+
+/* ---------- Top bar ---------- */
+.sg-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-xl);
+    padding-bottom: var(--sp-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+    margin-bottom: var(--sp-xl);
+}
+
+.sg-titleblock { display: flex; flex-direction: column; gap: var(--sp-xs); }
+
+.sg-h1 {
+    font-size: 24px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.sg-subtitle { font-size: var(--ts-body); color: var(--color-text-secondary); margin: 0; }
+
+.sg-back-link {
+    font-size: 12px;
+    color: var(--color-primary);
+    text-decoration: none;
+    flex-shrink: 0;
+    margin-top: 4px;
+}
+
+.sg-back-link:hover { text-decoration: underline; }
+
+
+/* ---------- Layout: sidebar + content ---------- */
+.sg-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--sp-xl);
+    align-items: start;
+}
+
+.sg-sidebar {
+    position: sticky;
+    top: var(--sp-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-lg);
+}
+
+.sg-nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sg-nav-header {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+    margin: 0 0 6px 0;
+    font-weight: var(--fw-medium);
+}
+
+.sg-nav-link {
+    display: block;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: var(--r-sm);
+    transition: background var(--tr-fast), color var(--tr-fast);
+}
+
+.sg-nav-link:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.sg-content { min-width: 0; display: flex; flex-direction: column; gap: var(--sp-xl); }
+
+
+/* ---------- Section / heading style (matches main StyleGuide) ---------- */
+.sg-section {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--r-lg);
+    padding: var(--sp-xl);
+    box-shadow: var(--sh-sm);
+    scroll-margin-top: var(--sp-xl);
+}
+
+.sg-h2 {
+    font-size: 20px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: 0 0 var(--sp-sm) 0;
+    letter-spacing: -0.01em;
+}
+
+.sg-h3 {
+    font-size: 14px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: var(--sp-lg) 0 var(--sp-sm) 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sg-h3:first-of-type { margin-top: var(--sp-md); }
+
+.sg-demo-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: var(--color-primary-pale);
+    color: var(--color-primary);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: var(--fw-semi);
+    flex-shrink: 0;
+}
+
+.sg-p {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin: 0 0 var(--sp-md) 0;
+}
+
+.sg-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--color-border-subtle);
+}
+
+
+/* ---------- Demo trigger blocks ---------- */
+.sg-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0 0 0;
+    align-items: center;
+}
+
+.sg-result {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--color-bg-subtle);
+    border-left: 3px solid var(--color-primary);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-text-primary);
+    line-height: 1.5;
+}
+
+.sg-result-muted {
+    border-left-color: var(--color-border-default);
+    color: var(--color-text-secondary);
+}
+
+
+/* ---------- Inline code block (for static demos) ---------- */
+.sg-code-block {
+    background: var(--color-bg-base);
+    border: 0.5px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    padding: 12px 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    overflow-x: auto;
+    margin: 8px 0;
+    white-space: pre;
+}
+
+
+/* ---------- v1.0 limitation callout ---------- */
+.sg-note {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: #FAEEDA;
+    border-left: 3px solid #BA7517;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #5A3B0E;
+    line-height: 1.5;
+}
+
+[data-mode="dark"] .sg-note {
+    background: rgba(186, 117, 23, 0.12);
+    color: #F0C77E;
+}
+
+
+/* ---------- Inline form row in modal/drawer demos ---------- */
+.sg-form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.sg-form-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.sg-form-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 0.5px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    font-family: var(--font-ui);
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface);
+    outline: none;
+}
+
+.sg-form-input:focus { border-color: var(--color-primary); }
+
+
+/* ---------- Animation toggle dropdown ---------- */
+.sg-anim-select {
+    padding: 6px 10px;
+    border: 0.5px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+
+/* ---------- Compact grid for "all variants" rows ---------- */
+.sg-variant-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}

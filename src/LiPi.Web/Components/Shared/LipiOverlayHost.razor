@@ -1,0 +1,310 @@
+@* SPEC:  docs/00-Phase2.6.2-Overview.md — Shared infrastructure
+   PHASE: 2.6.2 — Overlay Surfaces
+   AMEND: docs/CHANGE-LOG.md A32
+
+   PLACEMENT: TopNavLayout.razor — exactly once, before closing </div>.
+
+   A32 changes (vs initial 2.6.2 build):
+   1. Drawer rendering refactored to use <LipiDrawer> instead of inline HTML.
+      Service-driven drawers now get the full LipiDrawer feature set —
+      backdrop variants, close-on-esc, close-on-backdrop, animation control —
+      via parameter pass-through from DrawerRequest. Pin mode, Icon, IconColor,
+      IsDirty remain service-path TODOs (need DrawerRequest extensions; tracked
+      for v1.1).
+   2. _announcement is now written when overlays open (spec §Accessibility line
+      212). Screen readers hear "{Title} opened" via the polite live region.
+   3. OnBackdropPointerDown no-op handler removed — replaced with declarative
+      @onpointerdown:stopPropagation="true" which is what the spec §Ghost click
+      prevention rule actually requires.
+   4. Drawer-on-modal dev warning fires when a drawer renders while modals are
+      already open (spec §Drawer §6 — "Opening a drawer while a modal is open:
+      ... dev warning logged"). Logged from this host (only place that sees
+      both stacks).
+
+   Single host that renders all active modals and drawers.
+   Subscribes to service state changes and re-renders on change.
+   z-index: modals 800+, drawers 700+, one shared backdrop at 799.
+*@
+
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Web
+@using LiPi.Web.Services
+@using LiPi.Web.Components.Shared
+@using Microsoft.JSInterop
+
+@inject ILipiModalService  _modalSvc
+@inject ILipiDrawerService _drawerSvc
+@inject IJSRuntime         _js
+@inject Microsoft.Extensions.Logging.ILogger<LipiOverlayHost> _log
+@implements IDisposable
+
+@* ── Screen-reader live region for overlay announcements (A32) ── *@
+<div aria-live="polite" aria-atomic="true"
+     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">
+    @_announcement
+</div>
+
+@* ── Modal backdrop (single, z-index 799, only when modals are open) ── *@
+@if (_modalStack.Count > 0)
+{
+    <div class="lipi-overlay-backdrop"
+         @onpointerdown:stopPropagation="true"
+         @onclick="OnBackdropClick"
+         aria-hidden="true">
+    </div>
+}
+
+@* ── Modals (rendered lowest-first; topmost is visually on top) ── *@
+@foreach (var (req, idx) in _modalStack.Select((r, i) => (r, i)))
+{
+    var capturedReq = req;
+    var capturedIdx = idx;
+    var isTop       = capturedIdx == _modalStack.Count - 1;
+
+    <div @key="capturedReq"
+         class="lipi-modal @GetModalSizeClass(capturedReq.Size) @GetModalAnimClass(capturedReq.Animation) @(isTop ? "lipi-modal-top" : string.Empty)"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="modal-title-@capturedIdx"
+         style="z-index: @capturedReq.ZIndex"
+         tabindex="-1"
+         @ref="_modalRefs[capturedIdx]"
+         @onkeydown="@((e) => HandleModalKeyDown(e, capturedReq))"
+         inert="@(!isTop)">
+
+        @* Header *@
+        <div class="lipi-modal-header">
+            <div class="lipi-modal-header-text">
+                <span id="modal-title-@capturedIdx" class="lipi-modal-title">@capturedReq.Title</span>
+                @if (!string.IsNullOrEmpty(capturedReq.Subtitle))
+                {
+                    <span class="lipi-modal-subtitle">@capturedReq.Subtitle</span>
+                }
+            </div>
+            @if (capturedReq.ShowClose)
+            {
+                <button type="button"
+                        class="lipi-modal-close"
+                        aria-label="Close dialog"
+                        @onclick="@(() => CloseModalAsync(capturedReq))">✕</button>
+            }
+        </div>
+
+        @* Dynamic component body — dialog components emit their own
+           .lipi-modal-body and .lipi-modal-footer so we don't wrap. *@
+        <DynamicComponent Type="@capturedReq.ComponentType"
+                          Parameters="@capturedReq.Parameters" />
+
+    </div>
+}
+
+@* ── Drawers (A32 refactor — rendered via <LipiDrawer>) ───────────────────
+   Previously the host duplicated drawer HTML inline. Now it composes
+   <LipiDrawer> with parameters from DrawerRequest, and the request's
+   ComponentType renders inside <DrawerBody>. Service-driven and declarative
+   drawers now produce identical markup + behavior.
+                                                                          *@
+@foreach (var (placement, req) in _activeDrawers)
+{
+    var capturedPlacement = placement;
+    var capturedReq       = req;
+
+    <LipiDrawer @key="capturedPlacement"
+                Placement="@capturedPlacement"
+                Size="@capturedReq.Size"
+                Title="@capturedReq.Title"
+                Subtitle="@capturedReq.Subtitle"
+                Backdrop="@capturedReq.Backdrop"
+                ShowCloseButton="@capturedReq.ShowClose"
+                CloseOnEscape="@capturedReq.CloseOnEsc"
+                CloseOnBackdropClick="@capturedReq.CloseOnBack"
+                Animate="@capturedReq.Animate"
+                OnClose="@(() => CloseDrawerAsync(capturedPlacement))">
+        <DrawerBody>
+            <DynamicComponent Type="@capturedReq.ComponentType"
+                              Parameters="@capturedReq.Parameters" />
+        </DrawerBody>
+    </LipiDrawer>
+}
+
+
+@code {
+    // Service state snapshots (refreshed on OnStateChanged)
+    private List<ModalRequest>                          _modalStack    = new();
+    private Dictionary<DrawerPlacement, DrawerRequest>  _activeDrawers = new();
+    private string                                       _announcement = string.Empty;
+
+    // Element refs for focus trap (sized to MaxStackDepth of LipiModalService = 3)
+    private readonly ElementReference[] _modalRefs = new ElementReference[3];
+
+    [Inject] private IFocusTrapService  _focusTrap  { get; set; } = default!;
+    [Inject] private IScrollLockService _scrollLock { get; set; } = default!;
+
+    private int                              _prevModalCount;
+    private int                              _prevDrawerCount;
+    private DotNetObjectReference<LipiOverlayHost>? _dotNetRef;
+
+    protected override void OnInitialized()
+    {
+        // A32: snapshot existing state on init (in case services already had
+        // state before host first render).
+        OnOverlayStateChanged();
+
+        _modalSvc.OnStateChanged  += OnOverlayStateChanged;
+        _drawerSvc.OnStateChanged += OnOverlayStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            try { await _js.InvokeVoidAsync("lipiOverlay.registerHost", _dotNetRef); }
+            catch { /* JS not loaded yet — non-fatal */ }
+        }
+
+        // ── Modal focus trap activation / deactivation ────────────────────────
+        var stack = (_modalSvc as LipiModalService)?.GetStack() ?? new List<ModalRequest>();
+        if (stack.Count > _prevModalCount && stack.Count > 0)
+        {
+            var topIdx = stack.Count - 1;
+            if (topIdx < _modalRefs.Length && _modalRefs[topIdx].Id is not null)
+                await _focusTrap.ActivateAsync(_modalRefs[topIdx]);
+            await _scrollLock.LockAsync();
+
+            // A32: aria-live announcement for screen readers
+            _announcement = $"{stack[topIdx].Title} dialog opened";
+            StateHasChanged();
+        }
+        else if (stack.Count < _prevModalCount)
+        {
+            await _focusTrap.DeactivateAsync();
+            if (stack.Count == 0)
+                await _scrollLock.UnlockAsync();
+
+            _announcement = "Dialog closed";
+            StateHasChanged();
+        }
+        _prevModalCount = stack.Count;
+
+        // ── Drawer-on-modal dev warning (spec Drawer §6) ─────────────────────
+        // Fires once per drawer-render when modals are already present.
+        if (_activeDrawers.Count > _prevDrawerCount && stack.Count > 0)
+        {
+            _log.LogWarning(
+                "[LipiOverlayHost] Drawer opened while modal stack is non-empty " +
+                "(modals={ModalCount}, drawers={DrawerCount}). Drawer renders BEHIND " +
+                "the modal per spec §6 — user must close the modal to interact with " +
+                "the drawer.",
+                stack.Count, _activeDrawers.Count);
+        }
+
+        // A32: drawer announcement (only when new drawer opened)
+        if (_activeDrawers.Count > _prevDrawerCount)
+        {
+            var newest = _activeDrawers.Values
+                .OrderByDescending(d => d.ZIndex)
+                .FirstOrDefault();
+            if (newest is not null)
+            {
+                _announcement = $"{newest.Title} panel opened";
+                StateHasChanged();
+            }
+        }
+        _prevDrawerCount = _activeDrawers.Count;
+    }
+
+    /// <summary>Called by JS document-level keydown listener when Escape is pressed.</summary>
+    [JSInvokable]
+    public async Task OnEscapeKeyAsync()
+    {
+        await HandleEscapeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnOverlayStateChanged()
+    {
+        _modalStack = (_modalSvc as LipiModalService)?.GetStack().ToList()
+                      ?? new List<ModalRequest>();
+
+        var active = (_drawerSvc as LipiDrawerService)?.GetActive();
+        _activeDrawers = active is not null
+            ? new Dictionary<DrawerPlacement, DrawerRequest>(active)
+            : new Dictionary<DrawerPlacement, DrawerRequest>();
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CloseModalAsync(ModalRequest req)
+    {
+        if (req.ShowClose) // ✕ button — respects ShowClose not CloseOnEsc
+            await _modalSvc.CloseTopAsync(null);
+    }
+
+    private async Task HandleModalKeyDown(KeyboardEventArgs e, ModalRequest req)
+    {
+        if (e.Key == "Escape" && req.CloseOnEsc)
+            await _modalSvc.CloseTopAsync(null);
+    }
+
+    private async Task OnBackdropClick(MouseEventArgs e)
+    {
+        var stack = (_modalSvc as LipiModalService)?.GetStack();
+        var top   = stack?.Count > 0 ? stack[^1] : null;
+        if (top?.CloseOnBack == true)
+            await _modalSvc.CloseTopAsync(null);
+    }
+
+    private async Task CloseDrawerAsync(DrawerPlacement placement)
+    {
+        await _drawerSvc.CloseAsync(placement);
+    }
+
+    // ── CSS helpers ───────────────────────────────────────────────────────────
+
+    private static string GetModalSizeClass(ModalSize size) => size switch
+    {
+        ModalSize.Compact    => "lipi-modal-compact",
+        ModalSize.Wide       => "lipi-modal-wide",
+        ModalSize.Fullscreen => "lipi-modal-fullscreen",
+        _                    => "lipi-modal-standard"
+    };
+
+    private static string GetModalAnimClass(ModalAnimation anim) => anim switch
+    {
+        ModalAnimation.Fade      => "lipi-modal-anim-fade",
+        ModalAnimation.FadeSlide => "lipi-modal-anim-fadeslide",
+        ModalAnimation.FadeScale => "lipi-modal-anim-fadescale",
+        _                        => string.Empty
+    };
+
+    // ── Escape key handling — invoked from document-level JS listener ──────────
+
+    public async Task HandleEscapeAsync()
+    {
+        // Close topmost modal first
+        var stack = (_modalSvc as LipiModalService)?.GetStack();
+        var top   = stack?.Count > 0 ? stack[^1] : null;
+        if (top?.CloseOnEsc == true)
+        {
+            await _modalSvc.CloseTopAsync(null);
+            return;
+        }
+
+        // No modal — close most recently opened drawer that allows Escape
+        var drawers = (_drawerSvc as LipiDrawerService)?.GetActive();
+        if (drawers?.Count > 0)
+        {
+            var last = drawers.Values.OrderByDescending(d => d.ZIndex).FirstOrDefault();
+            if (last?.CloseOnEsc == true)
+                await _drawerSvc.CloseAsync(last.Placement);
+        }
+    }
+
+    public void Dispose()
+    {
+        _modalSvc.OnStateChanged  -= OnOverlayStateChanged;
+        _drawerSvc.OnStateChanged -= OnOverlayStateChanged;
+        _dotNetRef?.Dispose();
+    }
+}

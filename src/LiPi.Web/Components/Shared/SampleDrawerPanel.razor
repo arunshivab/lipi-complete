@@ -1,0 +1,48 @@
+@* SPEC:  docs/02-LipiDrawer-Spec.md §11 demo 5 (Drawer opened programmatically)
+   PHASE: 2.6.2 — Overlay Surfaces — StyleGuide demo helper
+   AMEND: docs/CHANGE-LOG.md A33
+
+   Used by StyleGuideOverlays.razor to demonstrate
+   `LipiDrawerService.ShowAsync<SampleDrawerPanel, bool>(...)`. Rendered inside
+   <LipiDrawer> via LipiOverlayHost's A32 refactor — the host wraps this
+   component's content in DrawerBody so we don't need our own wrapper.
+
+   Required contract for ShowAsync target components:
+     [Parameter] EventCallback<TResult> OnResult
+*@
+
+<div style="display:flex;flex-direction:column;gap:12px">
+    <p style="font-size:13px;color:var(--color-text-primary);line-height:1.5;margin:0">
+        <strong>Hello from a programmatically opened drawer.</strong>
+    </p>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin:0;line-height:1.5">
+        Opened via
+        <code style="font-family:var(--font-mono);font-size:11px">
+            Drawer.ShowAsync&lt;SampleDrawerPanel, bool&gt;(placement:&nbsp;DrawerPlacement.Right)
+        </code>.
+        The host renders the surrounding LipiDrawer frame; this component supplies
+        the body content and returns a bool to the caller via
+        <code style="font-family:var(--font-mono);font-size:11px">OnResult</code>.
+    </p>
+
+    <div style="display:flex;gap:8px;margin-top:12px">
+        <LipiButton Variant="ButtonVariant.Secondary"
+                    OnClick="@(() => OnResult.InvokeAsync(false))">Reject</LipiButton>
+        <LipiButton OnClick="@(() => OnResult.InvokeAsync(true))">Confirm</LipiButton>
+    </div>
+
+    <p style="font-size:11px;color:var(--color-text-tertiary);margin-top:16px;line-height:1.4">
+        v1.0 limitation (A32): service-driven drawers don't yet carry
+        <code style="font-family:var(--font-mono);font-size:10px">Icon</code>,
+        <code style="font-family:var(--font-mono);font-size:10px">IconColor</code>,
+        <code style="font-family:var(--font-mono);font-size:10px">Pinnable</code>,
+        <code style="font-family:var(--font-mono);font-size:10px">IsDirty</code>
+        — needs <code style="font-family:var(--font-mono);font-size:10px">DrawerRequest</code>
+        extension. Tracked for v1.1.
+    </p>
+</div>
+
+@code {
+    /// <summary>Required by ShowAsync contract — service injects this callback.</summary>
+    [Parameter] public EventCallback<bool> OnResult { get; set; }
+}
