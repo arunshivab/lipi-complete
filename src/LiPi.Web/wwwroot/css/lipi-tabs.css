@@ -1,0 +1,421 @@
+/* SPEC:  docs/02-LipiTabs-Spec.md §5 (visual design), §7 (multi-industry tokens)
+   PHASE: 2.6.1 — Layout components
+   AMEND: CHANGE-LOG.md A22 — self-sufficiency fix. Every reference to an OPTIONAL
+          token outside the theme contract now carries a fallback so the component
+          renders correctly in any consuming project:
+            --color-border-tertiary → falls back to --color-border-subtle
+            --sh-xs                 → falls back to --sh-sm
+          The active-underline overlap is retied to the new component-owned
+          --lipi-tab-strip-border-width token (was a fragile fixed -1px literal).
+   RULE:  Layout-vs-Shape: ALL display/flex/grid/layout rules live HERE.
+          Shape-only rules (focus ring offset, scale transform) live in LipiTabs.razor.css.
+
+   Multi-industry token overrides (§17 principle — any visual property that varies
+   by brand gets a CSS custom property with the LiPi value as fallback):
+
+     --lipi-tab-radius:             var(--r-sm)                6px  — tab item corner radius
+     --lipi-tab-underline-width:    2px                              — active underline thickness
+     --lipi-tab-strip-border-width: 1px                              — Underline tablist baseline thickness (A22)
+     --lipi-tab-strip-bg:           transparent                      — tab strip background
+     --lipi-tab-active-bg:          var(--color-primary-pale)        — active tab background
+     --lipi-tab-active-color:       var(--color-primary)             — active tab text + underline
+     --lipi-tab-hover-bg:           var(--color-bg-hover)            — hover background
+
+   Override example for enterprise B2B (flat, no radius):
+     :root { --lipi-tab-radius: 0; --lipi-tab-active-bg: transparent; }
+*/
+
+
+/* ==========================================================================
+   ROOT WRAPPER
+   ========================================================================== */
+
+.lipi-tabs {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* Vertical variant: row layout (rail + panels side by side) */
+.lipi-tabs-vertical {
+    flex-direction: row;
+}
+
+
+/* ==========================================================================
+   TAB LIST (the strip / rail)
+   ========================================================================== */
+
+.lipi-tablist {
+    display: flex;
+    flex-shrink: 0;
+}
+
+/* ── Underline tablist ── */
+.lipi-tabs-underline .lipi-tablist {
+    flex-direction: row;
+    /* Baseline strip border. Width = the component-owned --lipi-tab-strip-border-width
+       token (default 1px); the active tab's overlap margin (below) is tied to the
+       SAME token via calc(), so the underline always merges cleanly regardless of
+       browser zoom or brand override. Colour falls back --color-border-tertiary →
+       --color-border-subtle: -tertiary is an OPTIONAL tier a host theme may define
+       for a finer-grained border, but it is not part of the guaranteed token
+       contract — without the fallback, an undefined custom property makes the whole
+       `border-bottom` shorthand invalid and the baseline silently disappears (A22). */
+    border-bottom: var(--lipi-tab-strip-border-width, 1px) solid var(--color-border-tertiary, var(--color-border-subtle));
+    background: var(--lipi-tab-strip-bg, transparent);
+    padding: 0 1rem;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/Edge */
+}
+
+.lipi-tabs-underline .lipi-tablist::-webkit-scrollbar { display: none; }
+
+/* ── Pill tablist ── */
+.lipi-tabs-pill .lipi-tablist {
+    flex-direction: row;
+    background: var(--color-bg-subtle);
+    border-radius: var(--r-md);
+    padding: 4px;
+    gap: 4px;
+    align-self: flex-start;         /* don't stretch to full width */
+}
+
+/* ── Vertical tablist (rail) ── */
+.lipi-tabs-vertical .lipi-tablist {
+    flex-direction: column;
+    /* Colour falls back --color-border-tertiary → --color-border-subtle (A22) —
+       same optional-token-needs-a-fallback reason as the Underline tablist above. */
+    border-right: 0.5px solid var(--color-border-tertiary, var(--color-border-subtle));
+    width: 200px;
+    padding: 0.5rem 0.5rem 0.5rem 0;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+/* ── Vertical IconOnly rail ── */
+.lipi-tabs-icon-only .lipi-tablist {
+    width: 52px;
+    padding: 0.5rem 0.25rem;
+    gap: 2px;
+    align-items: center;
+}
+
+
+/* ==========================================================================
+   INDIVIDUAL TAB BUTTONS
+   ========================================================================== */
+
+.lipi-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: var(--font-ui);
+    font-size: var(--ts-body);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    transition:
+        background var(--tr-fast),
+        color var(--tr-fast),
+        border-color var(--tr-fast);
+    text-decoration: none;      /* for <a> role links */
+    flex-shrink: 0;
+}
+
+.lipi-tab:disabled,
+.lipi-tab[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ── Underline tab ── */
+.lipi-tabs-underline .lipi-tab {
+    padding: 0.6rem 1rem;
+    border-bottom: var(--lipi-tab-underline-width, 2px) solid transparent;
+    /* Every tab is pulled down by exactly the tablist baseline-border thickness
+       (--lipi-tab-strip-border-width) so its own bottom border overlaps and
+       visually merges with the baseline segment beneath it. The active tab
+       COMPENSATES for this overlap by thickening its border (see .lipi-tab-active
+       below) so the full --lipi-tab-underline-width stays visible after the pull.
+
+       A22 follow-up: A22 originally tied the active underline's visible thickness
+       to the strip-border token, which was the wrong coupling — at browser zoom
+       <100% the nominal 2px underline renders sub-pixel (e.g. 1.6px at 80%), the
+       -1px overlap then left only ~0.6px showing, effectively invisible. The
+       overlap is correctly the strip-border width; the fix is that the active
+       tab's border must be (underline-width + overlap) thick so a full
+       underline-width always survives the pull, at any zoom. */
+    margin-bottom: calc(-1 * var(--lipi-tab-strip-border-width, 1px));
+    border-radius: var(--lipi-tab-radius, var(--r-sm)) var(--lipi-tab-radius, var(--r-sm)) 0 0;
+}
+
+.lipi-tabs-underline .lipi-tab:hover:not(:disabled):not([aria-disabled]) {
+    background: var(--lipi-tab-hover-bg, var(--color-bg-hover));
+    color: var(--color-text-primary);
+}
+
+.lipi-tabs-underline .lipi-tab-active {
+    color: var(--lipi-tab-active-color, var(--color-primary));
+    border-bottom-color: var(--lipi-tab-active-color, var(--color-primary));
+    /* Thicken the active underline by the overlap amount so that, after the
+       margin-bottom pull (= --lipi-tab-strip-border-width), exactly one full
+       --lipi-tab-underline-width of navy remains visible above the baseline.
+       Both terms are the same tokens used on the base .lipi-tab + tablist rules,
+       so this stays correct at any browser zoom and under any brand override —
+       no fixed pixel literals. (A22 follow-up — see the .lipi-tab comment above.) */
+    border-bottom-width: calc(
+        var(--lipi-tab-underline-width, 2px) + var(--lipi-tab-strip-border-width, 1px)
+    );
+    background: var(--lipi-tab-active-bg, var(--color-primary-pale));
+    font-weight: var(--fw-medium);
+}
+
+/* ── Pill tab ── */
+.lipi-tabs-pill .lipi-tab {
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--lipi-tab-radius, var(--r-sm));
+    font-size: var(--ts-label);
+}
+
+.lipi-tabs-pill .lipi-tab:hover:not(:disabled):not([aria-disabled]) {
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+}
+
+.lipi-tabs-pill .lipi-tab-active {
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font-weight: var(--fw-medium);
+    border: 0.5px solid var(--color-border-default);
+    /* Shadow for lift effect. --sh-xs is an OPTIONAL finer-grained shadow tier a
+       host theme may define; it is not in the guaranteed token contract (the theme
+       files ship --sh-sm/md/lg). Fall back to --sh-sm so the lift never silently
+       disappears in a consuming project that doesn't define -xs (A22). */
+    box-shadow: var(--sh-xs, var(--sh-sm));
+}
+
+/* ── Vertical tab ── */
+.lipi-tabs-vertical .lipi-tab {
+    padding: 0.5rem 0.85rem;
+    border-radius: var(--lipi-tab-radius, var(--r-sm));
+    width: 100%;
+    justify-content: flex-start;
+    font-size: var(--ts-body);
+}
+
+.lipi-tabs-vertical .lipi-tab:hover:not(:disabled):not([aria-disabled]) {
+    background: var(--lipi-tab-hover-bg, var(--color-bg-hover));
+    color: var(--color-text-primary);
+}
+
+.lipi-tabs-vertical .lipi-tab-active {
+    background: var(--lipi-tab-active-bg, var(--color-primary-pale));
+    color: var(--lipi-tab-active-color, var(--color-primary));
+    font-weight: var(--fw-medium);
+}
+
+/* ── Vertical IconOnly tab ── */
+.lipi-tabs-icon-only .lipi-tab {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: var(--lipi-tab-radius, var(--r-sm));
+    justify-content: center;
+    flex-direction: column;
+    gap: 2px;
+    position: relative;
+}
+
+.lipi-tab-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lipi-tab-step-num {
+    font-size: 8px;
+    font-weight: var(--fw-semi);
+    line-height: 1;
+    color: inherit;
+}
+
+
+/* ==========================================================================
+   TAB STATE — colors per TabState value
+   Underline: colored underline + label color
+   Vertical: colored label + state dot
+   Pill: no state (view-switcher only)
+   ========================================================================== */
+
+/* Complete — green */
+.lipi-tab-state-complete { color: var(--color-success-text-strong, #27500A); }
+.lipi-tabs-underline .lipi-tab-state-complete { border-bottom-color: var(--color-success, #639922); }
+.lipi-tabs-underline .lipi-tab-state-complete.lipi-tab-active {
+    color: var(--color-success-text-strong, #27500A);
+    border-bottom-color: var(--color-success, #639922);
+    background: var(--color-success-pale, #EAF3DE);
+}
+
+/* Partial — amber */
+.lipi-tab-state-partial { color: var(--color-warning-text-strong, #633806); }
+.lipi-tabs-underline .lipi-tab-state-partial { border-bottom-color: var(--color-warning, #BA7517); }
+.lipi-tabs-underline .lipi-tab-state-partial.lipi-tab-active {
+    color: var(--color-warning-text-strong, #633806);
+    border-bottom-color: var(--color-warning, #BA7517);
+    background: var(--color-warning-pale, #FAEEDA);
+}
+
+/* Empty — red */
+.lipi-tab-state-empty { color: var(--color-danger, #A32D2D); }
+.lipi-tabs-underline .lipi-tab-state-empty { border-bottom-color: var(--color-danger, #A32D2D); }
+.lipi-tabs-underline .lipi-tab-state-empty.lipi-tab-active {
+    color: var(--color-danger, #A32D2D);
+    border-bottom-color: var(--color-danger, #A32D2D);
+    background: var(--color-danger-pale, #FCEBEB);
+}
+
+/* Optional — dashed */
+.lipi-tab-state-optional { color: var(--color-text-secondary); }
+.lipi-tabs-underline .lipi-tab-state-optional {
+    border-bottom-style: dashed;
+    border-bottom-color: var(--color-border-default);
+}
+
+
+/* ==========================================================================
+   STATE DOT (Vertical only — right-aligned indicator)
+   ========================================================================== */
+
+.lipi-tab-state-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.lipi-tab-state-dot-complete { background: var(--color-success, #639922); }
+.lipi-tab-state-dot-partial  { background: var(--color-warning, #BA7517); }
+.lipi-tab-state-dot-empty    { background: var(--color-danger, #A32D2D); }
+/* Default and Optional: no dot rendered */
+
+
+/* ==========================================================================
+   STATE BADGE DOT (IconOnly mode — top-right corner of icon cell)
+   ========================================================================== */
+
+.lipi-tab-state-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-bg-surface);
+}
+
+.lipi-tab-state-badge-complete { background: var(--color-success, #639922); }
+.lipi-tab-state-badge-partial  { background: var(--color-warning, #BA7517); }
+.lipi-tab-state-badge-empty    { background: var(--color-danger, #A32D2D); }
+
+
+/* ==========================================================================
+   COUNT BADGE
+   ========================================================================== */
+
+.lipi-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: var(--fw-medium);
+    line-height: 1;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+}
+
+/* Count badge inherits severity color when tab has state */
+.lipi-tab-state-empty .lipi-tab-count {
+    background: var(--color-danger-pale, #FCEBEB);
+    color: var(--color-danger, #A32D2D);
+}
+
+
+/* ==========================================================================
+   SECTION DIVIDER (Vertical only — separates tab groups e.g. before Review)
+   ========================================================================== */
+
+.lipi-tab-divider {
+    /* Phase 2.6.3 Stage 2C: was height 0.5px (sub-pixel — rounds to 0 or an
+       invisible hairline on most displays) with --color-border-tertiary (the
+       lightest border token, near-invisible as a standalone line). Now 1px
+       with --color-border-default so the divider is actually perceptible. */
+    height: 1px;
+    background: var(--color-border-default);
+    margin: 4px 8px;
+    width: calc(100% - 16px);
+}
+
+
+/* ==========================================================================
+   TAB PANELS CONTAINER
+   ========================================================================== */
+
+.lipi-tab-panels {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* Vertical: panels sit to the right of the rail */
+.lipi-tabs-vertical .lipi-tab-panels {
+    padding-left: 0;    /* rail has its own right border */
+}
+
+
+/* ==========================================================================
+   INDIVIDUAL PANELS
+   ========================================================================== */
+
+/* Lazy mode: only active panel renders in DOM — no CSS needed for hiding */
+.lipi-tab-panel {
+    min-width: 0;
+}
+
+/* Eager mode: all panels in DOM, inactive hidden via display:none */
+.lipi-tabs-eager .lipi-tab-panel {
+    display: none;
+}
+
+.lipi-tabs-eager .lipi-tab-panel-active {
+    display: block;
+}
+
+
+/* ==========================================================================
+   SCREEN-READER ONLY SHORTCUT ANNOUNCEMENT
+   ========================================================================== */
+
+.lipi-tab-sr-shortcuts {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

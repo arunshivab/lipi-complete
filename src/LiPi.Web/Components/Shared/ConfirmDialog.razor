@@ -1,0 +1,48 @@
+@* SPEC:  docs/01-LipiModal-Spec.md §5 (ConfirmAsync)
+   PHASE: 2.6.2 — internal dialog component
+   USAGE: LipiModalService.ConfirmAsync() — not used directly by consumers.
+*@
+
+
+@code {
+    [Parameter] public string        Message      { get; set; } = string.Empty;
+    [Parameter] public ConfirmIntent Intent       { get; set; } = ConfirmIntent.Default;
+    [Parameter] public string?       PrimaryLabel { get; set; }
+    [Parameter] public string?       CancelLabel  { get; set; }
+    [Parameter] public TaskCompletionSource<object?>? Tcs { get; set; }
+
+    private string ResolvedPrimaryLabel => PrimaryLabel ?? Intent switch
+    {
+        ConfirmIntent.Danger   => "Delete",
+        ConfirmIntent.Warning  => "Overwrite",
+        ConfirmIntent.Critical => "I understand",
+        _                      => "Confirm"
+    };
+
+    private string ResolvedCancelLabel => CancelLabel ?? "Cancel";
+
+    private ButtonVariant PrimaryVariant => Intent switch
+    {
+        ConfirmIntent.Danger  => ButtonVariant.Danger,
+        _                     => ButtonVariant.Primary
+    };
+}
+
+<div class="lipi-modal-body">
+    <p style="font-size:13px;line-height:1.6;color:var(--color-text-primary)">@Message</p>
+</div>
+
+<div class="lipi-modal-footer">
+    @if (Intent != ConfirmIntent.Critical)
+    {
+        <LipiButton Variant="ButtonVariant.Secondary"
+                    OnClick="@Cancel">@ResolvedCancelLabel</LipiButton>
+    }
+    <LipiButton Variant="@PrimaryVariant"
+                OnClick="@Confirm">@ResolvedPrimaryLabel</LipiButton>
+</div>
+
+@code {
+    private void Confirm() => Tcs?.TrySetResult(true);
+    private void Cancel()  => Tcs?.TrySetResult(false);
+}

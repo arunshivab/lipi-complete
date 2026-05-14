@@ -121,6 +121,16 @@ builder.Services.Configure<LipiInputDefaults>(_ => { });  // accept built-in def
 builder.Services.AddScoped<IDateFormatService, DateFormatService>();
 builder.Services.AddScoped<IClinicTimezoneService, ClinicTimezoneService>();
 
+// ── Phase 2.6.2 Overlay infrastructure ─────────────────────────────────────
+// SPEC: docs/00-Phase2.6.2-Overview.md — Shared infrastructure
+// All Scoped — one instance per Blazor circuit (per user session).
+// Build order: FocusTrap + ScrollLock first (shared), then Modal / Drawer / DynamicTabs.
+builder.Services.AddScoped<IFocusTrapService, FocusTrapService>();
+builder.Services.AddScoped<IScrollLockService, ScrollLockService>();
+builder.Services.AddScoped<ILipiModalService, LipiModalService>();
+builder.Services.AddScoped<ILipiDrawerService, LipiDrawerService>();
+builder.Services.AddScoped<ILipiDynamicTabsService, LipiDynamicTabsService>();
+
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();

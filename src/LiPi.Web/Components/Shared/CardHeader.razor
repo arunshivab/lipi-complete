@@ -1,0 +1,57 @@
+@* SPEC:  docs/04-LipiCard-Spec.md §2 (sub-components)
+   PHASE: 2.6.1 — Layout components
+
+   CardHeader renders its own HTML directly inside LipiCard's CascadingValue.
+   No parent registration — sub-components in Blazor don't need to register
+   with parents for read-only composition. The parent's CascadingValue is
+   available if future features need it.
+
+   Multiple RenderFragment params (ChildContent + CardHeaderAction) means
+   all child content must be explicitly tagged when both are used:
+     <CardHeader Title="Foo">
+         <CardHeaderAction><LipiButton>Edit</LipiButton></CardHeaderAction>
+     </CardHeader>
+*@
+
+@using Microsoft.AspNetCore.Components
+
+<div class="lipi-card-header">
+
+    <div class="lipi-card-header-content">
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else
+        {
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                @((MarkupString)$"<h{_level} class=\"lipi-card-title\">{System.Web.HttpUtility.HtmlEncode(Title)}</h{_level}>")
+            }
+            @if (!string.IsNullOrEmpty(Subtitle))
+            {
+                <div class="lipi-card-subtitle">@Subtitle</div>
+            }
+        }
+    </div>
+
+    @if (CardHeaderAction is not null)
+    {
+        <div class="lipi-card-header-action">
+            @CardHeaderAction
+        </div>
+    }
+
+</div>
+
+@code {
+    [CascadingParameter] private LipiCard? Parent { get; set; }  // optional — not required
+
+    [Parameter] public string? Title          { get; set; }
+    [Parameter] public string? Subtitle       { get; set; }
+    [Parameter] public int     HeadingLevel   { get; set; } = 3;
+    [Parameter] public RenderFragment? ChildContent       { get; set; }
+    [Parameter] public RenderFragment? CardHeaderAction   { get; set; }
+
+    private int _level => Math.Clamp(HeadingLevel, 2, 6);
+}

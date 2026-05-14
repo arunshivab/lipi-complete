@@ -1,0 +1,71 @@
+@* SPEC:  docs/01-LipiModal-Spec.md §5 (PromptAsync)
+   PHASE: 2.6.2 — internal dialog component
+*@
+
+
+@code {
+    [Parameter] public string?   Label        { get; set; }
+    [Parameter] public string?   DefaultValue { get; set; }
+    [Parameter] public string?   Placeholder  { get; set; }
+    [Parameter] public bool      Required     { get; set; } = true;
+    [Parameter] public TaskCompletionSource<object?>? Tcs { get; set; }
+
+    private string _value = string.Empty;
+    private string? _error;
+
+    protected override void OnParametersSet()
+    {
+        _value = DefaultValue ?? string.Empty;
+    }
+}
+
+<div class="lipi-modal-body">
+    <div style="display:flex;flex-direction:column;gap:6px">
+        @if (!string.IsNullOrEmpty(Label))
+        {
+            <label for="prompt-input"
+                   style="font-size:12px;font-weight:500;color:var(--color-text-primary)">
+                @Label@(Required ? " *" : string.Empty)
+            </label>
+        }
+        <input id="prompt-input"
+               type="text"
+               class="@("lipi-prompt-input" + (_error is not null ? " lipi-prompt-input-error" : string.Empty))"
+               value="@_value"
+               placeholder="@(Placeholder ?? string.Empty)"
+               autocomplete="off"
+               @oninput="OnInput"
+               @onkeydown="OnKeyDown" />
+        @if (_error is not null)
+        {
+            <span style="font-size:11px;color:var(--color-danger)">@_error</span>
+        }
+    </div>
+</div>
+
+<div class="lipi-modal-footer">
+    <LipiButton Variant="ButtonVariant.Secondary" OnClick="@Cancel">Cancel</LipiButton>
+    <LipiButton OnClick="@Submit">OK</LipiButton>
+</div>
+
+@code {
+    private void OnInput(ChangeEventArgs e) => _value = e.Value?.ToString() ?? string.Empty;
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") Submit();
+        if (e.Key == "Escape") Cancel();
+    }
+
+    private void Submit()
+    {
+        if (Required && string.IsNullOrWhiteSpace(_value))
+        {
+            _error = $"{Label ?? "This field"} is required.";
+            return;
+        }
+        Tcs?.TrySetResult(_value.Trim());
+    }
+
+    private void Cancel() => Tcs?.TrySetResult(null);
+}

@@ -103,6 +103,19 @@
                 <h3 class="sg-nav-header">Patterns</h3>
                 <span class="sg-nav-link sg-nav-disabled">(Coming later)</span>
             </div>
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">Phase 2.6</h3>
+                @* data-enhance-nav="false" forces full document load on click.
+                   Without it, Blazor enhanced navigation streams a partial body swap
+                   that does NOT reattach the Blazor scoped CSS bundle (LiPi.Web.styles.css),
+                   so the destination page renders unstyled until Ctrl+Shift+R.
+                   This is StyleGuide demo-only — production pages are not affected
+                   visibly because they depend on global CSS (admin.css) more than
+                   scoped .razor.css. Phase 2.10 Infrastructure Audit will smoke-test
+                   every cross-page nav app-wide to confirm production safety. *@
+                <a class="sg-nav-link" href="/admin/style-guide/layout"   data-enhance-nav="false">Layout Components →</a>
+                <a class="sg-nav-link" href="/admin/style-guide/overlays" data-enhance-nav="false">Overlay Surfaces →</a>
+            </div>
         </aside>
 
         <!-- Content -->

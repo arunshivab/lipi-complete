@@ -1,0 +1,254 @@
+/* SPEC:  docs/04-LipiCard-Spec.md §6 (visual design), §8 (multi-industry tokens)
+   PHASE: 2.6.1 — Layout components
+   AMEND: CHANGE-LOG.md A26 — self-sufficiency fix. Optional tokens outside the
+          theme contract now carry fallbacks so the component renders correctly
+          in any consuming project:
+            --color-border-tertiary → falls back to --color-border-subtle
+                                      (.lipi-card-header + .lipi-card-footer dividers)
+            --sh-xs                 → falls back to --sh-sm
+                                      (.lipi-card-clickable:hover lift)
+   AMEND: CHANGE-LOG.md A27 — spec reconciliation.
+            .lipi-card-accent `border-radius` was `0 … 0` (squared left corners,
+              a build-time deviation) → reconciled to full radius per spec §6.
+            New `.lipi-card-accent.lipi-card-clickable:hover` rule re-pins the
+              accent strip colour on hover — needed now that Accent + Clickable
+              is a reachable combo (A27 unified interactivity on IsInteractive,
+              so `Clickable="true"` on an Accent card now adds lipi-card-clickable).
+   RULE:  Layout-vs-Shape: ALL display/flex/layout/color rules live HERE.
+          Shape-only (hover scale, focus ring offset) → LipiCard.razor.css.
+
+   Multi-industry token overrides (§8 principle):
+     --lipi-card-radius:        var(--r-md)    10px  — card corner radius
+     --lipi-card-shadow:        var(--sh-md)         — Elevated variant shadow
+     --lipi-card-accent-w:      4px                  — Accent left-border width
+     --lipi-card-border-w:      0.5px                — standard border width
+     --lipi-card-padding-body:  16px                 — CardBody padding
+     --lipi-card-padding-head:  12px 16px            — CardHeader padding
+
+   Override examples:
+     Soft consumer: --lipi-card-radius: var(--r-xl); --lipi-card-border-w: 0;
+     Dense enterprise: --lipi-card-radius: var(--r-sm); --lipi-card-padding-body: 12px;
+*/
+
+
+/* ==========================================================================
+   BASE CARD
+   ========================================================================== */
+
+.lipi-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    box-sizing: border-box;
+    border-radius: var(--lipi-card-radius, var(--r-md));
+    font-family: var(--font-ui);
+}
+
+
+/* ==========================================================================
+   VARIANT: OUTLINED (default)
+   ========================================================================== */
+
+.lipi-card-outlined {
+    background: var(--color-bg-surface);
+    border: var(--lipi-card-border-w, 0.5px) solid var(--color-border-default);
+    box-shadow: none;
+}
+
+
+/* ==========================================================================
+   VARIANT: FLAT
+   ========================================================================== */
+
+.lipi-card-flat {
+    background: var(--color-bg-subtle);
+    border: none;
+    box-shadow: none;
+}
+
+
+/* ==========================================================================
+   VARIANT: ELEVATED
+   ========================================================================== */
+
+.lipi-card-elevated {
+    background: var(--color-bg-surface);
+    border: none;
+    box-shadow: var(--lipi-card-shadow, var(--sh-md));
+}
+
+
+/* ==========================================================================
+   VARIANT: CLICKABLE
+   Layered on top of a base variant class (usually lipi-card-outlined) whenever
+   IsInteractive is true — see LipiCard.razor A27 note. Self-sufficient: sets
+   its own background + border so it also works standalone.
+   ========================================================================== */
+
+.lipi-card-clickable {
+    background: var(--color-bg-surface);
+    border: var(--lipi-card-border-w, 0.5px) solid var(--color-border-default);
+    cursor: pointer;
+    transition:
+        background var(--tr-fast),
+        border-color var(--tr-fast),
+        box-shadow var(--tr-fast),
+        transform var(--tr-fast);
+    text-decoration: none;          /* when rendered as <a> */
+    color: inherit;                 /* when rendered as <a> */
+}
+
+.lipi-card-clickable:hover:not(.lipi-card-disabled) {
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-strong);
+    /* --sh-xs is an OPTIONAL finer-grained shadow tier a host theme may define;
+       it is NOT in the guaranteed token contract (the theme files ship
+       --sh-sm/md/lg). Without a fallback, an undefined custom property makes
+       the box-shadow declaration invalid and the hover lift silently does not
+       render. Fall back to --sh-sm. (A26 — same bug class as A22's --sh-xs
+       fix in lipi-tabs.css.) */
+    box-shadow: var(--sh-xs, var(--sh-sm));
+}
+
+.lipi-card-clickable:active:not(.lipi-card-disabled) {
+    transform: scale(0.99);
+    background: var(--color-primary-pale);
+}
+
+.lipi-card-clickable.lipi-card-selected {
+    border: 2px solid var(--color-primary);
+    background: var(--color-primary-pale);
+}
+
+.lipi-card-clickable.lipi-card-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+
+/* ==========================================================================
+   VARIANT: ACCENT (left color strip)
+   ========================================================================== */
+
+.lipi-card-accent {
+    background: var(--color-bg-surface);
+    border: var(--lipi-card-border-w, 0.5px) solid var(--color-border-default);
+    border-left: var(--lipi-card-accent-w, 4px) solid var(--lipi-card-accent-color, var(--color-primary));
+    /* A27: full radius on all corners per spec §6. Was `0 … 0` (squared left
+       corners) — a build-time deviation from the written spec, now reconciled. */
+    border-radius: var(--lipi-card-radius, var(--r-md));
+}
+
+/* AccentColor → --lipi-card-accent-color set as inline style by component */
+.lipi-card-accent-primary  { --lipi-card-accent-color: var(--color-primary);  }
+.lipi-card-accent-success  { --lipi-card-accent-color: #3B6D11; }
+.lipi-card-accent-warning  { --lipi-card-accent-color: #854F0B; }
+.lipi-card-accent-danger   { --lipi-card-accent-color: #A32D2D; }
+.lipi-card-accent-critical { --lipi-card-accent-color: #501313; }
+
+/* A27: Accent + Clickable is a reachable combo (Clickable="true" on an Accent
+   card now adds lipi-card-clickable, since A27 unified interactivity on
+   IsInteractive). `.lipi-card-clickable:hover` sets `border-color`, which
+   would also recolour the accent strip — re-pin the left edge so the strip
+   survives hover. */
+.lipi-card-accent.lipi-card-clickable:hover:not(.lipi-card-disabled) {
+    border-left-color: var(--lipi-card-accent-color, var(--color-primary));
+}
+
+
+/* ==========================================================================
+   CARD HEADER
+   ========================================================================== */
+
+.lipi-card-header {
+    padding: var(--lipi-card-padding-head, 12px 16px);
+    /* --color-border-tertiary is an OPTIONAL finer-grained border tier a host
+       theme may define; it is NOT in the guaranteed token contract (the theme
+       files ship --color-border-{default,subtle,strong,focus}). Without a
+       fallback, an undefined custom property makes the `border-bottom`
+       shorthand invalid and the header/body divider line silently disappears.
+       Fall back to --color-border-subtle. (A26 — same bug class as A22's
+       --color-border-tertiary fix in lipi-tabs.css.) */
+    border-bottom: 0.5px solid var(--color-border-tertiary, var(--color-border-subtle));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.lipi-card-header-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.lipi-card-title {
+    font-size: var(--ts-body);
+    font-weight: var(--fw-medium);
+    color: var(--color-text-primary);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lipi-card-subtitle {
+    font-size: var(--ts-small);
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lipi-card-header-action {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+
+/* ==========================================================================
+   CARD BODY
+   ========================================================================== */
+
+.lipi-card-body {
+    padding: var(--lipi-card-padding-body, 16px);
+    flex: 1;
+    min-width: 0;
+}
+
+/* Reduce top padding when immediately following a header
+   (header already provides bottom padding + border) */
+.lipi-card-header + .lipi-card-body {
+    padding-top: 12px;
+}
+
+/* Reduce bottom padding when immediately followed by a footer */
+.lipi-card-body:has(+ .lipi-card-footer) {
+    padding-bottom: 12px;
+}
+
+
+/* ==========================================================================
+   CARD FOOTER
+   ========================================================================== */
+
+.lipi-card-footer {
+    padding: 10px 16px;
+    /* Same optional-token fallback as .lipi-card-header above (A26):
+       --color-border-tertiary → --color-border-subtle, so the footer/body
+       divider line cannot vanish in a consuming project. */
+    border-top: 0.5px solid var(--color-border-tertiary, var(--color-border-subtle));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Footer alignment variants */
+.lipi-card-footer-start        { justify-content: flex-start; }
+.lipi-card-footer-end          { justify-content: flex-end; }
+.lipi-card-footer-spacebetween { justify-content: space-between; }

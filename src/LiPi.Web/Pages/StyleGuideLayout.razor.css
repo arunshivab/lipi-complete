@@ -1,0 +1,589 @@
+/* ============================================================
+   StyleGuide.razor.css — Blazor CSS Isolation
+   ============================================================
+   SPEC:    docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md
+   PHASE:   Phase 2 Sub-step 2.0 — Foundation showcase
+            Phase 2 Sub-step 2.1 — Buttons component showcase
+   PATTERN: Blazor CSS Isolation (auto-scoped, never leaks)
+
+   ZERO hardcoded colors — all values reference theme tokens.
+   ============================================================ */
+
+/* ---------- Page wrapper ---------- */
+.sg-page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--sp-xl) var(--sp-lg);
+}
+
+/* ---------- Top bar ---------- */
+.sg-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-xl);
+    padding-bottom: var(--sp-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+    margin-bottom: var(--sp-xl);
+}
+
+.sg-titleblock {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-xs);
+}
+
+.sg-h1 {
+    font-family: var(--font-ui);
+    font-size: 24px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.sg-subtitle {
+    font-size: var(--ts-body);
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+.sg-status {
+    margin-top: var(--sp-xs);
+    font-size: var(--ts-small);
+    color: var(--color-text-tertiary);
+}
+
+/* ---------- Mode switcher ---------- */
+.sg-modeswitcher {
+    display: inline-flex;
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-md);
+    padding: 3px;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.sg-mode-btn {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 6px 14px;
+    font-family: var(--font-ui);
+    font-size: var(--ts-label);
+    font-weight: var(--fw-medium);
+    color: var(--color-text-secondary);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: background var(--tr-fast), color var(--tr-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sg-mode-btn:hover {
+    color: var(--color-text-primary);
+}
+
+.sg-mode-btn.active {
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    box-shadow: var(--sh-sm);
+}
+
+.sg-mode-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-primary-pale);
+}
+
+.sg-mode-icon {
+    display: inline-block;
+    line-height: 1;
+}
+
+/* ---------- Layout ---------- */
+.sg-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--sp-xl);
+    align-items: start;
+}
+
+@media (max-width: 880px) {
+    .sg-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Sidebar ---------- */
+.sg-sidebar {
+    position: sticky;
+    top: var(--sp-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-lg);
+    padding: var(--sp-md) 0;
+}
+
+.sg-nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sg-nav-header {
+    font-size: var(--ts-th);
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-tertiary);
+    margin: 0 0 var(--sp-xs) 0;
+    padding-left: var(--sp-sm);
+}
+
+.sg-nav-link {
+    display: block;
+    padding: 6px var(--sp-sm);
+    font-size: var(--ts-body);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    border-radius: var(--r-sm);
+    transition: background var(--tr-fast), color var(--tr-fast);
+}
+
+.sg-nav-link:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.sg-nav-link.active {
+    background: var(--color-primary-pale);
+    color: var(--color-primary);
+    font-weight: var(--fw-medium);
+}
+
+.sg-nav-disabled {
+    color: var(--color-text-tertiary);
+    font-style: italic;
+    font-size: var(--ts-small);
+    padding: 6px var(--sp-sm);
+}
+
+/* ---------- Content sections ---------- */
+.sg-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2xl);
+    min-width: 0;  /* prevent overflow in grid child */
+}
+
+.sg-section {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--r-lg);
+    padding: var(--sp-xl);
+    box-shadow: var(--sh-sm);
+    scroll-margin-top: var(--sp-xl);
+}
+
+.sg-h2 {
+    font-family: var(--font-ui);
+    font-size: 20px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: 0 0 var(--sp-sm) 0;
+    letter-spacing: -0.01em;
+}
+
+.sg-h3 {
+    font-family: var(--font-ui);
+    font-size: var(--ts-section);
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: var(--sp-lg) 0 var(--sp-md) 0;
+}
+
+.sg-h3:first-of-type {
+    margin-top: var(--sp-md);
+}
+
+.sg-p {
+    font-size: var(--ts-body);
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin: 0 0 var(--sp-md) 0;
+}
+
+.sg-code {
+    font-family: var(--font-mono);
+    font-size: var(--ts-mono-data);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--color-border-subtle);
+}
+
+/* ---------- Color swatches ---------- */
+.sg-swatch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-md);
+    margin-bottom: var(--sp-md);
+}
+
+.sg-swatch {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 140px;
+}
+
+.sg-swatch-box {
+    width: 100%;
+    height: 60px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--color-border-default);
+    box-shadow: var(--sh-sm);
+}
+
+.sg-swatch-label {
+    font-family: var(--font-mono);
+    font-size: var(--ts-micro);
+    color: var(--color-text-secondary);
+    word-break: break-all;
+    line-height: 1.3;
+}
+
+/* ---------- Typography samples ---------- */
+.sg-typo-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.sg-typo-row {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--sp-lg);
+    align-items: baseline;
+    padding: var(--sp-md) 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sg-typo-row:last-child {
+    border-bottom: 0;
+}
+
+.sg-typo-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sg-typo-spec {
+    font-size: var(--ts-micro);
+    color: var(--color-text-tertiary);
+}
+
+.sg-typo-sample {
+    color: var(--color-text-primary);
+    line-height: 1.4;
+}
+
+/* ---------- Spacing ---------- */
+.sg-spacing-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-sm);
+}
+
+.sg-spacing-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 60px;
+    gap: var(--sp-md);
+    align-items: center;
+}
+
+.sg-spacing-token {
+    justify-self: start;
+}
+
+.sg-spacing-bar {
+    height: 16px;
+    background: var(--color-primary);
+    border-radius: var(--r-sm);
+    transition: background var(--tr-fast);
+}
+
+.sg-spacing-px {
+    font-family: var(--font-mono);
+    font-size: var(--ts-small);
+    color: var(--color-text-secondary);
+}
+
+/* ---------- Radius ---------- */
+.sg-radius-row {
+    display: flex;
+    gap: var(--sp-lg);
+    flex-wrap: wrap;
+}
+
+.sg-radius-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.sg-radius-box {
+    width: 80px;
+    height: 80px;
+    background: var(--color-primary-pale);
+    border: 2px solid var(--color-primary);
+}
+
+.sg-radius-px {
+    font-family: var(--font-mono);
+    font-size: var(--ts-micro);
+    color: var(--color-text-tertiary);
+}
+
+/* ---------- Shadows ---------- */
+.sg-shadow-row {
+    display: flex;
+    gap: var(--sp-2xl);
+    flex-wrap: wrap;
+    padding: var(--sp-md) 0 var(--sp-xl) 0;  /* extra bottom space so lg shadow isn't clipped */
+}
+
+.sg-shadow-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-sm);
+}
+
+.sg-shadow-box {
+    width: 140px;
+    height: 80px;
+    background: var(--color-bg-surface);
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sg-shadow-label {
+    font-size: var(--ts-small);
+    color: var(--color-text-secondary);
+}
+
+/* ============================================================
+   Phase 2.1 — Buttons section (LipiButton showcase)
+   ============================================================ */
+
+.sg-button-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-md);
+    margin: var(--sp-md) 0 var(--sp-xl) 0;
+}
+
+.sg-button-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-md);
+}
+
+.sg-button-row:last-child {
+    margin-bottom: 0;
+}
+
+.sg-button-label {
+    display: inline-block;
+    min-width: 80px;
+    font-family: var(--font-mono);
+    font-size: var(--ts-small);
+    color: var(--color-text-secondary);
+}
+
+.sg-state-hint {
+    font-size: var(--ts-small);
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+.sg-use-case {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md);
+    flex-wrap: wrap;
+    padding: var(--sp-md) 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sg-use-case:last-child {
+    border-bottom: 0;
+}
+
+.sg-use-case-label {
+    min-width: 240px;
+    font-size: var(--ts-body);
+    color: var(--color-text-secondary);
+}
+
+.sg-use-case-feedback {
+    font-family: var(--font-mono);
+    font-size: var(--ts-small);
+    color: var(--color-primary);
+}
+
+.sg-form-width {
+    width: 100%;
+    max-width: 320px;
+}
+
+/* ============================================================
+   Phase 2.2 Batch 6 — Text Inputs section (LipiTextBox / Area /
+   NumberInput / Select / Combobox showcase + alignment row)
+   ============================================================ */
+
+/* Generic input grid — 4-column responsive default for component states.
+   sg-input-grid-3 / -2 override columns for sections that pair fewer items. */
+.sg-input-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--sp-md);
+    margin: var(--sp-md) 0 var(--sp-xl) 0;
+    align-items: start;
+}
+
+.sg-input-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sg-input-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+    .sg-input-grid-2,
+    .sg-input-grid-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Compound row for "Title + First Name" / "DOB + Age" composition demos.
+   Uses 3-column grid with Cols=1/Cols=2 hint on the components themselves. */
+.sg-compound-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-md);
+    margin: var(--sp-sm) 0 var(--sp-xl) 0;
+    align-items: start;
+}
+
+@media (max-width: 720px) {
+    .sg-compound-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Alignment row (showcase-only) ----------
+   The third column wraps LipiButton in .lipi-input-wrapper structure for
+   label/helper typography parity with the other two columns. Real forms do
+   NOT do this — buttons live outside form-field grids. The .sg-button-shell
+   reserves the same vertical space as a 32px input field would, so the
+   button visually sits at the same Y as the LipiTextBox/LipiSelect fields
+   on either side. */
+.sg-align-row {
+    align-items: start;
+}
+
+.sg-button-wrapper {
+    /* The LipiButton is wrapped in lipi-input-wrapper for label + helper parity.
+       No extra rules needed — inherits from the shared .lipi-input-wrapper rules
+       in lipi-inputs.css. This selector exists for any future tweak. */
+}
+
+.sg-button-shell {
+    /* Mimics .lipi-input-field's height so the button row aligns with adjacent
+       input fields. The wrapped LipiButton has its own 32px height, so this
+       shell just provides the vertical-rhythm container that input fields use. */
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+}
+
+/* Section spacing tweak — text-input section has many sub-headings, so reduce
+   the default sg-h3:first-of-type top margin to avoid wasted vertical space
+   between each sub-heading and its grid. */
+#text-inputs .sg-h3 {
+    margin-top: var(--sp-md);
+}
+
+#text-inputs .sg-h3:first-of-type {
+    margin-top: var(--sp-md);
+}
+
+/* ============================================================
+   Phase 2.6.1 — Cards section (LipiCard showcase)
+   AMEND: CHANGE-LOG.md A27 — #cards section expanded to the full
+          spec §15 showcase (9 demonstrations). Showcase-only layout
+          helpers; the component owns its own visual design via
+          lipi-cards.css + LipiCard.razor.css.
+   ============================================================ */
+
+/* Demo grids — responsive column counts for the variant / accent /
+   slot / metric rows. Collapse to 2-up on narrow viewports. */
+.sg-card-grid {
+    display: grid;
+    gap: var(--sp-md);
+    margin: var(--sp-sm) 0 var(--sp-lg) 0;
+    align-items: start;
+}
+
+.sg-card-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.sg-card-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sg-card-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 880px) {
+    .sg-card-grid-5,
+    .sg-card-grid-4,
+    .sg-card-grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Single-card demos (slotted / free-content / elevated / href / disabled) —
+   constrained width so they don't stretch the full content column. */
+.sg-card-single {
+    margin: var(--sp-sm) 0 var(--sp-lg) 0;
+    max-width: 480px;
+}
+
+/* Caption line under each demo sub-heading. */
+.sg-demo-note {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin: 0 0 var(--sp-sm) 0;
+    line-height: 1.5;
+}
+
+/* Metric-card inner content (demo 6 — flat metric dashboard). */
+.sg-metric-value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    line-height: 1.2;
+}
+
+.sg-metric-label {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+}

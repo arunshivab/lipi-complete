@@ -1,0 +1,141 @@
+/* SPEC:  docs/03-LipiAlert-Spec.md §7 (visual design)
+   PHASE: 2.6.1 — Layout components
+   AMEND: CHANGE-LOG.md A23 — critical header strip alignment fix:
+            (1) margin-top -0.85rem → 0  — the -0.85rem overshot the alert's
+                top edge (wrapper already has padding-top:0) and the overshoot
+                was clipped by overflow:hidden, rendering the strip content high
+            (2) horizontal padding 12px → 1rem — aligns the strip's icon + text
+                to the same left gutter as the alert body below
+            (3) line-height:1 pinned on the header text — stops the inherited
+                1.5 line-box from skewing vertical centring within the strip
+   AMEND: CHANGE-LOG.md A24 — .lipi-alert-critical-body padding shorthand
+          expanded to longhands + padding-left added, so the Critical body
+          text aligns with the icon-offset body column of every other alert
+          severity. (A24's original shared-file longhand was overridden by
+          this scoped rule's shorthand — see the rule's own comment.)
+   AMEND: CHANGE-LOG.md A25 — critical header strip gap 8px → 12px (pairs
+          with the header icon Size 14 → 18 in LipiAlert.razor) so the strip
+          uses the same [icon] gap [text] rhythm as every other alert row —
+          header icon + text now align with the alert family AND with this
+          alert's own body.
+   RULE:  Shape-only per Layout-vs-Shape rule.
+          All layout (display, flex, padding, colors) lives in lipi-alerts.css.
+          This file: critical header strip, action button shapes, icon sizing.
+*/
+
+
+/* =========================================================================
+   CRITICAL FILLED — header strip
+   The dark red header bar separates the title from the body in Critical alerts.
+   display:flex etc. in lipi-alerts.css; visual shape (bg, padding) here.
+   ========================================================================= */
+
+.lipi-alert-critical-header {
+    background: #A32D2D;
+    color: #FCEBEB;
+    display: flex;
+    align-items: center;
+    /* gap: 12px — matches .lipi-alert's gap (lipi-alerts.css). Combined with
+       the 18px header icon (LipiAlert.razor) and the strip's 1rem left padding,
+       the header uses the SAME [icon] gap [text] rhythm as every standard alert
+       row: header icon lands at 1rem (aligned with the family's icons), header
+       text lands at 1rem + 18 + 12 = 1rem + 30px — aligned with the family's
+       text AND with this alert's own body, which A24 placed at 1rem + 30px.
+       A25: was 8px, which (with the old 14px icon) left the header text ~8px
+       short of the body column. */
+    gap: 12px;
+    /* Full-bleed horizontally — pulls to the alert's left/right edges. The
+       critical filled wrapper (lipi-alerts.css) has 1rem horizontal padding,
+       so -1rem cancels it and the strip background reaches both edges. */
+    margin: 0 -1rem 12px;
+    /* margin-top: 0 — the critical filled wrapper sets `padding-top: 0`
+       (lipi-alerts.css), so the strip already sits flush against the alert's
+       true top edge. NO upward pull is needed.
+       Phase 2.6.x A23 fix: this was `-0.85rem`, which pulled the strip 0.85rem
+       ABOVE the alert's top edge — the wrapper's `overflow: hidden` then clipped
+       the overshoot, so the strip's content box was effectively cropped at the
+       top and the icon + text rendered visually high / off-centre within the
+       red band. The earlier comment reasoned "wrapper padding-top is 0, so
+       -0.85rem bleeds to the top" — but if padding-top is already 0 the strip
+       is ALREADY at the top, and a negative margin-top overshoots past it. */
+    margin-top: 0;
+    /* Symmetric vertical padding so align-items:center centres cleanly
+       (Phase 2.6.3 Stage 2C). Horizontal padding = 1rem to match the alert
+       body's gutter — the strip's icon + text now align on the same left edge
+       as the title/message/actions in .lipi-alert-critical-body below
+       (A23: was 12px, which sat ~4px inboard of the 1rem body gutter). */
+    padding: 10px 1rem;
+}
+
+.lipi-alert-critical-header-text {
+    font-size: var(--ts-label);
+    font-weight: var(--fw-medium);
+    /* line-height: 1 — without this the text span inherits line-height 1.5
+       from .lipi-alert, producing a tall line-box with asymmetric space above
+       and below the glyphs. align-items:center then centres that tall box, but
+       the visible glyphs sit high within it. Pinning to 1 makes the line-box
+       hug the glyphs so centring is true to what the eye sees (A23). */
+    line-height: 1;
+}
+
+.lipi-alert-critical-body {
+    /* Bottom padding closes the alert box below the actions row.
+       Left padding (A24 follow-up) reinstates the icon-column offset the
+       Critical layout lacks: every non-critical alert is `[icon] gap [body]`
+       (.lipi-alert is display:flex, gap:12px), so its body text starts at
+       wrapper-padding-left + icon-width + gap. The Critical alert's shield
+       icon lives in the header strip, not beside the body — so without this
+       the body would start ~30px left of every other severity's body text,
+       breaking the family's shared text column when alerts are stacked.
+         icon width = 18px  (.lipi-alert-icon font-size, holds an 18px LucideIcon)
+         gap        = 12px  (the same literal as .lipi-alert's gap)
+
+       A24 originally placed this padding-left in the SHARED lipi-alerts.css.
+       That was wrong: this scoped rule sets `padding` as a SHORTHAND, which
+       sets padding-left:0 explicitly, and Blazor's scoped-CSS attribute
+       selector outspecifies the shared file — so the shared longhand was
+       silently overridden and the body never moved. Both padding sides now
+       live here as longhands, in one rule, in the file that wins the cascade.
+       See CHANGE-LOG A24. */
+    padding-bottom: 0.85rem;
+    padding-left: calc(18px + 12px);
+}
+
+
+/* =========================================================================
+   STRUCTURED ACTION BUTTONS (PrimaryActionLabel / SecondaryActionLabel)
+   Styled to match alert severity context.
+   AlertActions slot is free-form — consumer brings their own LipiButton styles.
+   ========================================================================= */
+
+.lipi-alert-action-primary,
+.lipi-alert-action-secondary {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: var(--lipi-alert-radius, var(--r-sm));
+    border: 1px solid currentColor;
+    cursor: pointer;
+    font-weight: var(--fw-medium);
+    transition: background var(--tr-fast), opacity var(--tr-fast);
+    background: transparent;
+    color: inherit;
+}
+
+.lipi-alert-action-primary {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.lipi-alert-action-primary:hover {
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.lipi-alert-action-secondary:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.lipi-alert-action-primary:focus-visible,
+.lipi-alert-action-secondary:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}

@@ -1,0 +1,15 @@
+@* SPEC:  docs/04-LipiCard-Spec.md §2 (sub-components)
+   PHASE: 2.6.1 — Layout components
+   Renders lipi-card-body div directly — no parent registration needed.
+*@
+
+@using Microsoft.AspNetCore.Components
+
+<div class="lipi-card-body">
+    @ChildContent
+</div>
+
+@code {
+    [CascadingParameter] private LipiCard? Parent { get; set; }  // optional
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,182 @@
+@* SPEC:  docs/04-LipiCard-Spec.md — Phase 2.6.1
+   PHASE: 2.6.1 — Layout components
+   AMEND: CHANGE-LOG.md A27 — spec reconciliation.
+
+   Architecture: sub-components (CardHeader/Body/Footer) render their own HTML
+   directly. No registration, no hidden-div trick. CascadingValue wraps
+   ChildContent so sub-components can optionally reference the parent.
+   IsFixed="true" — the cascaded value is `this`, which never changes for the
+   component's lifetime (A27).
+
+   INTERACTIVITY MODEL (A27 — single source of truth).
+   `IsInteractive` is the ONE input that drives the render path, the
+   `lipi-card-clickable` CSS class, AND `tabindex`. They can no longer desync.
+       IsInteractive = Href set || OnClick wired || Clickable=="true"
+                       || Variant == CardVariant.Clickable
+   Spec §4 defines CardVariant.Clickable as a variant WITH hover/active/selected
+   states, so the variant alone counts as interactive (Option B). Spec §5's
+   trigger list is read as non-exhaustive. `CardVariant.Clickable`'s base look
+   is `lipi-card-outlined`; interactivity is layered on via `IsInteractive`.
+
+   Three render paths:
+   - Href set        → <a> element (navigation, correct link semantics).
+                       Disabled drops the live href (not navigable / focusable).
+   - IsInteractive   → <div role="button"> with keyboard handler.
+   - Neither         → plain <div> (display only).
+
+   ENV-GATED GUARD (A27). `Variant="Clickable"` with nothing wired renders a
+   focusable button that does nothing — a silent footgun. OnInitialized throws
+   in Development, logs in Production. Mirrors LipiTab (A21) / LipiButton (A14).
+*@
+
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.Extensions.Logging
+
+@inject IWebHostEnvironment Env
+@inject ILogger<LipiCard> Log
+
+@if (!string.IsNullOrEmpty(Href))
+{
+    <a href="@(Disabled ? (string?)null : Href)"
+       class="@WrapperCssClasses"
+       aria-disabled="@(Disabled ? "true" : (string?)null)"
+       aria-current="@(Selected ? "true" : (string?)null)">
+        <CascadingValue Value="this" IsFixed="true">
+            @ChildContent
+        </CascadingValue>
+    </a>
+}
+else if (IsInteractive)
+{
+    <div class="@WrapperCssClasses"
+         role="button"
+         tabindex="@(Disabled ? -1 : 0)"
+         aria-disabled="@(Disabled ? "true" : (string?)null)"
+         aria-pressed="@(Selected ? "true" : "false")"
+         @onclick="HandleClick"
+         @onkeydown="HandleKeyDown">
+        <CascadingValue Value="this" IsFixed="true">
+            @ChildContent
+        </CascadingValue>
+    </div>
+}
+else
+{
+    <div class="@WrapperCssClasses">
+        <CascadingValue Value="this" IsFixed="true">
+            @ChildContent
+        </CascadingValue>
+    </div>
+}
+
+
+@code {
+    // ==========================================================================
+    // PARAMETERS
+    // ==========================================================================
+
+    [Parameter] public CardVariant   Variant     { get; set; } = CardVariant.Outlined;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnClick     { get; set; }
+    [Parameter] public string?       Href        { get; set; }
+    [Parameter] public bool          Clickable   { get; set; }
+    [Parameter] public bool          Selected    { get; set; }
+    [Parameter] public EventCallback<bool> OnSelectedChanged { get; set; }
+    [Parameter] public CardAccentColor? AccentColor { get; set; }
+    [Parameter] public bool          Disabled    { get; set; }
+    [Parameter] public string?       Class       { get; set; }
+
+
+    // ==========================================================================
+    // ENV-GATED GUARD (A27)
+    // Variant="Clickable" with nothing wired = a focusable role="button" that
+    // does nothing. OnInitialized-scoped — runtime Variant changes are not a
+    // supported pattern. Development throws; Production logs and renders
+    // harmlessly (the card is inert — there is nothing to fall back to).
+    // ==========================================================================
+
+    protected override void OnInitialized()
+    {
+        if (Variant == CardVariant.Clickable
+            && !OnClick.HasDelegate
+            && string.IsNullOrEmpty(Href)
+            && !Clickable)
+        {
+            var msg = "[LipiCard] Variant=CardVariant.Clickable is set but no "
+                    + "OnClick, Href, or Clickable=\"true\" was provided — the "
+                    + "card would render as a focusable button with no action. "
+                    + "Wire OnClick/Href, or set Clickable=\"true\" if you "
+                    + "genuinely want clickable styling without an action.";
+
+            if (Env.IsDevelopment())
+                throw new InvalidOperationException(msg);
+
+            Log.LogWarning(msg);
+        }
+    }
+
+
+    // ==========================================================================
+    // INTERACTIVITY — single source of truth (A27)
+    // Drives render path, lipi-card-clickable class, and tabindex together.
+    // ==========================================================================
+
+    private bool IsInteractive =>
+        !string.IsNullOrEmpty(Href)
+        || OnClick.HasDelegate
+        || Clickable
+        || Variant == CardVariant.Clickable;
+
+
+    // ==========================================================================
+    // EVENT HANDLERS
+    // ==========================================================================
+
+    private async Task HandleClick()
+    {
+        if (Disabled) return;
+        await OnClick.InvokeAsync();
+        if (OnSelectedChanged.HasDelegate)
+            await OnSelectedChanged.InvokeAsync(!Selected);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (Disabled) return;
+        if (e.Key is "Enter" or " ")
+            await HandleClick();
+    }
+
+
+    // ==========================================================================
+    // CSS CLASS COMPOSITION
+    // Variant switch → base look. CardVariant.Clickable's base look IS Outlined;
+    // the interactive layer (lipi-card-clickable) is added separately from
+    // IsInteractive so the class and the render path can never disagree (A27).
+    // ==========================================================================
+
+    private string WrapperCssClasses
+    {
+        get
+        {
+            var classes = new System.Collections.Generic.List<string> { "lipi-card" };
+
+            classes.Add(Variant switch
+            {
+                CardVariant.Flat      => "lipi-card-flat",
+                CardVariant.Elevated  => "lipi-card-elevated",
+                CardVariant.Accent    => $"lipi-card-accent lipi-card-accent-{AccentColor?.ToString().ToLowerInvariant() ?? "primary"}",
+                CardVariant.Clickable => "lipi-card-outlined",
+                _                     => "lipi-card-outlined"
+            });
+
+            if (IsInteractive) classes.Add("lipi-card-clickable");
+            if (Selected)      classes.Add("lipi-card-selected");
+            if (Disabled)      classes.Add("lipi-card-disabled");
+            if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+
+            return string.Join(" ", classes);
+        }
+    }
+}

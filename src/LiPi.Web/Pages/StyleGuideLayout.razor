@@ -1,0 +1,345 @@
+@*
+    SPEC:  Phase 2.6.1 — Layout Components smoke test
+    PAGE:  /admin/style-guide/layout
+    AMEND: Phase 2.6.3 Stage 2 — Tabs section restored after registration loop fix
+           (LipiTabRegistration.cs, LipiTab.razor, LipiTabs.razor)
+    AMEND: CHANGE-LOG.md A21 — Tabs demo corrected to teach the two "optional"
+           mechanisms. Underline Review tab now uses State="TabState.Optional"
+           (the dashed-border cue) — it previously used Optional="true", which is
+           the Vertical-rail divider bool and is inert on Underline, so the dashed
+           border never rendered. Vertical Notes tab keeps Optional="true" (rail
+           divider) — correct usage for that variant. Captions added to both.
+*@
+
+@page "/admin/style-guide/layout"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using LiPi.Web.Components.Shared
+
+<SectionContent SectionName="page-title">Style Guide — Layout 2.6.1</SectionContent>
+
+<div class="sg-page">
+
+    @* data-enhance-nav="false" on cross-page links — see App.razor docs for rationale.
+       Stage 1C of Phase 2.6.3 stabilisation. Demo-only fix. *@
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;font-size:12px">
+        <a href="/admin/style-guide"          data-enhance-nav="false" style="color:var(--color-text-secondary)">← Foundation</a>
+        <span style="color:var(--color-text-tertiary)">|</span>
+        <span style="color:var(--color-text-primary);font-weight:500">Phase 2.6.1 — Layout</span>
+        <span style="color:var(--color-text-tertiary)">|</span>
+        <a href="/admin/style-guide/overlays" data-enhance-nav="false" style="color:var(--color-text-secondary)">Phase 2.6.2 — Overlays →</a>
+    </div>
+
+    <!-- ============================================================
+         TABS — Phase 2.6.1 (restored after Phase 2.6.3 Stage 2 fix)
+         ============================================================
+         All three variants on one page exercises the registration loop fix
+         under realistic load: 3 LipiTabs × 4 LipiTab children = 12 instances.
+         If the loop is still present, this page hangs on first render.
+         If the dirty-check is working, the page renders instantly. -->
+
+    <!-- UNDERLINE VARIANT -->
+    <div class="sg-section" style="margin-bottom:24px">
+        <h2 class="sg-h2">Tabs — Underline (default)</h2>
+        <p class="sg-p">Horizontal strip with active underline. Default variant.</p>
+        <p class="sg-p" style="font-size:12px;color:var(--color-text-secondary)">
+            The <strong>Review</strong> tab uses <code class="sg-code">State="TabState.Optional"</code>
+            — the dashed-border cue for fully-optional content. That is the Underline variant's
+            optional treatment. The separate <code class="sg-code">Optional</code> bool (section
+            divider) is Vertical-only and has no effect here — see the Vertical demo below.
+        </p>
+
+        <LipiTabs Variant="TabsVariant.Underline" AriaLabel="Underline tabs demo">
+            <LipiTab Key="demo-u-1" Label="Demographics" Icon="user">
+                <div style="padding:16px;font-size:13px">Demographics panel content.</div>
+            </LipiTab>
+            <LipiTab Key="demo-u-2" Label="Contact" Icon="phone">
+                <div style="padding:16px;font-size:13px">Contact details panel content.</div>
+            </LipiTab>
+            <LipiTab Key="demo-u-3" Label="Address" Icon="map-pin">
+                <div style="padding:16px;font-size:13px">Address panel content.</div>
+            </LipiTab>
+            <!-- Optional content cue, Underline variant = State="TabState.Optional" (dashed border).
+                 NOT Optional="true" — that bool is the Vertical-rail section divider and is inert
+                 on Underline (it would now throw in Development via the LipiTab env-gated guard).
+                 See LipiTab.razor header "TWO OPTIONAL MECHANISMS" / CHANGE-LOG A21. -->
+            <LipiTab Key="demo-u-4" Label="Review" Icon="check-circle" State="TabState.Optional">
+                <div style="padding:16px;font-size:13px">Optional review panel — note the dashed border on the Review tab.</div>
+            </LipiTab>
+        </LipiTabs>
+    </div>
+
+    <!-- PILL VARIANT -->
+    <div class="sg-section" style="margin-bottom:24px">
+        <h2 class="sg-h2">Tabs — Pill</h2>
+        <p class="sg-p">Segmented container, no state coloring.</p>
+
+        <LipiTabs Variant="TabsVariant.Pill" AriaLabel="Pill tabs demo">
+            <LipiTab Key="demo-p-1" Label="Day">
+                <div style="padding:16px;font-size:13px">Day view content.</div>
+            </LipiTab>
+            <LipiTab Key="demo-p-2" Label="Week">
+                <div style="padding:16px;font-size:13px">Week view content.</div>
+            </LipiTab>
+            <LipiTab Key="demo-p-3" Label="Month">
+                <div style="padding:16px;font-size:13px">Month view content.</div>
+            </LipiTab>
+            <LipiTab Key="demo-p-4" Label="Year">
+                <div style="padding:16px;font-size:13px">Year view content.</div>
+            </LipiTab>
+        </LipiTabs>
+    </div>
+
+    <!-- VERTICAL VARIANT -->
+    <div class="sg-section" style="margin-bottom:24px">
+        <h2 class="sg-h2">Tabs — Vertical</h2>
+        <p class="sg-p">Left rail, rounded block active.</p>
+        <p class="sg-p" style="font-size:12px;color:var(--color-text-secondary)">
+            The <strong>Notes</strong> tab uses <code class="sg-code">Optional="true"</code>
+            — this inserts the section divider above it in the rail. That is the Vertical variant's
+            optional treatment. For the dashed-border cue instead, use
+            <code class="sg-code">State="TabState.Optional"</code> (shown in the Underline demo above).
+        </p>
+
+        <LipiTabs Variant="TabsVariant.Vertical" AriaLabel="Vertical tabs demo">
+            <LipiTab Key="demo-v-1" Label="Overview" Icon="layout-dashboard">
+                <div style="padding:16px;font-size:13px">Overview panel content.</div>
+            </LipiTab>
+            <LipiTab Key="demo-v-2" Label="Medications" Icon="pill" Count="3">
+                <div style="padding:16px;font-size:13px">Medications panel — 3 active prescriptions.</div>
+            </LipiTab>
+            <LipiTab Key="demo-v-3" Label="Lab Results" Icon="flask-conical">
+                <div style="padding:16px;font-size:13px">Lab results panel content.</div>
+            </LipiTab>
+            <!-- Optional content cue, Vertical variant = Optional="true" (section divider above the tab).
+                 This is correct usage for Vertical. The dashed-border cue is a separate mechanism
+                 (State="TabState.Optional") — see LipiTab.razor header / CHANGE-LOG A21. -->
+            <LipiTab Key="demo-v-4" Label="Notes" Icon="file-text" Optional="true">
+                <div style="padding:16px;font-size:13px">Optional notes panel — section divider appears above this tab in the rail.</div>
+            </LipiTab>
+        </LipiTabs>
+    </div>
+
+    <!-- ALERTS -->
+    <div class="sg-section" style="margin-bottom:24px">
+        <h2 class="sg-h2">Alerts — Phase 2.6.1</h2>
+        <p class="sg-p">Five severities × four styles. Critical never shows ✕.</p>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+            <LipiAlert Severity="AlertSeverity.Info"    Title="Consent pending"    Message="Treatment consent not yet signed." />
+            <LipiAlert Severity="AlertSeverity.Success" Title="Registration done"  Message="PT-2026-004821 registered." />
+            <LipiAlert Severity="AlertSeverity.Warning" Title="Duplicate found"    Message="Name + DOB match. Review before proceeding." />
+            <LipiAlert Severity="AlertSeverity.Danger"  Title="Drug interaction"   Message="Warfarin + Aspirin: major bleeding risk." />
+            <LipiAlert Severity="AlertSeverity.Critical" Title="Documented allergy — Penicillin">
+                <ChildContent>Severe Penicillin allergy (Anaphylaxis, 2019). Physician review required.</ChildContent>
+                <AlertActions>
+                    <LipiButton Variant="ButtonVariant.Danger"    OnClick="@(() => {})">Override</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" OnClick="@(() => {})">Cancel</LipiButton>
+                </AlertActions>
+            </LipiAlert>
+        </div>
+    </div>
+
+    <!-- CARDS -->
+    <!-- AMEND: CHANGE-LOG.md A27 — #cards section expanded to the full spec §15
+         showcase (9 demonstrations). Every Variant="CardVariant.Clickable" demo
+         wires OnClick / Href — a bare Clickable variant now throws in Development
+         via the A27 env-gated guard in LipiCard.OnInitialized. -->
+    <div class="sg-section" style="margin-bottom:24px">
+        <h2 class="sg-h2">Cards — Phase 2.6.1</h2>
+        <p class="sg-p">LipiCard container component — five variants, named slots (CardHeader / CardBody / CardFooter), interactive and accent treatments.</p>
+
+        <!-- 1 — all five variants -->
+        <h3 class="sg-h3">Variants</h3>
+        <p class="sg-demo-note">Outlined (default), Flat, Elevated, Clickable, Accent — side by side.</p>
+        <div class="sg-card-grid sg-card-grid-5">
+            <LipiCard Variant="CardVariant.Outlined">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Outlined</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Default — border, no shadow</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Flat">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Flat</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Subtle tint, no border</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Elevated">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Elevated</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Shadow, no border</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Clickable" OnClick="@(() => {})">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Clickable</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Hover / active / focus</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Accent" AccentColor="CardAccentColor.Primary">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Accent</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Left colour strip</div>
+                </CardBody>
+            </LipiCard>
+        </div>
+
+        <!-- 2 — clickable grid, 4 slots, one selected -->
+        <h3 class="sg-h3">Clickable grid — selection</h3>
+        <p class="sg-demo-note">Four appointment slots, one selected. Click — or Tab to a card and press Enter / Space.</p>
+        <div class="sg-card-grid sg-card-grid-4">
+            @foreach (var s in _slots)
+            {
+                var slot = s;
+                <LipiCard Variant="CardVariant.Clickable"
+                          Selected="@(_selectedSlot == slot)"
+                          OnClick="@(() => SelectSlot(slot))">
+                    <CardBody>
+                        <div style="font-size:13px;font-weight:500">@slot</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Dr. Mehta — OPD 2</div>
+                    </CardBody>
+                </LipiCard>
+            }
+        </div>
+
+        <!-- 3 — accent cards, all five colours -->
+        <h3 class="sg-h3">Accent colours</h3>
+        <p class="sg-demo-note">All five <code class="sg-code">CardAccentColor</code> values — severity language shared with LipiAlert.</p>
+        <div class="sg-card-grid sg-card-grid-5">
+            <LipiCard Variant="CardVariant.Accent" AccentColor="CardAccentColor.Primary">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Primary</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Informational</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Accent" AccentColor="CardAccentColor.Success">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Success</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Result normal</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Accent" AccentColor="CardAccentColor.Warning">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Warning</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Review recommended</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Accent" AccentColor="CardAccentColor.Danger">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Danger</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Action required</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Accent" AccentColor="CardAccentColor.Critical">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Critical</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Mandatory action</div>
+                </CardBody>
+            </LipiCard>
+        </div>
+
+        <!-- 4 — full slotted card -->
+        <h3 class="sg-h3">Slotted — header + body + footer</h3>
+        <p class="sg-demo-note">CardHeader (title + subtitle + action), CardBody, CardFooter. <code class="sg-code">HeadingLevel="4"</code> — nested under this h3.</p>
+        <div class="sg-card-single">
+            <LipiCard Variant="CardVariant.Outlined">
+                <CardHeader Title="Patient demographics" Subtitle="Last updated 10 May 2026" HeadingLevel="4">
+                    <CardHeaderAction>
+                        <LipiButton Size="ButtonSize.Small" Variant="ButtonVariant.Secondary" OnClick="@(() => {})">Edit</LipiButton>
+                    </CardHeaderAction>
+                </CardHeader>
+                <CardBody>
+                    <div style="font-size:13px">Name, date of birth, contact details and identifiers would render here — as form fields or a read-only grid.</div>
+                </CardBody>
+                <CardFooter>
+                    <LipiButton Variant="ButtonVariant.Secondary" OnClick="@(() => {})">Cancel</LipiButton>
+                    <LipiButton OnClick="@(() => {})">Save changes</LipiButton>
+                </CardFooter>
+            </LipiCard>
+        </div>
+
+        <!-- 5 — free content card (no header / footer slots) -->
+        <h3 class="sg-h3">Free content — body only</h3>
+        <p class="sg-demo-note">No CardHeader / CardFooter — the PatientNew tab-panel pattern, where the tab label is the heading.</p>
+        <div class="sg-card-single">
+            <LipiCard Variant="CardVariant.Outlined">
+                <CardBody>
+                    <div style="font-size:13px">Arbitrary content — form fields, a table, anything. No header or footer slots used.</div>
+                </CardBody>
+            </LipiCard>
+        </div>
+
+        <!-- 6 — flat metric dashboard -->
+        <h3 class="sg-h3">Flat — metric dashboard</h3>
+        <p class="sg-demo-note">Flat cards in a 3-column dashboard layout — number + label, no border.</p>
+        <div class="sg-card-grid sg-card-grid-3">
+            <LipiCard Variant="CardVariant.Flat">
+                <CardBody>
+                    <div class="sg-metric-value">47</div>
+                    <div class="sg-metric-label">Patients today</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Flat">
+                <CardBody>
+                    <div class="sg-metric-value">12 min</div>
+                    <div class="sg-metric-label">Average wait</div>
+                </CardBody>
+            </LipiCard>
+            <LipiCard Variant="CardVariant.Flat">
+                <CardBody>
+                    <div class="sg-metric-value">4.8 &#963;</div>
+                    <div class="sg-metric-label">Process sigma level</div>
+                </CardBody>
+            </LipiCard>
+        </div>
+
+        <!-- 7 — elevated featured panel -->
+        <h3 class="sg-h3">Elevated — featured panel</h3>
+        <p class="sg-demo-note">Shadow draws the eye — for featured or active content.</p>
+        <div class="sg-card-single">
+            <LipiCard Variant="CardVariant.Elevated">
+                <CardHeader Title="Next appointment" HeadingLevel="4" />
+                <CardBody>
+                    <div style="font-size:13px">10:00 AM — Dr. Mehta, Cardiology OPD. Room OPD 2.</div>
+                </CardBody>
+            </LipiCard>
+        </div>
+
+        <!-- 8 — clickable + Href (renders as <a>) -->
+        <h3 class="sg-h3">Clickable + Href — link card</h3>
+        <p class="sg-demo-note">With <code class="sg-code">Href</code> set, the card renders as an <code class="sg-code">&lt;a&gt;</code> element — inspect to confirm. Correct keyboard and right-click semantics.</p>
+        <div class="sg-card-single">
+            <LipiCard Variant="CardVariant.Clickable" Href="/admin/style-guide/layout">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Search result — PT-2026-004821</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">Navigates on click — renders as &lt;a href&gt;</div>
+                </CardBody>
+            </LipiCard>
+        </div>
+
+        <!-- 9 — disabled clickable card -->
+        <h3 class="sg-h3">Disabled — clickable card</h3>
+        <p class="sg-demo-note">Disabled — hover and click are blocked, opacity muted. OnClick is wired but never fires.</p>
+        <div class="sg-card-single">
+            <LipiCard Variant="CardVariant.Clickable" Disabled="true" OnClick="@(() => {})">
+                <CardBody>
+                    <div style="font-size:13px;font-weight:500">Unavailable slot</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:3px">12:00 PM — fully booked</div>
+                </CardBody>
+            </LipiCard>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    // Demo 2 — clickable appointment-slot grid (one slot pre-selected).
+    private readonly string[] _slots = { "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM" };
+    private string _selectedSlot = "10:00 AM";
+
+    private void SelectSlot(string slot) => _selectedSlot = slot;
+}

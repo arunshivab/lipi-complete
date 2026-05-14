@@ -1,0 +1,304 @@
+@* SPEC:  docs/02-LipiTabs-Spec.md §3 (LipiTab parameters)
+   PHASE: 2.6.1 — Layout components
+   AMEND: Phase 2.6.3 Stage 2 — registration loop fix
+   AMEND: CHANGE-LOG.md A21 — "two Optional mechanisms" mitigation
+          (XML-doc accuracy fix + env-gated Optional-on-non-Vertical guard)
+
+   LipiTab is a pure parameter carrier + self-registrar.
+   It renders NO markup. LipiTabs reads registered tabs and renders
+   the tablist buttons + panels.
+
+   Registration flow:
+     1. LipiTabs wraps ChildContent in <CascadingValue Value="this">
+     2. LipiTab receives the parent via [CascadingParameter]
+     3. LipiTab generates a stable resolved key once (OnInitialized)
+     4. LipiTab calls parent.RegisterTab() in OnInitialized
+     5. LipiTab calls parent.UpdateTab() in OnParametersSet — ONLY when
+        a meaningful parameter actually changed (dirty-check pattern,
+        prevents infinite re-render loop with the parent's StateHasChanged).
+     6. LipiTab calls parent.UnregisterTab() in Dispose (tab removed)
+
+   Phase 2.6.3 Stage 2 — what changed and why:
+
+   PRIOR BUG: OnParametersSet unconditionally called Parent.UpdateTab(...).
+   UpdateTab called StateHasChanged() on the parent, which re-rendered the
+   CascadingValue, which re-set parameters on every LipiTab child, which
+   re-fired OnParametersSet, which re-called UpdateTab — infinite loop.
+   With 4 children × 3 LipiTabs instances on the Layout demo page = 12
+   loop participants saturating the thread pool before the circuit could
+   complete its first render.
+
+   FIX: Two layers of defense.
+     (1) Here in LipiTab: cache previous parameter values in OnInitialized.
+         OnParametersSet computes new values and only calls UpdateTab when
+         a value genuinely changed. ChildContent is excluded from the check
+         (Razor regenerates RenderFragment delegates on every render even
+         when content is identical, so reference comparison would always
+         report "changed" and defeat the dirty-check). The LATEST ChildContent
+         delegate is always passed through, just without triggering a rerender.
+     (2) In LipiTabs.UpdateTab: even if UpdateTab is called, compare the new
+         registration against the existing one via HasSameParameterValues and
+         skip StateHasChanged when truly unchanged. Belt-and-braces.
+
+   Auto-key generation: previously lived as a static counter in
+   LipiTabRegistration which generated a NEW key on every BuildRegistration
+   call for tabs without Key. That meant UpdateTab/UnregisterTab could never
+   find existing entries (different ResolvedKey each call). Auto-key now
+   lives on the LipiTab INSTANCE, generated exactly once in OnInitialized,
+   reused for every subsequent BuildRegistration call. Stable per instance.
+
+   ──────────────────────────────────────────────────────────────────────────
+   TWO "OPTIONAL" MECHANISMS — read before touching Optional or TabState.Optional
+
+   LipiTab expresses optionality through TWO intentionally separate mechanisms.
+   They are NOT duplicates and must not be merged or "deduplicated":
+
+     • bool Optional             → Vertical variant ONLY. Inserts a section
+                                   divider in the rail before this tab. Inert
+                                   (no visual effect) in Underline and Pill.
+
+     • State = TabState.Optional → The dashed-border colour treatment. Renders
+                                   the dashed border in the Underline variant;
+                                   treats the tab as stateless (no state dot)
+                                   in Vertical. Ignored by Pill.
+
+   The "optional" cue is variant-specific: Vertical shows it as a divider
+   (bool Optional), Underline shows it as a dashed border (State=Optional).
+   A developer who sets bool Optional on an Underline/Pill LipiTabs gets
+   nothing — so OnInitialized throws in Development (env-gated guard below)
+   to surface the mistake instead of failing silently. Full rationale and the
+   decision record: docs/02-LipiTabs-Spec.md and CHANGE-LOG.md A21.
+   ──────────────────────────────────────────────────────────────────────────
+*@
+
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.Extensions.Logging
+@implements IDisposable
+@inject IWebHostEnvironment Env
+@inject ILogger<LipiTab> Log
+
+@* No markup — parent LipiTabs handles all rendering *@
+
+@code {
+    // ==========================================================================
+    // PARENT CASCADE
+    // ==========================================================================
+
+    [CascadingParameter] private LipiTabs? Parent { get; set; }
+
+
+    // ==========================================================================
+    // IDENTITY
+    // ==========================================================================
+
+    /// <summary>Stable string key for this tab. Used by LipiTabs for
+    /// @bind-ActiveTab binding and for panel/button aria wiring.
+    /// Auto-generated ("tab-{8-char-guid}") if not provided.
+    /// Must be unique within the same LipiTabs instance.</summary>
+    [Parameter] public string? Key { get; set; }
+
+    /// <summary>Visible label text. Required. Used as aria-label + tooltip
+    /// in IconOnly Vertical mode where the text is visually hidden.</summary>
+    [Parameter] public string Label { get; set; } = string.Empty;
+
+
+    // ==========================================================================
+    // VISUAL
+    // ==========================================================================
+
+    /// <summary>Lucide icon name (e.g. "user", "map-pin", "clipboard").
+    /// Optional for Underline and Pill. Required when parent LipiTabs
+    /// has IconOnly="true" (Vertical variant).</summary>
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>Validation/completion state. Drives colour treatment
+    /// (underline colour, label colour, state dot). Ignored on Pill variant.
+    /// Default: TabState.Default — neutral, no signal.
+    /// <para><see cref="TabState.Optional"/> is the dashed-border "optional content"
+    /// cue — distinct from the <see cref="Optional"/> bool below, which is the
+    /// Vertical-rail section divider. See this file's header ("TWO OPTIONAL
+    /// MECHANISMS") and docs/02-LipiTabs-Spec.md.</para></summary>
+    [Parameter] public TabState State { get; set; } = TabState.Default;
+
+    /// <summary>Count badge shown next to the label (e.g. "3 pending").
+    /// Null = no badge shown. Zero renders as "0" — use null to hide.</summary>
+    [Parameter] public int? Count { get; set; }
+
+
+    // ==========================================================================
+    // BEHAVIOUR
+    // ==========================================================================
+
+    /// <summary>Vertical variant ONLY — inserts a section divider in the rail
+    /// before this tab, visually grouping it as optional/secondary. Has NO
+    /// visual effect in the Underline or Pill variants; setting Optional="true"
+    /// on a non-Vertical LipiTabs throws in Development (env-gated guard in
+    /// OnInitialized).
+    /// <para>This is NOT the dashed-border treatment. For the dashed-border
+    /// "optional content" cue, set <see cref="State"/> to
+    /// <see cref="TabState.Optional"/> instead. <c>Optional</c> (divider) and
+    /// <c>State=TabState.Optional</c> (dashed border) are intentionally separate
+    /// mechanisms — see this file's header ("TWO OPTIONAL MECHANISMS") and
+    /// docs/02-LipiTabs-Spec.md.</para></summary>
+    [Parameter] public bool Optional { get; set; }
+
+    /// <summary>Prevents selection. Tab button has aria-disabled + cursor:not-allowed.
+    /// Panel content is not rendered regardless of RenderMode.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+
+    // ==========================================================================
+    // CONTENT
+    // ==========================================================================
+
+    /// <summary>Panel content rendered when this tab is active (Lazy) or
+    /// mounted but hidden (Eager). Required — a tab without content is an error.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+
+    // ==========================================================================
+    // INSTANCE STATE (Phase 2.6.3 Stage 2)
+    // ==========================================================================
+
+    // Stable resolved key — generated once in OnInitialized, reused thereafter.
+    // For tabs without an explicit Key parameter, we generate "tab-{8charguid}".
+    // 8 chars of a Guid is ~32 bits of entropy — plenty for distinguishing tabs
+    // within a single LipiTabs instance (collision probability vanishingly small).
+    private string _resolvedKey = string.Empty;
+
+    // Snapshot of parameter values from the previous registration build.
+    // OnParametersSet compares new values against these to decide whether the
+    // parent's UpdateTab actually needs to fire. ChildContent is excluded
+    // (RenderFragment reference changes every render — see LipiTabRegistration
+    // for rationale).
+    private string?  _prevKey;
+    private string   _prevLabel    = string.Empty;
+    private string?  _prevIcon;
+    private TabState _prevState;
+    private int?     _prevCount;
+    private bool     _prevOptional;
+    private bool     _prevDisabled;
+
+
+    // ==========================================================================
+    // LIFECYCLE — registration + cleanup
+    // ==========================================================================
+
+    protected override void OnInitialized()
+    {
+        if (Parent is null)
+            throw new InvalidOperationException(
+                "LipiTab must be a direct child of LipiTabs. " +
+                "Wrap your LipiTab components inside <LipiTabs>.</LipiTabs>.");
+
+        // ── Env-gated guard: bool Optional is Vertical-only ─────────────────
+        // See the "TWO OPTIONAL MECHANISMS" note in this file's header. `Optional`
+        // inserts a section divider in the Vertical rail and has NO effect in the
+        // Underline or Pill variants. A developer reaching for `Optional` on a
+        // non-Vertical LipiTabs almost certainly wants the dashed-border treatment
+        // — which is a different mechanism: State="TabState.Optional".
+        //
+        // Env-gated pattern (mirrors LipiButton A14 / LipiInputBase.ValidateOrFallback):
+        //   Development → throw, so the developer sees it during build/test
+        //   Production  → log + continue (the flag is simply inert; rendering is
+        //                 unaffected, so there is nothing to "fall back" to)
+        // OnInitialized-scoped deliberately: Variant changing at runtime is not a
+        // supported pattern for LipiTabs, so a once-per-instance check is sufficient.
+        if (Optional && Parent.Variant != TabsVariant.Vertical)
+        {
+            var message =
+                $"LipiTab '{Label}': Optional=\"true\" has no effect on the " +
+                $"{Parent.Variant} variant — it only inserts a section divider in the " +
+                "Vertical rail. For the dashed-border optional treatment, set " +
+                "State=\"TabState.Optional\" instead. Optional (divider) and " +
+                "State=TabState.Optional (dashed border) are intentionally separate " +
+                "mechanisms — see docs/02-LipiTabs-Spec.md.";
+
+            if (Env.IsDevelopment())
+                throw new InvalidOperationException(message);
+
+            Log.LogError("[LipiTab] {Message}", message);
+        }
+
+        // Resolve the key exactly once. If Key was provided, use it; otherwise
+        // generate a stable instance-scoped auto-key. Subsequent BuildRegistration
+        // calls reuse this value so UpdateTab/UnregisterTab can find existing
+        // entries.
+        _resolvedKey = !string.IsNullOrEmpty(Key)
+            ? Key!
+            : $"tab-{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+
+        // Seed previous-parameter snapshot to current values so OnParametersSet
+        // (which Blazor calls once on first render AFTER OnInitialized) sees
+        // "no change" and doesn't double-fire UpdateTab on top of RegisterTab.
+        SnapshotCurrentParameters();
+
+        Parent.RegisterTab(BuildRegistration());
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Parent is null) return;
+
+        // Dirty check — only call UpdateTab when a meaningful parameter changed.
+        // Breaks the OnParametersSet → UpdateTab → StateHasChanged →
+        // CascadingValue re-render → OnParametersSet infinite loop.
+        //
+        // KNOWN LIMITATION (Phase 2.6.3 Stage 2):
+        // ChildContent is excluded from the dirty check, so this also means
+        // if a tab's ChildContent captures dynamic page state (a value that
+        // changes outside the tab), the stored registration's ChildContent
+        // delegate will become stale and the panel will render with the
+        // CAPTURED-AT-REGISTRATION value, not the current one. This is fine
+        // for static panel content (the Layout page demo, the PatientNew tabs
+        // each managing their own state internally). It would be a problem
+        // for a tab whose panel content directly references a page-level
+        // counter or other dynamic value — which is an uncommon pattern.
+        // If this limitation bites in practice, the fix is architectural
+        // (move panel rendering from parent's registration list to each
+        // LipiTab's own render output) and deserves its own design pass.
+        if (!HasMeaningfulParameterChange()) return;
+
+        SnapshotCurrentParameters();
+        Parent.UpdateTab(BuildRegistration());
+    }
+
+    public void Dispose()
+    {
+        // _resolvedKey was set in OnInitialized — guaranteed non-empty if we got here
+        if (Parent is not null && !string.IsNullOrEmpty(_resolvedKey))
+            Parent.UnregisterTab(_resolvedKey);
+    }
+
+    private bool HasMeaningfulParameterChange()
+        => Key      != _prevKey
+        || Label    != _prevLabel
+        || Icon     != _prevIcon
+        || State    != _prevState
+        || Count    != _prevCount
+        || Optional != _prevOptional
+        || Disabled != _prevDisabled;
+
+    private void SnapshotCurrentParameters()
+    {
+        _prevKey      = Key;
+        _prevLabel    = Label;
+        _prevIcon     = Icon;
+        _prevState    = State;
+        _prevCount    = Count;
+        _prevOptional = Optional;
+        _prevDisabled = Disabled;
+    }
+
+    private LipiTabRegistration BuildRegistration() => new(
+        resolvedKey:  _resolvedKey,
+        key:          Key,
+        label:        Label,
+        icon:         Icon,
+        state:        State,
+        count:        Count,
+        optional:     Optional,
+        disabled:     Disabled,
+        childContent: ChildContent);
+}

@@ -1,0 +1,346 @@
+@* SPEC:  docs/03-LipiAlert-Spec.md — Phase 2.6.1
+   PHASE: 2.6.1 — Layout components
+   AMEND: docs/CHANGE-LOG.md (pending — Phase 2.6.1 batch)
+
+   Single component, no sub-components except AlertActions (RenderFragment slot).
+
+   Key safety rules (clinical decisions, DO NOT change without strategic session):
+   - Critical severity: NEVER shows ✕ button regardless of Dismissible param
+   - Critical + AutoDismissAfter: silently ignored regardless of value
+   - Critical + Style=Outline: silently upgraded to Filled with dev warning
+   - AutoDismissAfter minimum: 3 seconds (clamped if lower)
+   - Warning/Danger: never auto-dismiss regardless of AutoDismissAfter value
+*@
+
+@implements IDisposable
+
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.Extensions.Logging
+
+@inject ILogger<LipiAlert> _log
+@inject IWebHostEnvironment _env
+
+@if (!_dismissed)
+{
+    <div class="@GetWrapperCssClasses(ResolvedStyle)"
+         role="@GetAriaRole()"
+         aria-live="@GetAriaLive()"
+         aria-atomic="true">
+
+        @* ── Critical filled: dark header strip ── *@
+        @if (Severity == AlertSeverity.Critical && ResolvedStyle == AlertStyle.Filled)
+        {
+            <div class="lipi-alert-critical-header" aria-hidden="true">
+                <span class="lipi-alert-icon">
+                    @* A25: Size="18" matches the standard alert icon (line ~47 below)
+                       so the header strip uses the same [icon-18] gap-12 [text]
+                       rhythm as every other alert row — header icon aligns with
+                       the family's icons, header text aligns with the family's
+                       text AND with this alert's own body (A24). *@
+                    <LucideIcon Name="shield-x" Size="18" />
+                </span>
+                <span class="lipi-alert-critical-header-text">Critical alert — action required</span>
+            </div>
+            <div class="lipi-alert-critical-body">
+                @AlertBody
+            </div>
+        }
+        else
+        {
+            @* ── Standard icon ── *@
+            <span class="lipi-alert-icon" aria-hidden="true">
+                <LucideIcon Name="@GetIcon()" Size="18" />
+            </span>
+
+            @* ── Body ── *@
+            <div class="lipi-alert-body">
+                @AlertBody
+            </div>
+
+            @* ── Dismiss button (not on Critical, not on Banner Critical) ── *@
+            @if (Severity != AlertSeverity.Critical && Dismissible)
+            {
+                <button type="button"
+                        class="lipi-alert-dismiss"
+                        aria-label="Dismiss alert"
+                        @onclick="Dismiss">
+                    ✕
+                </button>
+            }
+        }
+
+        @* ── Auto-dismiss progress bar ── *@
+        @if (_showProgress)
+        {
+            <div class="lipi-alert-progress" aria-hidden="true">
+                <div class="lipi-alert-progress-bar"
+                     style="width: @_progressPct%; transition-duration: @_progressTransitionMs ms">
+                </div>
+            </div>
+        }
+
+    </div>
+}
+
+
+@* ── Alert body fragment (shared between critical and standard layouts) ── *@
+@* Using a local RenderFragment to avoid duplicating the body markup *@
+
+
+@code {
+    // ==========================================================================
+    // PARAMETERS
+    // ==========================================================================
+
+    [Parameter] public AlertSeverity Severity  { get; set; } = AlertSeverity.Info;
+    [Parameter] public AlertStyle    Style     { get; set; } = AlertStyle.Filled;
+    [Parameter] public string?       Title     { get; set; }
+    [Parameter] public string?       Message   { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public bool          Dismissible { get; set; } = true;
+    [Parameter] public EventCallback OnDismissed { get; set; }
+    [Parameter] public int?          AutoDismissAfter { get; set; }
+    [Parameter] public bool          Contained { get; set; } = true;
+    [Parameter] public string?       Class     { get; set; }
+
+    // Structured action params (convenience — slot wins when both provided)
+    [Parameter] public string?       PrimaryActionLabel    { get; set; }
+    [Parameter] public EventCallback OnPrimaryAction       { get; set; }
+    [Parameter] public string?       SecondaryActionLabel  { get; set; }
+    [Parameter] public EventCallback OnSecondaryAction     { get; set; }
+
+    // AlertActions slot (wins over structured params)
+    [Parameter] public RenderFragment? AlertActions { get; set; }
+
+
+    // ==========================================================================
+    // INTERNAL STATE
+    // ==========================================================================
+
+    /// <summary>Effective style after applying Critical+Outline → Filled upgrade rule.</summary>
+    private AlertStyle ResolvedStyle => Severity == AlertSeverity.Critical && Style == AlertStyle.Outline
+        ? AlertStyle.Filled
+        : Style;
+
+    private bool _dismissed;
+    private bool _showProgress;
+    private double _progressPct = 100;
+    private int _progressTransitionMs;
+    private CancellationTokenSource? _cts;
+
+
+    // ==========================================================================
+    // LIFECYCLE
+    // ==========================================================================
+
+    protected override void OnParametersSet()
+    {
+        // Dev warning: Critical + Outline silently upgraded
+        if (Severity == AlertSeverity.Critical && Style == AlertStyle.Outline)
+        {
+            _log.LogWarning(
+                "[LipiAlert] Severity=Critical is not compatible with Style=Outline — " +
+                "upgraded to Filled for safety. This is a clinical safety decision.");
+        }
+
+        // Dev warning: AutoDismissAfter used with structured action params AND AlertActions slot
+        if (AlertActions is not null &&
+            (PrimaryActionLabel is not null || SecondaryActionLabel is not null))
+        {
+            _log.LogWarning(
+                "[LipiAlert] AlertActions slot and structured action params (PrimaryActionLabel/" +
+                "SecondaryActionLabel) are both set. The AlertActions slot wins.");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Auto-dismiss — only Info and Success, minimum 3s
+        var canAutoDissmiss = Severity is AlertSeverity.Info or AlertSeverity.Success;
+        if (!canAutoDissmiss || AutoDismissAfter is null) return;
+
+        var seconds = Math.Max(3, AutoDismissAfter.Value);
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            // Start progress bar
+            _showProgress = true;
+            _progressPct = 100;
+            // transition duration = total seconds in ms
+            _progressTransitionMs = seconds * 1000;
+            StateHasChanged();
+
+            // Tiny delay to let browser paint the 100% state before starting transition
+            await Task.Delay(50, _cts.Token);
+
+            // Collapse to 0% — CSS transition animates it
+            _progressPct = 0;
+            StateHasChanged();
+
+            // Wait for full duration
+            await Task.Delay(TimeSpan.FromSeconds(seconds), _cts.Token);
+
+            // Dismiss
+            await InvokeAsync(Dismiss);
+        }
+        catch (OperationCanceledException)
+        {
+            // Component unmounted or user dismissed early — clean exit
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+
+    // ==========================================================================
+    // DISMISS
+    // ==========================================================================
+
+    private async Task Dismiss()
+    {
+        _dismissed = true;
+        _cts?.Cancel();
+        StateHasChanged();
+        await OnDismissed.InvokeAsync();
+    }
+
+
+    // ==========================================================================
+    // BODY RENDER FRAGMENT (shared between critical + standard layouts)
+    // ==========================================================================
+
+    private RenderFragment AlertBody => __builder =>
+    {
+        @* Title *@
+        if (!string.IsNullOrEmpty(Title))
+        {
+            __builder.OpenElement(0, "div");
+            __builder.AddAttribute(1, "class", "lipi-alert-title");
+            __builder.AddContent(2, Title);
+            __builder.CloseElement();
+        }
+
+        @* Rich content (ChildContent wins over Message) *@
+        if (ChildContent is not null)
+        {
+            __builder.AddContent(3, ChildContent);
+        }
+        else if (!string.IsNullOrEmpty(Message))
+        {
+            __builder.OpenElement(4, "div");
+            __builder.AddAttribute(5, "class", "lipi-alert-message");
+            __builder.AddContent(6, Message);
+            __builder.CloseElement();
+        }
+
+        @* Actions: AlertActions slot wins over structured params *@
+        var hasActions = AlertActions is not null
+            || !string.IsNullOrEmpty(PrimaryActionLabel)
+            || !string.IsNullOrEmpty(SecondaryActionLabel);
+
+        if (hasActions)
+        {
+            __builder.OpenElement(10, "div");
+            __builder.AddAttribute(11, "class", "lipi-alert-actions");
+
+            if (AlertActions is not null)
+            {
+                __builder.AddContent(12, AlertActions);
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(PrimaryActionLabel))
+                {
+                    __builder.OpenElement(13, "button");
+                    __builder.AddAttribute(14, "type", "button");
+                    __builder.AddAttribute(15, "class", "lipi-alert-action-primary");
+                    __builder.AddAttribute(16, "onclick",
+                        EventCallback.Factory.Create(this, () => OnPrimaryAction.InvokeAsync()));
+                    __builder.AddContent(17, PrimaryActionLabel);
+                    __builder.CloseElement();
+                }
+
+                if (!string.IsNullOrEmpty(SecondaryActionLabel))
+                {
+                    __builder.OpenElement(18, "button");
+                    __builder.AddAttribute(19, "type", "button");
+                    __builder.AddAttribute(20, "class", "lipi-alert-action-secondary");
+                    __builder.AddAttribute(21, "onclick",
+                        EventCallback.Factory.Create(this, () => OnSecondaryAction.InvokeAsync()));
+                    __builder.AddContent(22, SecondaryActionLabel);
+                    __builder.CloseElement();
+                }
+            }
+
+            __builder.CloseElement(); // lipi-alert-actions
+        }
+    };
+
+
+    // ==========================================================================
+    // CSS CLASS COMPOSITION
+    // ==========================================================================
+
+    private string GetWrapperCssClasses(AlertStyle resolvedStyle)
+    {
+        var styleClass = resolvedStyle switch
+        {
+            AlertStyle.LeftBorder => Contained
+                ? "lipi-alert-leftborder-contained"
+                : "lipi-alert-leftborder-bare",
+            AlertStyle.Banner  => "lipi-alert-banner",
+            AlertStyle.Outline => "lipi-alert-outline",
+            _                  => "lipi-alert-filled"
+        };
+
+        var severityClass = $"lipi-alert-{Severity.ToString().ToLowerInvariant()}";
+
+        var classes = new System.Collections.Generic.List<string>
+            { "lipi-alert", styleClass, severityClass };
+
+        if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+        return string.Join(" ", classes);
+    }
+
+
+    // ==========================================================================
+    // ARIA
+    // ==========================================================================
+
+    private string GetAriaRole() => Severity switch
+    {
+        AlertSeverity.Warning  => "alert",
+        AlertSeverity.Danger   => "alert",
+        AlertSeverity.Critical => "alert",
+        _                      => "status"
+    };
+
+    private string GetAriaLive() => Severity switch
+    {
+        AlertSeverity.Critical => "assertive",
+        AlertSeverity.Danger   => "assertive",
+        AlertSeverity.Warning  => "polite",
+        _                      => "polite"
+    };
+
+
+    // ==========================================================================
+    // ICON MAPPING
+    // ==========================================================================
+
+    private string GetIcon() => Severity switch
+    {
+        AlertSeverity.Success  => "circle-check",
+        AlertSeverity.Warning  => "alert-triangle",
+        AlertSeverity.Danger   => "alert-octagon",
+        AlertSeverity.Critical => "shield-x",
+        _                      => "info-circle"
+    };
+}

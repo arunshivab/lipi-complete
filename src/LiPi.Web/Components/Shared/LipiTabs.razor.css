@@ -1,0 +1,54 @@
+/* SPEC:  docs/02-LipiTabs-Spec.md §5 (visual design)
+   PHASE: 2.6.1 — Layout components
+   RULE:  Shape-only per Layout-vs-Shape rule.
+          All layout (display, flex, grid, dimensions) lives in lipi-tabs.css.
+          This file: focus ring, pressed scale, icon cell sizing.
+
+   Blazor scopes these rules to LipiTabs component instances only.
+*/
+
+
+/* =========================================================================
+   FOCUS RING (keyboard navigation — :focus-visible on tab buttons)
+   Scoped to tab buttons via Blazor isolation attribute.
+   Using outline with offset so it clears the button border.
+   ========================================================================= */
+
+.lipi-tab:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--lipi-tab-radius, var(--r-sm));
+}
+
+/* Pill variant: tighter focus ring matches pill shape */
+.lipi-tabs-pill .lipi-tab:focus-visible {
+    outline-offset: 1px;
+}
+
+
+/* =========================================================================
+   ICON-ONLY CELL SIZING
+   Fixed dimensions for the 40×40px icon cells in Vertical IconOnly mode.
+   Width/height are shape concerns — live here, not in shared CSS.
+   ========================================================================= */
+
+.lipi-tabs-icon-only .lipi-tab {
+    width: 40px;
+    height: 40px;
+}
+
+
+/* =========================================================================
+   PANEL FOCUS (tabpanel receives focus when user Tab-keys from strip into panel)
+   Visually hidden outline — screen readers need it, sighted users don't.
+   ========================================================================= */
+
+.lipi-tab-panel:focus {
+    outline: none;  /* panel itself has no visible focus; content inside handles focus */
+}
+
+.lipi-tab-panel:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+    border-radius: var(--lipi-tab-radius, var(--r-sm));
+}

@@ -1,0 +1,42 @@
+@* SPEC:  docs/03-LipiDynamicTabs-Spec.md §2
+   PHASE: 2.6.2 — child component for declarative tab registration
+   USAGE: Optional declarative pattern when tab set is known at design time.
+          Primary pattern is route-based via [DynamicTab] attribute.
+
+   Declarative example (no nested comment — would trigger RZ1003):
+   LipiDynamicTabs + LipiDynamicTab Key="patient-001" Title="Priya Nambiar" Url="/patients/PT-2026-001"
+*@
+
+@using Microsoft.AspNetCore.Components
+@using LiPi.Web.Services
+@using LiPi.Web.Components.Shared
+@implements IDisposable
+
+@code {
+    [Parameter] public required string Key       { get; set; }
+    [Parameter] public required string Title     { get; set; }
+    [Parameter] public required string Url       { get; set; }
+    [Parameter] public string?         Icon      { get; set; }
+    [Parameter] public string          CloseRoute { get; set; } = "/dashboard";
+    [Parameter] public bool            IsDirty   { get; set; }
+
+    [Inject] private ILipiDynamicTabsService _tabSvc { get; set; } = default!;
+
+    protected override void OnParametersSet()
+    {
+        // Register or update title/dirty state in the service
+        _tabSvc.UpdateTitle(Key, Title);
+        _tabSvc.SetDirty(Key, IsDirty);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await _tabSvc.OpenAsync(Url, Key, Title, Icon, CloseRoute);
+    }
+
+    public void Dispose()
+    {
+        // Tab stays open after component dispose — intentional.
+        // Tabs are only closed by explicit user action or service call.
+    }
+}

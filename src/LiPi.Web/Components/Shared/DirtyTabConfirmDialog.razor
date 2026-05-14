@@ -1,0 +1,36 @@
+@* SPEC:  docs/03-LipiDynamicTabs-Spec.md §9
+   PHASE: 2.6.2 — internal dialog component
+   USAGE: LipiDynamicTabsService when closing a dirty tab.
+   Returns TabCloseResult via OnResult callback.
+*@
+
+
+@code {
+    [Parameter] public string   TabTitle       { get; set; } = string.Empty;
+    [Parameter] public bool     HasSaveHandler { get; set; }
+    [Parameter] public EventCallback<TabCloseResult> OnResult { get; set; }
+}
+
+<div class="lipi-modal-body">
+    <p style="font-size:13px;line-height:1.6;color:var(--color-text-primary)">
+        <strong>@TabTitle</strong> has unsaved changes.
+        Closing this tab will lose your work unless you save first.
+    </p>
+</div>
+
+<div class="lipi-modal-footer">
+    <LipiButton Variant="ButtonVariant.Secondary"
+                OnClick="@Cancel">Keep open</LipiButton>
+    <LipiButton Variant="ButtonVariant.Danger"
+                OnClick="@Discard">Discard changes</LipiButton>
+    @if (HasSaveHandler)
+    {
+        <LipiButton OnClick="@SaveAndClose">Save &amp; close</LipiButton>
+    }
+</div>
+
+@code {
+    private async Task Cancel()       => await OnResult.InvokeAsync(TabCloseResult.Cancel);
+    private async Task Discard()      => await OnResult.InvokeAsync(TabCloseResult.Discard);
+    private async Task SaveAndClose() => await OnResult.InvokeAsync(TabCloseResult.SaveAndClose);
+}

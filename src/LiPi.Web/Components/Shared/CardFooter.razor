@@ -1,0 +1,23 @@
+@* SPEC:  docs/04-LipiCard-Spec.md §2 (sub-components)
+   PHASE: 2.6.1 — Layout components
+   Renders lipi-card-footer div directly — no parent registration needed.
+*@
+
+@using Microsoft.AspNetCore.Components
+
+<div class="lipi-card-footer lipi-card-footer-@_alignClass">
+    @ChildContent
+</div>
+
+@code {
+    [CascadingParameter] private LipiCard? Parent { get; set; }  // optional
+    [Parameter] public RenderFragment?  ChildContent { get; set; }
+    [Parameter] public CardFooterAlign  Align        { get; set; } = CardFooterAlign.End;
+
+    private string _alignClass => Align switch
+    {
+        CardFooterAlign.Start        => "start",
+        CardFooterAlign.SpaceBetween => "spacebetween",
+        _                            => "end"
+    };
+}

@@ -1,0 +1,30 @@
+/* SPEC:  docs/04-LipiCard-Spec.md §6 (visual design)
+   PHASE: 2.6.1 — Layout components
+   AMEND: CHANGE-LOG.md A27 — focus-ring outline colour reconciled to spec.
+          Spec §5 / §9 specify `outline: 2px solid var(--color-border-focus)`;
+          this file previously used `var(--color-primary)` — a build-time
+          deviation, now corrected. `--color-border-focus` is in the documented
+          theme token contract, so the A26 self-sufficiency property (this
+          scoped file references contract tokens only) is preserved.
+   RULE:  Shape-only per Layout-vs-Shape rule.
+          All layout (display, flex, colors, borders) lives in lipi-cards.css.
+          This file: focus ring offset, pressed scale (transform is shape-adjacent).
+*/
+
+
+/* =========================================================================
+   FOCUS RING — keyboard navigation on Clickable cards
+   outline-offset: 2px keeps the ring just outside the card border.
+   ========================================================================= */
+
+.lipi-card-clickable:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+}
+
+/* Link card (<a>) — same focus treatment */
+a.lipi-card:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+    border-radius: var(--lipi-card-radius, var(--r-md));
+}

@@ -1,0 +1,25 @@
+@* SPEC:  docs/01-LipiModal-Spec.md §5 (AlertAsync)
+   PHASE: 2.6.2 — internal dialog component
+*@
+
+
+@code {
+    [Parameter] public string      Message { get; set; } = string.Empty;
+    [Parameter] public AlertIntent Intent  { get; set; } = AlertIntent.Info;
+    [Parameter] public string?     OkLabel { get; set; }
+    [Parameter] public TaskCompletionSource<object?>? Tcs { get; set; }
+
+    private string ResolvedOkLabel => OkLabel ?? "OK";
+}
+
+<div class="lipi-modal-body">
+    <p style="font-size:13px;line-height:1.6;color:var(--color-text-primary)">@Message</p>
+</div>
+
+<div class="lipi-modal-footer">
+    <LipiButton OnClick="@Acknowledge">@ResolvedOkLabel</LipiButton>
+</div>
+
+@code {
+    private void Acknowledge() => Tcs?.TrySetResult(null);
+}

@@ -1,0 +1,249 @@
+/* SPEC:  docs/03-LipiAlert-Spec.md §7 (visual design), §9 (multi-industry tokens)
+   PHASE: 2.6.1 — Layout components
+   AMEND: CHANGE-LOG.md A24 — Critical body left-inset (icon-column offset)
+          moved OUT of this file. It was first placed here as a padding-left
+          longhand, but the scoped LipiAlert.razor.css rule's `padding`
+          shorthand outspecifies it — it now lives in that scoped rule. This
+          file's only critical-body change is the removal + an explanatory note.
+   RULE:  Layout-vs-Shape: ALL display/flex/layout rules live HERE.
+          Shape-only (icon sizing, progress bar, critical header strip) → LipiAlert.razor.css.
+
+   Multi-industry token overrides (§9 — any visual property varying by brand):
+     --lipi-alert-radius:       var(--r-sm)    6px — corner radius (Filled, LeftBorder, Outline)
+     --lipi-alert-border-w:     0.5px          — standard border width
+     --lipi-alert-lb-w:         3px            — left-border accent width
+     --lipi-alert-lb-critical:  4px            — critical left-border width (heavier)
+     --lipi-alert-progress-h:   2px            — auto-dismiss progress bar height
+
+   Banner always border-radius: 0 — not overridable (consumer places it, shape is intentional).
+*/
+
+
+/* ==========================================================================
+   BASE ALERT LAYOUT
+   ========================================================================== */
+
+.lipi-alert {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-family: var(--font-ui);
+    font-size: var(--ts-body);
+    position: relative;         /* for progress bar absolute positioning */
+    overflow: hidden;           /* clips progress bar and critical header strip */
+}
+
+.lipi-alert-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+    line-height: 1.5;
+    display: flex;
+    align-items: center;
+}
+
+.lipi-alert-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.lipi-alert-title {
+    font-weight: var(--fw-medium);
+    margin-bottom: 3px;
+    font-size: var(--ts-body);
+}
+
+.lipi-alert-message {
+    font-size: var(--ts-body);
+    line-height: 1.5;
+    opacity: 0.9;
+}
+
+.lipi-alert-dismiss {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    opacity: 0.5;
+    line-height: 1;
+    padding: 2px;
+    color: inherit;
+    transition: opacity var(--tr-fast);
+    align-self: flex-start;
+}
+
+.lipi-alert-dismiss:hover { opacity: 1; }
+.lipi-alert-dismiss:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+
+/* ==========================================================================
+   ALERT ACTIONS SLOT
+   ========================================================================== */
+
+.lipi-alert-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+
+/* ==========================================================================
+   STYLE: FILLED (default)
+   ========================================================================== */
+
+.lipi-alert-filled {
+    padding: 0.85rem 1rem;
+    border-radius: var(--lipi-alert-radius, var(--r-sm));
+    border-width: var(--lipi-alert-border-w, 0.5px);
+    border-style: solid;
+}
+
+/* Severity fills */
+.lipi-alert-filled.lipi-alert-info    { background: #E6F1FB; border-color: #B5D4F4; color: #0C447C; }
+.lipi-alert-filled.lipi-alert-success { background: #EAF3DE; border-color: #C0DD97; color: #27500A; }
+.lipi-alert-filled.lipi-alert-warning { background: #FAEEDA; border-color: #FAC775; color: #633806; }
+.lipi-alert-filled.lipi-alert-danger  { background: #FCEBEB; border-color: #F7C1C1; color: #791F1F; }
+
+/* Critical filled: darker bg, heavier border, header strip + body STACK vertically.
+   Phase 2.6.3 stabilisation: override .lipi-alert's row-flex direction. Without
+   flex-direction:column, the .lipi-alert-critical-header and .lipi-alert-critical-body
+   children become row-flex siblings — the header strip renders as a vertical
+   column on the left edge and the body sits to its right, breaking the intended
+   "header bar on top, content below" layout. */
+.lipi-alert-filled.lipi-alert-critical {
+    background: #F09595;
+    border: 1.5px solid #A32D2D;
+    color: #501313;
+    padding-top: 0;             /* top consumed by critical header strip */
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;                     /* critical-header margin handles spacing */
+}
+
+/* A24 note: the Critical body's left inset (icon-column offset so its text
+   aligns with the rest of the alert family) is NOT here. It was originally
+   placed in this shared file as a `padding-left` longhand, but the scoped
+   .lipi-alert-critical-body rule in LipiAlert.razor.css sets `padding` as a
+   shorthand and Blazor's scoped-CSS selector outspecifies this file — the
+   shared longhand was silently overridden. The inset now lives, correctly,
+   in that scoped rule as a longhand alongside padding-bottom. See CHANGE-LOG A24. */
+
+
+/* ==========================================================================
+   STYLE: LEFT-BORDER — Contained (full outline box)
+   ========================================================================== */
+
+.lipi-alert-leftborder-contained {
+    padding: 0.7rem 1rem;
+    border: var(--lipi-alert-border-w, 0.5px) solid var(--color-border-tertiary);
+    border-left-width: var(--lipi-alert-lb-w, 3px);
+    border-radius: 0 var(--lipi-alert-radius, var(--r-sm)) var(--lipi-alert-radius, var(--r-sm)) 0;
+    background: transparent;
+}
+
+.lipi-alert-leftborder-contained.lipi-alert-info     { border-left-color: #185FA5; color: var(--color-text-primary); }
+.lipi-alert-leftborder-contained.lipi-alert-success  { border-left-color: #3B6D11; color: var(--color-text-primary); }
+.lipi-alert-leftborder-contained.lipi-alert-warning  { border-left-color: #854F0B; color: var(--color-text-primary); }
+.lipi-alert-leftborder-contained.lipi-alert-danger   { border-left-color: #A32D2D; color: var(--color-text-primary); }
+.lipi-alert-leftborder-contained.lipi-alert-critical {
+    border-left-width: var(--lipi-alert-lb-critical, 4px);
+    border-left-color: #501313;
+    color: var(--color-text-primary);
+}
+
+
+/* ==========================================================================
+   STYLE: LEFT-BORDER — Bare (bottom border only, list/timeline rows)
+   ========================================================================== */
+
+.lipi-alert-leftborder-bare {
+    padding: 0.7rem 1rem;
+    border: none;
+    border-left-width: var(--lipi-alert-lb-w, 3px);
+    border-left-style: solid;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+    border-radius: 0;
+    background: transparent;
+}
+
+.lipi-alert-leftborder-bare:last-child { border-bottom: none; }
+
+.lipi-alert-leftborder-bare.lipi-alert-info     { border-left-color: #185FA5; color: var(--color-text-primary); }
+.lipi-alert-leftborder-bare.lipi-alert-success  { border-left-color: #3B6D11; color: var(--color-text-primary); }
+.lipi-alert-leftborder-bare.lipi-alert-warning  { border-left-color: #854F0B; color: var(--color-text-primary); }
+.lipi-alert-leftborder-bare.lipi-alert-danger   { border-left-color: #A32D2D; color: var(--color-text-primary); }
+.lipi-alert-leftborder-bare.lipi-alert-critical {
+    border-left-width: var(--lipi-alert-lb-critical, 4px);
+    border-left-color: #A32D2D;
+    color: var(--color-text-primary);
+}
+
+
+/* ==========================================================================
+   STYLE: BANNER (full-width strip, border-radius always 0)
+   ========================================================================== */
+
+.lipi-alert-banner {
+    padding: 0.65rem 1rem;
+    border-radius: 0;           /* always — Banner is intentionally flush */
+    align-items: center;        /* center-align for single-line strip content */
+}
+
+.lipi-alert-banner.lipi-alert-info     { background: #185FA5; color: #E6F1FB; }
+.lipi-alert-banner.lipi-alert-success  { background: #3B6D11; color: #EAF3DE; }
+.lipi-alert-banner.lipi-alert-warning  { background: #854F0B; color: #FAEEDA; }
+.lipi-alert-banner.lipi-alert-danger   { background: #A32D2D; color: #FCEBEB; }
+.lipi-alert-banner.lipi-alert-critical { background: #501313; color: #F09595; }
+
+
+/* ==========================================================================
+   STYLE: OUTLINE (transparent bg, full colored border)
+   ========================================================================== */
+
+.lipi-alert-outline {
+    padding: 0.75rem 1rem;
+    border-radius: var(--lipi-alert-radius, var(--r-sm));
+    border: 1.5px solid;
+    background: transparent;
+}
+
+.lipi-alert-outline.lipi-alert-info    { border-color: #378ADD; }
+.lipi-alert-outline.lipi-alert-success { border-color: #639922; }
+.lipi-alert-outline.lipi-alert-warning { border-color: #BA7517; }
+.lipi-alert-outline.lipi-alert-danger  { border-color: #E24B4A; }
+/* Critical + Outline → silently upgraded to Filled in component code */
+
+/* Outline icon colors (text stays primary, icon carries severity) */
+.lipi-alert-outline.lipi-alert-info    .lipi-alert-icon { color: #185FA5; }
+.lipi-alert-outline.lipi-alert-success .lipi-alert-icon { color: #3B6D11; }
+.lipi-alert-outline.lipi-alert-warning .lipi-alert-icon { color: #854F0B; }
+.lipi-alert-outline.lipi-alert-danger  .lipi-alert-icon { color: #A32D2D; }
+
+
+/* ==========================================================================
+   AUTO-DISMISS PROGRESS BAR
+   ========================================================================== */
+
+.lipi-alert-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--lipi-alert-progress-h, 2px);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.lipi-alert-progress-bar {
+    height: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    /* Width animated from 100% → 0% via inline style driven by component timer */
+    transition: width linear;
+}

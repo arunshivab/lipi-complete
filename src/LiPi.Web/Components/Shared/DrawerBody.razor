@@ -1,0 +1,12 @@
+@* SPEC:  docs/02-LipiDrawer-Spec.md §3
+   PHASE: 2.6.2 — renders own HTML directly, no registration pattern
+*@
+@using Microsoft.AspNetCore.Components
+
+<div class="lipi-drawer-body">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

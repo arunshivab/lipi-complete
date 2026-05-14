@@ -1,6 +1,9 @@
 @* SPEC: Phase 2.1 LipiButton design package §icons *@
 @* AMEND: Phase 2.2 (May 4, 2026) — added eye, eye-off, circle-x, triangle-alert for TextInput family *@
-@* Lucide icons by name. v1.0 starter set: 33 icons (29 Phase 2.1 + 4 Phase 2.2). *@
+@* AMEND: Phase 2.6.3 Stage 2B — added 10 icons: info-circle, circle-check (noun-first aliases),
+          alert-octagon, shield-x (LipiAlert severities), phone, map-pin, layout-dashboard,
+          pill, flask-conical, file-text (LipiTabs demos). *@
+@* Lucide icons by name. v1.0 set: 43 icons (29 Phase 2.1 + 4 Phase 2.2 + 10 Phase 2.6.3). *@
 @* Namespace: LiPi.Web.Components.Shared *@
 
 @using Microsoft.JSInterop
@@ -109,6 +112,33 @@ else
         ["eye"]             = """<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>""",
         ["eye-off"]         = """<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>""",
         ["circle-x"]        = """<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>""",
-        ["triangle-alert"]  = """<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>"""
+        ["triangle-alert"]  = """<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>""",
+
+        // Phase 2.6.3 Stage 2B additions (10) — LipiAlert severity icons + LipiTabs demo icons.
+        //
+        // NOUN-FIRST ALIASES (2): info-circle and circle-check are the Lucide v0.460+
+        // noun-first names for the icons this dictionary already carries as `info` and
+        // `check-circle`. Same SVG path, aliased name — identical pattern to the
+        // alert-triangle ↔ triangle-alert intentional duplicate above. LipiAlert.razor
+        // references the noun-first names; keeping both means callers using either
+        // naming convention resolve correctly. Do NOT "deduplicate" without checking
+        // LipiAlert.razor and any other caller sites.
+        ["info-circle"]      = """<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>""",
+        ["circle-check"]     = """<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>""",
+
+        // GENUINELY NEW (8): not present under any alias.
+        // - alert-octagon: LipiAlert Warning severity icon
+        // - shield-x: LipiAlert Critical severity icon
+        // - phone, map-pin: LipiTabs Underline demo (Contact, Address tabs)
+        // - layout-dashboard, pill, flask-conical, file-text: LipiTabs Vertical demo
+        //   (Overview, Medications, Lab Results, Notes tabs)
+        ["alert-octagon"]    = """<polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>""",
+        ["shield-x"]         = """<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m14.5 9-5 5"/><path d="m9.5 9 5 5"/>""",
+        ["phone"]            = """<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>""",
+        ["map-pin"]          = """<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>""",
+        ["layout-dashboard"] = """<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>""",
+        ["pill"]             = """<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>""",
+        ["flask-conical"]    = """<path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/>""",
+        ["file-text"]        = """<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>"""
     };
 }

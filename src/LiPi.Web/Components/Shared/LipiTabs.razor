@@ -1,0 +1,419 @@
+@* SPEC:  docs/02-LipiTabs-Spec.md
+   PHASE: 2.6.1 — Layout components
+   AMEND: docs/CHANGE-LOG.md (pending — Phase 2.6.1 batch)
+
+   Architecture: LipiTabs reads child LipiTab parameter carriers and renders
+   the tablist + panels itself. Children carry parameters only — no markup.
+
+   Three variants (§5):
+     Underline — horizontal strip, active underline + full-radius bg (Option C)
+     Pill      — segmented container, no TabState
+     Vertical  — left rail, rounded block active (Option B), optional IconOnly mode
+
+   Key decisions (all locked, design session 2026-05-10):
+     - Arrow keys on strip → WAI-ARIA Pattern A (activate immediately)
+     - Arrow keys in panel → NEVER switch tabs
+     - TabShortcutPattern → None / CtrlNumber / AltNumber (from anywhere in component)
+     - RenderMode → Lazy (default) or Eager (PatientNew — form state preserved)
+     - ActiveTab → key-based string binding
+     - Overflow → horizontal scroll (no More button)
+*@
+
+
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="@WrapperCssClasses"
+     @onkeydown="HandleContainerKeyDownAsync">
+
+    @* ===== SR shortcut announcement ===== *@
+    @if (TabShortcutPattern != TabShortcutPattern.None)
+    {
+        <div class="lipi-tab-sr-shortcuts" aria-live="polite" aria-atomic="true">
+            @ShortcutAnnouncementText
+        </div>
+    }
+
+    @* ===== CHILD REGISTRATION ZONE =====
+       LipiTab children read [CascadingParameter] LipiTabs? Parent.
+       They register themselves in OnInitialized and unregister in Dispose.
+       This div is visually hidden — it only exists to mount the LipiTab
+       parameter-carrier components so they can call RegisterTab().
+       Note: Blazor requires components to be rendered to execute their
+       lifecycle methods, even if they produce no DOM output. *@
+    <CascadingValue Value="this" IsFixed="false">
+        <div style="display:none" aria-hidden="true">@ChildContent</div>
+    </CascadingValue>
+
+    @* ===== TAB LIST (strip / rail) ===== *@
+    <div class="lipi-tablist"
+         role="tablist"
+         aria-label="@AriaLabel"
+         aria-orientation="@(Variant == TabsVariant.Vertical ? "vertical" : "horizontal")">
+
+        @{
+            var tabIndex = 0;
+        }
+        @foreach (var tab in _tabs)
+        {
+            var capturedTab = tab;
+            var capturedIndex = tabIndex++;
+            var isActive = capturedTab.ResolvedKey == _activeTabKey;
+
+            @* ===== SECTION DIVIDER (Vertical only, before Optional tabs) ===== *@
+            @if (Variant == TabsVariant.Vertical && capturedTab.Optional && capturedIndex > 0 && !_tabs[capturedIndex - 1].Optional)
+            {
+                <div class="lipi-tab-divider" aria-hidden="true"></div>
+            }
+
+            <button type="button"
+                    id="tab-@capturedTab.ResolvedKey"
+                    class="@GetTabCssClasses(capturedTab, isActive)"
+                    role="tab"
+                    aria-selected="@(isActive ? "true" : "false")"
+                    aria-controls="panel-@capturedTab.ResolvedKey"
+                    aria-disabled="@(capturedTab.Disabled ? "true" : (string?)null)"
+                    aria-label="@GetTabAriaLabel(capturedTab, capturedIndex)"
+                    title="@GetTabTooltip(capturedTab, capturedIndex)"
+                    tabindex="@(isActive ? 0 : -1)"
+                    disabled="@capturedTab.Disabled"
+                    @onclick="@(() => SetActiveTabAsync(capturedTab.ResolvedKey))"
+                    @onfocus="OnTabButtonFocus"
+                    @onblur="OnTabButtonBlur"
+                    @ref="_tabRefs[capturedIndex]">
+
+                @* Icon (all variants when Icon set; required for IconOnly) *@
+                @if (!string.IsNullOrEmpty(capturedTab.Icon))
+                {
+                    <span class="lipi-tab-icon" aria-hidden="true">
+                        <LucideIcon Name="@capturedTab.Icon"
+                                    Size="@(Variant == TabsVariant.Vertical && IconOnly ? 18 : 15)" />
+                    </span>
+                }
+
+                @* Step number (IconOnly mode) *@
+                @if (Variant == TabsVariant.Vertical && IconOnly)
+                {
+                    <span class="lipi-tab-step-num">@((capturedIndex + 1).ToString("D2"))</span>
+                }
+
+                @* Label (hidden in IconOnly — shown via aria-label + tooltip) *@
+                @if (!(Variant == TabsVariant.Vertical && IconOnly))
+                {
+                    <span class="lipi-tab-label">@capturedTab.Label</span>
+                }
+
+                @* Count badge *@
+                @if (capturedTab.Count.HasValue && !(Variant == TabsVariant.Vertical && IconOnly))
+                {
+                    <span class="lipi-tab-count" aria-label="@capturedTab.Count items">
+                        @capturedTab.Count.Value
+                    </span>
+                }
+
+                @* State dot (Vertical only, non-IconOnly) *@
+                @if (Variant == TabsVariant.Vertical && !IconOnly && capturedTab.State != TabState.Default && capturedTab.State != TabState.Optional)
+                {
+                    <span class="lipi-tab-state-dot lipi-tab-state-dot-@capturedTab.State.ToString().ToLowerInvariant()"
+                          aria-hidden="true"></span>
+                }
+
+                @* State badge (IconOnly mode — top-right corner dot) *@
+                @if (Variant == TabsVariant.Vertical && IconOnly && capturedTab.State != TabState.Default && capturedTab.State != TabState.Optional)
+                {
+                    <span class="lipi-tab-state-badge lipi-tab-state-badge-@capturedTab.State.ToString().ToLowerInvariant()"
+                          aria-hidden="true"></span>
+                }
+
+            </button>
+        }
+    </div>
+
+    @* ===== TAB PANELS ===== *@
+    <div class="lipi-tab-panels">
+        @foreach (var tab in _tabs)
+        {
+            var capturedTab = tab;
+            var isActive = capturedTab.ResolvedKey == _activeTabKey;
+
+            @if (RenderMode == TabRenderMode.Lazy)
+            {
+                @* Lazy: only render active panel *@
+                @if (isActive)
+                {
+                    <div id="panel-@capturedTab.ResolvedKey"
+                         class="lipi-tab-panel lipi-tab-panel-active"
+                         role="tabpanel"
+                         aria-labelledby="tab-@capturedTab.ResolvedKey"
+                         tabindex="0">
+                        @capturedTab.ChildContent
+                    </div>
+                }
+            }
+            else
+            {
+                @* Eager: all panels mounted, CSS toggles visibility *@
+                <div id="panel-@capturedTab.ResolvedKey"
+                     class="@($"lipi-tab-panel{(isActive ? " lipi-tab-panel-active" : "")}")"
+                     role="tabpanel"
+                     aria-labelledby="tab-@capturedTab.ResolvedKey"
+                     tabindex="@(isActive ? 0 : -1)">
+                    @capturedTab.ChildContent
+                </div>
+            }
+        }
+    </div>
+
+</div>
+
+
+@code {
+    // ==========================================================================
+    // PARAMETERS
+    // ==========================================================================
+
+    [Parameter] public TabsVariant Variant { get; set; } = TabsVariant.Underline;
+    [Parameter] public TabRenderMode RenderMode { get; set; } = TabRenderMode.Lazy;
+    [Parameter] public bool IconOnly { get; set; } = false;
+    [Parameter] public string? ActiveTab { get; set; }
+    [Parameter] public EventCallback<string?> ActiveTabChanged { get; set; }
+    [Parameter] public TabShortcutPattern TabShortcutPattern { get; set; } = TabShortcutPattern.None;
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+
+    // ==========================================================================
+    // CHILD TAB REGISTRATION
+    // ──────────────────────────────────────────────────────────────────────────
+    // LipiTab child components register themselves here during their SetParameters.
+    // Order of registration matches DOM order — used for keyboard navigation.
+    // ==========================================================================
+
+    private readonly List<LipiTabRegistration> _tabs = new();
+    private ElementReference[] _tabRefs = Array.Empty<ElementReference>();
+
+    /// <summary>Called by LipiTab children to register themselves.
+    /// This pattern (parent collects child state) is standard for compound
+    /// components in Blazor — avoids CascadingValue + JS interop complexity.</summary>
+    internal void RegisterTab(LipiTabRegistration tab)
+    {
+        // Prevent duplicates on re-render
+        if (_tabs.Any(t => t.ResolvedKey == tab.ResolvedKey)) return;
+        _tabs.Add(tab);
+        _tabRefs = new ElementReference[_tabs.Count];
+        StateHasChanged();
+    }
+
+    /// <summary>Phase 2.6.3 Stage 2 — value-compare before rerender.
+    /// LipiTab's OnParametersSet already dirty-checks before calling here,
+    /// but a value compare at this layer guards against future callers that
+    /// might forget. Skipping StateHasChanged when nothing meaningful changed
+    /// is what prevents the OnParametersSet → UpdateTab → StateHasChanged →
+    /// CascadingValue re-render → OnParametersSet loop.
+    ///
+    /// We DO swap the registration in either case so the stored ChildContent
+    /// delegate reflects the latest closure. We just don't trigger a rerender
+    /// unless a visible parameter (Label, Icon, State, Count, Optional,
+    /// Disabled) actually changed.</summary>
+    internal void UpdateTab(LipiTabRegistration tab)
+    {
+        var idx = _tabs.FindIndex(t => t.ResolvedKey == tab.ResolvedKey);
+        if (idx < 0) return;
+
+        var existing = _tabs[idx];
+        _tabs[idx]   = tab;   // always swap — keeps ChildContent fresh
+
+        if (!existing.HasSameParameterValues(tab))
+            StateHasChanged();
+    }
+
+    internal void UnregisterTab(string key)
+    {
+        _tabs.RemoveAll(t => t.ResolvedKey == key);
+        _tabRefs = new ElementReference[_tabs.Count];
+        StateHasChanged();
+    }
+
+
+    // ==========================================================================
+    // ACTIVE TAB STATE
+    // ==========================================================================
+
+    private string? _activeTabKey;
+
+    protected override void OnParametersSet()
+    {
+        // Sync from controlled binding
+        if (ActiveTab is not null)
+            _activeTabKey = ActiveTab;
+
+        // Default to first non-disabled tab when nothing is set
+        if (_activeTabKey is null && _tabs.Count > 0)
+        {
+            var first = _tabs.FirstOrDefault(t => !t.Disabled);
+            _activeTabKey = first?.ResolvedKey;
+        }
+    }
+
+    private async Task SetActiveTabAsync(string key)
+    {
+        if (_tabs.FirstOrDefault(t => t.ResolvedKey == key)?.Disabled == true) return;
+        _activeTabKey = key;
+        await ActiveTabChanged.InvokeAsync(key);
+    }
+
+
+    // ==========================================================================
+    // KEYBOARD NAVIGATION (WAI-ARIA Pattern A — arrow keys activate immediately)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Fires on the WRAPPER div — catches events from BOTH the tablist and panels.
+    // The handler checks whether focus was on a tab button (strip navigation)
+    // or inside panel content (shortcut only, no arrow-key switching).
+    // ==========================================================================
+
+    private async Task HandleContainerKeyDownAsync(KeyboardEventArgs e)
+    {
+        // Shortcut pattern — fires from anywhere in component
+        if (TabShortcutPattern != TabShortcutPattern.None)
+        {
+            var isCtrl = e.CtrlKey && !e.AltKey && !e.MetaKey;
+            var isAlt  = e.AltKey  && !e.CtrlKey && !e.MetaKey;
+            var useCtrl = TabShortcutPattern == TabShortcutPattern.CtrlNumber && isCtrl;
+            var useAlt  = TabShortcutPattern == TabShortcutPattern.AltNumber  && isAlt;
+
+            if ((useCtrl || useAlt) && e.Key.Length == 1 && e.Key[0] >= '1' && e.Key[0] <= '9')
+            {
+                var idx = e.Key[0] - '1';   // '1' → 0, '9' → 8
+                if (idx < _tabs.Count && !_tabs[idx].Disabled)
+                    await SetActiveTabAsync(_tabs[idx].ResolvedKey);
+                return;
+            }
+        }
+
+        // Arrow key navigation — only when focus is on a tab button in the strip.
+        // We detect this by checking if the event target id matches a tab button id.
+        // Without JS interop we cannot check document.activeElement, so we use a
+        // CSS-class + ref trick: _stripFocused is set true/false on tab button
+        // focus/blur events. This avoids IJSRuntime injection.
+        if (!_stripFocused) return;
+
+        var isVertical = Variant == TabsVariant.Vertical;
+        var forward  = isVertical ? e.Key == "ArrowDown" : e.Key == "ArrowRight";
+        var backward = isVertical ? e.Key == "ArrowUp"   : e.Key == "ArrowLeft";
+
+        if (!forward && !backward && e.Key != "Home" && e.Key != "End") return;
+
+        var enabled = _tabs.Select((t, i) => (t, i)).Where(x => !x.t.Disabled).ToList();
+        if (enabled.Count == 0) return;
+
+        var currentEnabledIdx = enabled.FindIndex(x => x.t.ResolvedKey == _activeTabKey);
+
+        int nextEnabledIdx;
+        if (e.Key == "Home")       nextEnabledIdx = 0;
+        else if (e.Key == "End")   nextEnabledIdx = enabled.Count - 1;
+        else if (forward)          nextEnabledIdx = (currentEnabledIdx + 1) % enabled.Count;
+        else                       nextEnabledIdx = (currentEnabledIdx - 1 + enabled.Count) % enabled.Count;
+
+        var nextTab = enabled[nextEnabledIdx];
+        await SetActiveTabAsync(nextTab.t.ResolvedKey);
+
+        // Move focus to the newly-activated tab button
+        if (nextTab.i < _tabRefs.Length && _tabRefs[nextTab.i].Id is not null)
+        {
+            await _tabRefs[nextTab.i].FocusAsync();
+        }
+    }
+
+    private bool _stripFocused;
+
+    // Called by tab button onfocus / onblur to tell the container whether
+    // focus is on the strip (enabling arrow-key tab switching)
+    private void OnTabButtonFocus()  => _stripFocused = true;
+    private void OnTabButtonBlur()   => _stripFocused = false;
+
+
+    // ==========================================================================
+    // CSS CLASS COMPOSITION
+    // ==========================================================================
+
+    private string WrapperCssClasses
+    {
+        get
+        {
+            var classes = new List<string> { "lipi-tabs" };
+            classes.Add($"lipi-tabs-{Variant.ToString().ToLowerInvariant()}");
+            if (Variant == TabsVariant.Vertical && IconOnly)
+                classes.Add("lipi-tabs-icon-only");
+            if (RenderMode == TabRenderMode.Eager)
+                classes.Add("lipi-tabs-eager");
+            if (!string.IsNullOrWhiteSpace(Class))
+                classes.Add(Class);
+            return string.Join(" ", classes);
+        }
+    }
+
+    private string GetTabCssClasses(LipiTabRegistration tab, bool isActive)
+    {
+        var classes = new List<string> { "lipi-tab" };
+        if (isActive)                 classes.Add("lipi-tab-active");
+        if (tab.Disabled)             classes.Add("lipi-tab-disabled");
+        if (tab.State != TabState.Default && Variant != TabsVariant.Pill)
+            classes.Add($"lipi-tab-state-{tab.State.ToString().ToLowerInvariant()}");
+        return string.Join(" ", classes);
+    }
+
+    private string GetTabAriaLabel(LipiTabRegistration tab, int index)
+    {
+        // In IconOnly mode, the aria-label IS the label (icon has no text)
+        if (Variant == TabsVariant.Vertical && IconOnly)
+        {
+            var shortcutHint = GetShortcutHint(index);
+            return string.IsNullOrEmpty(shortcutHint) ? tab.Label : $"{tab.Label} ({shortcutHint})";
+        }
+        return tab.Label;
+    }
+
+    private string GetTabTooltip(LipiTabRegistration tab, int index)
+    {
+        if (Variant == TabsVariant.Vertical && IconOnly)
+        {
+            var shortcutHint = GetShortcutHint(index);
+            return string.IsNullOrEmpty(shortcutHint) ? tab.Label : $"{tab.Label} ({shortcutHint})";
+        }
+        return string.Empty;
+    }
+
+    private string GetShortcutHint(int index)
+    {
+        if (TabShortcutPattern == TabShortcutPattern.None || index >= 9) return string.Empty;
+        var modifier = TabShortcutPattern == TabShortcutPattern.AltNumber ? "Alt" : "Ctrl";
+        return $"{modifier}+{index + 1}";
+    }
+
+    private string ShortcutAnnouncementText
+    {
+        get
+        {
+            var modifier = TabShortcutPattern == TabShortcutPattern.AltNumber ? "Alt" : "Ctrl";
+            return $"Keyboard shortcuts: {modifier}+1 through {modifier}+{Math.Min(_tabs.Count, 9)} switch tabs.";
+        }
+    }
+
+
+    // ==========================================================================
+    // LIFECYCLE
+    // ==========================================================================
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && _activeTabKey is null && _tabs.Count > 0)
+        {
+            var first = _tabs.FirstOrDefault(t => !t.Disabled);
+            if (first is not null)
+            {
+                _activeTabKey = first.ResolvedKey;
+                StateHasChanged();
+            }
+        }
+    }
+}
