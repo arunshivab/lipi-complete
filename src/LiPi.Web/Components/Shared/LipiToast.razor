@@ -1,0 +1,74 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/05-LipiToast-Spec.md §5 (anatomy)
+   PHASE: 2.7 — Feedback Components
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Single toast surface. Rendered by LipiToastHost, one per active ToastEntry.
+
+   Anatomy (left to right):
+     [4px color bar]  [icon | spinner]  [title? + message]  [action?]  [✕]
+
+   Severity → role + aria-live:
+     Success/Info/Warning → role="status",  aria-live="polite"
+     Error                → role="alert",   aria-live="assertive"
+
+   The toast NEVER steals focus (spec §10 — informational only). The action
+   button is keyboard-reachable via Tab from page content, but no autofocus.
+
+   File pattern (per Phase 2.7 BUILD-CHAT-HANDOFF literal):
+     LipiToast.razor      — markup
+     LipiToast.razor.cs   — partial class
+     LipiToast.razor.css  — scoped CSS
+     (LipiToastTypes.cs holds the shared types — already created.)
+*@
+
+@namespace LiPi.Web.Components.Shared
+
+<div class="@CssClasses"
+     role="@AriaRole"
+     aria-live="@AriaLive"
+     aria-atomic="true">
+
+    @* ── Severity color bar (left edge, 4px) ── *@
+    <div class="lipi-toast-bar" aria-hidden="true"></div>
+
+    @* ── Icon zone (spinner when loading, severity icon otherwise) ── *@
+    <div class="lipi-toast-icon" aria-hidden="true">
+        @if (Entry.IsLoading)
+        {
+            <LipiSpinner Size="SpinnerSize.Small" Intent="SpinnerIntent.Default" />
+        }
+        else
+        {
+            <LucideIcon Name="@SeverityIcon" Size="18" />
+        }
+    </div>
+
+    @* ── Body (title + message) ── *@
+    <div class="lipi-toast-body">
+        @if (!string.IsNullOrWhiteSpace(Entry.Options.Title))
+        {
+            <div class="lipi-toast-title">@Entry.Options.Title</div>
+        }
+        <div class="lipi-toast-message">@Entry.Message</div>
+    </div>
+
+    @* ── Action button (optional, one only per spec §11) ── *@
+    @if (Entry.Options.Action is not null && !string.IsNullOrWhiteSpace(Entry.Options.Action.Label))
+    {
+        <button type="button"
+                class="lipi-toast-action"
+                @onclick="HandleAction"
+                @onclick:stopPropagation="true">
+            @TruncatedActionLabel
+        </button>
+    }
+
+    @* ── Dismiss button (always shown — even on errors; user retains control) ── *@
+    <button type="button"
+            class="lipi-toast-dismiss"
+            aria-label="Dismiss notification"
+            @onclick="HandleDismiss"
+            @onclick:stopPropagation="true">
+        <LucideIcon Name="x" Size="14" />
+    </button>
+</div>

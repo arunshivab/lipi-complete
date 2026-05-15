@@ -1,0 +1,61 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/03-LipiSkeleton-Spec.md §2, §4 (LipiSkeletonRect)
+   PHASE: 2.7 — Feedback Components
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Rectangle primitive for image/card/block placeholders. Width + Height
+   take CSS strings (px, %, em). Optional BorderRadius overrides the default
+   --r-md (8px) — set to "0" for hero images that fill a card edge-to-edge.
+
+   Single-file pure render — see LipiSkeletonLine.razor for architecture notes.
+*@
+
+@namespace LiPi.Web.Components.Shared
+
+<span class="@CssClasses"
+      style="@InlineStyle"
+      aria-hidden="true">
+</span>
+
+@code {
+    /// <summary>CSS width — "100%" (default), "320px", "20em", etc.</summary>
+    [Parameter] public string Width { get; set; } = "100%";
+
+    /// <summary>CSS height — "100px" (default). Pixel or percent values both work.</summary>
+    [Parameter] public string Height { get; set; } = "100px";
+
+    /// <summary>Override the default border-radius (--r-md / 8px). Pass "0" for
+    /// edge-to-edge blocks (hero images), or "var(--r-lg)" for cards. Default
+    /// null uses --r-md from the structural token set.</summary>
+    [Parameter] public string? BorderRadius { get; set; }
+
+    /// <summary>Shimmer animation on/off. Default true.</summary>
+    [Parameter] public bool Animate { get; set; } = true;
+
+    /// <summary>Append-only layout utility classes.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    private string CssClasses => BuildCssClasses();
+    private string InlineStyle => BuildInlineStyle();
+
+    private string BuildCssClasses()
+    {
+        var classes = new List<string> { "lipi-skeleton", "lipi-skeleton-rect" };
+        if (Animate) classes.Add("lipi-skeleton-animate");
+        if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+        return string.Join(" ", classes);
+    }
+
+    private string BuildInlineStyle()
+    {
+        var parts = new List<string>
+        {
+            $"width:{Width}",
+            $"height:{Height}"
+        };
+        if (!string.IsNullOrWhiteSpace(BorderRadius))
+        {
+            parts.Add($"border-radius:{BorderRadius}");
+        }
+        return string.Join(";", parts);
+    }
+}

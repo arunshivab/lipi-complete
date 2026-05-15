@@ -1,0 +1,403 @@
+/* ============================================================
+   StyleGuideFeedback.razor.css — Blazor CSS Isolation
+   ============================================================
+   SPEC:    docs/00-COMPONENTS/2.7/* (all Phase 2.7 specs)
+   PHASE:   2.7 — Feedback Components showcase
+   AMEND:   docs/CHANGE-LOG.md A35 (initial bug: missing base sg-* rules,
+            fixed in same A35 batch)
+
+   ARCHITECTURE NOTE — Blazor CSS Isolation scope boundaries:
+
+   Blazor's CSS Isolation appends a per-component scope attribute
+   (e.g. [b-abc123]) to every selector defined here AND to every HTML
+   element rendered by THIS component's .razor file. Rules defined in
+   another component's .razor.css (e.g. StyleGuide.razor.css) get a
+   DIFFERENT scope attribute and do NOT match elements rendered here,
+   even if both files use the same class name (.sg-section, etc.).
+
+   This is why StyleGuideOverlays.razor.css redefines all base sg-*
+   rules rather than inheriting them — and this file follows that
+   same pattern. The initial Phase 2.7 build assumed inheritance and
+   shipped with a sidebar-collapse / demo-num-flat bug; this revision
+   ports the base rules from StyleGuideOverlays.razor.css verbatim
+   and adds the feedback-component-specific layout rules at the bottom.
+
+   ZERO hardcoded colors — all values reference theme tokens.
+   ============================================================ */
+
+
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  BASE sg-* RULES (mirrored from StyleGuideOverlays.razor.css) ║
+   ║  Identical visual output to the Phase 2.6.2 showcase.         ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+
+/* ---------- Page wrapper ---------- */
+.sg-page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--sp-xl) var(--sp-lg);
+    font-family: var(--font-ui);
+}
+
+/* ---------- Top bar ---------- */
+.sg-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-xl);
+    padding-bottom: var(--sp-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+    margin-bottom: var(--sp-xl);
+}
+
+.sg-titleblock { display: flex; flex-direction: column; gap: var(--sp-xs); }
+
+.sg-h1 {
+    font-size: 24px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.sg-subtitle { font-size: var(--ts-body); color: var(--color-text-secondary); margin: 0; }
+
+.sg-back-link {
+    font-size: 12px;
+    color: var(--color-primary);
+    text-decoration: none;
+    flex-shrink: 0;
+    margin-top: 4px;
+}
+
+.sg-back-link:hover { text-decoration: underline; }
+.sg-back-link:visited { color: var(--color-primary); }
+
+
+/* ---------- Layout: sidebar + content ---------- */
+.sg-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--sp-xl);
+    align-items: start;
+}
+
+@media (max-width: 880px) {
+    .sg-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sg-sidebar {
+    position: sticky;
+    top: var(--sp-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-lg);
+}
+
+.sg-nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sg-nav-header {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+    margin: 0 0 6px 0;
+    font-weight: var(--fw-medium);
+}
+
+.sg-nav-link {
+    display: block;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: var(--r-sm);
+    transition: background var(--tr-fast), color var(--tr-fast);
+}
+
+.sg-nav-link:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.sg-nav-link:visited { color: var(--color-text-secondary); }
+
+.sg-content {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-xl);
+}
+
+
+/* ---------- Section / heading style ---------- */
+.sg-section {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--r-lg);
+    padding: var(--sp-xl);
+    box-shadow: var(--sh-sm);
+    scroll-margin-top: var(--sp-xl);
+}
+
+.sg-h2 {
+    font-size: 20px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: 0 0 var(--sp-sm) 0;
+    letter-spacing: -0.01em;
+}
+
+.sg-h3 {
+    font-size: 14px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: var(--sp-lg) 0 var(--sp-sm) 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sg-h3:first-of-type { margin-top: var(--sp-md); }
+
+/* The demo-number badge — small circle with the demo index inside.
+   Sits inline before the demo title text. WITHOUT this rule the demo
+   number renders as flat text bumped against the title ("1Four sizes"
+   instead of "(1) Four sizes"). */
+.sg-demo-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: var(--color-primary-pale);
+    color: var(--color-primary);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: var(--fw-semi);
+    flex-shrink: 0;
+}
+
+.sg-p {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin: 0 0 var(--sp-md) 0;
+}
+
+.sg-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--color-border-subtle);
+}
+
+
+/* ---------- Demo trigger blocks (Toast section) ---------- */
+.sg-btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0 0 0;
+    align-items: center;
+}
+
+.sg-result {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--color-bg-subtle);
+    border-left: 3px solid var(--color-primary);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-text-primary);
+    line-height: 1.5;
+}
+
+
+/* ---------- Inline form row (used by some demo controls) ---------- */
+.sg-form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.sg-form-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.sg-form-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 0.5px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    font-family: var(--font-ui);
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface);
+    outline: none;
+}
+
+.sg-form-input:focus { border-color: var(--color-primary); }
+
+
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  FEEDBACK-COMPONENT-SPECIFIC LAYOUT (sg-fb-*)                ║
+   ║  Page-specific additions for the 6 Phase 2.7 component demos. ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+
+/* ---------- Generic feedback-component demo row ---------- */
+/* Standard row — items aligned center, small gap (good for compact demos). */
+.sg-fb-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: var(--sp-sm) 0 0 0;
+}
+
+/* Spaced variant — wider gaps + bottom margin (good for demo grids with
+   surrounding visual content like badges and pills). */
+.sg-fb-row-spaced {
+    gap: 20px;
+    margin-bottom: var(--sp-sm);
+}
+
+/* ---------- Spinner — Inverse demo dark backdrop ---------- */
+/* Dark padded box that makes the Inverse (white) spinner visible. Sits
+   inline in the row alongside the other 3 intent demos. */
+.sg-fb-darkpad {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--color-primary);
+    border-radius: var(--r-md);
+}
+
+/* ---------- Badge — host wrapper for absolute-positioned badge ---------- */
+/* The badge is position:absolute relative to its parent; parent must be
+   position:relative. This host wraps the icon AND the badge so the badge
+   anchors correctly. */
+.sg-fb-badge-host {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: var(--color-text-secondary);
+}
+
+/* Larger host for position-demo (4 corners) — gives the position differences
+   room to be visible without crowding. */
+.sg-fb-badge-host-lg {
+    width: 40px;
+    height: 40px;
+}
+
+/* ---------- Badge — inline-mode text pairing ---------- */
+.sg-fb-inline-text {
+    display: inline-flex;
+    align-items: center;
+    font-size: 13px;
+    color: var(--color-text-primary);
+}
+
+/* ---------- Skeleton — 3-column primitives row ---------- */
+/* Three side-by-side cells: Line, Circle, Rect. Each cell stacks its own
+   contents vertically. */
+.sg-fb-skel-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-lg);
+    margin: var(--sp-sm) 0 var(--sp-md) 0;
+    align-items: start;
+}
+
+@media (max-width: 720px) {
+    .sg-fb-skel-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sg-fb-skel-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.sg-fb-skel-label {
+    font-family: var(--font-mono);
+    font-size: var(--ts-micro);
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 4px;
+}
+
+/* ---------- Skeleton — composed user-card grid ---------- */
+.sg-fb-skel-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-md);
+    margin: var(--sp-sm) 0 var(--sp-md) 0;
+}
+
+@media (max-width: 880px) {
+    .sg-fb-skel-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sg-fb-skel-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--r-md);
+}
+
+.sg-fb-skel-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* ---------- Validation summary — demo form layout ---------- */
+.sg-fb-form {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 420px;
+    margin: var(--sp-md) 0 var(--sp-sm) 0;
+}
+
+.sg-fb-form .sg-form-label {
+    margin-top: 8px;
+}
+
+.sg-fb-form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}

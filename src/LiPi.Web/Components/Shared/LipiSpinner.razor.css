@@ -1,0 +1,104 @@
+/* ============================================================================ */
+/* SPEC:  docs/00-COMPONENTS/2.7/01-LipiSpinner-Spec.md §5                      */
+/* PHASE: 2.7 — Feedback Components                                             */
+/* AMEND: docs/CHANGE-LOG.md A35 (2026-05-15)                                   */
+/*                                                                              */
+/* Scoped CSS for LipiSpinner. Tokens consumed:                                 */
+/*   --lipi-spinner-duration   (mode-light/dark — default 1.0s, customizable)   */
+/*   --lipi-spinner-track      (mode-light/dark — faint backing ring)           */
+/*   --color-primary           (Intent.Primary)                                 */
+/*   --color-text-tertiary     (Intent.Subtle — deployed name; spec says         */
+/*                              --color-text-muted, mapped per A35 audit)       */
+/* ============================================================================ */
+
+/* ===================== BASE ===================== */
+/* All Lucide-style stroke caps for the arc; rotation lives at the SVG level. */
+.lipi-spinner {
+    display: inline-block;
+    width: 24px;   /* Medium default — overridden by size variants below */
+    height: 24px;
+    color: currentColor;
+    animation: lipi-spinner-rotate var(--lipi-spinner-duration, 1.0s) linear infinite;
+    flex-shrink: 0;     /* don't shrink inside flex containers */
+}
+
+/* ===================== SIZE VARIANTS ===================== */
+.lipi-spinner-xs { width: 12px; height: 12px; }
+.lipi-spinner-sm { width: 16px; height: 16px; }
+.lipi-spinner-md { width: 24px; height: 24px; }
+.lipi-spinner-lg { width: 48px; height: 48px; }
+
+/* ===================== INTERNAL CIRCLES ===================== */
+/* Faint backing ring at the spinner's full circumference. */
+.lipi-spinner-track {
+    stroke: var(--lipi-spinner-track);
+    fill: none;
+    stroke-width: 2;
+}
+
+/* Visible arc — ~25% of the circumference. Rotates with the SVG.
+   Stroke length is 60 of total 90 (clipped); the gap is what creates
+   the moving-arc appearance against the faint track. */
+.lipi-spinner-arc {
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 60 90;
+}
+
+/* ===================== ROTATION KEYFRAMES ===================== */
+@keyframes lipi-spinner-rotate {
+    from { transform: rotate(0deg);   }
+    to   { transform: rotate(360deg); }
+}
+
+/* ===================== WRAP (label layouts) ===================== */
+/* When a label is provided, the spinner is wrapped in an inline-flex
+   container. Direction varies with the LabelPosition parameter. */
+.lipi-spinner-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Right (default): spinner first, label after — already correct via row default. */
+.lipi-spinner-wrap-right  { flex-direction: row; }
+
+/* Left: label first, spinner after — flex order reversed by Razor markup itself
+   (LabelGoesBefore=true puts label first); CSS just keeps row direction. */
+.lipi-spinner-wrap-left   { flex-direction: row; }
+
+/* Top: label above, spinner below. Razor emits label first (LabelGoesBefore=true). */
+.lipi-spinner-wrap-top    { flex-direction: column; }
+
+/* Bottom: spinner above, label below. Razor emits label after. */
+.lipi-spinner-wrap-bottom { flex-direction: column; }
+
+.lipi-spinner-label {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.2;
+}
+
+/* ===================== INTENT COLORS ===================== */
+/* Color override hierarchy (highest wins):
+   1. inline style="color:..." (the Color parameter)
+   2. .lipi-spinner-{primary,subtle,inverse} class
+   3. currentColor (Default — inherits from parent)
+*/
+.lipi-spinner-default  { color: currentColor; }
+.lipi-spinner-primary  { color: var(--color-primary); }
+.lipi-spinner-subtle   { color: var(--color-text-tertiary); }
+.lipi-spinner-inverse  { color: #ffffff; }
+
+/* ===================== REDUCED MOTION ===================== */
+/* Per spec §7: slower (2.5s) rotation when user prefers reduced motion.
+   We don't disable animation entirely — a static spinner mid-rotation is
+   visually ambiguous (is it loading or stuck?). Slower-but-still-rotating
+   preserves the "still loading" signal while reducing motion stimulation. */
+@media (prefers-reduced-motion: reduce) {
+    .lipi-spinner {
+        animation-duration: 2.5s;
+    }
+}

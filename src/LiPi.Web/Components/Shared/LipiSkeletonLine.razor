@@ -1,0 +1,49 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/03-LipiSkeleton-Spec.md §2, §4 (LipiSkeletonLine)
+   PHASE: 2.7 — Feedback Components
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Line primitive for text/paragraph placeholders. Width and height default
+   to "100%" and "1em" so a single Line behaves like a row of text. Compose
+   multiple Lines (different widths) for paragraph placeholders.
+
+   Single-file pure render — no .razor.cs partial. The three skeleton primitives
+   share lipi-skeleton.css (wwwroot/css/) for the shimmer keyframe; per-primitive
+   shape classes are also defined there. No scoped .razor.css needed.
+
+   Accessibility: aria-hidden="true" — skeletons are decorative. The consuming
+   page sets role="status" + aria-busy="true" on the outer loading region.
+*@
+
+@namespace LiPi.Web.Components.Shared
+
+<span class="@CssClasses"
+      style="@InlineStyle"
+      aria-hidden="true">
+</span>
+
+@code {
+    /// <summary>CSS width — "100%" (default), "200px", "12em", etc.</summary>
+    [Parameter] public string Width { get; set; } = "100%";
+
+    /// <summary>CSS height — "1em" (default — matches one line of body text).</summary>
+    [Parameter] public string Height { get; set; } = "1em";
+
+    /// <summary>When true (default), the shimmer animation runs. Set false for
+    /// static placeholder (no movement) — useful in tests or when many
+    /// skeletons would create visual noise.</summary>
+    [Parameter] public bool Animate { get; set; } = true;
+
+    /// <summary>Append-only layout utility classes.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    private string CssClasses => BuildCssClasses();
+    private string InlineStyle => $"width:{Width};height:{Height}";
+
+    private string BuildCssClasses()
+    {
+        var classes = new List<string> { "lipi-skeleton", "lipi-skeleton-line" };
+        if (Animate) classes.Add("lipi-skeleton-animate");
+        if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+        return string.Join(" ", classes);
+    }
+}

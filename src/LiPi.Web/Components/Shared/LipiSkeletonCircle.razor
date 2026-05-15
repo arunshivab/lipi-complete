@@ -1,0 +1,38 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/03-LipiSkeleton-Spec.md §2, §4 (LipiSkeletonCircle)
+   PHASE: 2.7 — Feedback Components
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Circle primitive for avatar/icon placeholders. Diameter via Size (px).
+   Pairs naturally with Line primitives for "avatar + name" loading layouts.
+
+   Single-file pure render — see LipiSkeletonLine.razor for architecture notes.
+*@
+
+@namespace LiPi.Web.Components.Shared
+
+<span class="@CssClasses"
+      style="@InlineStyle"
+      aria-hidden="true">
+</span>
+
+@code {
+    /// <summary>Diameter in pixels. Default 40px (matches standard avatar size).</summary>
+    [Parameter] public int Size { get; set; } = 40;
+
+    /// <summary>Shimmer animation on/off. Default true.</summary>
+    [Parameter] public bool Animate { get; set; } = true;
+
+    /// <summary>Append-only layout utility classes.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    private string CssClasses => BuildCssClasses();
+    private string InlineStyle => $"width:{Size}px;height:{Size}px";
+
+    private string BuildCssClasses()
+    {
+        var classes = new List<string> { "lipi-skeleton", "lipi-skeleton-circle" };
+        if (Animate) classes.Add("lipi-skeleton-animate");
+        if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+        return string.Join(" ", classes);
+    }
+}

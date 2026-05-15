@@ -1,0 +1,38 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/02-LipiBadge-Pill-Spec.md §3
+   PHASE: 2.7 — Feedback Components
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Standalone label/tag/chip. Inline element — flows in text.
+   Dismissible variant emits a × button; clicking fires OnDismiss.
+
+   File pattern (per Phase 2.7 BUILD-CHAT-HANDOFF literal):
+     LipiPill.razor      — markup
+     LipiPill.razor.cs   — partial class
+     LipiPill.razor.css  — scoped CSS
+     LipiPillTypes.cs    — shared enums
+*@
+
+@namespace LiPi.Web.Components.Shared
+@using Microsoft.AspNetCore.Components.Web
+
+<span class="@CssClasses" role="@AriaRole">
+    @if (!string.IsNullOrWhiteSpace(Icon))
+    {
+        <span class="lipi-pill-icon" aria-hidden="true">
+            <LucideIcon Name="@Icon" Size="@IconPx" />
+        </span>
+    }
+    <span class="lipi-pill-text">
+        @ChildContent
+    </span>
+    @if (Dismissible)
+    {
+        <button type="button"
+                class="lipi-pill-dismiss"
+                aria-label="@DismissAriaLabel"
+                @onclick="OnDismissClickInternal"
+                @onclick:stopPropagation="true">
+            <LucideIcon Name="x" Size="@DismissIconPx" />
+        </button>
+    }
+</span>

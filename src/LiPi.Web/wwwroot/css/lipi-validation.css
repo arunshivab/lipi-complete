@@ -1,0 +1,47 @@
+/* ============================================================================ */
+/* SPEC:  docs/00-COMPONENTS/2.7/04-LipiValidationSummary-Spec.md §6, §7        */
+/* PHASE: 2.7 — Feedback Components                                             */
+/* AMEND: docs/CHANGE-LOG.md A35 (2026-05-15)                                   */
+/*                                                                              */
+/* Global CSS for the field-flash effect triggered by LipiValidationSummary    */
+/* when the user clicks an error in the bulleted list.                         */
+/*                                                                              */
+/* Scope rationale: this class must target ANY input element on the page       */
+/* (LipiTextBox, LipiSelect, LipiNumberInput, ...). Component scoped CSS       */
+/* (LipiValidationSummary.razor.css) cannot reach across to the input's        */
+/* element — the Blazor scope rewriter only matches within the component's     */
+/* own rendered tree. Hence a global CSS file linked from App.razor.            */
+/*                                                                              */
+/* Tokens consumed:                                                             */
+/*   --color-warning-pale  (light amber halo — gentle attention cue)           */
+/* ============================================================================ */
+
+/* ===================== KEYFRAME ===================== */
+/* 1.5s expanding-then-contracting ring. The 0% and 100% states are identical */
+/* (no shadow) so the element returns to its normal box-shadow after the      */
+/* animation completes — no permanent visual change.                          */
+@keyframes lipi-field-flash {
+    0%, 100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+    50% {
+        box-shadow: 0 0 0 4px var(--color-warning-pale);
+    }
+}
+
+/* ===================== FLASH CLASS ===================== */
+/* Applied by lipi-validation.js after scroll + focus, removed after 1.5s.    */
+/* The animation: shorthand triggers the keyframe; the duration matches the   */
+/* JS removal timer so the class can be removed once the animation completes. */
+.lipi-field-flash {
+    animation: lipi-field-flash 1.5s ease-out;
+}
+
+/* Respect reduced-motion preference — flash is decorative reinforcement of
+   the scroll+focus, not the sole indicator. Scroll-into-view and focus
+   still happen; the visual ring is just suppressed. */
+@media (prefers-reduced-motion: reduce) {
+    .lipi-field-flash {
+        animation: none;
+    }
+}

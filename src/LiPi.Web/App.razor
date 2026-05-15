@@ -34,11 +34,14 @@
         12. lipi-cards.css — Phase 2.6.1 LipiCard layout (5 variants + sub-components)
         13. lipi-overlays.css — Phase 2.6.2 LipiModal + LipiDrawer layout + animations
         14. lipi-dynamic-tabs.css — Phase 2.6.2 LipiDynamicTabs tab strip layout
-        15. Blazor CSS Isolation bundle (LiPi.Web.styles.css)
+        15. lipi-skeleton.css — Phase 2.7 LipiSkeleton family (3 shape primitives + shimmer)
+        16. lipi-validation.css — Phase 2.7 LipiValidationSummary field-flash keyframe (global scope)
+        17. Blazor CSS Isolation bundle (LiPi.Web.styles.css)
 
         CACHE VERSION HISTORY (reverse-chronological)
         | Version  | Phase / Batch                       | What shipped                                        |
         |----------|-------------------------------------|-----------------------------------------------------|
+        | 20260526 | Phase 2.7 — CHANGE-LOG A35           | Phase 2.7 Feedback Components: LipiSpinner, LipiBadge, LipiPill, LipiSkeleton (3), LipiValidationSummary, LipiToast family. Token additions (--color-danger-text-strong + 7 Phase 2.7 component tokens). LipiToastHost wired into TopNavLayout. ILipiToastService registered Scoped. |
         | 20260525 | Phase 2.6.2 — CHANGE-LOG A30–A34    | Phase 2.6.2 close-out: LipiModalTypes recovery (A30), LipiModal declarative family (A31), bug sweep + drawer pin completion (A32), StyleGuideOverlays 30-demo rewrite (A33), DynamicTabs chevron overflow redesign (A34) |
         | 20260524 | Phase 2.6.1 — CHANGE-LOG A27         | LipiCard spec reconciliation: interactivity unified on IsInteractive; accent radius + focus-ring + aria to spec |
         | 20260523 | Phase 2.6.1 — CHANGE-LOG A26         | LipiCard CSS self-sufficiency: optional-token fallbacks (border-tertiary, sh-xs) |
@@ -59,37 +62,49 @@
         | 20260510 | Phase 2.2 Batch 5.4                 | Earlier text-input family work                      |
     *@
 
-    <link rel="stylesheet" href="css/00-baseline.css?v=20260525" />
-    <link rel="stylesheet" href="css/app.css?v=20260525" />
-    <link rel="stylesheet" href="css/dashboard.css?v=20260525" />
-    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260525" />
-    <link rel="stylesheet" href="themes/mode-light.css?v=20260525" />
-    <link rel="stylesheet" href="themes/mode-dark.css?v=20260525" />
-    <link rel="stylesheet" href="css/admin.css?v=20260525" />
-    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260525" />
-    <link rel="stylesheet" href="css/lipi-compound.css?v=20260525" />
-    <link rel="stylesheet" href="css/lipi-multi.css?v=20260525" />
+    <link rel="stylesheet" href="css/00-baseline.css?v=20260526" />
+    <link rel="stylesheet" href="css/app.css?v=20260526" />
+    <link rel="stylesheet" href="css/dashboard.css?v=20260526" />
+    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260526" />
+    <link rel="stylesheet" href="themes/mode-light.css?v=20260526" />
+    <link rel="stylesheet" href="themes/mode-dark.css?v=20260526" />
+    <link rel="stylesheet" href="css/admin.css?v=20260526" />
+    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260526" />
+    <link rel="stylesheet" href="css/lipi-compound.css?v=20260526" />
+    <link rel="stylesheet" href="css/lipi-multi.css?v=20260526" />
 
     @* Phase 2.5 — Selection family (LipiCheckbox/-Group, LipiRadio/-Group, LipiToggle)
        and form utility patterns (lipi-form-row helpers). These ship via the deploy
        script but were never wired in App.razor — caused the LabelPosition.Left grid
        layout on LipiCheckboxGroup to silently fall back to default fieldset layout.
        Stage 1C of Phase 2.6.3 stabilisation closes this Phase 2.5 audit debt. *@
-    <link rel="stylesheet" href="css/lipi-selection-family.css?v=20260525" />
-    <link rel="stylesheet" href="css/lipi-form-utilities.css?v=20260525" />
+    <link rel="stylesheet" href="css/lipi-selection-family.css?v=20260526" />
+    <link rel="stylesheet" href="css/lipi-form-utilities.css?v=20260526" />
 
     @* Phase 2.6.1 — Layout components (LipiTabs + LipiAlert + LipiCard).
        Without these the tab/alert/card components render unstyled markup. *@
-    <link rel="stylesheet" href="css/lipi-tabs.css?v=20260525" />
-    <link rel="stylesheet" href="css/lipi-alerts.css?v=20260525" />
-    <link rel="stylesheet" href="css/lipi-cards.css?v=20260525" />
+    <link rel="stylesheet" href="css/lipi-tabs.css?v=20260526" />
+    <link rel="stylesheet" href="css/lipi-alerts.css?v=20260526" />
+    <link rel="stylesheet" href="css/lipi-cards.css?v=20260526" />
 
     @* Phase 2.6.2 — Overlay surfaces (LipiModal + LipiDrawer + LipiDynamicTabs).
        Without lipi-overlays.css the modal/drawer markup renders without
        position:fixed, no centering, no backdrop, no box-shadow — appears as
        loose elements stacked at the bottom of the page. *@
-    <link rel="stylesheet" href="css/lipi-overlays.css?v=20260525" />
-    <link rel="stylesheet" href="css/lipi-dynamic-tabs.css?v=20260525" />
+    <link rel="stylesheet" href="css/lipi-overlays.css?v=20260526" />
+    <link rel="stylesheet" href="css/lipi-dynamic-tabs.css?v=20260526" />
+
+    @* Phase 2.7 — Feedback Components family (A35):
+       - lipi-skeleton.css: shared shimmer keyframe + 3 shape classes for
+         LipiSkeletonLine / LipiSkeletonCircle / LipiSkeletonRect. Without this
+         file, the three primitives render as invisible empty spans.
+       - lipi-validation.css: global @keyframes lipi-field-flash + .lipi-field-flash
+         class. This must be global (not scoped) because the flash effect
+         targets ANY input element on the page, not just elements rendered by
+         LipiValidationSummary itself. Loaded after component CSS so it can
+         override input ring shadows during the 1.5s flash animation. *@
+    <link rel="stylesheet" href="css/lipi-skeleton.css?v=20260526" />
+    <link rel="stylesheet" href="css/lipi-validation.css?v=20260526" />
 
     <link rel="stylesheet" href="LiPi.Web.styles.css" />
 
@@ -115,7 +130,7 @@
         FOUC PREVENTION — MUST be blocking script (no async/defer), MUST be in <head>.
         Runs before browser paints content.
     *@
-    <script src="js/theme-switcher.js?v=20260525"></script>
+    <script src="js/theme-switcher.js?v=20260526"></script>
 
     <HeadOutlet @rendermode="@InteractiveServer" />
 </head>
@@ -151,13 +166,13 @@
 
     @* Body scripts — order preserved; theme-switcher.js is in <head>, not here.
        Cache version added to ALL JS scripts in this batch — previously only CSS was versioned. *@
-    <script src="js/lipi-login.js?v=20260525"></script>
-    <script src="js/lipi-topnav.js?v=20260525"></script>
-    <script src="js/lipi-shortcuts.js?v=20260525"></script>
+    <script src="js/lipi-login.js?v=20260526"></script>
+    <script src="js/lipi-topnav.js?v=20260526"></script>
+    <script src="js/lipi-shortcuts.js?v=20260526"></script>
 
     @* Phase 2.2: input family helpers (autogrow Batch 3, selectAll Batch 4).
        Loaded BEFORE blazor.web.js so window.lipiInput is available when components first render. *@
-    <script src="js/lipi-input.js?v=20260525"></script>
+    <script src="js/lipi-input.js?v=20260526"></script>
 
     @* Phase 2.6.2: overlay surfaces JS interop (focus trap stack, ghost-click guard,
        body scroll lock with scrollbar compensation, page-inert helper, bfcache pageshow
@@ -167,7 +182,15 @@
        FocusTrapService / ScrollLockService / setPageInert calls throw JSException
        which is silently swallowed — overlays render but keyboard/scroll behaviors
        degrade silently. *@
-    <script src="js/lipi-overlay-interop.js?v=20260525"></script>
+    <script src="js/lipi-overlay-interop.js?v=20260526"></script>
+
+    @* Phase 2.7 (A35): validation summary click-to-field interop. Exposes
+       window.lipiValidation.scrollToField(fieldId) — used by LipiValidationSummary
+       when the user clicks an error in the bulleted list. Loaded BEFORE blazor.web.js
+       so window.lipiValidation is available when the summary first renders.
+       Failure mode is silent: if the script doesn't load, the summary still shows
+       errors, but clicking an item is a no-op. *@
+    <script src="js/lipi-validation.js?v=20260526"></script>
 
     <script src="_framework/blazor.web.js"></script>
 </body>

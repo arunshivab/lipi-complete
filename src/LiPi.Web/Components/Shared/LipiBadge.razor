@@ -1,0 +1,34 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/02-LipiBadge-Pill-Spec.md §2
+   PHASE: 2.7 — Feedback Components
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Attached count or dot indicator. Positioned via absolute corner classes
+   (when not Inline) — parent must be position:relative to anchor correctly.
+
+   File pattern (per Phase 2.7 BUILD-CHAT-HANDOFF literal):
+     LipiBadge.razor      — markup only
+     LipiBadge.razor.cs   — partial class
+     LipiBadge.razor.css  — scoped CSS
+     LipiBadgeTypes.cs    — shared enums
+*@
+
+@namespace LiPi.Web.Components.Shared
+
+@if (ShouldRender_Custom)
+{
+    <span class="@CssClasses"
+          role="status"
+          aria-label="@ResolvedAriaLabel">
+        @if (!Dot)
+        {
+            @DisplayText
+        }
+    </span>
+}
+
+@code {
+    // Note: ShouldRender_Custom is a derived property in the partial class;
+    // named with the _Custom suffix to avoid colliding with Blazor's protected
+    // bool ShouldRender() override method (which has a different signature
+    // and is used for component-level render skipping).
+}

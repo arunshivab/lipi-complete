@@ -1,0 +1,163 @@
+/* ============================================================================ */
+/* SPEC:  docs/00-COMPONENTS/2.7/02-LipiBadge-Pill-Spec.md §3 (visual specs)    */
+/* PHASE: 2.7 — Feedback Components                                             */
+/* AMEND: docs/CHANGE-LOG.md A35 (2026-05-15)                                   */
+/*                                                                              */
+/* Token mapping (spec name → deployed name):                                   */
+/*   --color-success-fill    → --color-success                                  */
+/*   --color-warning-fill    → --color-warning                                  */
+/*   --color-danger-fill     → --color-danger                                   */
+/*   --color-info-fill       → --color-info                                     */
+/*   --color-bg-strong       → --color-border-strong  (neutral filled bg)       */
+/*   --color-success-text    → --color-success-text-strong                      */
+/*   --color-success-subtle  → --color-success-pale                             */
+/*   --color-danger-text-strong  ADDED to mode files in this batch (A35)        */
+/*                                                                              */
+/* Variants × intents matrix (3 × 7 = 21 combos). Filled and subtle are        */
+/* explicit per intent. Outlined uses currentColor for border + text — the    */
+/* intent class sets the color and the border follows automatically.          */
+/* ============================================================================ */
+
+/* ===================== BASE ===================== */
+.lipi-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    box-sizing: border-box;
+    border: 1px solid transparent;     /* placeholder so Outlined doesn't shift layout */
+    vertical-align: middle;
+    user-select: none;
+}
+
+/* ===================== SIZE ===================== */
+.lipi-pill-sm {
+    height: 20px;
+    padding: 0 8px;
+    font-size: 10px;
+    border-radius: 10px;
+    gap: 3px;
+}
+.lipi-pill-md {
+    /* base values — explicit for clarity, override of any inherited */
+    height: 24px;
+    padding: 0 10px;
+    font-size: 11px;
+    border-radius: 12px;
+}
+.lipi-pill-lg {
+    height: 28px;
+    padding: 0 12px;
+    font-size: 12px;
+    border-radius: 14px;
+    gap: 5px;
+}
+
+/* ===================== TEXT + ICON ===================== */
+.lipi-pill-text {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.lipi-pill-icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    color: inherit;
+}
+
+/* ===================== DISMISS BUTTON ===================== */
+.lipi-pill-dismiss {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin-left: 2px;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.lipi-pill-dismiss:hover { opacity: 1; }
+.lipi-pill-dismiss:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary-pale);
+    opacity: 1;
+}
+
+/* ===================== FILLED VARIANT ===================== */
+.lipi-pill-filled.lipi-pill-default {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    border-color: var(--color-border-default);
+}
+.lipi-pill-filled.lipi-pill-primary { background: var(--color-primary);  color: #ffffff; }
+.lipi-pill-filled.lipi-pill-success { background: var(--color-success);  color: #ffffff; }
+.lipi-pill-filled.lipi-pill-warning { background: var(--color-warning);  color: #ffffff; }
+.lipi-pill-filled.lipi-pill-danger  { background: var(--color-danger);   color: #ffffff; }
+.lipi-pill-filled.lipi-pill-info    { background: var(--color-info);     color: #ffffff; }
+.lipi-pill-filled.lipi-pill-neutral {
+    background: var(--color-border-strong);
+    color: var(--color-text-primary);
+}
+
+/* ===================== OUTLINED VARIANT =====================
+   Border + text use currentColor. The intent class below sets currentColor
+   via the color: property, and border-color: currentColor picks it up.
+   Background stays transparent for pure outline effect. */
+.lipi-pill-outlined {
+    background: transparent;
+    border-color: currentColor;
+}
+.lipi-pill-outlined.lipi-pill-default { color: var(--color-text-secondary); }
+.lipi-pill-outlined.lipi-pill-primary { color: var(--color-primary); }
+.lipi-pill-outlined.lipi-pill-success { color: var(--color-success-text-strong); }
+.lipi-pill-outlined.lipi-pill-warning { color: var(--color-warning-text-strong); }
+.lipi-pill-outlined.lipi-pill-danger  { color: var(--color-danger-text-strong); }
+.lipi-pill-outlined.lipi-pill-info    { color: var(--color-info-text-strong); }
+.lipi-pill-outlined.lipi-pill-neutral { color: var(--color-text-secondary); }
+
+/* ===================== SUBTLE VARIANT =====================
+   Light-tint background with the *-text-strong color for body text.
+   Reuses the badge-text token family added in A12.                          */
+.lipi-pill-subtle.lipi-pill-default {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+}
+.lipi-pill-subtle.lipi-pill-primary {
+    background: var(--color-primary-pale);
+    color: var(--color-primary);
+}
+.lipi-pill-subtle.lipi-pill-success {
+    background: var(--color-success-pale);
+    color: var(--color-success-text-strong);
+}
+.lipi-pill-subtle.lipi-pill-warning {
+    background: var(--color-warning-pale);
+    color: var(--color-warning-text-strong);
+}
+.lipi-pill-subtle.lipi-pill-danger {
+    background: var(--color-danger-pale);
+    color: var(--color-danger-text-strong);
+}
+.lipi-pill-subtle.lipi-pill-info {
+    background: var(--color-info-pale);
+    color: var(--color-info-text-strong);
+}
+.lipi-pill-subtle.lipi-pill-neutral {
+    background: var(--color-border-strong);
+    color: var(--color-text-primary);
+}

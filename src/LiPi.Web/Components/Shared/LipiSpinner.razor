@@ -1,0 +1,54 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/01-LipiSpinner-Spec.md
+   PHASE: 2.7 — Feedback Components family
+   AMEND: docs/CHANGE-LOG.md A35
+
+   General-purpose loading indicator. Distinct from LipiButtonSpinner
+   (button-internal, small only). LipiSpinner is for page-level loading,
+   section loading, inline loading, or any "waiting" UX outside button context.
+
+   File pattern (per Phase 2.7 BUILD-CHAT-HANDOFF literal):
+     LipiSpinner.razor      — markup only
+     LipiSpinner.razor.cs   — partial class with parameters, lifecycle, derived state
+     LipiSpinner.razor.css  — scoped component CSS
+     LipiSpinnerTypes.cs    — shared enums
+
+   Reduced-motion handling lives in shared rule in lipi-spinner SCOPED CSS file
+   (animation-duration override), NOT here — separation of concerns: spec lives
+   in CSS, structure lives in razor.
+*@
+
+@namespace LiPi.Web.Components.Shared
+
+@if (HasLabel)
+{
+    <span class="@WrapCssClasses">
+        @if (LabelGoesBefore)
+        {
+            <span class="lipi-spinner-label">@Label</span>
+        }
+        @SpinnerSvg
+        @if (!LabelGoesBefore)
+        {
+            <span class="lipi-spinner-label">@Label</span>
+        }
+    </span>
+}
+else
+{
+    @SpinnerSvg
+}
+
+@code {
+    private RenderFragment SpinnerSvg => __builder =>
+    {
+        <svg class="@SvgCssClasses"
+             viewBox="0 0 24 24"
+             style="@InlineStyle"
+             role="status"
+             aria-label="@AriaLabel"
+             aria-live="polite">
+            <circle class="lipi-spinner-track" cx="12" cy="12" r="10"></circle>
+            <circle class="lipi-spinner-arc"   cx="12" cy="12" r="10"></circle>
+        </svg>
+    };
+}

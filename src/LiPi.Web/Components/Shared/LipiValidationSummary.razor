@@ -1,0 +1,81 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/04-LipiValidationSummary-Spec.md
+   PHASE: 2.7 — Feedback Components
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Form-level error summary. Built on LipiAlert (Phase 2.6.1) — no new visual
+   styling needed. Adds intelligence for EditContext integration, field-name
+   resolution from [Display(Name)] attributes, and click-to-field navigation.
+
+   File pattern (per Phase 2.7 BUILD-CHAT-HANDOFF literal):
+     LipiValidationSummary.razor      — markup
+     LipiValidationSummary.razor.cs   — partial class (heaviest in 2.7)
+     LipiValidationSummary.razor.css  — scoped CSS for list rendering
+     LipiValidationSummaryTypes.cs    — Mode/Placement enums + ValidationError
+
+   Renders nothing when there are no errors — disappears entirely, no empty alert.
+
+   Two instances on the page when Placement=Both — the partial class subscribes
+   to the same EditContext, so both stay in sync automatically.
+*@
+
+@namespace LiPi.Web.Components.Shared
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Forms
+
+@if (HasErrors)
+{
+    @if (RenderTop)
+    {
+        @SummaryFragment
+    }
+
+    @* Bottom render — only when Placement includes Bottom AND a top instance
+       wouldn't already have rendered it (i.e., this IS the bottom-only render).
+       The component is meant to be placed ONCE per EditForm; we don't auto-render
+       at both positions from a single instance because consumer's form layout
+       drives placement. The spec §9 "Both" mode is for consumers who place the
+       component twice. We honor Placement values to support either pattern. *@
+}
+
+@code {
+    private RenderFragment SummaryFragment => __builder =>
+    {
+        <div class="@WrapperCssClasses">
+            <LipiAlert Severity="AlertSeverity.Danger"
+                       Style="AlertStyle.Filled"
+                       Dismissible="false"
+                       Title="@SummaryTitle">
+                <ChildContent>
+                    @if (HeaderTemplate != null)
+                    {
+                        @HeaderTemplate(_errorsList.Count)
+                    }
+                    @if (Mode == ValidationSummaryMode.Detailed)
+                    {
+                        <ul class="lipi-validation-summary-list">
+                            @foreach (var err in _errorsList)
+                            {
+                                var label = string.IsNullOrWhiteSpace(err.DisplayName) ? err.FieldName : err.DisplayName!;
+                                var text  = $"{label} {err.Message}".Trim();
+                                <li class="lipi-validation-summary-item">
+                                    @if (ScrollToFieldOnClick && !string.IsNullOrWhiteSpace(err.FieldId))
+                                    {
+                                        <a href="javascript:void(0)"
+                                           @onclick="@(() => OnErrorClick(err.FieldId!))"
+                                           @onclick:preventDefault="true">
+                                            @text
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        @text
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </ChildContent>
+            </LipiAlert>
+        </div>
+    };
+}
