@@ -1,0 +1,65 @@
+/* ============================================================================ */
+/* SPEC:  docs/00-COMPONENTS/2.7/04-LipiValidationSummary-Spec.md §7            */
+/* PHASE: 2.7 — Feedback Components                                             */
+/* AMEND: docs/CHANGE-LOG.md A35 (2026-05-15)                                   */
+/*                                                                              */
+/* Scoped CSS for LipiValidationSummary. The bulleted list rendering is the     */
+/* only piece NOT inherited from LipiAlert — the alert provides the box, the   */
+/* color, the icon, and the title. We layer the list on top.                  */
+/*                                                                              */
+/* The lipi-field-flash keyframe lives in wwwroot/css/lipi-validation.css     */
+/* (global scope) because the flash needs to target ANY input element across  */
+/* the page, not just elements rendered by this component.                    */
+/* ============================================================================ */
+
+/* ===================== WRAPPER ===================== */
+.lipi-validation-summary {
+    margin-bottom: 16px;
+}
+
+/* Both/Bottom variants: extra spacing above when at bottom of form (before
+   submit button). Top variant uses just margin-bottom (above first field). */
+.lipi-validation-summary-bottom,
+.lipi-validation-summary-both {
+    margin-top: 16px;
+}
+
+/* Compact mode squishes vertical padding — the alert renders single-line text. */
+.lipi-validation-summary-compact .lipi-validation-summary-list {
+    display: none;        /* Compact mode renders nothing in the list slot */
+}
+
+/* ===================== ERROR LIST ===================== */
+.lipi-validation-summary-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0 0;
+}
+
+.lipi-validation-summary-item {
+    padding: 4px 0;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* List item bullet — small dot to the left, replaces native list-style. */
+.lipi-validation-summary-item::before {
+    content: '•';
+    color: currentColor;
+    margin-right: 8px;
+    opacity: 0.6;
+}
+
+/* Anchor inside item — clickable link that triggers scroll-to-field. */
+.lipi-validation-summary-item a {
+    color: var(--color-danger-text-strong);
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.lipi-validation-summary-item a:hover,
+.lipi-validation-summary-item a:focus-visible {
+    text-decoration: underline;
+    outline: none;
+}

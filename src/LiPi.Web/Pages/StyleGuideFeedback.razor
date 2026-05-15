@@ -1,0 +1,796 @@
+@page "/admin/style-guide/feedback"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@* SPEC:  docs/00-COMPONENTS/2.7/00-Phase2.7-Overview.md
+          docs/00-COMPONENTS/2.7/01-LipiSpinner-Spec.md
+          docs/00-COMPONENTS/2.7/02-LipiBadge-Pill-Spec.md
+          docs/00-COMPONENTS/2.7/03-LipiSkeleton-Spec.md
+          docs/00-COMPONENTS/2.7/04-LipiValidationSummary-Spec.md
+          docs/00-COMPONENTS/2.7/05-LipiToast-Spec.md
+   PHASE: 2.7 — Feedback Components showcase
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Single consolidated page covering all 6 Phase 2.7 components:
+     1. LipiSpinner          — sizes × intents × label positions
+     2. LipiBadge            — colors × positions × dot vs count
+     3. LipiPill             — 7 intents × 3 variants × 3 sizes + dismissible
+     4. LipiSkeleton         — Line / Circle / Rect primitives + composed cards
+     5. LipiValidationSummary — auto-discovery from EditContext + click-to-field
+     6. LipiToast            — 4 severities × 6 positions × persistent + promise
+
+   Demo navigation: from /admin/style-guide (Foundation) → "Phase 2.7" sidebar
+   group → "Feedback Components →" link. Same data-enhance-nav="false" pattern
+   as the Phase 2.6 cross-links to avoid the Blazor scoped-CSS detach bug.
+
+   Reuses sg-* scoped CSS conventions from StyleGuide.razor.css and
+   StyleGuideOverlays.razor.css. Page-specific layout additions live in
+   StyleGuideFeedback.razor.css (skeleton grid, toast trigger row, pill matrix).
+*@
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+@using LiPi.Web.Services
+@using LiPi.Web.Components.Shared
+
+@inject ILipiToastService _toast
+
+<PageTitle>Style Guide — Feedback – LiPi</PageTitle>
+<SectionContent SectionName="page-title">
+    <div class="tn-pt-title">Style Guide</div>
+    <div class="tn-pt-sub">Feedback Components — Phase 2.7</div>
+</SectionContent>
+
+<div class="sg-page">
+
+    @* ════════ TOP BAR ════════ *@
+    <header class="sg-topbar">
+        <div class="sg-titleblock">
+            <h1 class="sg-h1">Feedback Components</h1>
+            <p class="sg-subtitle">
+                Phase 2.7 — 6 components covering loading states, status indicators,
+                placeholders, and notifications. Zero external libraries.
+            </p>
+        </div>
+        <a class="sg-back-link" href="/admin/style-guide" data-enhance-nav="false">← Foundation style guide</a>
+    </header>
+
+    @* ════════ LAYOUT ════════ *@
+    <div class="sg-layout">
+
+        @* ─── Sidebar nav ─── *@
+        <aside class="sg-sidebar" aria-label="Demo sections">
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">Phase 2.7</h3>
+                <a class="sg-nav-link" href="#spinners">1. LipiSpinner</a>
+                <a class="sg-nav-link" href="#badges">2. LipiBadge</a>
+                <a class="sg-nav-link" href="#pills">3. LipiPill</a>
+                <a class="sg-nav-link" href="#skeletons">4. LipiSkeleton</a>
+                <a class="sg-nav-link" href="#validation-summary">5. LipiValidationSummary</a>
+                <a class="sg-nav-link" href="#toasts">6. LipiToast</a>
+            </div>
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">Cross-links</h3>
+                <a class="sg-nav-link" href="/admin/style-guide/layout"   data-enhance-nav="false">← Phase 2.6.1 Layout</a>
+                <a class="sg-nav-link" href="/admin/style-guide/overlays" data-enhance-nav="false">← Phase 2.6.2 Overlays</a>
+            </div>
+        </aside>
+
+        @* ─── Main content ─── *@
+        <main class="sg-content">
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  1. LipiSpinner — sizes, intents, label positions            ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            <section id="spinners" class="sg-section">
+                <h2 class="sg-h2">LipiSpinner</h2>
+                <p class="sg-p">
+                    General-purpose loading indicator. Distinct from
+                    <code class="sg-code">LipiButtonSpinner</code> (button-internal).
+                    Reuses Phase 2.5.5 <code class="sg-code">InputLabelPosition</code>
+                    for all 4 label directions.
+                </p>
+
+                @* Demo 1 — Sizes *@
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>Four sizes</h3>
+                <p class="sg-p">
+                    <code class="sg-code">XSmall</code> 12px ·
+                    <code class="sg-code">Small</code> 16px ·
+                    <code class="sg-code">Medium</code> 24px (default) ·
+                    <code class="sg-code">Large</code> 48px.
+                </p>
+                <div class="sg-fb-row">
+                    <LipiSpinner Size="SpinnerSize.XSmall" />
+                    <LipiSpinner Size="SpinnerSize.Small" />
+                    <LipiSpinner Size="SpinnerSize.Medium" />
+                    <LipiSpinner Size="SpinnerSize.Large" />
+                </div>
+
+                @* Demo 2 — Intents *@
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>Four intents</h3>
+                <p class="sg-p">
+                    <code class="sg-code">Default</code> (currentColor) ·
+                    <code class="sg-code">Primary</code> (navy) ·
+                    <code class="sg-code">Subtle</code> (tertiary text) ·
+                    <code class="sg-code">Inverse</code> (white, shown on dark backdrop).
+                </p>
+                <div class="sg-fb-row">
+                    <LipiSpinner Intent="SpinnerIntent.Default" />
+                    <LipiSpinner Intent="SpinnerIntent.Primary" />
+                    <LipiSpinner Intent="SpinnerIntent.Subtle" />
+                    <span class="sg-fb-darkpad">
+                        <LipiSpinner Intent="SpinnerIntent.Inverse" />
+                    </span>
+                </div>
+
+                @* Demo 3 — Custom size + color *@
+                <h3 class="sg-h3"><span class="sg-demo-num">3</span>Custom <code class="sg-code">SizePx</code> + <code class="sg-code">Color</code> overrides</h3>
+                <p class="sg-p">
+                    Pixel size and CSS color string both override the enum-based defaults.
+                </p>
+                <div class="sg-fb-row">
+                    <LipiSpinner SizePx="18" Color="var(--color-accent)" />
+                    <LipiSpinner SizePx="32" Color="#9333EA" />
+                    <LipiSpinner SizePx="20" Color="var(--color-success)" />
+                </div>
+
+                @* Demo 4 — Label positions *@
+                <h3 class="sg-h3"><span class="sg-demo-num">4</span>Label positions (4 directions)</h3>
+                <p class="sg-p">
+                    <code class="sg-code">LabelPosition</code> reuses
+                    <code class="sg-code">InputLabelPosition</code> from Phase 2.5.5 — all
+                    4 directions supported: <code class="sg-code">Right</code> (default) ·
+                    <code class="sg-code">Left</code> ·
+                    <code class="sg-code">Top</code> ·
+                    <code class="sg-code">Bottom</code>.
+                </p>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <LipiSpinner Label="Loading" LabelPosition="InputLabelPosition.Right" />
+                    <LipiSpinner Label="Loading" LabelPosition="InputLabelPosition.Left" />
+                    <LipiSpinner Label="Loading" LabelPosition="InputLabelPosition.Top" />
+                    <LipiSpinner Label="Loading" LabelPosition="InputLabelPosition.Bottom" />
+                </div>
+            </section>
+
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  2. LipiBadge — count + dot, colors, positions               ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            <section id="badges" class="sg-section">
+                <h2 class="sg-h2">LipiBadge</h2>
+                <p class="sg-p">
+                    Attached count or dot indicator. Positioned absolutely at a corner —
+                    parent must be <code class="sg-code">position: relative</code>.
+                    Distinct from <code class="sg-code">LipiPill</code> (standalone label).
+                </p>
+
+                @* Demo 1 — Colors *@
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>Six colors (count variant)</h3>
+                <p class="sg-p">
+                    <code class="sg-code">Danger</code> (default — notification convention) ·
+                    <code class="sg-code">Warning</code> ·
+                    <code class="sg-code">Success</code> ·
+                    <code class="sg-code">Info</code> ·
+                    <code class="sg-code">Neutral</code> ·
+                    <code class="sg-code">Primary</code>.
+                </p>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="bell" Size="24" />
+                        <LipiBadge Count="3" Color="BadgeColor.Danger" />
+                    </span>
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="bell" Size="24" />
+                        <LipiBadge Count="7" Color="BadgeColor.Warning" />
+                    </span>
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="bell" Size="24" />
+                        <LipiBadge Count="12" Color="BadgeColor.Success" />
+                    </span>
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="bell" Size="24" />
+                        <LipiBadge Count="2" Color="BadgeColor.Info" />
+                    </span>
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="bell" Size="24" />
+                        <LipiBadge Count="5" Color="BadgeColor.Neutral" />
+                    </span>
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="bell" Size="24" />
+                        <LipiBadge Count="9" Color="BadgeColor.Primary" />
+                    </span>
+                </div>
+
+                @* Demo 2 — Dot variant + Max clamping *@
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>Dot indicator + <code class="sg-code">Max</code> clamping</h3>
+                <p class="sg-p">
+                    <code class="sg-code">Dot="true"</code> hides the number for pure
+                    "something here" indication. <code class="sg-code">Count</code> above
+                    <code class="sg-code">Max</code> renders as <code class="sg-code">N+</code>
+                    (e.g., 150 with Max=99 → "99+").
+                </p>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="user" Size="24" />
+                        <LipiBadge Dot="true" Color="BadgeColor.Success" AriaLabel="Online" />
+                    </span>
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="bell" Size="24" />
+                        <LipiBadge Count="150" Max="99" />
+                    </span>
+                    <span class="sg-fb-badge-host">
+                        <LucideIcon Name="mail" Size="24" />
+                        <LipiBadge Count="1000" Max="999" />
+                    </span>
+                </div>
+
+                @* Demo 3 — Positions *@
+                <h3 class="sg-h3"><span class="sg-demo-num">3</span>Four corner positions</h3>
+                <p class="sg-p">
+                    Default <code class="sg-code">TopRight</code> matches the notification
+                    convention. Three alternatives for layouts that need them.
+                </p>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <span class="sg-fb-badge-host sg-fb-badge-host-lg">
+                        <LucideIcon Name="bell" Size="32" />
+                        <LipiBadge Count="3" Position="BadgePosition.TopRight" />
+                    </span>
+                    <span class="sg-fb-badge-host sg-fb-badge-host-lg">
+                        <LucideIcon Name="bell" Size="32" />
+                        <LipiBadge Count="3" Position="BadgePosition.TopLeft" />
+                    </span>
+                    <span class="sg-fb-badge-host sg-fb-badge-host-lg">
+                        <LucideIcon Name="bell" Size="32" />
+                        <LipiBadge Count="3" Position="BadgePosition.BottomRight" />
+                    </span>
+                    <span class="sg-fb-badge-host sg-fb-badge-host-lg">
+                        <LucideIcon Name="bell" Size="32" />
+                        <LipiBadge Count="3" Position="BadgePosition.BottomLeft" />
+                    </span>
+                </div>
+
+                @* Demo 4 — Inline + ShowZero *@
+                <h3 class="sg-h3"><span class="sg-demo-num">4</span>Inline + <code class="sg-code">ShowZero</code></h3>
+                <p class="sg-p">
+                    <code class="sg-code">Inline="true"</code> drops the corner positioning —
+                    the badge flows next to text. <code class="sg-code">ShowZero="true"</code>
+                    keeps the badge visible at count 0 (default hides it).
+                </p>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <span class="sg-fb-inline-text">
+                        Pending tasks <LipiBadge Count="3" Inline="true" Color="BadgeColor.Warning" />
+                    </span>
+                    <span class="sg-fb-inline-text">
+                        Completed <LipiBadge Count="0" Inline="true" Color="BadgeColor.Success" ShowZero="true" />
+                    </span>
+                </div>
+            </section>
+
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  3. LipiPill — 7 intents × 3 variants × 3 sizes              ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            <section id="pills" class="sg-section">
+                <h2 class="sg-h2">LipiPill</h2>
+                <p class="sg-p">
+                    Standalone label / tag / chip — inline in text flow. Distinct from
+                    <code class="sg-code">LipiBadge</code> (attached to a parent).
+                    7 intents × 3 variants × 3 sizes + dismissible.
+                </p>
+
+                @* Demo 1 — Filled × 7 intents *@
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>Filled variant — 7 intents</h3>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <LipiPill Variant="PillVariant.Filled" Intent="PillIntent.Default">Default</LipiPill>
+                    <LipiPill Variant="PillVariant.Filled" Intent="PillIntent.Primary">Primary</LipiPill>
+                    <LipiPill Variant="PillVariant.Filled" Intent="PillIntent.Success">Active</LipiPill>
+                    <LipiPill Variant="PillVariant.Filled" Intent="PillIntent.Warning">Pending</LipiPill>
+                    <LipiPill Variant="PillVariant.Filled" Intent="PillIntent.Danger">Critical</LipiPill>
+                    <LipiPill Variant="PillVariant.Filled" Intent="PillIntent.Info">Info</LipiPill>
+                    <LipiPill Variant="PillVariant.Filled" Intent="PillIntent.Neutral">Neutral</LipiPill>
+                </div>
+
+                @* Demo 2 — Outlined × 7 intents *@
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>Outlined variant — 7 intents</h3>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <LipiPill Variant="PillVariant.Outlined" Intent="PillIntent.Default">Default</LipiPill>
+                    <LipiPill Variant="PillVariant.Outlined" Intent="PillIntent.Primary">Primary</LipiPill>
+                    <LipiPill Variant="PillVariant.Outlined" Intent="PillIntent.Success">Active</LipiPill>
+                    <LipiPill Variant="PillVariant.Outlined" Intent="PillIntent.Warning">Pending</LipiPill>
+                    <LipiPill Variant="PillVariant.Outlined" Intent="PillIntent.Danger">Critical</LipiPill>
+                    <LipiPill Variant="PillVariant.Outlined" Intent="PillIntent.Info">Info</LipiPill>
+                    <LipiPill Variant="PillVariant.Outlined" Intent="PillIntent.Neutral">Neutral</LipiPill>
+                </div>
+
+                @* Demo 3 — Subtle × 7 intents *@
+                <h3 class="sg-h3"><span class="sg-demo-num">3</span>Subtle variant — 7 intents</h3>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Default">Default</LipiPill>
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Primary">Primary</LipiPill>
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Success">Active</LipiPill>
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Warning">Pending</LipiPill>
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Danger">Critical</LipiPill>
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Info">Info</LipiPill>
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Neutral">Neutral</LipiPill>
+                </div>
+
+                @* Demo 4 — Sizes *@
+                <h3 class="sg-h3"><span class="sg-demo-num">4</span>Three sizes</h3>
+                <p class="sg-p">
+                    <code class="sg-code">Small</code> 20px · <code class="sg-code">Medium</code> 24px (default) ·
+                    <code class="sg-code">Large</code> 28px.
+                </p>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <LipiPill Size="PillSize.Small" Intent="PillIntent.Primary">Small</LipiPill>
+                    <LipiPill Size="PillSize.Medium" Intent="PillIntent.Primary">Medium</LipiPill>
+                    <LipiPill Size="PillSize.Large" Intent="PillIntent.Primary">Large</LipiPill>
+                </div>
+
+                @* Demo 5 — Icon + dismissible *@
+                <h3 class="sg-h3"><span class="sg-demo-num">5</span>Icon prefix + dismissible</h3>
+                <p class="sg-p">
+                    <code class="sg-code">Icon</code> takes a Lucide icon name, rendered
+                    left of the label. <code class="sg-code">Dismissible="true"</code>
+                    appends a × button — used for filter chips. Click × to fire
+                    <code class="sg-code">OnDismiss</code>.
+                </p>
+                <div class="sg-fb-row sg-fb-row-spaced">
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Success" Icon="check">
+                        Verified
+                    </LipiPill>
+                    <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Warning" Icon="clock">
+                        Awaiting review
+                    </LipiPill>
+                    @if (_chipMaleVisible)
+                    {
+                        <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Info"
+                                  Dismissible="true"
+                                  OnDismiss="@(() => { _chipMaleVisible = false; })">
+                            Gender: Male
+                        </LipiPill>
+                    }
+                    @if (_chipAgeVisible)
+                    {
+                        <LipiPill Variant="PillVariant.Subtle" Intent="PillIntent.Info"
+                                  Dismissible="true"
+                                  OnDismiss="@(() => { _chipAgeVisible = false; })">
+                            Age: 40–60
+                        </LipiPill>
+                    }
+                    @if (!_chipMaleVisible || !_chipAgeVisible)
+                    {
+                        <LipiButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                    OnClick="ResetChips">Reset chips</LipiButton>
+                    }
+                </div>
+            </section>
+
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  4. LipiSkeleton — 3 primitives + composed cards             ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            <section id="skeletons" class="sg-section">
+                <h2 class="sg-h2">LipiSkeleton</h2>
+                <p class="sg-p">
+                    Three primitives —
+                    <code class="sg-code">LipiSkeletonLine</code>,
+                    <code class="sg-code">LipiSkeletonCircle</code>,
+                    <code class="sg-code">LipiSkeletonRect</code> —
+                    composed to match the shape of the content being loaded.
+                </p>
+
+                @* Demo 1 — Three primitives in isolation *@
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>Three primitives</h3>
+                <p class="sg-p">
+                    <code class="sg-code">Line</code> for text rows ·
+                    <code class="sg-code">Circle</code> for avatars and icons ·
+                    <code class="sg-code">Rect</code> for images and blocks. Animation
+                    on by default (shimmer sweep); set <code class="sg-code">Animate="false"</code>
+                    for static placeholders.
+                </p>
+                <div class="sg-fb-skel-row">
+                    <div class="sg-fb-skel-cell">
+                        <div class="sg-fb-skel-label">Line</div>
+                        <LipiSkeletonLine Width="200px" />
+                        <LipiSkeletonLine Width="160px" />
+                        <LipiSkeletonLine Width="180px" />
+                    </div>
+                    <div class="sg-fb-skel-cell">
+                        <div class="sg-fb-skel-label">Circle</div>
+                        <LipiSkeletonCircle Size="40" />
+                        <LipiSkeletonCircle Size="56" />
+                    </div>
+                    <div class="sg-fb-skel-cell">
+                        <div class="sg-fb-skel-label">Rect</div>
+                        <LipiSkeletonRect Width="220px" Height="120px" />
+                    </div>
+                </div>
+
+                @* Demo 2 — Composed user-card *@
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>Composed: user-card placeholder</h3>
+                <p class="sg-p">
+                    A Circle + two Lines side-by-side mirrors the avatar + name + role
+                    layout of a real user card. Three placeholders in a grid.
+                </p>
+                <div class="sg-fb-skel-cards">
+                    @for (var i = 0; i < 3; i++)
+                    {
+                        <div class="sg-fb-skel-card">
+                            <LipiSkeletonCircle Size="40" />
+                            <div class="sg-fb-skel-card-body">
+                                <LipiSkeletonLine Width="70%" />
+                                <LipiSkeletonLine Width="40%" />
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @* Demo 3 — Animation off *@
+                <h3 class="sg-h3"><span class="sg-demo-num">3</span><code class="sg-code">Animate="false"</code> static placeholders</h3>
+                <p class="sg-p">
+                    Useful in unit tests, screenshots, and dense layouts where multiple
+                    animated skeletons would compete for attention.
+                </p>
+                <div class="sg-fb-skel-row">
+                    <div class="sg-fb-skel-cell">
+                        <LipiSkeletonLine Width="240px" Animate="false" />
+                        <LipiSkeletonLine Width="180px" Animate="false" />
+                    </div>
+                    <div class="sg-fb-skel-cell">
+                        <LipiSkeletonRect Width="240px" Height="80px" Animate="false" />
+                    </div>
+                </div>
+            </section>
+
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  5. LipiValidationSummary — EditContext auto-discovery       ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            <section id="validation-summary" class="sg-section">
+                <h2 class="sg-h2">LipiValidationSummary</h2>
+                <p class="sg-p">
+                    Form-level error summary. Auto-discovers errors from the cascading
+                    <code class="sg-code">EditContext</code>, resolves field labels via
+                    <code class="sg-code">[Display(Name)]</code> attributes (fallback to
+                    PascalCase-to-space), and provides click-to-field navigation with a
+                    1.5s highlight flash.
+                </p>
+
+                @* Demo 1 — Live form with submit-triggered validation *@
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>Live form — submit to trigger validation</h3>
+                <p class="sg-p">
+                    Leave the fields blank and click <strong>Save</strong>. The summary
+                    appears with each error linked to its field. Click any error to scroll
+                    + focus + flash the offending field.
+                </p>
+
+                <EditForm EditContext="_demoCtx" OnValidSubmit="OnValidSubmit" OnInvalidSubmit="OnInvalidSubmit">
+                    <DataAnnotationsValidator />
+
+                    <LipiValidationSummary FieldIdPrefix="vs-"
+                                           Mode="ValidationSummaryMode.Detailed" />
+
+                    <div class="sg-fb-form">
+                        <label class="sg-form-label" for="vs-firstName">First name *</label>
+                        <input class="sg-form-input" id="vs-firstName" name="firstName"
+                               @bind="_demo.FirstName" @bind:event="oninput" />
+
+                        <label class="sg-form-label" for="vs-lastName">Last name *</label>
+                        <input class="sg-form-input" id="vs-lastName" name="lastName"
+                               @bind="_demo.LastName" @bind:event="oninput" />
+
+                        <label class="sg-form-label" for="vs-email">Email *</label>
+                        <input class="sg-form-input" id="vs-email" name="email" type="email"
+                               @bind="_demo.Email" @bind:event="oninput" />
+
+                        <label class="sg-form-label" for="vs-mobile">Mobile *</label>
+                        <input class="sg-form-input" id="vs-mobile" name="mobile" type="tel"
+                               @bind="_demo.Mobile" @bind:event="oninput" />
+
+                        <div class="sg-fb-form-actions">
+                            <LipiButton OnClick="SubmitDemoForm" Variant="ButtonVariant.Primary">Save</LipiButton>
+                            <LipiButton OnClick="ResetDemoForm" Variant="ButtonVariant.Ghost">Reset</LipiButton>
+                        </div>
+                    </div>
+                </EditForm>
+
+                @if (!string.IsNullOrEmpty(_demoStatus))
+                {
+                    <div class="sg-result">@_demoStatus</div>
+                }
+
+                @* Demo 2 — Compact mode *@
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>Compact mode (count-only summary)</h3>
+                <p class="sg-p">
+                    <code class="sg-code">Mode="ValidationSummaryMode.Compact"</code>
+                    renders a single-line count without the bulleted list. Useful for very
+                    long forms where the full list itself would be overwhelming.
+                </p>
+                <EditForm EditContext="_demoCtxCompact" OnInvalidSubmit="@(() => { })">
+                    <DataAnnotationsValidator />
+                    <LipiValidationSummary Mode="ValidationSummaryMode.Compact" />
+                    <div class="sg-fb-form">
+                        <label class="sg-form-label" for="vs2-name">Name *</label>
+                        <input class="sg-form-input" id="vs2-name"
+                               @bind="_demoCompact.FirstName" @bind:event="oninput" />
+                        <div class="sg-fb-form-actions">
+                            <LipiButton OnClick="SubmitDemoCompact" Variant="ButtonVariant.Primary" Size="ButtonSize.Small">
+                                Save (compact)
+                            </LipiButton>
+                        </div>
+                    </div>
+                </EditForm>
+            </section>
+
+
+            @* ╔══════════════════════════════════════════════════════════════╗
+               ║  6. LipiToast — severities, positions, action, promise       ║
+               ╚══════════════════════════════════════════════════════════════╝ *@
+
+            <section id="toasts" class="sg-section">
+                <h2 class="sg-h2">LipiToast</h2>
+                <p class="sg-p">
+                    Service-dispatched transient notifications. Renders into the
+                    <code class="sg-code">LipiToastHost</code> in
+                    <code class="sg-code">TopNavLayout</code>. Errors are
+                    <strong>persistent by default</strong> (clinical safety — must be
+                    acknowledged manually).
+                </p>
+
+                @* Demo 1 — Four severities *@
+                <h3 class="sg-h3"><span class="sg-demo-num">1</span>Four severities (default durations)</h3>
+                <p class="sg-p">
+                    <code class="sg-code">Success</code> 3s ·
+                    <code class="sg-code">Info</code> 5s ·
+                    <code class="sg-code">Warning</code> 7s ·
+                    <code class="sg-code">Error</code> persistent.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="ToastSuccess">Success</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="ToastInfo">Info</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="ToastWarning">Warning</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Danger" Size="ButtonSize.Small"
+                                OnClick="ToastError">Error (persistent)</LipiButton>
+                </div>
+
+                @* Demo 2 — Title + message *@
+                <h3 class="sg-h3"><span class="sg-demo-num">2</span>Title + message</h3>
+                <p class="sg-p">
+                    <code class="sg-code">ToastOptions.Title</code> renders bold above the
+                    message. Useful for distinguishing the headline from supporting detail.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="ToastWithTitle">Save with title</LipiButton>
+                </div>
+
+                @* Demo 3 — Action button *@
+                <h3 class="sg-h3"><span class="sg-demo-num">3</span>Action button (Undo)</h3>
+                <p class="sg-p">
+                    Single inline action per toast (spec §11). Label capped at 12 chars.
+                    Click the action — toast dismisses automatically after.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="ToastWithUndo">Delete with Undo</LipiButton>
+                </div>
+
+                @* Demo 4 — Positions *@
+                <h3 class="sg-h3"><span class="sg-demo-num">4</span>Six corner positions</h3>
+                <p class="sg-p">
+                    Default is set per-circuit via
+                    <code class="sg-code">ILipiToastService.DefaultPosition</code>; each
+                    toast can override via
+                    <code class="sg-code">ToastOptions.Position</code>.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => ToastAt(ToastPosition.TopLeft))">Top-Left</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => ToastAt(ToastPosition.TopCenter))">Top-Center</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => ToastAt(ToastPosition.TopRight))">Top-Right</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => ToastAt(ToastPosition.BottomLeft))">Bottom-Left</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => ToastAt(ToastPosition.BottomCenter))">Bottom-Center</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="@(() => ToastAt(ToastPosition.BottomRight))">Bottom-Right</LipiButton>
+                </div>
+
+                @* Demo 5 — Promise-style morph *@
+                <h3 class="sg-h3"><span class="sg-demo-num">5</span>Promise-style (Loading → Success/Error morph)</h3>
+                <p class="sg-p">
+                    <code class="sg-code">PromiseAsync</code> wraps a Task: shows a Loading
+                    toast with spinner, morphs in place to Success or Error when the Task
+                    completes. Same Id throughout — no stacking.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                                OnClick="PromiseSuccess">Save (succeeds in 2s)</LipiButton>
+                    <LipiButton Variant="ButtonVariant.Danger" Size="ButtonSize.Small"
+                                OnClick="PromiseFail">Save (fails in 2s)</LipiButton>
+                </div>
+
+                @* Demo 6 — Dismiss all *@
+                <h3 class="sg-h3"><span class="sg-demo-num">6</span>Dismiss all</h3>
+                <p class="sg-p">
+                    Clear every visible toast at once. The queue (toasts waiting for a slot)
+                    is also cleared.
+                </p>
+                <div class="sg-btn-row">
+                    <LipiButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                OnClick="DismissAll">Dismiss all</LipiButton>
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+
+@code {
+    // ==========================================================================
+    // Section 3 — LipiPill dismissible chips state
+    // ==========================================================================
+
+    private bool _chipMaleVisible = true;
+    private bool _chipAgeVisible  = true;
+
+    private void ResetChips()
+    {
+        _chipMaleVisible = true;
+        _chipAgeVisible  = true;
+    }
+
+
+    // ==========================================================================
+    // Section 5 — LipiValidationSummary demo state
+    // ==========================================================================
+
+    private DemoModel _demo = new();
+    private DemoModel _demoCompact = new();
+    private EditContext _demoCtx = default!;
+    private EditContext _demoCtxCompact = default!;
+    private string _demoStatus = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _demoCtx = new EditContext(_demo);
+        _demoCtxCompact = new EditContext(_demoCompact);
+    }
+
+    private void SubmitDemoForm()
+    {
+        var valid = _demoCtx.Validate();
+        _demoStatus = valid ? "✓ Form valid — would save." : string.Empty;
+    }
+
+    private void OnValidSubmit() => _demoStatus = "✓ Form valid — would save.";
+    private void OnInvalidSubmit() => _demoStatus = string.Empty;
+
+    private void SubmitDemoCompact() => _demoCtxCompact.Validate();
+
+    private void ResetDemoForm()
+    {
+        _demo = new DemoModel();
+        _demoCtx = new EditContext(_demo);
+        _demoStatus = string.Empty;
+    }
+
+    public class DemoModel
+    {
+        [Required(ErrorMessage = "is required"), Display(Name = "First name")]
+        public string? FirstName { get; set; }
+
+        [Required(ErrorMessage = "is required"), Display(Name = "Last name")]
+        public string? LastName { get; set; }
+
+        [Required(ErrorMessage = "is required"), EmailAddress(ErrorMessage = "must be a valid email")]
+        [Display(Name = "Email")]
+        public string? Email { get; set; }
+
+        [Required(ErrorMessage = "is required")]
+        [RegularExpression(@"^[0-9]{10}$", ErrorMessage = "must be 10 digits")]
+        [Display(Name = "Mobile")]
+        public string? Mobile { get; set; }
+    }
+
+
+    // ==========================================================================
+    // Section 6 — LipiToast triggers
+    // ==========================================================================
+
+    private Task ToastSuccess() => _toast.Success("Patient record saved.");
+
+    private Task ToastInfo() => _toast.Info("3 new lab results available.");
+
+    private Task ToastWarning() => _toast.Warning("Connection unstable — auto-retrying.");
+
+    private Task ToastError() =>
+        _toast.Error("Save failed — duplicate UHID detected.");
+
+    private Task ToastWithTitle() =>
+        _toast.Success(
+            "Patient PT-2026-004821 added to the queue.",
+            new ToastOptions { Title = "Registered" });
+
+    private Task ToastWithUndo() =>
+        _toast.Info(
+            "Appointment AP-7421 deleted.",
+            new ToastOptions
+            {
+                Title = "Deleted",
+                Action = new ToastAction
+                {
+                    Label = "Undo",
+                    OnClick = () =>
+                    {
+                        return _toast.Success("Appointment restored.");
+                    }
+                }
+            });
+
+    private Task ToastAt(ToastPosition pos) =>
+        _toast.Info(
+            $"Position: {pos}",
+            new ToastOptions { Position = pos });
+
+    private async Task PromiseSuccess()
+    {
+        await _toast.PromiseAsync(
+            FakeSaveOk(),
+            new ToastPromiseOptions
+            {
+                LoadingMessage = "Saving patient record...",
+                SuccessMessage = "Patient record saved.",
+                ErrorMessage   = ex => $"Save failed: {ex.Message}"
+            });
+    }
+
+    private async Task PromiseFail()
+    {
+        try
+        {
+            await _toast.PromiseAsync(
+                FakeSaveFail(),
+                new ToastPromiseOptions
+                {
+                    LoadingMessage = "Saving patient record...",
+                    SuccessMessage = "Patient record saved.",
+                    ErrorMessage   = ex => $"Save failed: {ex.Message}"
+                });
+        }
+        catch
+        {
+            // PromiseAsync rethrows the original exception; we swallow it here
+            // because the toast has already morphed to the Error state and the
+            // user has the persistent error in front of them.
+        }
+    }
+
+    private static async Task<bool> FakeSaveOk()
+    {
+        await Task.Delay(2000);
+        return true;
+    }
+
+    private static async Task<bool> FakeSaveFail()
+    {
+        await Task.Delay(2000);
+        throw new InvalidOperationException("Duplicate UHID");
+    }
+
+    private Task DismissAll() => _toast.DismissAllAsync();
+}

@@ -1,0 +1,78 @@
+@* SPEC:  docs/00-COMPONENTS/2.7/05-LipiToast-Spec.md §6
+   PHASE: 2.7 — Feedback Components
+   AMEND: docs/CHANGE-LOG.md A35
+
+   Toast renderer host. Placed once in TopNavLayout.razor (sibling to
+   LipiOverlayHost). Subscribes to ILipiToastService.OnChanged and re-renders
+   on state change.
+
+   Layout: groups active toasts by Position (6 possible corners), renders
+   one stack per corner that has toasts. Empty corners render nothing.
+
+   File pattern (per Phase 2.7 BUILD-CHAT-HANDOFF literal):
+     LipiToastHost.razor      — markup
+     LipiToastHost.razor.cs   — partial class (subscription lifecycle)
+
+   No scoped CSS file — corner positioning is in this markup via class names,
+   and the toast surface CSS is in LipiToast.razor.css. Corner-position rules
+   are in App.razor's global stylesheet expectation (none new); we use inline
+   class-based selectors below with the host's own styling via a small block
+   in this .razor file's @section if needed. (Final approach: rely on top-level
+   positioning classes that are universally understood — no separate CSS file.)
+
+   Decision: inline a small <style> block here at the top of the file so the
+   global positioning rules ship with the host without needing a new css file.
+   This keeps deploy-script entries minimal AND avoids cluttering wwwroot.
+*@
+
+@namespace LiPi.Web.Components.Shared
+@rendermode InteractiveServer
+@implements IDisposable
+@using LiPi.Web.Services
+
+@inject ILipiToastService ToastService
+
+<style>
+    /* ============================================================== */
+    /* LipiToastHost — corner stack positioning                       */
+    /* Inline style block instead of a separate .razor.css/.css file:  */
+    /*   1. Fewer deploy-script entries to maintain                    */
+    /*   2. Positions are short, well-defined, unlikely to grow        */
+    /*   3. Host is a singleton in TopNavLayout — no scope concerns    */
+    /*                                                                  */
+    /* Stacks use pointer-events:none so they don't block clicks on    */
+    /* page content. Individual .lipi-toast elements opt back in via   */
+    /* pointer-events:auto in LipiToast.razor.css.                     */
+    /* ============================================================== */
+
+    .lipi-toast-host-stack {
+        position: fixed;
+        z-index: 900;                /* above LipiOverlayHost backdrop (799) and overlays (800-) */
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 16px;
+        pointer-events: none;
+        max-width: 100vw;
+    }
+
+    .lipi-toast-host-top-right    { top: 0;    right: 0;  align-items: flex-end;   }
+    .lipi-toast-host-top-center   { top: 0;    left: 50%; transform: translateX(-50%); align-items: center; }
+    .lipi-toast-host-top-left     { top: 0;    left: 0;   align-items: flex-start; }
+    .lipi-toast-host-bottom-right { bottom: 0; right: 0;  align-items: flex-end;   flex-direction: column-reverse; }
+    .lipi-toast-host-bottom-center{ bottom: 0; left: 50%; transform: translateX(-50%); align-items: center; flex-direction: column-reverse; }
+    .lipi-toast-host-bottom-left  { bottom: 0; left: 0;   align-items: flex-start; flex-direction: column-reverse; }
+</style>
+
+@foreach (var grp in GroupedByPosition)
+{
+    <div class="lipi-toast-host-stack @PositionClass(grp.Key)" aria-label="Notifications">
+        @foreach (var entry in grp.Value)
+        {
+            <LipiToast @key="entry.Id"
+                       Entry="entry"
+                       OnDismissRequested="HandleDismiss"
+                       OnActionInvoked="HandleAction" />
+        }
+    </div>
+}

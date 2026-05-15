@@ -129,6 +129,81 @@ $files = @{
     "lipi-overlays.css"              = "src\LiPi.Web\wwwroot\css\lipi-overlays.css"
     "lipi-dynamic-tabs.css"          = "src\LiPi.Web\wwwroot\css\lipi-dynamic-tabs.css"
 
+    # -- Phase 2.7 — Feedback Components (Spinner + Badge + Pill + Skeleton +
+    #                                     ValidationSummary + Toast) ----------
+    # SPEC:  docs/00-COMPONENTS/2.7/00-Phase2.7-Overview.md (and 01-05 sibling specs)
+    # AMEND: CHANGE-LOG.md A35 (2026-05-15)
+    #
+    # 32 new files: 25 component files (Spinner 4 + Badge 4 + Pill 4 +
+    # Skeleton 3 single-file primitives + ValidationSummary 4 + Toast 4 +
+    # ToastHost 2 + ToastTypes 1 + ToastShared 1 — Types files split per
+    # handout literal except Skeleton primitives which are single-file
+    # pure-render) + 2 service files (ILipiToastService + LipiToastService)
+    # + 3 wwwroot files (lipi-skeleton.css + lipi-validation.css +
+    # lipi-validation.js) + 2 StyleGuide pages (Feedback .razor + .razor.css).
+    #
+    # Modified files in this batch: mode-light.css, mode-dark.css (token
+    # additions), App.razor (cache 20260525→20260526, new <link> + <script>
+    # entries), TopNavLayout.razor (<LipiToastHost /> mount), Program.cs
+    # (AddScoped<ILipiToastService, LipiToastService>), StyleGuide.razor
+    # (Phase 2.7 sidebar nav group). All modified files are already mapped
+    # above in their existing blocks — no duplicate entries needed.
+    #
+    # LipiSpinner — general-purpose loading indicator (distinct from
+    # LipiButtonSpinner). Reuses Phase 2.5.5 InputLabelPosition for all 4
+    # label directions.
+    "LipiSpinnerTypes.cs"            = "src\LiPi.Web\Components\Shared\LipiSpinnerTypes.cs"
+    "LipiSpinner.razor"              = "src\LiPi.Web\Components\Shared\LipiSpinner.razor"
+    "LipiSpinner.razor.cs"           = "src\LiPi.Web\Components\Shared\LipiSpinner.razor.cs"
+    "LipiSpinner.razor.css"          = "src\LiPi.Web\Components\Shared\LipiSpinner.razor.css"
+    # LipiBadge — attached count/dot indicator (parent must be position:relative).
+    # Sibling pattern to LipiPill — Badge attaches, Pill stands alone.
+    "LipiBadgeTypes.cs"              = "src\LiPi.Web\Components\Shared\LipiBadgeTypes.cs"
+    "LipiBadge.razor"                = "src\LiPi.Web\Components\Shared\LipiBadge.razor"
+    "LipiBadge.razor.cs"             = "src\LiPi.Web\Components\Shared\LipiBadge.razor.cs"
+    "LipiBadge.razor.css"            = "src\LiPi.Web\Components\Shared\LipiBadge.razor.css"
+    # LipiPill — standalone label/tag/chip (7 intents × 3 variants × 3 sizes
+    # + dismissible). Inline in text flow; not attached to a parent element.
+    "LipiPillTypes.cs"               = "src\LiPi.Web\Components\Shared\LipiPillTypes.cs"
+    "LipiPill.razor"                 = "src\LiPi.Web\Components\Shared\LipiPill.razor"
+    "LipiPill.razor.cs"              = "src\LiPi.Web\Components\Shared\LipiPill.razor.cs"
+    "LipiPill.razor.css"             = "src\LiPi.Web\Components\Shared\LipiPill.razor.css"
+    # LipiSkeleton — 3 single-file pure-render primitives. No per-primitive
+    # scoped .razor.css; the family shares lipi-skeleton.css (shimmer
+    # keyframe + 3 shape classes + reduced-motion handling).
+    "LipiSkeletonLine.razor"         = "src\LiPi.Web\Components\Shared\LipiSkeletonLine.razor"
+    "LipiSkeletonCircle.razor"       = "src\LiPi.Web\Components\Shared\LipiSkeletonCircle.razor"
+    "LipiSkeletonRect.razor"         = "src\LiPi.Web\Components\Shared\LipiSkeletonRect.razor"
+    # LipiValidationSummary — form-level error summary. Auto-discovers errors
+    # from cascading EditContext, resolves [Display(Name)] attributes, and
+    # provides click-to-field navigation via JS interop (lipi-validation.js).
+    "LipiValidationSummaryTypes.cs"  = "src\LiPi.Web\Components\Shared\LipiValidationSummaryTypes.cs"
+    "LipiValidationSummary.razor"    = "src\LiPi.Web\Components\Shared\LipiValidationSummary.razor"
+    "LipiValidationSummary.razor.cs" = "src\LiPi.Web\Components\Shared\LipiValidationSummary.razor.cs"
+    "LipiValidationSummary.razor.css"= "src\LiPi.Web\Components\Shared\LipiValidationSummary.razor.css"
+    # LipiToast family — service-driven transient notifications. ToastTypes.cs
+    # holds all enums + data classes + internal ToastEntry (single file per
+    # handout literal). Errors are PERSISTENT BY DEFAULT — clinical safety
+    # decision. Promise-style morph swaps Loading icon → Success/Error in place.
+    "LipiToastTypes.cs"              = "src\LiPi.Web\Components\Shared\LipiToastTypes.cs"
+    "ILipiToastService.cs"           = "src\LiPi.Web\Services\ILipiToastService.cs"
+    "LipiToastService.cs"            = "src\LiPi.Web\Services\LipiToastService.cs"
+    "LipiToast.razor"                = "src\LiPi.Web\Components\Shared\LipiToast.razor"
+    "LipiToast.razor.cs"             = "src\LiPi.Web\Components\Shared\LipiToast.razor.cs"
+    "LipiToast.razor.css"            = "src\LiPi.Web\Components\Shared\LipiToast.razor.css"
+    "LipiToastHost.razor"            = "src\LiPi.Web\Components\Shared\LipiToastHost.razor"
+    "LipiToastHost.razor.cs"         = "src\LiPi.Web\Components\Shared\LipiToastHost.razor.cs"
+    # Shared CSS + JS for Phase 2.7 — see App.razor link order (15, 16, JS).
+    # lipi-skeleton.css is the shared shimmer + shape classes for the 3
+    # Skeleton primitives. lipi-validation.css is GLOBAL scope (not scoped
+    # to LipiValidationSummary) because the field-flash effect targets any
+    # input element on the page, not just elements rendered by the summary
+    # component itself. lipi-validation.js exposes
+    # window.lipiValidation.scrollToField for click-to-field navigation.
+    "lipi-skeleton.css"              = "src\LiPi.Web\wwwroot\css\lipi-skeleton.css"
+    "lipi-validation.css"            = "src\LiPi.Web\wwwroot\css\lipi-validation.css"
+    "lipi-validation.js"             = "src\LiPi.Web\wwwroot\js\lipi-validation.js"
+
     # -- Self-hosted fonts (LiPi Sans + LiPi Mono) ----------------------------
     # Font swap: DM Sans/Mono → LiPi Sans/Mono (HIPAA/DPDP — no external CDN)
     # Manual step: copy lipi-sans/ folder to src\LiPi.Web\wwwroot\ first.
@@ -382,6 +457,12 @@ $files = @{
     # A33: Stub @page navigated to by DynamicTabs demos (§14 demos 2–9)
     "StyleGuideOverlayTabDemo.razor" = "src\LiPi.Web\Pages\StyleGuideOverlayTabDemo.razor"
     "StyleGuide.razor.css"           = "src\LiPi.Web\Pages\StyleGuide.razor.css"
+    # A35 (2026-05-15): Phase 2.7 Feedback Components consolidated showcase.
+    # Single @page /admin/style-guide/feedback covering all 6 components
+    # (Spinner, Badge, Pill, Skeleton×3, ValidationSummary, Toast). Sidebar
+    # link added to main StyleGuide.razor under new "Phase 2.7" nav group.
+    "StyleGuideFeedback.razor"       = "src\LiPi.Web\Pages\StyleGuideFeedback.razor"
+    "StyleGuideFeedback.razor.css"   = "src\LiPi.Web\Pages\StyleGuideFeedback.razor.css"
 
     # -- Pages -- Test scaffolds (Phase 2.2 verification — coexist alongside the
     # StyleGuide showcase. Test pages exercise edge cases (200-item virtualization,
@@ -533,6 +614,24 @@ $files = @{
     "01-LipiModal-Spec.md"           = "docs\00-COMPONENTS\2.6.2\01-LipiModal-Spec.md"
     "02-LipiDrawer-Spec.md"          = "docs\00-COMPONENTS\2.6.2\02-LipiDrawer-Spec.md"
     "03-LipiDynamicTabs-Spec.md"     = "docs\00-COMPONENTS\2.6.2\03-LipiDynamicTabs-Spec.md"
+
+    # -- Docs -- Phase 2.7 specs (A35, mirrors A34's 2.6.2-spec mapping fix) ---
+    # Six spec docs covering the 6 Phase 2.7 components. Mapped from the
+    # initial drop so edits flow through the standard deploy workflow from
+    # day one (vs A29/A34 which had to retro-fit mappings after the fact).
+    "00-Phase2.7-Overview.md"        = "docs\00-COMPONENTS\2.7\00-Phase2.7-Overview.md"
+    "01-LipiSpinner-Spec.md"         = "docs\00-COMPONENTS\2.7\01-LipiSpinner-Spec.md"
+    "02-LipiBadge-Pill-Spec.md"      = "docs\00-COMPONENTS\2.7\02-LipiBadge-Pill-Spec.md"
+    "03-LipiSkeleton-Spec.md"        = "docs\00-COMPONENTS\2.7\03-LipiSkeleton-Spec.md"
+    "04-LipiValidationSummary-Spec.md" = "docs\00-COMPONENTS\2.7\04-LipiValidationSummary-Spec.md"
+    "05-LipiToast-Spec.md"           = "docs\00-COMPONENTS\2.7\05-LipiToast-Spec.md"
+
+    # -- Docs -- Phase 2.10 audit checklist (A36) ------------------------------
+    # Consolidated tracking doc for every Phase 2.10 Infrastructure Audit item,
+    # regardless of source (locked roadmap, earlier audits, Phase 2.x builds).
+    # Living doc: items append as later phases surface them; items removed as
+    # the audit fixes/defers/confirms them. See CHANGE-LOG.md A36.
+    "2.10-Audit-Checklist.md"        = "docs\00-COMPONENTS\2.10-Audit-Checklist.md"
 
     # -- Docs -- Top-level -----------------------------------------------------
     "00-PROJECT-BASELINE.md"         = "docs\00-PROJECT-BASELINE.md"

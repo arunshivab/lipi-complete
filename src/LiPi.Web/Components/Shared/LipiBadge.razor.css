@@ -1,0 +1,76 @@
+/* ============================================================================ */
+/* SPEC:  docs/00-COMPONENTS/2.7/02-LipiBadge-Pill-Spec.md §2 (visual specs)    */
+/* PHASE: 2.7 — Feedback Components                                             */
+/* AMEND: docs/CHANGE-LOG.md A35 (2026-05-15)                                   */
+/*                                                                              */
+/* Token mapping (spec name → deployed name):                                   */
+/*   --color-success-fill  → --color-success                                    */
+/*   --color-warning-fill  → --color-warning                                    */
+/*   --color-danger-fill   → --color-danger                                     */
+/*   --color-info-fill     → --color-info                                       */
+/*   --color-bg-strong     → --color-border-strong  (neutral badge bg)          */
+/*                                                                              */
+/* Layering: --lipi-badge-z (default 10) sits above icon hosts but below       */
+/* dropdown menus. Override per-deployment via :root or theme override.        */
+/* ============================================================================ */
+
+/* ===================== BASE ===================== */
+/* Always inline-flex centered, regardless of position mode. Min-width = */
+/* height creates the circle shape for single digit; 2-digit grows pill.  */
+.lipi-badge {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    color: #ffffff;          /* white on any colored bg; neutral overrides below */
+    z-index: var(--lipi-badge-z, 10);
+    white-space: nowrap;
+    user-select: none;
+    box-shadow: 0 0 0 2px var(--color-bg-surface);  /* outline matches host background, creates "punched out" look */
+}
+
+/* Dot variant: pure indicator, no number, smaller circle. */
+.lipi-badge-dot {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    min-width: 0;
+}
+
+/* ===================== POSITION (anchored to parent corner) ===================== */
+/* Slight negative offset to overlap the parent's edge by ~4px — the badge */
+/* "sits on" the corner of the icon/button rather than next to it.        */
+.lipi-badge-top-right    { top: -4px;    right: -4px;  bottom: auto;  left: auto;  }
+.lipi-badge-top-left     { top: -4px;    left: -4px;   bottom: auto;  right: auto; }
+.lipi-badge-bottom-right { bottom: -4px; right: -4px;  top: auto;     left: auto;  }
+.lipi-badge-bottom-left  { bottom: -4px; left: -4px;   top: auto;     right: auto; }
+
+/* ===================== INLINE (no positioning) ===================== */
+/* Inline mode strips the position:absolute so the badge flows in text. */
+.lipi-badge-inline {
+    position: static;
+    margin-left: 6px;
+    box-shadow: none;       /* no outline ring when inline — context is text, not icon edge */
+}
+
+/* ===================== COLORS ===================== */
+/* Spec used --color-{semantic}-fill; deployed tokens are --color-{semantic}. */
+.lipi-badge-danger   { background: var(--color-danger); }
+.lipi-badge-warning  { background: var(--color-warning); }
+.lipi-badge-success  { background: var(--color-success); }
+.lipi-badge-info     { background: var(--color-info); }
+.lipi-badge-primary  { background: var(--color-primary); }
+
+/* Neutral uses bg-strong (border-strong) per spec; text flips to primary */
+/* color because white text on gray-200 fails contrast. */
+.lipi-badge-neutral  {
+    background: var(--color-border-strong);
+    color: var(--color-text-primary);
+}

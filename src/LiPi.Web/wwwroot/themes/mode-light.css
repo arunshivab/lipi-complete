@@ -1,3 +1,4 @@
+/* ============================================================================ */
 /* SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Mode: Light       */
 /* DECISION: docs/00-PROJECT-BASELINE.md §12.4 (Multi-Theme System)             */
 /* PHASE:    Phase 2 Sub-step 2.0 — populated from Phase 1 token reconciliation */
@@ -9,25 +10,25 @@
 /*                  calmer clinical feel (red-600/700/800)                      */
 /*           A12 (2026-05-04): Phase 2.2 TextInputs token additions             */
 /*                + --color-text-strong-secondary (form labels — slate-700)     */
-/*                + --color-required-bg, --color-required-border (apricot)     */
-/*                + --color-{success,warning,info}-text-strong (badge text)    */
+/*                + --color-required-bg, --color-required-border (apricot)      */
+/*                + --color-{success,warning,info}-text-strong (badge text)     */
 /*                + --color-confidence-{verified,self,estimated,unknown}        */
 /*                  (composed from semantic + neutral tokens)                   */
 /*           A15 (2026-05-09): Phase 2.5 Selection Components family            */
 /*                + --sh-thumb (toggle thumb shadow — two-layer navy-tinted,    */
 /*                  stronger than --sh-sm; mode-specific per Layer 3 arch)      */
-/*                  SPEC: docs/03-Phase-2.5-Selection-Components/                */
-/*                        05-Cross-Cutting.md §5.2                              */
-/*                  SPEC: docs/03-Phase-2.5-Selection-Components/                */
-/*                        04-LipiToggle.md §"Visual anatomy"                    */
 /*                Item #17 (2026-05-09): Phase 2.5 token gap correction         */
-/*                + --color-required-strong (#EA580C orange-600 — strong tier   */
-/*                  in apricot family for indicator outlines and 3px group      */
-/*                  borders. Token tier: -bg < -border < -strong matches        */
-/*                  Tailwind apricot family pattern. 3.86:1 contrast on white   */
-/*                  meets WCAG 1.4.11 non-text minimum (3:1) with margin.)      */
-/*                  CONSUMED BY: LipiCheckbox indicator Required-Empty border;  */
-/*                               LipiCheckboxGroup T-G2 left-border treatment.  */
+/*                + --color-required-strong (#EA580C orange-600 — strong tier)  */
+/*           A35 (2026-05-15): Phase 2.7 Feedback Components family             */
+/*                + --color-danger-text-strong (#991B1B red-800 — readable     */
+/*                  text on danger-pale, completes the *-text-strong ladder    */
+/*                  introduced in A12. Consumers: LipiValidationSummary error  */
+/*                  link color, LipiToast error icon, LipiPill outlined danger)*/
+/*                + --lipi-skeleton-bg, --lipi-skeleton-highlight (LipiSkeleton)*/
+/*                + --lipi-spinner-duration, --lipi-spinner-track (LipiSpinner) */
+/*                + --lipi-toast-bg, --lipi-toast-border, --lipi-toast-shadow   */
+/*                  (LipiToast surface tokens — slight elevation above content) */
+/*                + --lipi-badge-z (LipiBadge stacking context, default 10)     */
 /*                                                                              */
 /* VALUES:   Reconciled against production admin.css on May 2, 2026.            */
 /*           Production admin.css values are authoritative where conflict.      */
@@ -92,6 +93,9 @@
     --color-danger-hover:        #B91C1C; /* A11: Tailwind red-700 (shifted from red-600) */
     --color-danger-active:       #991B1B; /* A11: Tailwind red-800 (shifted from red-700) */
     --color-danger-pale:         #FEF2F2; /* admin.css --red-pale */
+    --color-danger-text-strong:  #991B1B; /* A35: red-800 — text on danger-pale, completes *-text-strong ladder.
+                                              Hex collides with --color-danger-active (different role: text on
+                                              tinted bg vs button active fill — same role-token can share value). */
     --color-info:                #1B4DA0; /* admin.css --cobalt */
     --color-info-pale:           #EBF5FF; /* reuses --sky-pale */
     --color-info-text-strong:    #1E40AF; /* A12: blue-700 — text on info-pale */
@@ -136,4 +140,31 @@
     /* Dark mode uses single-layer (see mode-dark.css) where natural contrast */
     /* between black shadow and sky-blue track is already high.               */
     --sh-thumb: 0 1px 3px rgba(15, 45, 94, 0.20), 0 1px 2px rgba(15, 45, 94, 0.10);
+
+    /* ── Phase 2.7 Feedback Components family (A35 2026-05-15) ───────────── */
+    /*                                                                        */
+    /* LipiSkeleton: solid muted bg + white-alpha highlight for shimmer       */
+    /* sweep. Highlight opacity tuned for light surfaces — 0.5 reads as       */
+    /* visible movement without overpowering. Skeleton bg = bg-subtle so it   */
+    /* sits one shade off the typical bg-surface card background.             */
+    --lipi-skeleton-bg:        var(--color-bg-subtle);
+    --lipi-skeleton-highlight: rgba(255, 255, 255, 0.50);
+
+    /* LipiSpinner: track is the faint backing circle. Duration is the time  */
+    /* for one full rotation — overridable on parent for slower/faster spins.*/
+    --lipi-spinner-duration:   1.0s;
+    --lipi-spinner-track:      rgba(15, 45, 94, 0.10); /* navy-tinted faint track */
+
+    /* LipiToast: elevated surface above page content. Background matches    */
+    /* bg-surface (white) so error text reads at full contrast. Border is    */
+    /* subtle — the colored left bar (4px) carries the severity, not the    */
+    /* full border. Shadow is heavier than --sh-md to read as floating.     */
+    --lipi-toast-bg:           var(--color-bg-surface);
+    --lipi-toast-border:       var(--color-border-default);
+    --lipi-toast-shadow:       0 8px 24px rgba(15, 45, 94, 0.16), 0 2px 6px rgba(15, 45, 94, 0.08);
+
+    /* LipiBadge: stacking context — sits above icon hosts (bell icons,     */
+    /* tab buttons) but below dropdown menus. Default 10 fits the           */
+    /* admin.css inline-component band; consumers can override per badge.   */
+    --lipi-badge-z:            10;
 }

@@ -1,3 +1,4 @@
+/* ============================================================================ */
 /* SPEC:     docs/00-COMPONENTS/00.2-THEMING-ARCHITECTURE.md §Mode: Dark        */
 /* DECISION: docs/00-PROJECT-BASELINE.md §12.4 (Multi-Theme System)             */
 /* PHASE:    Phase 2 Sub-step 2.0 — populated from Phase 1 token reconciliation */
@@ -12,22 +13,20 @@
 /*                + --color-confidence-{verified,self,estimated,unknown}        */
 /*                  (composed from semantic + neutral tokens)                   */
 /*           A15 (2026-05-09): Phase 2.5 Selection Components family            */
-/*                + --sh-thumb (toggle thumb shadow — single-layer black 0.50,  */
-/*                  matching dark-mode convention; --sh-sm/md/lg also           */
-/*                  single-layer in this file)                                  */
-/*                  SPEC: docs/03-Phase-2.5-Selection-Components/                */
-/*                        05-Cross-Cutting.md §5.2                              */
-/*                  SPEC: docs/03-Phase-2.5-Selection-Components/                */
-/*                        04-LipiToggle.md §"Visual anatomy"                    */
+/*                + --sh-thumb (toggle thumb shadow — single-layer black 0.50)  */
 /*                Item #17 (2026-05-09): Phase 2.5 token gap correction         */
-/*                + --color-required-strong (rgba(254,215,170,0.70) — apricot   */
-/*                  at higher alpha than --color-required-border (0.40), so the */
-/*                  border reads as deliberate without becoming a glow. Stays   */
-/*                  within the alpha-tint convention for dark-mode required    */
-/*                  state. Light mode uses #EA580C orange-600 — see             */
-/*                  mode-light.css for the full rationale.)                     */
-/*                  CONSUMED BY: LipiCheckbox indicator Required-Empty border;  */
-/*                               LipiCheckboxGroup T-G2 left-border treatment.  */
+/*                + --color-required-strong (rgba(254,215,170,0.70))            */
+/*           A35 (2026-05-15): Phase 2.7 Feedback Components family             */
+/*                + --color-danger-text-strong (#FCA5A5 red-300 — readable     */
+/*                  text on danger-pale dark surface, completes ladder. Light  */
+/*                  mode uses red-800; dark mode follows the "100-200 brighter */
+/*                  than base" pattern of success/warning/info-text-strong.)   */
+/*                + --lipi-skeleton-bg, --lipi-skeleton-highlight (LipiSkeleton)*/
+/*                + --lipi-spinner-duration, --lipi-spinner-track (LipiSpinner) */
+/*                + --lipi-toast-bg, --lipi-toast-border, --lipi-toast-shadow   */
+/*                  (LipiToast surface tokens — sits on bg-elevated, deeper    */
+/*                   shadow with higher alpha for dark mode separation)        */
+/*                + --lipi-badge-z (LipiBadge stacking context, default 10)     */
 /*                                                                              */
 /* NOTE:     Dark mode pales follow Phase 1 mixed convention:                   */
 /*             primary/accent/info → rgba alpha tints over dark surface         */
@@ -60,10 +59,10 @@
     /* Apricot wash on empty required fields. Alpha tints on dark surface so   */
     /* the apricot reads as a faint warm hint rather than a solid orange box.  */
     /* Filled fields revert to surface bg + standard border.                   */
-    /* Token tier (alpha increases with strength tier):                       */
-    /*   --color-required-bg     — 0.06 (faintest wash)                       */
-    /*   --color-required-border — 0.40 (visible, not glowing)                */
-    /*   --color-required-strong — 0.70 (strong, for outline/3px treatments)  */
+    /* Token tier (alpha increases with strength tier):                        */
+    /*   --color-required-bg     — 0.06 (faintest wash)                        */
+    /*   --color-required-border — 0.40 (visible, not glowing)                 */
+    /*   --color-required-strong — 0.70 (strong, for outline/3px treatments)   */
     --color-required-bg:     rgba(254, 215, 170, 0.06); /* faint apricot wash on dark surface */
     --color-required-border: rgba(254, 215, 170, 0.40); /* visible but not glowing            */
     --color-required-strong: rgba(254, 215, 170, 0.70); /* A15 item #17: strong border tier   */
@@ -92,6 +91,7 @@
     --color-danger-hover:        #FF6B63;     /* A2 — lighter for hover (dark-mode convention) */
     --color-danger-active:       #E03B33;     /* A2 — darker for active (pressed) */
     --color-danger-pale:         #2c0f0f;     /* dark red surface */
+    --color-danger-text-strong:  #FCA5A5;     /* A35: red-300 — readable on danger-pale dark surface */
     --color-info:                #58A6FF;
     --color-info-pale:           rgba(88, 166, 255, 0.10); /* alpha — consistent with primary/accent pale */
     --color-info-text-strong:    #60A5FA;     /* A12: blue-400 — readable on info-pale */
@@ -135,7 +135,31 @@
     /* 0.30) for thumb prominence on the primary-colored track. Light mode    */
     /* uses two-layer (see mode-light.css) — needed there because shadow hue  */
     /* ≈ track hue. Dark mode has natural contrast (black on sky-blue), so    */
-    /* single-layer with higher alpha is sufficient. Tune alpha if smoke test */
-    /* reveals thumb separation issues — 0.40 lighter, 0.55-0.60 stronger.    */
+    /* single-layer with higher alpha is sufficient.                          */
     --sh-thumb: 0 1px 3px rgba(0, 0, 0, 0.50);
+
+    /* ── Phase 2.7 Feedback Components family (A35 2026-05-15) ───────────── */
+    /*                                                                        */
+    /* LipiSkeleton: bg-elevated (#21262d) is one shade lighter than          */
+    /* bg-surface (#161b22), so skeleton reads as a slightly raised muted     */
+    /* block on cards. Highlight at 0.10 alpha — subtler than light mode      */
+    /* (0.50) because white sweep on dark backgrounds is intrinsically more   */
+    /* visible; higher alpha would blow out as a bright streak.               */
+    --lipi-skeleton-bg:        var(--color-bg-elevated);
+    --lipi-skeleton-highlight: rgba(255, 255, 255, 0.10);
+
+    /* LipiSpinner: track is a faint white-alpha ring; arc inherits           */
+    /* currentColor from the consumer (button text, primary, etc.).          */
+    --lipi-spinner-duration:   1.0s;
+    --lipi-spinner-track:      rgba(255, 255, 255, 0.10);
+
+    /* LipiToast: elevated surface, sits on bg-elevated (#21262d) so it      */
+    /* reads as floating above content. Shadow is darker + heavier than      */
+    /* light mode since dark-bg shadows need higher alpha to register.       */
+    --lipi-toast-bg:           var(--color-bg-elevated);
+    --lipi-toast-border:       var(--color-border-default);
+    --lipi-toast-shadow:       0 8px 24px rgba(0, 0, 0, 0.50), 0 2px 6px rgba(0, 0, 0, 0.30);
+
+    /* LipiBadge: same z-index as light mode (theme-independent layering).   */
+    --lipi-badge-z:            10;
 }

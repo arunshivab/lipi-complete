@@ -85,7 +85,12 @@ builder.Services.AddHttpClient("IndiaPinApi", client =>
     client.Timeout     = TimeSpan.FromSeconds(5);
 });
 
-// Always show detailed errors so we can diagnose issues
+// Always show detailed errors so we can diagnose issues.
+// NOTE: AddServerSideBlazor() is a .NET 7 legacy API. It is retained here ONLY
+// for the .AddCircuitOptions(o => o.DetailedErrors = true) call until Phase 2.10
+// Infrastructure Audit migrates this to the modern pattern. Removing it without
+// the migration breaks Blazor events (see docs/00-PROJECT-BASELINE.md §CRITICAL
+// BUG FIXES). Queued in roadmap memory.
 builder.Services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors = true);
 
 // ── Theme services — Decision #12, Phase 1 ────────────────────────────
@@ -130,6 +135,20 @@ builder.Services.AddScoped<IScrollLockService, ScrollLockService>();
 builder.Services.AddScoped<ILipiModalService, LipiModalService>();
 builder.Services.AddScoped<ILipiDrawerService, LipiDrawerService>();
 builder.Services.AddScoped<ILipiDynamicTabsService, LipiDynamicTabsService>();
+
+// ── Phase 2.7 Feedback Components (A35 — 2026-05-15) ───────────────────────
+// SPEC:  docs/00-COMPONENTS/2.7/05-LipiToast-Spec.md §3
+// AMEND: docs/CHANGE-LOG.md A35
+//
+// ILipiToastService dispatches and manages the active toast queue per Blazor
+// circuit. Scoped lifetime — each user session has its own queue + state.
+// The host (LipiToastHost in TopNavLayout.razor) subscribes to OnChanged and
+// re-renders when state mutates.
+//
+// All Phase 2.7 components (LipiSpinner, LipiBadge, LipiPill, LipiSkeleton*,
+// LipiValidationSummary, LipiToast) are pure-render Razor components — no DI
+// registration needed beyond this service.
+builder.Services.AddScoped<ILipiToastService, LipiToastService>();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();

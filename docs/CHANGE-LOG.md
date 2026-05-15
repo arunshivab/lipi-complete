@@ -2832,6 +2832,355 @@ are all consistent. Next: Phase 2.7 — Feedback components (LipiSkeleton,
 LipiBadge, LipiSpinner, LipiToast, LipiValidationSummary), per the original
 Phase 2.6.2 close-out plan.
 
+---
+
+## v1.0 — AMENDMENTS (May 15, 2026)
+
+> Phase 2.7 — Feedback Components family. Single consolidated amendment (A35)
+> covering all six components per the locked "one batch, six components" plan.
+> No mid-phase recoveries or follow-up bug sweeps — the family was built
+> sequentially in strict handout order (tokens → Spinner → Badge → Pill →
+> Skeleton → ValidationSummary → Toast → wiring → StyleGuide → deploy).
+
+### A35 — Phase 2.7 Feedback Components family (LipiSpinner + LipiBadge + LipiPill + LipiSkeleton + LipiValidationSummary + LipiToast)
+
+**Phase**: 2 Sub-step 2.7 — Feedback Components family
+**Date**: 2026-05-15
+**Status**: ✅ Shipped — Phase 2.7 closed in one batch
+
+**Scope.** Six components covering loading states, status indicators,
+placeholders, and notifications. Zero external libraries. Built on the token
+system + LipiAlert (Phase 2.6.1) + LipiOverlayHost pattern (Phase 2.6.2). No
+new infrastructure services beyond `ILipiToastService` itself.
+
+**Components.**
+
+1. **LipiSpinner** — general-purpose loading indicator. Distinct from
+   `LipiButtonSpinner` (button-internal, small only). 4 sizes × 4 intents +
+   custom `SizePx` / `Color` overrides + 4 label positions (reuses Phase 2.5.5
+   `InputLabelPosition`). Pure-render SVG, no JS, no events. Reduced-motion
+   slows rotation from 1.0s to 2.5s (slower-but-still-rotating preserves the
+   "still loading" signal vs static which is ambiguous).
+
+2. **LipiBadge** — attached count/dot indicator (parent must be
+   `position: relative`). 6 colors × 4 corner positions + inline mode +
+   `Max` clamping ("N+" when Count > Max, default Max=99) + `Dot="true"`
+   pure indicator + `ShowZero` toggle. Default `Color="BadgeColor.Danger"`
+   matches the universal notification convention. `box-shadow` outline ring
+   in surface color creates the "punched out" look on icon hosts.
+
+3. **LipiPill** — standalone label/tag/chip. 7 intents × 3 variants (Filled,
+   Outlined, Subtle) × 3 sizes + `Icon` prefix (Lucide) + `Dismissible` ×
+   button. Sibling pattern to LipiBadge — Badge attaches to a parent, Pill
+   stands alone in text flow. `Subtle` variant uses the `*-text-strong`
+   token family added in A12 for accessible text-on-pale-bg contrast.
+
+4. **LipiSkeleton** — three single-file pure-render primitives
+   (`LipiSkeletonLine`, `LipiSkeletonCircle`, `LipiSkeletonRect`) composed
+   by consumers to match the shape of loading content. No per-primitive
+   scoped CSS — family shares `lipi-skeleton.css` for the shimmer keyframe
+   + 3 shape classes + reduced-motion handling (animation off, opacity 0.5).
+   Shimmer uses translateX(±100%) overlay (GPU-accelerated, works on any
+   width) rather than background-position animation.
+
+5. **LipiValidationSummary** — form-level error summary. Auto-discovers errors
+   from cascading `EditContext` (subscribes to `OnValidationStateChanged` +
+   `OnFieldChanged`), resolves field labels via `[Display(Name)]` attribute
+   reflection (fallback to PascalCase-to-space conversion), and provides
+   click-to-field navigation via JS interop (`window.lipiValidation.scrollToField`).
+   1.5s amber flash ring on the focused field. Built on `LipiAlert` (no new
+   visual styling); adds intelligence layer only. Two modes: `Detailed`
+   (bulleted list, default) and `Compact` (single-line count summary for
+   very long forms). `Placement` is a `[Flags]` enum supporting Top, Bottom,
+   or Both (consumer places the component twice for Both pattern).
+
+6. **LipiToast** — service-driven transient notifications. `ILipiToastService`
+   (Scoped per circuit, registered in `Program.cs`). 4 severities × 6 corner
+   positions + persistent flag + dedup by `Id` + queue beyond `MaxVisible=4`
+   + single inline action button (max 12 chars) + Promise-style morph
+   (Loading → Success/Error in place, same Id). **Errors are persistent by
+   default** — clinical safety decision (must be acknowledged manually).
+   Toast NEVER steals focus (informational only — keyboard users navigate
+   via Tab from page content). `role="alert"` + `aria-live="assertive"` for
+   Error, `role="status"` + `aria-live="polite"` for the other three. Host
+   (`LipiToastHost`) renders into `TopNavLayout` at z-index 900 (above
+   modals + drawers at 800/700).
+
+**Token additions (mode-light.css + mode-dark.css).** A35 introduces 7 new
+tokens, one of which fills a long-standing semantic gap (danger text-strong).
+
+Light mode:
+- `--color-danger-text-strong: #991B1B` (red-800) — completes the `*-text-strong`
+  ladder introduced in A12. Used by LipiValidationSummary error links, LipiToast
+  error icons, and LipiPill outlined-danger variant. Hex collides with
+  `--color-danger-active` (same hex, different role: text-on-tinted-bg vs
+  button-active-fill — the same value serving two distinct semantic roles is
+  intentional and documented in the mode file).
+- `--lipi-skeleton-bg: var(--color-bg-subtle)` — base block color (one shade
+  off the typical bg-surface card).
+- `--lipi-skeleton-highlight: rgba(255, 255, 255, 0.50)` — shimmer sweep alpha.
+- `--lipi-spinner-duration: 1.0s` — base rotation period (overridable per parent).
+- `--lipi-spinner-track: rgba(15, 45, 94, 0.10)` — navy-tinted faint backing ring.
+- `--lipi-toast-bg: var(--color-bg-surface)` — elevated toast surface.
+- `--lipi-toast-border: var(--color-border-default)` — toast outline (subtle;
+  the colored 4px left bar carries severity, not the border).
+- `--lipi-toast-shadow: 0 8px 24px rgba(15, 45, 94, 0.16), 0 2px 6px rgba(15, 45, 94, 0.08)`
+  — heavier than `--sh-md` so toast reads as floating.
+- `--lipi-badge-z: 10` — stacking context default (above icon hosts, below
+  dropdown menus).
+
+Dark mode tokens follow the existing convention — `--color-danger-text-strong:
+#FCA5A5` (red-300, matching the "100-200 brighter than base" pattern of
+success/warning/info text-strong); `--lipi-skeleton-bg: var(--color-bg-elevated)`
+(one shade lighter than bg-surface so skeleton reads slightly raised);
+`--lipi-skeleton-highlight: rgba(255, 255, 255, 0.10)` (lower alpha because
+white-on-dark sweep is intrinsically more visible than white-on-light);
+toast shadow uses higher alpha (`0 8px 24px rgba(0, 0, 0, 0.50)`).
+
+**Spec → deployed token name mapping (audit findings).** Phase 2.7 specs use
+some token names that diverge from the deployed token set. All Phase 2.7
+component CSS files use the deployed names; the spec-to-deployed mapping is
+documented in each CSS file header:
+
+| Spec name | Deployed name |
+|-----------|---------------|
+| `--color-success-fill` | `--color-success` |
+| `--color-danger-fill`  | `--color-danger` |
+| `--color-warning-fill` | `--color-warning` |
+| `--color-info-fill`    | `--color-info` |
+| `--color-bg-strong`    | `--color-border-strong` (neutral filled bg) |
+| `--color-bg-muted`     | `--color-bg-subtle` (Skeleton base) |
+| `--color-text-muted`   | `--color-text-tertiary` (Spinner subtle intent) |
+| `--color-success-text` | `--color-success-text-strong` (A12) |
+| `--color-success-subtle` | `--color-success-pale` |
+
+Spec docs left unchanged — the deviation is captured in code comments and in
+this amendment. If a future audit decides to rename the deployed tokens,
+both the specs and the component CSS need updating together; currently the
+deployed names are authoritative.
+
+**Locked design decisions surfaced during build.**
+
+1. **Errors persistent by default** (LipiToast). Clinical safety decision —
+   an error toast that auto-dismisses while a nurse is reaching for the
+   keyboard is a silent failure mode. Consumer can override via
+   `ToastOptions.DurationMs > 0` for genuinely transient errors. Documented
+   in `ILipiToastService` XML doc + spec §7.
+
+2. **Toast does NOT steal focus** (LipiToast). Spec §10. Toast is
+   informational; focus stealing would interrupt typing, form filling, and
+   keyboard navigation. The action button (if present) is keyboard-reachable
+   via Tab from page content. No autofocus.
+
+3. **`InputLabelPosition` reused** (LipiSpinner). Rather than introducing
+   `SpinnerLabelPosition`, Spinner consumes the Phase 2.5.5 cross-family
+   `InputLabelPosition` enum. Same 4 directions (Top/Right/Bottom/Left).
+   Future label-position-bearing components (e.g., LipiCheckbox future
+   variants) reuse the same enum.
+
+4. **Skeleton primitives are single-file pure-render** (LipiSkeleton).
+   Deviation from the general handout literal of split `.razor` +
+   `.razor.cs`. Each primitive is so small (4 parameters, 1 derived class
+   string, inline-style emission) that a partial class adds ceremony
+   without benefit. Documented inline in each primitive file header.
+
+5. **Validation summary's object-level errors out of scope for v1.0
+   auto-discovery** (LipiValidationSummary). EditContext's object-level
+   FieldIdentifier isn't cleanly reachable via the public API without
+   reflection that risks breaking on framework upgrades. Consumer with
+   object-level rules supplies `Errors` explicitly (with `FieldName = "*"`).
+   Documented limitation in `RefreshErrorsFromContext` inline comment.
+
+6. **ShouldRender_Custom naming on LipiBadge** (LipiBadge). The derived
+   "should this render anything at all" property is named with the
+   `_Custom` suffix to avoid colliding with Blazor's protected
+   `bool ShouldRender()` override (different signature, different purpose).
+   The latter is used for component-level render skipping; the former
+   gates visibility based on Count + ShowZero. Suffix documented in the
+   `.razor` file's `@code` block.
+
+**Integration points.**
+
+- `App.razor` — cache version bumped 20260525 → 20260526 across all 23 stamps
+  (CSS + JS) + theme-switcher.js. New `<link>` for `lipi-skeleton.css` and
+  `lipi-validation.css` added to the cascade order (positions 15 and 16, after
+  the Phase 2.6.2 overlay CSS, before the isolation bundle). New `<script>`
+  for `lipi-validation.js` added before `blazor.web.js` (same pattern as
+  `lipi-overlay-interop.js` from Phase 2.6.2). Version-history table updated
+  with new 20260526 row.
+
+- `TopNavLayout.razor` — `<LipiToastHost />` mounted inside `.tn-shell` after
+  the existing `<LipiOverlayHost />`. Single host per circuit; renders ALL
+  active toasts at any of 6 corner positions at z-index 900 (above overlay
+  surfaces). MainLayout (unauthenticated) doesn't get toast rendering in
+  v1.0 — no requirement surfaced for it yet.
+
+- `Program.cs` — `builder.Services.AddScoped<ILipiToastService, LipiToastService>()`
+  registered in the new Phase 2.7 services block. Note: legacy
+  `builder.Services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors = true)`
+  retained as-is per the locked roadmap — its migration is a Phase 2.10
+  Infrastructure Audit item, NOT a Phase 2.7 deliverable. Removing it without
+  the migration breaks Blazor events (documented critical bug fix).
+
+- `StyleGuide.razor` — new "Phase 2.7" sidebar nav group with a single
+  consolidated link to `/admin/style-guide/feedback`. Surgical 10-line
+  insertion between the existing Phase 2.6 group and the closing `</aside>`.
+  Same `data-enhance-nav="false"` rationale as the Phase 2.6 cross-links.
+
+- `StyleGuideFeedback.razor` (new) — single consolidated showcase covering
+  all 6 components, ~20 demos total: Spinner (4 demos), Badge (4), Pill (5),
+  Skeleton (3), ValidationSummary (2), Toast (6). Mirrors the
+  StyleGuideOverlays.razor pattern (sidebar nav + sg-section + sg-demo-num).
+
+**Architectural divergences (documented for Phase 2.10 audit).**
+
+1. `--color-danger-text-strong` light-mode hex (`#991B1B`) collides with
+   `--color-danger-active`. Two different semantic roles share one value.
+   This is fine for v1.0 but if either role's value changes, the other token
+   must be reconsidered. Not a bug — a documented dependency.
+
+2. Spec → deployed token name mapping (table above). Phase 2.10 audit
+   should decide whether to rename deployed tokens to match specs (cheaper
+   for new component authors but breaks all existing CSS) or rewrite specs
+   to use deployed names (cheaper for existing code but every spec needs
+   updating).
+
+3. Toast's `LipiToastHost` corner-positioning CSS is inlined in the
+   component's `.razor` file (`<style>` block) rather than a separate
+   `.razor.css` or wwwroot file. Decision rationale: the host is a
+   singleton in TopNavLayout, the positions are short and well-defined,
+   and a separate file would add a deploy-script entry for ~30 lines of
+   layout CSS. Phase 2.10 may consolidate if the inline-style approach
+   becomes a pattern elsewhere.
+
+**Files (32 new + 8 modified = 40 total deploy artifacts + 6 spec docs).**
+
+New components (`src/LiPi.Web/Components/Shared/`):
+- `LipiSpinnerTypes.cs`, `LipiSpinner.razor`, `LipiSpinner.razor.cs`, `LipiSpinner.razor.css`
+- `LipiBadgeTypes.cs`, `LipiBadge.razor`, `LipiBadge.razor.cs`, `LipiBadge.razor.css`
+- `LipiPillTypes.cs`, `LipiPill.razor`, `LipiPill.razor.cs`, `LipiPill.razor.css`
+- `LipiSkeletonLine.razor`, `LipiSkeletonCircle.razor`, `LipiSkeletonRect.razor`
+- `LipiValidationSummaryTypes.cs`, `LipiValidationSummary.razor`, `LipiValidationSummary.razor.cs`, `LipiValidationSummary.razor.css`
+- `LipiToastTypes.cs`, `LipiToast.razor`, `LipiToast.razor.cs`, `LipiToast.razor.css`
+- `LipiToastHost.razor`, `LipiToastHost.razor.cs`
+
+New services (`src/LiPi.Web/Services/`):
+- `ILipiToastService.cs`, `LipiToastService.cs`
+
+New wwwroot (`src/LiPi.Web/wwwroot/`):
+- `css/lipi-skeleton.css`
+- `css/lipi-validation.css`
+- `js/lipi-validation.js`
+
+New StyleGuide page (`src/LiPi.Web/Pages/`):
+- `StyleGuideFeedback.razor`, `StyleGuideFeedback.razor.css`
+
+Modified:
+- `src/LiPi.Web/wwwroot/themes/mode-light.css` — A35 token additions
+- `src/LiPi.Web/wwwroot/themes/mode-dark.css` — A35 token additions
+- `src/LiPi.Web/App.razor` — cache 20260525→20260526, new `<link>`/`<script>` entries, version-history row
+- `src/LiPi.Web/Components/Layouts/TopNavLayout.razor` — `<LipiToastHost />` mount
+- `src/LiPi.Web/Program.cs` — `ILipiToastService` registration
+- `src/LiPi.Web/Pages/StyleGuide.razor` — Phase 2.7 sidebar nav group
+- `deploy-downloads.ps1` — Phase 2.7 component block + StyleGuideFeedback entries + Phase 2.7 spec doc entries
+- `docs/CHANGE-LOG.md` — this amendment (A35)
+
+Spec docs (`docs/00-COMPONENTS/2.7/`):
+- `00-Phase2.7-Overview.md`
+- `01-LipiSpinner-Spec.md`
+- `02-LipiBadge-Pill-Spec.md`
+- `03-LipiSkeleton-Spec.md`
+- `04-LipiValidationSummary-Spec.md`
+- `05-LipiToast-Spec.md`
+
+**Phase 2.7 — CLOSED.** All 6 Feedback components shipped in one batch per the
+locked plan. Component library, showcases, specs, and deploy mappings are
+consistent. Next: Phase 2.8 — Data Display (LipiTable + supporting), per the
+locked roadmap.
+
+---
+
+### A36 — Phase 2.7 audit-log consolidation: dedicated 2.10 audit checklist + two bug-fix learnings captured
+
+**Phase**: 2 Sub-step 2.7 — close-out doc cleanup
+**Date**: 2026-05-15
+**Status**: ✅ Shipped — doc-only, no source code change
+
+**Trigger.** A35's "Architectural divergences" section documented three Phase
+2.7 audit items inline in the changelog (token hex collision, spec→deployed
+token naming, toast host inline CSS) plus a paragraph reference to the
+`AddServerSideBlazor()` retention. Two additional learnings from Phase 2.7
+mid-batch bug fixes — Blazor CSS Isolation scope boundaries and host-component
+rendermode requirement — lived only in build-chat conversation responses and
+in inline source comments, not in any deployed tracking doc. Once the
+conversation context is gone, those learnings disappear.
+
+A36 closes the gap. Three changes, all doc-only:
+
+**1. New consolidated audit checklist** —
+`docs/00-COMPONENTS/2.10-Audit-Checklist.md`. Single living doc for every
+Phase 2.10 audit item, regardless of source. Sixteen items inventoried at
+creation: four from the locked roadmap (cross-page nav smoke test, component
+package isolation, `AddServerSideBlazor` migration, PHI/HIPAA audit coverage),
+five queued from earlier audits (MailKit, JWT Bearer, blockchain anchoring,
+AWS RDS docs, test-automation-guide), and seven from Phase 2.7. One Phase 2.7
+item (C4) is a duplicate of the locked roadmap item A3 and collapses into it
+during audit work, so effective count is fifteen. Each item carries severity,
+source phase, v1.0 state, audit action, files affected, and rationale.
+
+**2. Two bug-fix learnings now in the deployed CHANGE-LOG.** Both surfaced
+during Phase 2.7 mid-batch builds and were fixed inside the A35 batch, but
+the architectural lessons weren't recorded in the deployed docs.
+
+- **C6 — Blazor CSS Isolation: every new `StyleGuide*.razor` page needs a
+  standalone `sg-*` base block in its scoped CSS.** Blazor's CSS Isolation
+  appends a per-component scope attribute to selectors and elements; rules
+  from another component's `.razor.css` do NOT match elements rendered by
+  this one, even with identical class names. The initial Phase 2.7
+  `StyleGuideFeedback.razor.css` assumed inheritance from
+  `StyleGuide.razor.css` and shipped with the sidebar collapsed into a
+  horizontal block and demo numbers running into demo titles. Fixed by
+  porting the full base `sg-*` rule block (matching the
+  `StyleGuideOverlays.razor.css` pattern). Pattern lesson: convention
+  documentation in `00.2-THEMING-ARCHITECTURE.md` would prevent the next
+  StyleGuide page from hitting the same bug; alternatively the base block
+  can be extracted to `wwwroot/css/lipi-styleguide.css` and imported by
+  every StyleGuide page.
+
+- **C7 — Host-component rendermode: every singleton service-driven renderer
+  mounted in a layout (not a page) MUST have `@rendermode InteractiveServer`
+  at the top.** `LipiToastHost.razor` initially shipped without the
+  directive. The host rendered SSR-only on first paint, subscribed to
+  `ILipiToastService.OnChanged` in the SSR pass, and that subscription was
+  dead by the time the interactive circuit attached. Pages called
+  `_toast.Success(...)`, the service fired `OnChanged`, but nothing was
+  listening — silent failure with zero console errors and zero server-log
+  output. Fixed by adding `@rendermode InteractiveServer`.
+  `LipiOverlayHost.razor` had the directive from the start, which is why
+  modals always worked. Convention lesson: any component that subscribes to
+  a Scoped service event in `OnInitialized` AND is mounted in a layout
+  (rather than a page) needs the explicit rendermode directive.
+
+**3. One existing locked-decision promoted to explicit Phase 2.10 item.**
+LipiValidationSummary's object-level EditContext errors were captured in A35
+as a "locked design decision" (auto-discovery field-level only; consumers
+supply object-level errors explicitly). A36 retags this as Phase 2.10 audit
+item C5 — the audit decides whether to keep the v1.0 limitation permanent or
+implement reflection-based discovery with framework-version guards.
+
+**Files**:
+- `docs/00-COMPONENTS/2.10-Audit-Checklist.md` — new, ~430 lines
+- `docs/CHANGE-LOG.md` — this amendment (A36)
+- `deploy-downloads.ps1` — new entry under Docs section mapping the audit
+  checklist file
+
+**Phase 2.7 — RE-CLOSED.** All audit-log debt from the Phase 2.7 build is
+now in deployed docs. Build chat work for Phase 2.7 is complete. Strategic
+chat owns Phase 2.8 (Data Display) design discussion; build chat picks up on
+handoff per the locked 2.8 → 2.9 → 2.10 → page redesign order.
+
+---
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)

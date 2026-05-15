@@ -1,0 +1,92 @@
+/* ============================================================================ */
+/* SPEC:  docs/00-COMPONENTS/2.7/03-LipiSkeleton-Spec.md §5                     */
+/* PHASE: 2.7 — Feedback Components                                             */
+/* AMEND: docs/CHANGE-LOG.md A35 (2026-05-15)                                   */
+/*                                                                              */
+/* Shared CSS for LipiSkeletonLine, LipiSkeletonCircle, LipiSkeletonRect.       */
+/* Pattern matches lipi-tabs.css / lipi-alerts.css — shared per-family CSS in   */
+/* wwwroot/css/, scoped per-component .razor.css only when component-specific.  */
+/*                                                                              */
+/* Tokens:                                                                      */
+/*   --lipi-skeleton-bg         (mode-light/dark — base block color)            */
+/*   --lipi-skeleton-highlight  (mode-light/dark — sweep highlight color)       */
+/*   --r-sm, --r-md             (structural radii — 6px / 10px)                 */
+/*                                                                              */
+/* Architecture notes:                                                          */
+/*   - The shimmer overlay uses ::after with translateX animation, NOT          */
+/*     background-position animation. Reason: translateX is GPU-accelerated     */
+/*     and works on any width without recomputing background-position keyframes.*/
+/*   - overflow: hidden on the base block clips the overlay to the block       */
+/*     bounds — without it, the sweep would bleed outside.                     */
+/* ============================================================================ */
+
+/* ===================== BASE BLOCK ===================== */
+/* All three primitives share this base. Per-shape rules below add the     */
+/* border-radius to make them line/circle/rect.                            */
+.lipi-skeleton {
+    display: block;
+    background: var(--lipi-skeleton-bg);
+    position: relative;
+    overflow: hidden;
+    vertical-align: middle;        /* keep inline behavior aligned with text rows */
+}
+
+/* ===================== SHAPES ===================== */
+/* Line — slight rounding (--r-sm 6px) for text-row feel. */
+.lipi-skeleton-line {
+    border-radius: var(--r-sm);
+    margin: 4px 0;
+    display: inline-block;         /* sizes from Width inline style attribute */
+}
+
+/* Circle — full rounding for avatars and icons. */
+.lipi-skeleton-circle {
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Rect — medium rounding (--r-md 10px) for images and card blocks.         */
+/* Override via BorderRadius parameter on the component.                    */
+.lipi-skeleton-rect {
+    border-radius: var(--r-md);
+    display: block;
+}
+
+/* ===================== SHIMMER ANIMATION =====================
+   The shimmer is a horizontal gradient overlay that translates left-to-right
+   across the block. translateX(-100%) starts the overlay completely off the
+   left edge; the keyframe animates to 100% (completely off the right edge).
+   The base block stays solid; only the overlay moves.                       */
+.lipi-skeleton-animate::after {
+    content: '';
+    position: absolute;
+    inset: 0;                       /* shorthand for top/right/bottom/left: 0 */
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--lipi-skeleton-highlight) 50%,
+        transparent 100%
+    );
+    transform: translateX(-100%);
+    animation: lipi-skeleton-shimmer 1.5s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes lipi-skeleton-shimmer {
+    100% { transform: translateX(100%); }
+}
+
+/* ===================== REDUCED MOTION =====================
+   Per spec §7: animation disabled, static gray with 0.5 opacity. We disable
+   the ::after entirely (animation: none) and apply opacity to the base block
+   instead — both signals (static + lower contrast) work together to say
+   "loading, but I'm not going to flash at you".                             */
+@media (prefers-reduced-motion: reduce) {
+    .lipi-skeleton-animate::after {
+        animation: none;
+        opacity: 0;                 /* hide the sweep overlay entirely */
+    }
+    .lipi-skeleton-animate {
+        opacity: 0.5;               /* visual "loading" cue via lower contrast */
+    }
+}

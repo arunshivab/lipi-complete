@@ -5,6 +5,17 @@
 @using LiPi.Web.Services
 @inject NavigationManager Nav
 
+@*
+  AMEND: docs/CHANGE-LOG.md A35 (2026-05-15) — Phase 2.7
+    + LipiToastHost added inside .tn-shell, AFTER LipiOverlayHost. The host is
+      a singleton (one per circuit) — placing it here means EVERY authenticated
+      clinical page gets toast rendering automatically. MainLayout.razor (the
+      unauthenticated layout) does not need toast rendering in v1.0; if a
+      requirement surfaces later, a second host instance can be added there.
+    + Toast host renders at z-index 900 (above modals at 800 and drawers at
+      700 — toasts must always be visible above transient overlays).
+*@
+
 <div class="tn-shell">
 
     <!-- ── Top bar ── -->
@@ -133,6 +144,14 @@
          Must be inside .tn-shell but outside .tn-content so overlays are not
          clipped by the content area's overflow constraints. ── -->
     <LipiOverlayHost />
+
+    <!-- ── Toast host (Phase 2.7 A35) ──────────────────────────────────────────
+         Single instance. Renders ALL active toast notifications at 6 possible
+         corner positions. Sits INSIDE .tn-shell at z-index 900 — above modals
+         and drawers (800/700) so transient feedback is always visible.
+         Service is Scoped per circuit (registered in Program.cs as
+         AddScoped<ILipiToastService, LipiToastService>). ── -->
+    <LipiToastHost />
 
 </div>
 
