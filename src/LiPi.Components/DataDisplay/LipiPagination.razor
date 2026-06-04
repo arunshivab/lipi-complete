@@ -1,0 +1,148 @@
+@* SPEC: docs/00-COMPONENTS/2.8/03-LipiPagination-Spec.md §2 (variants), §3 (API), §5 (a11y) *@
+@* PHASE: 2.8 Data Display — Stage 7 (LipiPagination) *@
+@* AMEND: docs/CHANGE-LOG.md A50; FLAGS LP-0/LP-11/LP-12-REVERSED/LP-14 *@
+@*                                                                                            *@
+@* Stateless pager. Branches internally on Variant (Full/Compact/Minimal) — no separate      *@
+@* variant files (LP-11). Page-size dropdown composes LipiSelect<PageSizeOption> (LP-12       *@
+@* reversed: all-LiPi). Nav buttons compose LipiButton (package-clean, A49). Icons via        *@
+@* LiPicons (chevron-left/right, chevrons-left/right).                                        *@
+
+@namespace LiPi.Components.DataDisplay
+@using LiPi.Components
+
+<nav class="lipi-pagination lipi-pagination--@Variant.ToString().ToLowerInvariant() @OrientationClass @AlignClass @StyleClasses @(Class ?? string.Empty)"
+     style="@Style"
+     role="navigation"
+     aria-label="@NavAriaLabel">
+
+    <div class="lipi-pagination-main">
+    @* ── Page-size dropdown (Full + Compact) — delegated to sub-component (LP-11) ── *@
+    @if (ShowPageSize && Variant != PaginationVariant.Minimal)
+    {
+        <LipiPaginationPageSize Options="@PageSizeOptions"
+                                PageSize="@PageSize"
+                                PageSizeChanged="@OnSizeValueChanged"
+                                Disabled="@Disabled" />
+    }
+
+    @* ── Row count (Full only) — delegated to sub-component (LP-11) ── *@
+    @if (ShowRowCount && Variant == PaginationVariant.Full)
+    {
+        <LipiPaginationCountDisplay TotalCount="@TotalCount"
+                                    CurrentPage="@CurrentPage"
+                                    PageSize="@PageSize" />
+    }
+
+    </div>@* /lipi-pagination-main *@
+
+    @* ── Navigation ───────────────────────────────────────────────────────── *@
+    @if (ShowPageNav)
+    {
+        @switch (Variant)
+        {
+            case PaginationVariant.Full:
+                <ul class="lipi-pagination-nav" role="list">
+                    @if (ShowFirstLast)
+                    {
+                        <li>
+                            <LipiButton Variant="@(ChevronsBordered ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                                        Icon="@FirstIcon" AriaLabel="First page"
+                                        Disabled="@(Disabled || IsFirstPage)" OnClick="@(_ => OnFirst())" />
+                        </li>
+                    }
+                    <li>
+                        <LipiButton Variant="@(ChevronsBordered ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                                    Icon="@PrevIcon" AriaLabel="Previous page"
+                                    Disabled="@(Disabled || IsFirstPage)" OnClick="@(_ => OnPrev())" />
+                    </li>
+
+                    @foreach (var slot in PageSlots)
+                    {
+                        @if (slot is null)
+                        {
+                            <li><span class="lipi-pagination-ellipsis" aria-hidden="true">…</span></li>
+                        }
+                        else
+                        {
+                            var p = slot.Value;
+                            var isCurrent = p == CurrentPage;
+                            <li>
+                                <button type="button"
+                                        class="lipi-pagination-page @(isCurrent ? "lipi-pagination-page--active" : string.Empty)"
+                                        aria-label="@($"Page {p}")"
+                                        aria-current="@(isCurrent ? "page" : (string?)null)"
+                                        disabled="@Disabled"
+                                        @onclick="@(_ => OnPageNum(p))">@p</button>
+                            </li>
+                        }
+                    }
+
+                    <li>
+                        <LipiButton Variant="@(ChevronsBordered ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                                    Icon="@NextIcon" AriaLabel="Next page"
+                                    Disabled="@(Disabled || IsLastPage)" OnClick="@(_ => OnNext())" />
+                    </li>
+                    @if (ShowFirstLast)
+                    {
+                        <li>
+                            <LipiButton Variant="@(ChevronsBordered ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                                        Icon="@LastIcon" AriaLabel="Last page"
+                                        Disabled="@(Disabled || IsLastPage)" OnClick="@(_ => OnLast())" />
+                        </li>
+                    }
+                </ul>
+                break;
+
+            case PaginationVariant.Compact:
+                <div class="lipi-pagination-compact-nav">
+                    <LipiButton Variant="@CompactChevronVariant" Size="ButtonSize.Small"
+                                Icon="@PrevIcon" AriaLabel="Previous page"
+                                Disabled="@(Disabled || IsFirstPage)" OnClick="@(_ => OnPrev())" />
+                    <span class="lipi-pagination-compact-indicator" aria-live="polite"
+                          aria-label="@($"Page {CurrentPage} of {Math.Max(1, TotalPages)}")">
+                        @if (IsVertical)
+                        {
+                            @* Stacked current / total (Option A): current on top, divider, total below. *@
+                            <span class="lipi-pagination-compact-current">@CurrentPage</span>
+                            <span class="lipi-pagination-compact-sep" aria-hidden="true"></span>
+                            <span class="lipi-pagination-compact-total">@Math.Max(1, TotalPages)</span>
+                        }
+                        else
+                        {
+                            @:Page @CurrentPage of @Math.Max(1, TotalPages)
+                        }
+                    </span>
+                    <LipiButton Variant="@CompactChevronVariant" Size="ButtonSize.Small"
+                                Icon="@NextIcon" AriaLabel="Next page"
+                                Disabled="@(Disabled || IsLastPage)" OnClick="@(_ => OnNext())" />
+                </div>
+                break;
+
+            case PaginationVariant.Minimal:
+                <div class="lipi-pagination-minimal-nav">
+                    <LipiButton Variant="@CompactChevronVariant" Size="ButtonSize.Small"
+                                Icon="@PrevIcon" AriaLabel="Previous page"
+                                Disabled="@(Disabled || IsFirstPage)" OnClick="@(_ => OnPrev())" />
+                    <LipiButton Variant="@CompactChevronVariant" Size="ButtonSize.Small"
+                                Icon="@NextIcon" AriaLabel="Next page"
+                                Disabled="@(Disabled || IsLastPage)" OnClick="@(_ => OnNext())" />
+                </div>
+                break;
+        }
+    }
+
+    @* ── Jump-to-page (Full only, opt-in) ────────────────────────────────── *@
+    @if (ShowJumpToPage && Variant == PaginationVariant.Full)
+    {
+        <div class="lipi-pagination-jump">
+            <label class="lipi-pagination-jump-label">Page</label>
+            <input class="lipi-pagination-jump-input" type="number" min="1" max="@Math.Max(1, TotalPages)"
+                   aria-label="Jump to page" disabled="@Disabled"
+                   value="@_jumpText" @oninput="@(e => _jumpText = e.Value?.ToString() ?? string.Empty)"
+                   @onkeydown="OnJumpKeyDown" />
+            <span class="lipi-pagination-jump-of">of @Math.Max(1, TotalPages)</span>
+            <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Small"
+                        Disabled="@Disabled" OnClick="@(_ => OnJumpSubmit())">Go</LipiButton>
+        </div>
+    }
+</nav>

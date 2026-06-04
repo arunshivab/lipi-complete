@@ -1,0 +1,53 @@
+@* SPEC: 03-LipiPagination-Spec.md §0 (LoadMore is a MODE not a variant), LipiTable §8.5.3 *@
+@* PHASE: 2.8 Stage 7 — LP-11: separate sub-component (different navigation paradigm). *@
+@* A "Load more" button that appends the next page rather than replacing. The parent *@
+@* (LipiTable/LipiList) owns the append logic + the loaded/total counts; this renders the *@
+@* button + optional "showing X of Y" hint + busy state. Composes LipiButton. *@
+
+@namespace LiPi.Components.DataDisplay
+@using LiPi.Components
+
+<div class="lipi-pagination-loadmore">
+    @if (ShowRemainingHint && TotalCount > 0)
+    {
+        <div class="lipi-pagination-loadmore-hint" aria-live="polite">
+            Showing @LoadedCount.ToString("N0") of @TotalCount.ToString("N0")
+        </div>
+    }
+    @if (HasMore)
+    {
+        <LipiButton Variant="ButtonVariant.Secondary" Size="ButtonSize.Medium"
+                    IsLoading="@IsLoading" Disabled="@Disabled"
+                    OnClick="@(_ => OnLoadMore())">@LoadMoreText</LipiButton>
+    }
+</div>
+
+@code {
+    /// <summary>Rows already loaded/visible.</summary>
+    [Parameter, EditorRequired] public int LoadedCount { get; set; }
+
+    /// <summary>Total rows available across all pages.</summary>
+    [Parameter, EditorRequired] public int TotalCount { get; set; }
+
+    /// <summary>Fires when the user clicks "Load more" — parent appends the next page.</summary>
+    [Parameter] public EventCallback OnLoadMoreClicked { get; set; }
+
+    /// <summary>Parent-driven busy flag (spinner in the button while the next page loads).</summary>
+    [Parameter] public bool IsLoading { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Button label. Default "Load more".</summary>
+    [Parameter] public string LoadMoreText { get; set; } = "Load more";
+
+    /// <summary>Show the "Showing X of Y" hint above the button. Default true.</summary>
+    [Parameter] public bool ShowRemainingHint { get; set; } = true;
+
+    private bool HasMore => LoadedCount < TotalCount;
+
+    private async Task OnLoadMore()
+    {
+        if (Disabled || IsLoading || !HasMore) return;
+        if (OnLoadMoreClicked.HasDelegate) await OnLoadMoreClicked.InvokeAsync();
+    }
+}

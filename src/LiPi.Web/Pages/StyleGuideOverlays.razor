@@ -670,7 +670,7 @@
                IconColor="ModalIconColor.Info"
                Size="_m1Open.Value"
                OnClose="@(() => _m1Open = null)">
-        <ModalBody>
+        <LipiModalBody>
             <p style="font-size:13px;color:var(--color-text-primary);line-height:1.6;margin:0">
                 This is a <strong>@(_m1Open)</strong> modal. Width as defined in
                 <code style="font-family:var(--font-mono);font-size:12px">lipi-overlays.css</code>:
@@ -679,10 +679,10 @@
                   _m1Open == ModalSize.Wide       ? "680px" :
                                                     "95vw × 95vh").
             </p>
-        </ModalBody>
-        <ModalFooter>
+        </LipiModalBody>
+        <LipiModalFooter>
             <LipiButton OnClick="@(() => _m1Open = null)">Close</LipiButton>
-        </ModalFooter>
+        </LipiModalFooter>
     </LipiModal>
 }
 
@@ -695,15 +695,15 @@
                IconColor="_m2Open.Value"
                Size="ModalSize.Compact"
                OnClose="@(() => _m2Open = null)">
-        <ModalBody>
+        <LipiModalBody>
             <p style="font-size:13px;line-height:1.6;margin:0">
                 Background / foreground colors come from
                 <code style="font-family:var(--font-mono);font-size:12px">.lipi-modal-icon-@(_m2Open.ToString()?.ToLowerInvariant())</code>.
             </p>
-        </ModalBody>
-        <ModalFooter>
+        </LipiModalBody>
+        <LipiModalFooter>
             <LipiButton OnClick="@(() => _m2Open = null)">Close</LipiButton>
-        </ModalFooter>
+        </LipiModalFooter>
     </LipiModal>
 }
 
@@ -716,15 +716,15 @@
                Size="ModalSize.Compact"
                Animation="@(Enum.TryParse<ModalAnimation>(_m3Anim, out var a) ? a : ModalAnimation.FadeSlide)"
                OnClose="@(() => _m3Open = false)">
-        <ModalBody>
+        <LipiModalBody>
             <p style="font-size:13px;margin:0;line-height:1.6">
                 Open / close this several times. Spec §8 timings: Fade 150ms,
                 FadeSlide / FadeScale 200ms.
             </p>
-        </ModalBody>
-        <ModalFooter>
+        </LipiModalBody>
+        <LipiModalFooter>
             <LipiButton OnClick="@(() => _m3Open = false)">Close</LipiButton>
-        </ModalFooter>
+        </LipiModalFooter>
     </LipiModal>
 }
 
@@ -738,7 +738,7 @@
                Size="ModalSize.Standard"
                IsDirty="@(!string.IsNullOrEmpty(_m8Text))"
                OnClose="@(() => { _m8Open = false; _m8Text = string.Empty; })">
-        <ModalBody>
+        <LipiModalBody>
             <div class="sg-form-row">
                 <label class="sg-form-label" for="m8-input">
                     Type anything to dirty the modal:
@@ -754,12 +754,12 @@
                 Then try ✕, Escape, or backdrop click. A Warning ConfirmAsync appears
                 because <code style="font-family:var(--font-mono);font-size:11px">IsDirty=true</code>.
             </p>
-        </ModalBody>
-        <ModalFooter>
+        </LipiModalBody>
+        <LipiModalFooter>
             <LipiButton Variant="ButtonVariant.Secondary"
                         OnClick="@(() => { _m8Open = false; _m8Text = string.Empty; })">Cancel</LipiButton>
             <LipiButton OnClick="@(() => { _m8Open = false; _m8Text = string.Empty; })">Save</LipiButton>
-        </ModalFooter>
+        </LipiModalFooter>
     </LipiModal>
 }
 
@@ -773,7 +773,7 @@
                Size="ModalSize.Compact"
                IsBusy="@_m9Busy"
                OnClose="@(() => _m9Open = false)">
-        <ModalBody>
+        <LipiModalBody>
             <p style="font-size:13px;margin:0 0 12px 0">
                 When IsBusy is on: ✕, Escape, backdrop click all suppressed.
                 Primary action shows busy spinner.
@@ -783,12 +783,12 @@
                         OnClick="@(() => _m9Busy = !_m9Busy)">
                 Toggle IsBusy (currently @(_m9Busy ? "ON" : "OFF"))
             </LipiButton>
-        </ModalBody>
-        <ModalFooter>
+        </LipiModalBody>
+        <LipiModalFooter>
             <LipiButton Variant="ButtonVariant.Secondary"
                         OnClick="@(() => _m9Open = false)">Cancel</LipiButton>
             <LipiButton OnClick="@(() => _m9Open = false)" IsLoading="@_m9Busy">Submit</LipiButton>
-        </ModalFooter>
+        </LipiModalFooter>
     </LipiModal>
 }
 
@@ -801,7 +801,7 @@
                IconColor="ModalIconColor.Info"
                Size="ModalSize.Standard"
                OnClose="@(() => _m10Open = false)">
-        <ModalBody>
+        <LipiModalBody>
             <p style="font-size:13px;margin:0 0 12px 0;line-height:1.6">
                 The button below opens <code style="font-family:var(--font-mono);font-size:12px">
                 Modal.ConfirmAsync</code> — that's a service-driven modal stacked
@@ -819,10 +819,10 @@
                     Inner result: <strong>@_m10InnerResult</strong>
                 </div>
             }
-        </ModalBody>
-        <ModalFooter>
+        </LipiModalBody>
+        <LipiModalFooter>
             <LipiButton OnClick="@(() => _m10Open = false)">Close outer</LipiButton>
-        </ModalFooter>
+        </LipiModalFooter>
     </LipiModal>
 }
 
@@ -836,7 +836,7 @@
                Size="ModalSize.Standard"
                Intent="_m11Open.Value"
                OnClose="@(() => _m11Open = null)">
-        <ModalBody>
+        <LipiModalBody>
             @switch (_m11Open)
             {
                 case ModalIntent.Progress:
@@ -863,10 +863,10 @@
                     </p>
                     break;
             }
-        </ModalBody>
-        <ModalFooter>
+        </LipiModalBody>
+        <LipiModalFooter>
             <LipiButton OnClick="@(() => _m11Open = null)">Close</LipiButton>
-        </ModalFooter>
+        </LipiModalFooter>
     </LipiModal>
 }
 
@@ -885,14 +885,14 @@
                 Icon="layout-panel-left"
                 IconColor="DrawerIconColor.Info"
                 OnClose="@(() => _d1Open = null)">
-        <DrawerBody>
+        <LipiDrawerBody>
             <p style="font-size:13px;line-height:1.6;margin:0">
                 <strong>@(_d1Open)</strong> drawer at <code style="font-family:var(--font-mono);font-size:12px">Standard</code> size.
             </p>
-        </DrawerBody>
-        <DrawerFooter>
+        </LipiDrawerBody>
+        <LipiDrawerFooter>
             <LipiButton OnClick="@(() => _d1Open = null)">Close</LipiButton>
-        </DrawerFooter>
+        </LipiDrawerFooter>
     </LipiDrawer>
 }
 
@@ -906,14 +906,14 @@
                 Icon="ruler"
                 IconColor="DrawerIconColor.Info"
                 OnClose="@(() => _d2Open = null)">
-        <DrawerBody>
+        <LipiDrawerBody>
             <p style="font-size:13px;line-height:1.6;margin:0">
                 Right/Left widths per spec §7: Compact 320 · Standard 400 · Wide 560 · FullSide 95vw.
             </p>
-        </DrawerBody>
-        <DrawerFooter>
+        </LipiDrawerBody>
+        <LipiDrawerFooter>
             <LipiButton OnClick="@(() => _d2Open = null)">Close</LipiButton>
-        </DrawerFooter>
+        </LipiDrawerFooter>
     </LipiDrawer>
 }
 
@@ -928,7 +928,7 @@
                 IconColor="DrawerIconColor.Info"
                 Backdrop="_d3Open.Value"
                 OnClose="@(() => _d3Open = null)">
-        <DrawerBody>
+        <LipiDrawerBody>
             <p style="font-size:13px;line-height:1.6;margin:0 0 12px 0">
                 Backdrop = <strong>@(_d3Open)</strong>.
             </p>
@@ -939,10 +939,10 @@
                         ? "Light overlay (rgba(11,37,69,.10))."
                         : "Dimmed overlay (rgba(11,37,69,.45)) — modal-like.")
             </p>
-        </DrawerBody>
-        <DrawerFooter>
+        </LipiDrawerBody>
+        <LipiDrawerFooter>
             <LipiButton OnClick="@(() => _d3Open = null)">Close</LipiButton>
-        </DrawerFooter>
+        </LipiDrawerFooter>
     </LipiDrawer>
 }
 
@@ -957,7 +957,7 @@
                 IconColor="DrawerIconColor.Warning"
                 IsDirty="@(!string.IsNullOrEmpty(_d4Text))"
                 OnClose="@(() => { _d4Open = false; _d4Text = string.Empty; })">
-        <DrawerBody>
+        <LipiDrawerBody>
             <div class="sg-form-row">
                 <label class="sg-form-label" for="d4-input">Type anything:</label>
                 <input id="d4-input"
@@ -970,12 +970,12 @@
             <p style="font-size:12px;color:var(--color-text-secondary);margin:8px 0 0 0">
                 Then try ✕, Esc, or backdrop click → Warning ConfirmAsync.
             </p>
-        </DrawerBody>
-        <DrawerFooter>
+        </LipiDrawerBody>
+        <LipiDrawerFooter>
             <LipiButton Variant="ButtonVariant.Secondary"
                         OnClick="@(() => { _d4Open = false; _d4Text = string.Empty; })">Cancel</LipiButton>
             <LipiButton OnClick="@(() => { _d4Open = false; _d4Text = string.Empty; })">Save</LipiButton>
-        </DrawerFooter>
+        </LipiDrawerFooter>
     </LipiDrawer>
 }
 
@@ -989,9 +989,9 @@
                 IconColor="DrawerIconColor.Info"
                 Backdrop="DrawerBackdrop.None"
                 OnClose="@(() => _d6Right = false)">
-        <DrawerBody>
+        <LipiDrawerBody>
             <p style="font-size:13px;margin:0">Right drawer body. Bottom is open too.</p>
-        </DrawerBody>
+        </LipiDrawerBody>
     </LipiDrawer>
 }
 @if (_d6Bottom)
@@ -1003,9 +1003,9 @@
                 IconColor="DrawerIconColor.Info"
                 Backdrop="DrawerBackdrop.None"
                 OnClose="@(() => _d6Bottom = false)">
-        <DrawerBody>
+        <LipiDrawerBody>
             <p style="font-size:13px;margin:0">Bottom drawer body. Right is open too.</p>
-        </DrawerBody>
+        </LipiDrawerBody>
     </LipiDrawer>
 }
 
@@ -1018,7 +1018,7 @@
                 Icon="layers"
                 IconColor="DrawerIconColor.Info"
                 OnClose="@(() => _d7Open = false)">
-        <DrawerBody>
+        <LipiDrawerBody>
             <p style="font-size:13px;margin:0 0 12px 0;line-height:1.6">
                 Click the button below to open a service modal on top.
                 The drawer should stay visible but become inert.
@@ -1026,10 +1026,10 @@
             <LipiButton Size="ButtonSize.Small" OnClick="RunDrawerOnModalConfirm">
                 Open modal on top
             </LipiButton>
-        </DrawerBody>
-        <DrawerFooter>
+        </LipiDrawerBody>
+        <LipiDrawerFooter>
             <LipiButton OnClick="@(() => _d7Open = false)">Close</LipiButton>
-        </DrawerFooter>
+        </LipiDrawerFooter>
     </LipiDrawer>
 }
 
@@ -1043,7 +1043,7 @@
                 Icon="loader"
                 IconColor="DrawerIconColor.Info"
                 OnClose="@(() => _d8Open = false)">
-        <DrawerBody>
+        <LipiDrawerBody>
             <p style="font-size:13px;margin:0 0 12px 0">
                 Toggle IsBusy from the footer button. (Note: declarative LipiDrawer
                 doesn't yet read an IsBusy param — this demo shows the structured
@@ -1053,10 +1053,10 @@
                 v1.0: IsBusy param is accepted but not yet rendered visually on
                 LipiDrawer (deviation from spec §2; tracked for v1.1).
             </p>
-        </DrawerBody>
-        <DrawerFooter>
+        </LipiDrawerBody>
+        <LipiDrawerFooter>
             <LipiButton OnClick="@(() => _d8Open = false)">Close</LipiButton>
-        </DrawerFooter>
+        </LipiDrawerFooter>
     </LipiDrawer>
 }
 

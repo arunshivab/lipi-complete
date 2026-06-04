@@ -1,0 +1,29 @@
+@* _Imports.razor — LiPi.Components project-wide Razor usings
+   PHASE: 2.8 Migration Stage 1 (A44)
+
+   When the input/selection family migrated from LiPi.Web into this project, the
+   .razor components lost access to the framework namespaces that LiPi.Web's own
+   _Imports/global-usings had provided. The extension methods IsDevelopment()
+   (Microsoft.Extensions.Hosting) and the ILogger Log* methods
+   (Microsoft.Extensions.Logging) are the ones that broke. This file restores them
+   project-wide so every .razor in LiPi.Components resolves them.
+
+   Kept deliberately minimal — only framework namespaces every component may need.
+   Component cross-references resolve via their own @namespace LiPi.Components
+   (Forms) / LiPi.Components.DataDisplay declarations + explicit @using where needed. *@
+
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using System.Threading.Tasks
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using Microsoft.JSInterop
+@using Microsoft.Extensions.Hosting
+@using Microsoft.Extensions.Logging
+@using Microsoft.Extensions.Options
+@using LiPi.Components.Forms
+@using LiPi.Components.Feedback
+@using LiPicons.Blazor

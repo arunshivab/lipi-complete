@@ -3181,6 +3181,1682 @@ handoff per the locked 2.8 → 2.9 → 2.10 → page redesign order.
 
 ---
 
+### A37 — Phase 2.8 Stage 1A: LipiTable type foundation + new LiPi.Components csproj
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 1A (Foundation — types only)
+**Date**: 2026-05-16
+**Status**: ✅ Shipped — type-only foundation; no behavior; new csproj registered
+
+**Trigger.** Phase 2.8 strategic-chat handoff dropped 7 spec docs and a 9-stage
+build plan into build chat. Stage 1 of that plan is "Foundation: types,
+services, DB migration, shared CSS, JS interop" with the verification gate
+"project compiles; migration runs; services register in DI". Stage 1 is large
+enough (≈21 deliverables) to warrant sub-staging in the established 2.6.2
+precedent (1A / 1B / 1C). Stage 1A delivers types only — pure declarations,
+no behavior, no runtime dependencies on Phase 2.7 or earlier components.
+
+A37 ships 10 files: 1 new csproj plus 9 type-only `.cs` files covering the
+public API surface of all four Phase 2.8 components (LipiTable, LipiList,
+LipiPagination, LipiEmptyState) plus the shared status taxonomy. Compiling
+this stage is self-contained — the new `LiPi.Components.csproj` builds
+standalone via `dotnet build src\LiPi.Components\LiPi.Components.csproj`
+without any project-reference wire-up to `LiPi.Web` (that wire-up is Stage 1C).
+
+**1. New csproj: `LiPi.Components`.** First Phase 2.8 file. Per spec §25.2.2
+(component isolation contract — locked), all new Phase 2.8 component code
+lives in a separate `LiPi.Components.*` namespace, isolated from `LiPi.Web.*`
+HIS application code. The new project targets .NET 10, uses
+`Microsoft.NET.Sdk.Razor` (so Razor components added Stage 2+ compile
+without csproj changes), and has zero NuGet package references — only the
+ASP.NET Core shared framework via `<FrameworkReference Include="Microsoft.AspNetCore.App" />`.
+This satisfies Phase 2.8's zero-external-functional-library posture (§1.3).
+
+Existing Phase 2.1–2.7 components stay where they are in
+`src\LiPi.Web\Components\Shared\`. The Phase 2.10 audit migrates them into
+`LiPi.Components` later. Phase 2.8 components are the first to ship in the
+new redistributable layout.
+
+**2. Type surface organization (9 .cs files).** Files split per spec §27.3.3
+file taxonomy:
+
+- `LipiTableTypes.cs` — 19 table-level enums covering selection, edit,
+  pagination, density, filter, loading, virtualization, grouping, tree,
+  master-detail, conflict resolution, new-row placement, row-status placement.
+- `LipiColumnTypes.cs` — 8 column-level enums: `ColumnType` (the 14 built-in
+  generic types), `ColumnPin`, `ColumnAlign`, `CopyTarget`, `StatusVariant`,
+  `LipiAggregate`, `SortCycleMode`, `NullSortOrder`.
+- `SortDescriptor.cs` — `SortDescriptor` / `FilterDescriptor` /
+  `GroupDescriptor` records + `SortDirection` + `FilterOperator` (28 ops
+  covering text, numeric, date-relative, boolean, set, and universal).
+- `TableQueryRequest.cs` — `TableQueryRequest` record (server-side request
+  envelope; `Extra` defaults to `ImmutableDictionary<string, object?>.Empty`).
+- `TableQueryResponse.cs` — `TableQueryResponse<TItem>` + `GroupBucket<TItem>`
+  + `ConflictInfo` (per §4.3 and §12.10.2).
+- `SaveResult.cs` — `SaveResult` + `SaveOutcome` + `ValidationResult` +
+  `ValidationError` + `ValidationSeverity` (per §12.6.2 and §12.9.4).
+- `Contexts.cs` — 21 non-export event context records + 16 reason enums
+  covering selection, sort, filter, quick-search, pagination, grouping,
+  tree, master-detail, inline edit (row + cell + dirty state), density,
+  column ops (resize / reorder / pin / visibility), error, query complete.
+- `Export\ExportTypes.cs` — `ExportFormat` (Csv / Pdf / Print) + `ExportScope`
+  (View / Filtered / All / Selected) + `ExportOptions` + `ExportProgress` +
+  `BeforeExportContext` + `AfterExportContext`. PDF stays declared in the
+  enum surface but the actual exporter is stubbed until Phase 2.10 lands
+  the in-house LiPi PDF library.
+- `Shared\LipiStatus.cs` — 17 status string constants (Active, Pending,
+  Inactive, Suspended, Locked, Archived, Draft, Published, InProgress,
+  Completed, Failed, Cancelled, Warning, Error, Info, Success, Unknown).
+  Status values are strings (not C# enum) at consumption points so consuming
+  apps can extend the taxonomy without modifying the LiPi component library.
+
+**3. Three deviations from Phase 2.8 spec, all recorded here and surfaced
+to strategic chat.**
+
+- *Deviation 1 — `Export\ExportTypes.cs` added to Stage 1A.* Spec §28.4
+  deploy registry doesn't list this file in Stage 1. Build chat added it
+  because `BeforeExportContext` and `AfterExportContext` (event-context
+  records consumed via `OnBeforeExport` / `OnAfterExport`) carry
+  `ExportFormat`. Placing the export contexts in `Contexts.cs` without
+  `ExportFormat` in scope would create a Stage-6 forward-declaration
+  coupling. Co-locating the full export type family in
+  `Export\ExportTypes.cs` at Stage 1A matches §27.7 file taxonomy and
+  keeps `Contexts.cs` free of export-specific references.
+
+- *Deviation 2 — `LiPi.Components.Shared` realized as a subfolder inside
+  `LiPi.Components.csproj`, not a separate csproj.* Spec §27.2 diagram
+  shows `src/LiPi.Components/` and `src/LiPi.Components.Shared/` as
+  parallel top-level project folders, implying two csproj. But §28.4
+  deploy registry paths (`src\LiPi.Components\Shared\LipiStatus.cs`)
+  place `Shared\` as a subfolder inside `LiPi.Components`. Build chat
+  followed §28.4 (deploy paths are the concrete contract). Result: one
+  csproj (`LiPi.Components.csproj`) with two top-level subfolders:
+  `DataDisplay\` and `Shared\`. The two-csproj split can revisit in
+  Phase 2.10 audit if a real consumer needs `LiPi.Components.Shared`
+  shipped independent of `LiPi.Components`.
+
+- *Deviation 3 — `PersistedContext` + `PersistedTrigger` deferred to
+  Stage 1B.* §23.10.7 places these in `Contexts.cs`, but the record
+  references `TablePreferences` — a Stage 1B service type that doesn't
+  exist yet. Build chat relocated them to ship in Stage 1B alongside
+  `TablePreferences.cs` in the services folder. No spec change required;
+  just a file-location refinement within the same component family.
+
+**4. One divergence from spec §28.3 file-naming convention.** Spec §28.3
+mandates that files dropped in `Downloads\LiPi\` use `2.8-types-LipiTableTypes.cs`
+prefixed naming. Reality on the ground: the existing `deploy-downloads.ps1`
+uses bare filenames as hashtable keys (`"LipiTableTypes.cs" = "src\..."`).
+The naming convention in spec §28.3 was written without seeing the actual
+deploy script convention; project convention wins. All 10 Stage 1A files use
+bare filenames. Phase 2.10 audit can revisit the convention if a future
+phase produces filename collisions across phases.
+
+**5. Locked decisions honored at Stage 1A.**
+
+- Component isolation contract (§25.2.1, §25.2.2, §25.2.3): all new code
+  under `LiPi.Components.*` namespace; zero `using LiPi.Web.*` or
+  `using LiPi.HIS.*`; CSS prefix `lipi-*` (no CSS in this stage but
+  reflected in any string literals); zero clinical / HIS-specific type
+  names in the public surface (`ColumnType` includes generic types only —
+  Text, Number, Currency, Status, etc.; clinical types are caller's
+  `Type=Custom` + `<CellTemplate>` responsibility).
+- Zero new NuGet packages (Phase 2.8 §1.3 / §8).
+- SPEC comment header on every file (§27.19 template).
+- LP-0 (LipiPagination variant naming) deferred to Stage 4 — no
+  LipiPagination code in this stage.
+- PDF deferred to Phase 2.10 — `ExportFormat.Pdf` exists in the enum surface,
+  the actual exporter stubs in Stage 6 throwing "PDF library pending Phase
+  2.10 integration" until the in-house LiPi PDF library ships.
+- Edit + concurrency types align with the row-version pattern (Q3.5 locked):
+  `RowVersionSelector` not part of Stage 1A (parameter on LipiTable, lands
+  in Stage 2), but `ConflictInfo.ServerRowVersion` and the conflict UX
+  enums are in place.
+
+**6. What's NOT in Stage 1A (handled in later sub-stages).**
+
+- Stage 1B: `ITablePreferenceService` + `TablePreferenceService` +
+  `TablePreferences` + `ColumnPreference` + `PersistedContext` +
+  `PersistedTrigger`; `UserTablePreference` EF entity + configuration;
+  DB migration up/down SQL.
+- Stage 1C: `lipi-table-tokens.css` + `lipi-table-print.css` +
+  `lipi-status-tokens.css`; `lipi-table-interop.js`; `App.razor`
+  cache-version bump + new `<link>` and `<script>` tags; `Program.cs`
+  DI registration of `ITablePreferenceService`; `LiPi.sln` solution-folder
+  entry + `LiPi.Web.csproj` `<ProjectReference>` to `LiPi.Components`.
+- Stage 2 onward: Razor components, sub-components, services beyond
+  preferences, full feature implementation.
+- Stage 8: Phase 2.8 spec docs (`00-Phase2.8-Overview.md`,
+  `01-LipiTable-Spec.md`, `02-LipiList-Spec.md`, `03-LipiPagination-Spec.md`,
+  `04-LipiEmptyState-Spec.md`) deployed alongside StyleGuide demo pages,
+  matching the A35 / A36 pattern.
+
+**7. Verification gate (run after deploy).**
+
+```
+cd C:\Users\aruns\Documents\lipi-complete\lipi-complete
+dotnet build src\LiPi.Components\LiPi.Components.csproj
+```
+
+Expected: `Build succeeded. 0 Warning(s). 0 Error(s).`
+
+Additional verification:
+
+- `grep -r "LiPi.Web" src\LiPi.Components\` returns no matches (component
+  isolation invariant).
+- `grep -rE "Patient|Doctor|Clinic|Encounter|Aadhaar|Uhid|Mrn" src\LiPi.Components\`
+  returns matches only inside SPEC comment blocks and docstrings —
+  never inside type names, parameter names, or enum values.
+- Every `.cs` file has a `// SPEC:` header pointing to a §-anchor (§27.19
+  contract).
+- The full-solution `dotnet build` from project root will NOT include
+  `LiPi.Components` yet — the project is intentionally not in
+  `LiPi.sln` and not referenced by `LiPi.Web.csproj` at this stage.
+  That wire-up is Stage 1C.
+
+**Files**:
+
+- `src\LiPi.Components\LiPi.Components.csproj` — new csproj, redistributable
+  component library
+- `src\LiPi.Components\DataDisplay\LipiTable\LipiTableTypes.cs` — 19 table-level enums
+- `src\LiPi.Components\DataDisplay\LipiTable\LipiColumnTypes.cs` — 8 column-level enums
+- `src\LiPi.Components\DataDisplay\LipiTable\SortDescriptor.cs` — sort / filter / group descriptors
+- `src\LiPi.Components\DataDisplay\LipiTable\TableQueryRequest.cs` — server request envelope
+- `src\LiPi.Components\DataDisplay\LipiTable\TableQueryResponse.cs` — server response + ConflictInfo
+- `src\LiPi.Components\DataDisplay\LipiTable\SaveResult.cs` — save outcomes + validation result
+- `src\LiPi.Components\DataDisplay\LipiTable\Contexts.cs` — 21 event context records + reason enums
+- `src\LiPi.Components\DataDisplay\LipiTable\Export\ExportTypes.cs` — export-related types
+- `src\LiPi.Components\Shared\LipiStatus.cs` — shared status taxonomy (17 constants)
+- `deploy-downloads.ps1` — appended Phase 2.8 Stage 1A block with 10 hashtable entries
+- `docs\CHANGE-LOG.md` — this amendment (A37)
+
+---
+
+### A38 — Phase 2.8 Stage 1B: persistence service abstractions + EF entity + clinic-DB migration
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 1B (Foundation — services + DB)
+**Date**: 2026-05-16
+**Status**: ✅ Shipped — abstractions + default impl + entity + migration SQL; wire-up in Stage 1C
+
+**Trigger.** Stage 1A landed the type foundation. Stage 1B adds the persistence
+service surface (interfaces + default implementation), the EF entity for the
+storage table, and the SQL migration that creates the table. Two architectural
+decisions were resolved with Arun before code was written; both are captured
+here so the rationale survives the build-chat context loss.
+
+**1. Decision: per-clinic persistence, not master.**
+
+`user_table_preferences` lives in each clinic database, not in master alongside
+`identity.users`. Five reasons, in declining weight:
+
+- *Locality of reference.* Preferences describe a clinic-scoped table; storing
+  them with the data they describe is straightforward architecture. Backup of
+  a clinic captures its user-behavior metadata; restore brings it back.
+- *TableId namespace collision eliminated.* If preferences were master-scoped,
+  `TableId="patients-list"` from Clinic A would collide with the same id from
+  Clinic B. Per-clinic storage naturally namespaces by DB.
+- *Tenant isolation (HIPAA + DPDP).* User-behavior metadata derived from
+  clinic PHI belongs in that clinic's DB, not in a central directory.
+- *Industry pattern matches.* Salesforce per-org, Notion per-workspace, Linear
+  per-workspace, Microsoft Dynamics per-org. The reverse pattern (cross-tenant
+  global prefs) is rare and usually causes problems.
+- *Backup/restore granularity.* Per-clinic restore brings prefs back; central
+  restore would need separate coordination.
+
+**Cross-DB FK consequence.** PostgreSQL cannot enforce a foreign-key constraint
+across separate databases. `user_table_preferences.user_id` references
+`master.identity.users(id)` but the constraint is app-layer only (validated via
+auth context). This is safe because LiPi never hard-deletes users —
+clinic-user-deletion is access revocation, not row removal (confirmed with
+Arun: *"Clinic user deletion means they lose access to that clinic. No user is
+hard deleted."*). So orphan preference rows never accumulate; no cascade is
+needed; no soft-delete tombstone state needs to be tracked.
+
+**2. Decision: Option C — store abstraction architecture.**
+
+Spec §28.4 placed the default `TablePreferenceService` implementation inside
+`LiPi.Components`, but the spec's reference implementation depends on
+`IdentityDbContext` (a consumer-app type), which directly violates §25.3.2's
+isolation contract. The contradiction was discussed with Arun across three
+options:
+
+- *Option A* — Pure consumer-provides. `LiPi.Components` defines the interface
+  only; `LiPi.Web` provides the full EF-backed implementation. Simplest but
+  every future consumer reinvents JSON serialization, caching, and debouncing.
+- *Option B* — Spec literal. Implementation in `LiPi.Components`. Breaks
+  isolation; Phase 2.10 audit would block deployment. Rejected.
+- *Option C* — Store abstraction. `LiPi.Components` defines BOTH the
+  high-level `ITablePreferenceService` AND lower-level
+  `IUserTablePreferenceStore` + `ICurrentUserAccessor`. `LiPi.Components`
+  also ships the default `TablePreferenceService` (composes the two
+  abstractions, owns JSON / cache / debounce / error handling). Consumers
+  implement only the two low-level interfaces against their storage and auth.
+
+Option C selected. Pattern mirrors ASP.NET Identity's `UserManager<TUser>` +
+`IUserStore<TUser>` split: library owns the high-level behavior, consumer owns
+storage and auth specifics. This is the textbook .NET-library shape for
+configurable, consumer-overridable services.
+
+The five new `LiPi.Components` files (interface + records + default impl +
+two abstractions) compile standalone — no dependency on consumer code.
+`LiPi.Web` in Stage 1C will deliver the two concrete implementations
+(`EfUserTablePreferenceStore` + `BlazorCurrentUserAccessor`).
+
+**3. Files added.**
+
+**LiPi.Components — five new files in `src\LiPi.Components\DataDisplay\LipiTable\Services\`:**
+
+- `ITablePreferenceService.cs` — high-level interface (5 methods: Get, Save,
+  Reset, ListTableIds, RenameTableId). Async throughout. Returns null /
+  empty collections on auth-missing or error (silent error handling per §21.5).
+- `IUserTablePreferenceStore.cs` — low-level CRUD interface (5 methods over
+  `(Guid userId, string tableId, string prefsJson)`). Storage-agnostic.
+- `ICurrentUserAccessor.cs` — single-method auth abstraction.
+  `ValueTask<Guid?> GetUserIdAsync(CancellationToken)`. ValueTask because
+  most implementations resolve synchronously from cached claims.
+- `TablePreferences.cs` — top-level `TablePreferences` class with versioned
+  schema, `ColumnPreference` record, plus `PersistedContext` record and
+  `PersistedTrigger` enum (deferred from Stage 1A per A37 because both
+  reference `TablePreferences` which lives here).
+- `TablePreferenceService.cs` — default implementation. Implements
+  `ITablePreferenceService` + `IAsyncDisposable`. Owns:
+    * JSON serialization (System.Text.Json, camelCase, ignore-null-on-write)
+    * Per-circuit `ConcurrentDictionary` cache (avoids re-reads inside the
+      same circuit; cache holds `null` for "no row exists")
+    * 300ms debounced writes per `tableId` (rapid SaveAsync calls coalesce
+      into a single store write; superseded writes cancel cleanly)
+    * Silent error handling — every store exception is logged via
+      `ILogger<TablePreferenceService>` at Warning level and swallowed;
+      `OperationCanceledException` re-throws as expected
+    * `DisposeAsync` snapshots pending writes, cancels their debounce
+      timers, and flushes synchronously with a 2-second timeout cap so
+      slow stores don't block circuit teardown
+    * Malformed JSON tolerated — `JsonException` on read returns null and
+      logs; the user effectively gets a fresh-defaults experience rather
+      than a hard error
+    * Argument null checks in constructor (defensive; DI catches mis-wiring early)
+
+**LiPi.Clinic.Core — one new file in `database\efcore\LiPi.Clinic.Core\Entities\`:**
+
+- `UserTablePreference.cs` — EF entity. `[Table("user_table_preferences", Schema = "identity")]`.
+  Composite PK via `[PrimaryKey(nameof(UserId), nameof(TableId))]` (EF Core 7+
+  attribute). `UserId` is UUID, `TableId` varchar(200), `PrefsJson` jsonb,
+  `UpdatedAt` timestamptz. Data-annotation-based config — no separate
+  `Configurations\` file, matching existing project precedent (`UserPreference`,
+  `UserRole`, `AdSyncLog` all use data annotations).
+
+**database\migrations — two new SQL files:**
+
+- `2026-05-16-phase-2.8-user-table-prefs-up.sql` — creates
+  `identity.user_table_preferences` with composite PK, secondary index on
+  `user_id`, and table/column comments documenting the cross-DB FK app-layer
+  enforcement. Wrapped in BEGIN/COMMIT. Idempotent via
+  `CREATE SCHEMA IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS` +
+  `CREATE INDEX IF NOT EXISTS`.
+- `2026-05-16-phase-2.8-user-table-prefs-down.sql` — reverses the up
+  migration. `DROP INDEX IF EXISTS` + `DROP TABLE IF EXISTS`. Wrapped in
+  BEGIN/COMMIT.
+
+**Migration deployment**: apply PART B (each clinic DB) only. Master DB does
+not get this migration. Existing project deploy convention supports the
+PART A / PART B split (see prior A1 / Decision-12 theming migration which
+notes the same pattern). Apply via pgAdmin or psql manually — the deploy
+script copies the SQL to `database\migrations\` but does not execute it.
+
+**4. Three convention divergences from spec §28.4, all recorded.**
+
+- *Divergence 1 — Entity project.* Spec said `LiPi.Identity.Core` (project
+  doesn't exist in this codebase). Reality is `LiPi.Clinic.Core` because the
+  entity lives in clinic DB per A38 §1. Adjusting the deploy path was
+  unavoidable.
+- *Divergence 2 — Migration SQL path.* Spec said
+  `database\migrations\identity\2026-05-15_AddUserTablePreferences.sql` with
+  an `identity\` subfolder. Existing project convention (per the A1
+  decision-12-theming migration) uses flat `database\migrations\` with
+  date-prefixed-up/down filename pairs. Followed project convention.
+- *Divergence 3 — EF configuration.* Spec said separate
+  `Configurations\UserTablePreferenceConfiguration.cs` fluent-API file.
+  Existing project precedent (`UserPreference`, `UserRole`, `AdSyncLog`)
+  uses data annotations directly on the entity. Followed project convention
+  to stay consistent with the rest of `LiPi.Clinic.Core`. If a future
+  refactor standardizes on fluent-API config, this entity migrates with the
+  rest of the project in a single sweep (queued as a Phase 2.10 audit item
+  candidate, not yet committed to the checklist).
+
+**5. What's NOT in Stage 1B (handled in Stage 1C).**
+
+- `EfUserTablePreferenceStore.cs` — concrete `IUserTablePreferenceStore` impl
+  against the clinic-side `DbContext`. Will inject `ClinicDbContext` (or
+  whatever the clinic-side DbContext is named — Arun to share in Stage 1C)
+  and translate the five store methods into EF queries.
+- `BlazorCurrentUserAccessor.cs` — concrete `ICurrentUserAccessor` impl.
+  Injects `AuthenticationStateProvider`; reads the `sub` claim or
+  `ClaimTypes.NameIdentifier`; returns `Guid?`.
+- `DbSet<UserTablePreference>` registration on the clinic-side DbContext.
+  Requires the current DbContext file from Arun to deliver the full updated
+  version (per the no-snippets rule).
+- `Program.cs` DI registration — three `AddScoped` calls:
+  `ITablePreferenceService → TablePreferenceService`,
+  `IUserTablePreferenceStore → EfUserTablePreferenceStore`,
+  `ICurrentUserAccessor → BlazorCurrentUserAccessor`.
+- `LiPi.sln` + `LiPi.Web.csproj` wire-up — add `LiPi.Components` to the
+  solution and add `<ProjectReference>` from `LiPi.Web` to `LiPi.Components`.
+  Until this lands, `LiPi.Web` cannot resolve any `LiPi.Components` types.
+- Migration application — the SQL deploys to `database\migrations\` but is
+  not auto-applied; manual `psql` or pgAdmin run is the deployment step.
+
+**6. Verification gate.**
+
+```
+cd C:\Users\aruns\Documents\lipi-complete\lipi-complete
+dotnet build src\LiPi.Components\LiPi.Components.csproj
+dotnet build database\efcore\LiPi.Clinic.Core\LiPi.Clinic.Core.csproj
+```
+
+Both should report `Build succeeded. 0 Warning(s). 0 Error(s).` The migration
+SQL files exist in `database\migrations\` and are syntactically valid (test
+with `psql --dry-run` if available, or visual inspection — they're short).
+
+Solution-wide `dotnet build` from the project root still does not include
+`LiPi.Components` — that wire-up is Stage 1C.
+
+The migration files are NOT applied to any database in Stage 1B; that's a
+Stage 1C deployment step. The `.sql` files just sit at
+`database\migrations\` ready to apply.
+
+**Files**:
+
+- `src\LiPi.Components\DataDisplay\LipiTable\Services\ITablePreferenceService.cs` — high-level interface
+- `src\LiPi.Components\DataDisplay\LipiTable\Services\IUserTablePreferenceStore.cs` — low-level store interface
+- `src\LiPi.Components\DataDisplay\LipiTable\Services\ICurrentUserAccessor.cs` — auth abstraction
+- `src\LiPi.Components\DataDisplay\LipiTable\Services\TablePreferences.cs` — records + PersistedContext + PersistedTrigger
+- `src\LiPi.Components\DataDisplay\LipiTable\Services\TablePreferenceService.cs` — default impl (cache + debounce + JSON)
+- `database\efcore\LiPi.Clinic.Core\Entities\UserTablePreference.cs` — EF entity
+- `database\migrations\2026-05-16-phase-2.8-user-table-prefs-up.sql` — create table + index
+- `database\migrations\2026-05-16-phase-2.8-user-table-prefs-down.sql` — drop table + index
+- `deploy-downloads.ps1` — appended Phase 2.8 Stage 1B block with 8 hashtable entries
+- `docs\CHANGE-LOG.md` — this amendment (A38)
+
+---
+
+### A39 — Phase 2.8 Stage 1C: persistence wire-up + entity moved to LiPi.Clinic.Identity
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 1C (Foundation — service wire-up)
+**Date**: 2026-05-16
+**Status**: ✅ Shipped — end-to-end persistence compiles; migration apply is a manual step
+
+**Trigger.** Stage 1B shipped the persistence abstractions, default service, EF entity,
+and migration SQL. Stage 1C connects them: the consuming app (LiPi.Web) supplies the
+two low-level implementations, registers all three services, references the component
+library, and the entity is relocated to its correct home. After this stage the whole
+app compiles and table preferences round-trip through the per-clinic database.
+
+**1. Correction: entity moved LiPi.Clinic.Core → LiPi.Clinic.Identity.**
+
+Stage 1B (A38, divergence #1) placed `UserTablePreference` in `LiPi.Clinic.Core`
+because the spec referenced a nonexistent `LiPi.Identity.Core` project and Core seemed
+the closest real match. Reviewing the actual codebase for Stage 1C revealed the true
+sibling: `UserPreference` (theme prefs, Decision #12) lives in `LiPi.Clinic.Identity`
+→ `IdentityDbContext.UserPreferences` → `identity.user_preferences`, inside each clinic
+DB. `UserTablePreference` is the same kind of thing (per-user, per-clinic-DB preference
+row in the identity schema), so it belongs beside `UserPreference`.
+
+Decided with Arun: move to `LiPi.Clinic.Identity`. Benefits:
+
+- `LiPi.Web` already references `LiPi.Clinic.Identity` — no new project reference for
+  the entity.
+- `ClinicDbFactory.CreateForClinicAsync(clinicId)` already returns an
+  `IdentityDbContext` pointed at the clinic DB — exactly what the store needs. No new
+  factory method, no hand-built context.
+- Schema is `identity` (set by `IdentityDbContext.HasDefaultSchema("identity")`),
+  which matches the migration SQL shipped in Stage 1B unchanged.
+- Consistent with the established `user_preferences` pattern.
+
+The migration SQL (`identity.user_table_preferences`, applied per clinic DB) was
+already correct and is unchanged. Only the entity's C# project/namespace and the
+DbContext registration target changed.
+
+**2. Entity re-issued as a plain POCO.**
+
+Stage 1B's entity used data annotations (`[Table]`, `[PrimaryKey]`, `[Column]`).
+`IdentityDbContext` configures every entity fluently and applies schema + snake_case
+naming via its `OnModelCreating` loop, and `UserPreference` is a plain POCO. To be a
+clean sibling, `UserTablePreference` is re-issued annotation-free in namespace
+`LiPi.Clinic.Identity.Entities`. The snake_case loop produces `user_id` / `table_id` /
+`prefs_json` / `updated_at`, matching the migration. Composite PK, jsonb type, and the
+200-char `table_id` cap are configured fluently next to the `UserPreference` block.
+
+`updated_at` is deliberately NOT configured as store-generated: the store sets a UTC
+value on every write, so EF must send it. The SQL `DEFAULT NOW()` remains a safety net
+for any non-EF insert path.
+
+**3. New consumer implementations in LiPi.Web\Services.**
+
+- `BlazorCurrentUserAccessor` — implements `ICurrentUserAccessor`. Resolves the user
+  GUID from the `NameIdentifier` claim via `AuthenticationStateProvider` (same claim
+  `ClaimsHelper.UserId` reads). Memoized per circuit.
+- `EfUserTablePreferenceStore` — implements `IUserTablePreferenceStore`. Resolves the
+  current clinic GUID from the `clinicId` claim (same claim `ClaimsHelper.ClinicId`
+  reads), calls `ClinicDbFactory.CreateForClinicAsync(clinicId)` to get the per-clinic
+  `IdentityDbContext`, and performs raw CRUD against `UserTablePreferences`. The store
+  does not catch exceptions — `TablePreferenceService` already wraps every store call
+  in try/catch + Warning log (store = raw CRUD, service = resilience). `RenameAsync`
+  removes + re-inserts because `TableId` is part of the PK and can't be mutated in
+  place; it overwrites any existing new-id row per the interface's documented semantics.
+
+**4. Background-write safety via memoization.**
+
+`TablePreferenceService` (Stage 1B) performs debounced writes on a background `Task`.
+Reading `AuthenticationStateProvider` from a background thread in Blazor Server is
+fragile. Rather than edit the working Stage 1B service, both consumer implementations
+memoize their resolved id on first call — which always happens on the circuit thread
+during the table's mount-time `GetAsync`. The later background write reads the cached
+GUID and never touches `AuthenticationStateProvider` off-circuit. A circuit serves one
+user + one clinic for its lifetime, so caching is correct (a clinic switch means
+re-login → new principal → new circuit).
+
+**5. Service registration (Program.cs) — three Scoped services.**
+
+```
+builder.Services.AddScoped<ICurrentUserAccessor, BlazorCurrentUserAccessor>();
+builder.Services.AddScoped<IUserTablePreferenceStore, EfUserTablePreferenceStore>();
+builder.Services.AddScoped<ITablePreferenceService, TablePreferenceService>();
+```
+
+Added after the Phase 2.7 toast registration, with `using LiPi.Components.DataDisplay;`.
+All Scoped (one per circuit), which keeps the id-memoization and the service's
+per-circuit cache safe.
+
+**6. Project reference (LiPi.Web.csproj).**
+
+Added `<ProjectReference Include="..\LiPi.Components\LiPi.Components.csproj" />` so
+LiPi.Web can resolve the interfaces and the default `TablePreferenceService`. No .sln
+exists in this codebase (Arun builds/runs via `dotnet run` on LiPi.Web), so this
+ProjectReference is the entire wire-up — there is no solution file to update.
+
+**7. Files modified vs new (deploy routing).**
+
+- `Program.cs` — MODIFIED. Existing deploy entry routes it (no new key).
+- `IdentityDbContext.cs` — MODIFIED (DbSet + fluent config). Existing deploy entry
+  routes it (no new key).
+- `UserTablePreference.cs` — MODIFIED + RELOCATED. Stage 1B deploy entry REPOINTED
+  from `LiPi.Clinic.Core\Entities\` to `LiPi.Clinic.Identity\Entities\`.
+- `LiPi.Web.csproj` — MODIFIED. NEW deploy entry.
+- `EfUserTablePreferenceStore.cs` — NEW. NEW deploy entry.
+- `BlazorCurrentUserAccessor.cs` — NEW. NEW deploy entry.
+
+**8. Two manual steps after deploy.**
+
+- Delete the orphaned Stage 1B entity that was deployed to the old Core location:
+  `Remove-Item "database\efcore\LiPi.Clinic.Core\Entities\UserTablePreference.cs"`.
+  Leaving it is harmless dead code in a different namespace, but delete it to avoid
+  confusion (the LiPi.Clinic.Identity copy is the live one).
+- Apply the migration to each clinic DB (it was shipped in Stage 1B but never
+  auto-applied):
+  `psql -d <clinic_db> -f database\migrations\2026-05-16-phase-2.8-user-table-prefs-up.sql`.
+  The table must exist before the first `SaveChanges`. For dev, apply to the Armoki
+  clinic DB.
+
+**9. One dependency to verify at build.**
+
+`EfUserTablePreferenceStore` calls `ClinicDbFactory.CreateForClinicAsync(Guid)` →
+`IdentityDbContext?`, mirroring `UserPreferenceService`'s usage. If the current
+`ClinicDbFactory` exposes that method under a different name or signature, the store
+won't compile — surface it and the store adjusts. This is the only assumed external
+API in the stage.
+
+**10. Verification gate.**
+
+```
+cd C:\Users\aruns\Documents\lipi-complete\lipi-complete
+dotnet build src\LiPi.Web\LiPi.Web.csproj
+```
+
+This now transitively builds `LiPi.Components` (new ProjectReference). Expected:
+`Build succeeded`. Because there is no .sln, `dotnet build` on the web csproj is the
+whole-app build. After applying the migration to a clinic DB, run the app
+(`dotnet run --project src\LiPi.Web`), sign into a clinic, and the persistence path is
+live (full round-trip is observable once Stage 2 ships a real LipiTable that calls
+`ITablePreferenceService`).
+
+**11. What's NOT in Stage 1C (moved to Stage 1D, just before Stage 2).**
+
+Shared CSS (`lipi-table-tokens.css`, `lipi-table-print.css`, `lipi-status-tokens.css`),
+the JS interop (`lipi-table-interop.js`), and the `App.razor` cache-version bump +
+`<link>` / `<script>` tags. Nothing renders until Stage 2 components exist, so these
+are deferred to a focused Stage 1D rather than shipping unused assets now.
+
+**Files**:
+
+- `database\efcore\LiPi.Clinic.Identity\Entities\UserTablePreference.cs` — relocated POCO
+- `database\efcore\LiPi.Clinic.Identity\IdentityDbContext.cs` — +DbSet +fluent config
+- `src\LiPi.Web\Services\EfUserTablePreferenceStore.cs` — store impl (per-clinic IdentityDbContext)
+- `src\LiPi.Web\Services\BlazorCurrentUserAccessor.cs` — auth accessor impl
+- `src\LiPi.Web\Program.cs` — +using +3 Scoped registrations
+- `src\LiPi.Web\LiPi.Web.csproj` — +ProjectReference to LiPi.Components
+- `deploy-downloads.ps1` — repointed UserTablePreference.cs entry + Stage 1C block (3 new entries)
+- `docs\CHANGE-LOG.md` — this amendment (A39)
+
+---
+
+### A40 — Phase 2.8 Stage 1D: Lipicons integration (vendored LiPicons.Blazor + <LipiIcon>)
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 1D (icon foundation)
+**Date**: 2026-05-30
+**Status**: ✅ Shipped — Lipicons rendering live in the HIS; data-display components can compose `<LipiIcon>`
+
+**Roadmap amendment.** The locked roadmap put Lipicons at Phase 3.0 ("Lucide icons
+stay for v1.0"). That lock is amended: **Lipicons enters at Phase 2.8.** Trigger — the
+first data-display component (LipiEmptyState) needs to render icons inside the
+redistributable `LiPi.Components` library, and `LucideIcon` lives in `LiPi.Web`
+(referencing it would break the isolation contract). The icon question, parked for 3.0,
+came due at 2.8. Arun had `LiPicons.Blazor` built in the separate icons chat, so the
+clean resolution is to consume the real icon package now rather than copy LucideIcon
+forward as throwaway.
+
+**Why a standalone package (not source inside LiPi.Components).** Three imagiQa projects
+consume Lipicons, not just the HIS. A dependency shared by 3+ projects must be a package,
+not source copied into one consumer — otherwise the other two projects would have to
+depend on the entire HIS component library just to render an icon. So `LiPicons.Blazor`
+is its own NuGet package (built + owned by the icons chat), and `LiPi.Components` consumes
+it like any generic dependency. This is isolation-clean: a HIS-agnostic icon package is an
+allowed dependency under §25.3.1, same category as `Microsoft.AspNetCore.Components`.
+
+**Vendored, not yet a feed package.** `LiPicons.Blazor` is built and on `main` in the
+lipicons repo but is not yet published to a NuGet feed. To keep the HIS building
+standalone (no sibling-checkout dependency), the package is **vendored** into the HIS repo
+at `libs\LiPicons.Blazor\` (7 files: 6 source + `icons.json`). `libs\` signals
+third-party/vendored to the Phase 2.10 isolation audit. When the package publishes, the
+two ProjectReferences (from `LiPi.Components` and `LiPi.Web`) swap to a single
+`PackageReference Include="LiPicons.Blazor" Version="x.y.z"` — one-line change, zero
+component churn.
+
+The vendored copy differs from upstream in exactly one line: the `EmbeddedResource` path
+for `icons.json` is repointed from `../../dist/json/icons.json` (upstream repo layout) to
+the local `icons.json` copied alongside the project. Everything else is byte-identical to
+upstream v1.0.2.
+
+**Package verification (done before integrating).** Re-cloned the repo and verified
+against the §1 contract rather than trusting the handback checklist: enum
+`LipiconVariant { Regular, Bold, Light, Thin, Fill, Duotone }` exact; `LipiIcon`
+parameters `Name`/`Variant`/`Size`/`Color`/`Class`/`Title` with correct types and
+defaults; namespace `LiPicons.Blazor`; unknown name renders nothing without throwing;
+`currentColor` default; square sizing with preserved 24×24 viewBox; manifest embedded as
+an assembly resource (offline, no wwwroot, no CDN); sole dependency
+`Microsoft.AspNetCore.Components.Web`; no HIS coupling. All confirmed.
+
+**The `<LipiIcon>` API contract (locked, both chats build to this verbatim).**
+`<LipiIcon Name Variant Size Color Class Title />`. `Name` string required (manifest key);
+`Variant` defaults `Regular`; `Size` int px default 24; `Color` null → `currentColor`;
+`Class` appended; `Title` null → decorative `aria-hidden`, set → `role=img` + `aria-label`.
+Data-display default variant = `Regular`; per-component overrides decided as we go.
+
+**§5 icon naming decisions (from the icons chat, recorded for HIS mapping).** Lipicons
+uses native names, not Lucide names. The three HIS needs without an exact match were
+resolved as temporary mappings for v1.0:
+- FilteredEmpty → `search` (no dedicated `no-results`/`search-off` glyph yet)
+- Error → `warning` (no dedicated `error`/octagon glyph yet; warning and error share a
+  glyph in v1.0, differentiated by color tone — error gets danger tint, warning gets
+  warning tint)
+- Sortable-unsorted → `sort` (genuine up/down double-arrow; `arrow-up`/`arrow-down` for
+  active asc/desc)
+
+**Accepted as a known v1.0 compromise.** When the dedicated `no-results` and `error`
+glyphs are added to Lipicons, they're additive — HIS code keeps working, and the two
+mappings switch whenever desired (one-line change in `LipiEmptyState.razor.cs` and any
+future consumer).
+
+**Token reconciliation (carried into A41).** The first CSS bundle reviewed
+(`00-baseline.css`, `app.css`) suggested no semantic color tokens existed, which would
+have blocked the phase. Investigation found the real Layer-3 token architecture in
+`themes/mode-light.css` + `themes/mode-dark.css` (Decision #12 §12.4): the full
+`--color-*` contract (text-primary/secondary/tertiary, danger/success/warning/info +
+pale + text-strong ladders) resolving per `[data-mode]`. The LipiEmptyState spec
+referenced three token names that don't exist in this codebase; bound to the real tokens:
+`--color-text-faint` → `--color-text-tertiary`, `--color-danger-alpha-04` →
+`--color-danger-pale`, `--color-success-alpha-04` → `--color-success-pale`. Detail in A41.
+
+**Files** (Stage 1D):
+
+- `libs\LiPicons.Blazor\LiPicons.Blazor.csproj` — vendored, EmbeddedResource repointed to local icons.json
+- `libs\LiPicons.Blazor\LipiIcon.razor` — vendored (byte-identical to upstream)
+- `libs\LiPicons.Blazor\LipiconVariant.cs` — vendored
+- `libs\LiPicons.Blazor\LipiconRenderer.cs` — vendored
+- `libs\LiPicons.Blazor\IconManifest.cs` — vendored
+- `libs\LiPicons.Blazor\LipiconName.cs` — vendored (1,149 typed name constants)
+- `libs\LiPicons.Blazor\icons.json` — vendored full manifest (1,149 icons × 6 variants, 436KB)
+- `src\LiPi.Components\LiPi.Components.csproj` — +ProjectReference to vendored LiPicons.Blazor
+- `src\LiPi.Web\LiPi.Web.csproj` — +ProjectReference to vendored LiPicons.Blazor (explicit, for demo `_Imports`)
+- `deploy-downloads.ps1` — Stage 1D/2 block (vendored + component + token + demo entries)
+- `docs\CHANGE-LOG.md` — this amendment (A40)
+
+---
+
+### A41 — Phase 2.8 Stage 2: LipiEmptyState (first Data Display component)
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 2 (LipiEmptyState)
+**Date**: 2026-05-30
+**Status**: ✅ Shipped — first rendered Data Display component; composes `<LipiIcon>`
+
+**What shipped.** `LipiEmptyState` — the zero-state primitive used by LipiTable / LipiList
+empty slots, card empties, and full-page empty states. Stateless, presentational,
+token-driven. Per the locked build order (EmptyState first, not §27.17's Stage 7), this is
+the first rendered component of Phase 2.8 and the first real consumer of `<LipiIcon>`.
+
+**Component surface.** `LiPi.Components.DataDisplay` namespace, in
+`src\LiPi.Components\DataDisplay\LipiEmptyState\`:
+
+- `LipiEmptyStateTypes.cs` — `EmptyStateVariant { Default, Empty, FilteredEmpty, Error,
+  Success, Coming }` + `EmptyStateSize { Inline, Card, Page }`.
+- `LipiEmptyState.razor` — markup: `role="region"` + `aria-label` (title), icon slot
+  (3-way resolution), dynamic heading element, body `<p>`, collapsing CTA container.
+- `LipiEmptyState.razor.cs` — code-behind: parameters, icon resolution, heading-level
+  resolution, env-gated Title validation.
+- `LipiEmptyState.razor.css` — scoped layout/structure; consumes only `--lipi-empty-*` +
+  structure tokens (`--sp-*`, `--r-*`).
+
+**Parameters.** `Title` (required), `Body`, `Icon`, `IconTemplate`, `Size` (default
+`Inline`), `Variant` (default `Default`), `PrimaryCta`, `SecondaryCta`, `Class`, `Style`,
+`TitleHeadingLevel`.
+
+**Icon resolution order (§3.3).** (1) `IconTemplate` fragment wins; (2) explicit `Icon`
+string — empty string `""` is an explicit opt-out (no icon); (3) variant default via the
+A40 §5 mapping; (4) else no icon. Variant defaults (Lipicons-native names): Default/Empty
+→ `empty-state`, FilteredEmpty → `search`, Error → `warning`, Success → `check-circle`,
+Coming → `clock`. Icons referenced via the typed `LipiconName` constants for compile-time
+safety. Icon variant is `Regular` (data-display default); icon size scales with component
+size (Inline 32 / Card 48 / Page 64).
+
+**Env-gated Title validation (A14 pattern).** Title is required. In Development, an empty
+Title throws `InvalidOperationException` (fail-fast for the developer). In Production, it
+logs a Warning and omits the title element (degrade gracefully — never crash a clinical
+screen). `IHostEnvironment` + `ILogger` are injected as OPTIONAL (`[Inject]` on properties
+that may be null) so the component still works in isolation tests / consumers that don't
+register hosting; when absent, behavior defaults to the non-throwing production path. This
+mirrors LipiButton's A14 hard-throw divergence and stays queued for the v1.1 retrofit that
+will standardize env-gated validation across components.
+
+**Heading level (§4.2).** Page → `h2`, Inline/Card → `h3`. `TitleHeadingLevel` (1–6)
+overrides; out-of-range falls back to the size default. Rendered via a switch over the six
+heading elements (no dynamic-tag trickery — explicit and SSR-safe).
+
+**Token file — the single seam.** `src\LiPi.Web\wwwroot\css\lipi-empty-tokens.css` defines
+the `--lipi-empty-*` tokens (dimensions, type sizes, gaps, variant icon tints, variant
+container backgrounds) and binds the color-bearing ones to the real `--color-*` contract.
+The component's scoped CSS consumes only `--lipi-empty-*`, so the component stays
+redistributable (never touches `app.css`'s flat `--primary`/`--bg`, never touches
+`--color-*` directly). The token file is the one place where HIS palette → generic
+contract; when the full theming system lands in 2.10, this file is absorbed/expanded.
+
+Token reconciliation applied (per A40): `--color-text-faint` → `--color-text-tertiary`;
+`--color-danger-alpha-04` → `--color-danger-pale`; `--color-success-alpha-04` →
+`--color-success-pale`. All bound tokens resolve in both light and dark via the
+`[data-mode]` cascade — no mode-specific block needed in the token file. Verified each
+referenced `--color-*` exists in `themes/mode-light.css` and `themes/mode-dark.css`.
+
+**App.razor wiring.** `lipi-empty-tokens.css` linked AFTER `themes/mode-*.css` (it consumes
+their tokens), grouped with the other `lipi-*.css` files before the Blazor isolation
+bundle. All cache versions bumped `20260526` → `20260530`; cache-history row added. No JS —
+EmptyState has no interop.
+
+**Demo page.** `src\LiPi.Web\Pages\StyleGuideDataDisplay.razor` (+ scoped CSS) at
+route `/admin/style-guide/data-display`. Named and routed to match the existing cross-page
+demos (`StyleGuideFeedback`, `StyleGuideOverlays`): explicit
+`@layout LiPi.Web.Components.Layouts.TopNavLayout`, and reached from the main StyleGuide via
+a `data-enhance-nav="false"` link (the enhanced-nav scoped-CSS workaround — a Phase 2.10
+smoke-test item). Shows all six variants (Inline), three sizes (Empty), and custom-icon
+cases (explicit `Icon`, `IconTemplate`, opt-out `Icon=""`), plus accessibility notes. The
+demo is self-styled (its own `sg-*` scoped CSS) so it renders cleanly without depending on
+global StyleGuide styles, and uses plain `<button>` (no LipiButton dependency). Demo lives
+in `LiPi.Web` (not redistributable) per the packaging rule.
+
+**StyleGuide nav registration.** `StyleGuide.razor` gains a new "Phase 2.8" nav group with
+a "Data Display →" link to `/admin/style-guide/data-display`, modeled on the Phase 2.6/2.7
+groups (same `data-enhance-nav="false"` rationale). LipiTable / LipiList / LipiPagination
+links will be added to this same group/page as those components ship in later 2.8 stages.
+
+**One integration note for the build.** The demo and nav link use
+`data-enhance-nav="false"` (full document load on click) — the established StyleGuide
+cross-page pattern that avoids the enhanced-nav scoped-CSS reattachment bug. This is the
+same workaround used by the Phase 2.6/2.7 demo links and is flagged for the Phase 2.10
+cross-page-nav smoke test.
+
+**Files** (Stage 2):
+
+- `src\LiPi.Components\DataDisplay\LipiEmptyState\LipiEmptyStateTypes.cs` — enums
+- `src\LiPi.Components\DataDisplay\LipiEmptyState\LipiEmptyState.razor` — markup
+- `src\LiPi.Components\DataDisplay\LipiEmptyState\LipiEmptyState.razor.cs` — code-behind
+- `src\LiPi.Components\DataDisplay\LipiEmptyState\LipiEmptyState.razor.css` — scoped styles
+- `src\LiPi.Web\wwwroot\css\lipi-empty-tokens.css` — token seam (binds --lipi-empty-* to --color-*)
+- `src\LiPi.Web\Pages\StyleGuideDataDisplay.razor` — StyleGuide demo (route /admin/style-guide/data-display)
+- `src\LiPi.Web\Pages\StyleGuideDataDisplay.razor.css` — demo scoped styles
+- `src\LiPi.Web\Pages\StyleGuide.razor` — +Phase 2.8 nav group ("Data Display →" link)
+- `src\LiPi.Web\App.razor` — cache bump 20260526→20260530 + lipi-empty-tokens.css link
+- `deploy-downloads.ps1` — Stage 1D/2 block (shared with A40)
+- `docs\CHANGE-LOG.md` — this amendment (A41)
+
+---
+
+### A42 — Phase 2.8 Stage 2 core shell: LipiTable bare chassis (generic table renders static data)
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 2 core shell (the "rolling chassis")
+**Date**: 2026-05-31
+**Status**: ✅ Shipped — generic LipiTable renders static columns of data; foundation for all later table stages
+
+**What this is.** The first LipiTable slice — deliberately the thinnest table that renders.
+Per the agreed step-by-step approach ("get the skeleton standing and rendering correctly
+before adding sort, filter, selection, decoration"), this slice proves the hardest
+architectural piece — the generic type cascade — with ~10 files instead of discovering a
+problem after building 95. You write `<LipiTable Items=...>` with `<LipiColumn>` children
+and a styled table appears: header row + one row per item, per-type cell rendering, body
+states, light/dark aware. Nothing else works yet, by design.
+
+**Scope — what renders vs. what's deferred.**
+
+In this slice: declarative columns, CSS-Grid layout, the 14 ColumnType default renderers
+(common types fully; flagged types simplified — see below), `Items` data path, and the
+Loading / Error / Empty / Normal body states delegating to LipiEmptyState (built in A41).
+
+Explicitly NOT in this slice (later stages, by agreement — kept the verification gate to
+"does it render?"): sort, filter, quick-search, selection/checkboxes, pagination, inline
+edit, grouping, tree, master-detail, column resize/reorder/pin, density toggle, toolbar,
+header band, filter chips, bulk bar, group bar, aggregate footer row, virtualization, and
+server-side `DataSource` mode. The corresponding `LipiColumn` / `LipiTable` parameters are
+**declared but inert** so the public API shape is final now and pages won't face
+breaking-change churn as those stages land.
+
+**Architecture (locked by spec, confirmed by read).**
+
+- `LipiTable<TItem>` with `[CascadingTypeParameter(nameof(TItem))]`;
+  `LipiColumn<TItem, TValue>` children obtain the parent via `[CascadingParameter]` and
+  register themselves during `OnInitialized`. The cascade is `IsFixed="true"` and the
+  column markup sits in a `display:none` holder purely to trigger each column's
+  initialization — `LipiColumn` renders no DOM of its own.
+- **Type erasure at the registration boundary.** `LipiColumn<TItem, TValue>` builds a
+  `ColumnDefinition<TItem>` (generic only over TItem) exposing a boxed
+  `Func<TItem, object?> GetValue`. This lets `LipiTable<TItem>` hold a homogeneous
+  `List<ColumnDefinition<TItem>>` and keep its render loop free of TValue — no reflection
+  over open generics. Type-specific behavior that genuinely needs TValue (sort comparers,
+  filter templates) is captured as erased delegates when those stages land.
+- **CSS Grid backing** (§3.6.1): each column contributes one grid track from its
+  `Width` / type-default. The header row and each body row are independent
+  `display:grid` containers sharing the same inline `grid-template-columns`, which keeps
+  columns aligned without a parent grid that would fight sticky header positioning.
+- **`role="grid"`** semantics (§19): `role="row"` / `role="columnheader"` / `role="gridcell"`.
+- **Identity via `KeySelector`** (`Func<TItem, object>`), used for `@key` on rows now and
+  selection/edit-tracking/persistence later. Required — env-gated validation (throws in
+  Development, logs + degrades in Production), matching the A14/A41 pattern.
+
+**Files added — LiPi.Components (`DataDisplay/LipiTable/`):**
+
+- `ColumnDefinition.cs` — type-erased per-column descriptor (key, header, type, align,
+  grid track, format, boxed value accessor, optional cell/header templates).
+- `CellFormatter.cs` — boxed-value → display-string for the common types (Number,
+  Currency, Date, DateTime, Time, Boolean tokens), honoring an explicit `Format` string.
+- `LipiColumn.razor` + `.razor.cs` — declarative column. Resolves ColumnKey (explicit >
+  dotted Field path > fallback), Header (template > Header > humanized leaf member > key),
+  Align (explicit > type default), and GridTrack (explicit Width > type default).
+  Registers/unregisters with the parent. Field expression compiled once for the value
+  accessor; `ValueSelector` supported as the no-metadata alternative.
+- `LipiTable.razor` + `.razor.cs` + `.razor.css` — the generic component: column registry
+  (keyed, re-registration replaces not duplicates), Items/DataSource/KeySelector
+  validation, body-state resolution, grid template assembly, header + body render, and
+  per-type cell rendering with the flagged simplifications.
+
+**Files added — LiPi.Components (`Shared/Internal/`):**
+
+- `IdentifierHumanizer.cs` — `"DateOfBirth"` → `"Date Of Birth"`, acronym-aware
+  (`"patientUHID"` → `"Patient UHID"`), handles snake_case / kebab / letter-digit
+  boundaries. Internal utility, reused by LipiList field headers later.
+
+**Files added — LiPi.Web (`wwwroot/css/`):**
+
+- `lipi-status-tokens.css` — **new shared infrastructure** (Phase 2.8 Overview §2.1/§2.3),
+  created here because it didn't exist yet and the spec's deferred-list comment in the
+  Stage 1C deploy block had only named it. Defines `--color-status-*` (the LipiStatus
+  taxonomy bound to the real semantic palette), `.lipi-status-strip-{left,right,top}`
+  utilities, and the `.lipi-table-status` chip + `[data-status]` color mapping. First
+  consumer is LipiTable's Status cells; future consumers per the overview (LipiList,
+  LipiCard/Alert retrofit, LipiBadge/Pill). Token reconciliation: the spec's example
+  referenced `--color-success-600` / `--color-neutral-400` which don't exist; bound to the
+  real `--color-success` / `--color-warning` / `--color-danger` / `--color-info` (+ `-pale`
+  tiers, `+ -text-strong` for chip text) and `--color-text-tertiary` for neutral. Resolves
+  per `[data-mode]`.
+- `lipi-table-tokens.css` — the `--lipi-table-*` seam bound to the real `--color-*`
+  contract (same pattern as `lipi-empty-tokens.css`). Component scoped CSS consumes only
+  `--lipi-table-*` + structure tokens, never `--color-*` directly, so the component stays
+  redistributable.
+
+**Files modified (full files, routed by existing deploy entries):**
+
+- `App.razor` — cache bump `20260530` → `20260531`; added `<link>` for
+  `lipi-status-tokens.css` and `lipi-table-tokens.css` (after the theme mode files,
+  grouped with the other `lipi-*.css` token files); cache-history row added. The
+  historical `20260530` row was preserved (not bumped).
+- `StyleGuideDataDisplay.razor` — added a "LipiTable — static data (bare chassis)" section
+  with a 7-column staff table (Name, Mono code, Department, Date, Currency w/ Sum
+  aggregate declared, Boolean, Status) over 6 demo rows, plus an empty-state table. Demo
+  `DemoStaff` record + data added to `@code`. Domain-neutral demo data (staff, not
+  clinical PHI).
+- `StyleGuideDataDisplay.razor.css` — added `sg-note-p` / `sg-subhead` helper classes.
+
+**Flagged simplifications (deliberate; each completed in its proper later stage).**
+
+- **Status** → rendered as a simple `.lipi-table-status` chip styled by
+  `lipi-status-tokens.css` via `data-status`. Full `LipiBadge` / `LipiPill` composition
+  waits until those Phase 2.7 components migrate into `LiPi.Components` (Phase 2.10) or a
+  Components-local badge is built — using the `LiPi.Web` copies now would break the
+  isolation contract.
+- **Date / DateTime / Time** → formatted via the column `Format` string or invariant
+  culture `ToString`. Culture-aware formatting via `IDateFormatService` (a `LiPi.Web`
+  service) is deferred until an isolation-clean abstraction exists; injecting the Web
+  service into a redistributable component would break isolation.
+- **Avatar** → initials-circle placeholder. Full image/initials-with-hash-color rendering
+  is Stage 3 (rows/cells).
+- **Actions** → renders the caller's `CellTemplate` only (no auto-injected edit/save
+  buttons — those arrive with inline edit in Stage 5).
+- **Currency** → culture currency format; `CurrencyCode` override deferred.
+
+**Isolation verified.** `LipiTable` / `LipiColumn` / `ColumnDefinition` / `CellFormatter` /
+`IdentifierHumanizer` reference no `LiPi.Web` / `LiPi.HIS` / `LiPi.Clinic` / `LiPi.Master`
+type, and carry no clinical names (Patient / Doctor / Encounter / Aadhaar / UHID / MRN) in
+the public surface. Scoped CSS references only `--lipi-table-*` + structure tokens.
+
+**Verification gate.**
+
+```
+cd C:\Users\aruns\Documents\lipi-complete\lipi-complete
+dotnet build src\LiPi.Web\LiPi.Web.csproj
+dotnet run --project src\LiPi.Web
+```
+
+Sign in → `/admin/style-guide` → Phase 2.8 → Data Display → the new "LipiTable — static
+data" section shows a styled 7-column table (date formatted, currency with ₹ + thousands,
+mono code, boolean check glyph, status chips), striped rows, sticky header, correct
+per-type alignment, and an empty-state table below — all light/dark aware. No F12 console
+errors, no server errors.
+
+**Files**:
+
+- `src\LiPi.Components\DataDisplay\LipiTable\ColumnDefinition.cs` — type-erased descriptor
+- `src\LiPi.Components\DataDisplay\LipiTable\CellFormatter.cs` — per-type value formatting
+- `src\LiPi.Components\DataDisplay\LipiTable\LipiColumn.razor` — declarative column (no DOM)
+- `src\LiPi.Components\DataDisplay\LipiTable\LipiColumn.razor.cs` — column code-behind
+- `src\LiPi.Components\DataDisplay\LipiTable\LipiTable.razor` — table markup (grid + cells)
+- `src\LiPi.Components\DataDisplay\LipiTable\LipiTable.razor.cs` — table code-behind
+- `src\LiPi.Components\DataDisplay\LipiTable\LipiTable.razor.css` — scoped grid styles
+- `src\LiPi.Components\Shared\Internal\IdentifierHumanizer.cs` — header humanizer
+- `src\LiPi.Web\wwwroot\css\lipi-status-tokens.css` — shared status taxonomy (new infra)
+- `src\LiPi.Web\wwwroot\css\lipi-table-tokens.css` — table token seam
+- `src\LiPi.Web\App.razor` — cache bump + 2 CSS links
+- `src\LiPi.Web\Pages\StyleGuideDataDisplay.razor` — +LipiTable demo section + data
+- `src\LiPi.Web\Pages\StyleGuideDataDisplay.razor.css` — +demo helper classes
+- `deploy-downloads.ps1` — Stage 2 core-shell block (8 component + 2 CSS entries)
+- `docs\CHANGE-LOG.md` — this amendment (A42)
+
+---
+
+### A42.1 — Phase 2.8 Stage 2 core shell: LipiTable header weight tweak (visual review)
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 2 core shell (post-render visual review)
+**Date**: 2026-05-31
+**Status**: ✅ Shipped — token-only tweak; no component/logic change
+
+**Trigger.** First-render visual review of the bare-chassis LipiTable (A42). The table
+rendered correctly (dates, ₹ currency with lakh grouping, mono codes, boolean glyphs,
+status chips, alignment all correct), but the column header row read faint: 600 weight
+in the muted secondary grey at the 10px uppercase header size receded more than intended.
+
+**Change.** Two tokens in `lipi-table-tokens.css`:
+- `--lipi-table-header-weight`: `var(--fw-semi)` (600) → `var(--fw-bold)` (700).
+- `--lipi-table-header-text`: `var(--color-text-secondary)` → `var(--color-text-primary)`.
+
+Weight alone wouldn't have fixed the faintness — the secondary grey was doing most of the
+recession at that size. Bumping to primary text color + 700 makes the header read as a
+clear, deliberate band without being shouty. Standards note: most data tables (Material,
+AG-Grid) use 600 for headers because they pair it with darker header text; this change
+aligns the weight/color pairing rather than over-weighting on a light color.
+
+**Cache.** `App.razor` cache version bumped `20260531` → `20260532` so the updated CSS
+loads without a manual hard-refresh.
+
+**Files**:
+
+- `src\LiPi.Web\wwwroot\css\lipi-table-tokens.css` — header weight 700 + header text primary
+- `src\LiPi.Web\App.razor` — cache bump 20260531 → 20260532
+- `docs\CHANGE-LOG.md` — this amendment (A42.1)
+
+---
+
+### A43 — Phase 2.8 Migration Stage 1: input/selection family → LiPi.Components
+
+**Phase**: 2 Sub-step 2.8 — component-library migration (Phase 2.10 item #5, pulled forward)
+**Date**: 2026-05-31
+**Status**: ✅ Shipped — input/selection family now lives in the redistributable LiPi.Components package
+
+**Why now (roadmap pull-forward).** Stage 3 of LipiTable needs the selection checkbox column,
+which must render the real `LipiCheckbox`. The locked direction is "all components move into
+LiPi.Components; LipiCheckbox only, no inert/native placeholder." Rather than fake a checkbox
+or break the isolation contract by referencing LiPi.Web from the redistributable table, the
+input/selection family is migrated now. This is the first slice of the Phase 2.10 item-#5
+batch migration ("migrate Phase 2.1–2.7 components from LiPi.Web.Components.Shared into
+LiPi.Components"), done early and in dependency order.
+
+**Scope decision — input/selection family only.** The full Shared folder is 113 files across
+three tiers: (A) clean leaf/foundation components with no LiPi.Web reach-back, (B) components
+coupled to LiPi.Web services (Modal, Drawer, Toast, DynamicTabs, date/time pickers — inject
+IFocusTrapService, ILipiModalService, IDateFormatService, IClinicTimezoneService, etc.), and
+(C) HIS-specific files that must never migrate (PatientFab, samples, LucideIcon). Migrating all
+113 at once would break the build (Tier B injections failing across the boundary) and pollute
+the package (Tier C). So the migration proceeds tier-by-tier. This amendment is **Migration
+Stage 1**: the input/selection family (all Tier A, verified no LiPi.Web reach-back). Later
+slices handle the other leaves (Button/Badge/Pill/Card/Alert/Spinner/Skeleton/Tabs/Validation)
+and — last, with deliberate service-architecture decisions — the Tier B service-coupled set.
+
+**What moved (37 files) — namespace LiPi.Web.Components.Shared → LiPi.Components,
+location src\LiPi.Web\Components\Shared\ → src\LiPi.Components\Forms\:**
+
+- Bases/config/types: `LipiInputBase.cs`, `LipiInputDefaults.cs`, `LipiSelectionTypes.cs`,
+  `LipiTextInputTypes.cs`, `LipiSelectBase.cs`, `LipiMultiSelectBase.cs`, `LipiContainerBase.cs`,
+  `ICompoundSegment.cs`, `AutocompleteValidator.cs`, `MustBeTrueAttribute.cs`
+- Selection family: `LipiCheckbox` (+css), `LipiCheckboxGroup` (+css), `LipiCheckboxGroupContext.cs`,
+  `LipiRadio` (+css), `LipiRadioGroup` (+css), `LipiRadioGroupContext.cs`, `LipiToggle` (+css)
+- Text/select family: `LipiTextBox` (+css), `LipiTextArea` (+css), `LipiNumberInput` (+css),
+  `LipiSelect` (+css), `LipiCombobox` (+css), `LipiMultiSelect`, `LipiMultiCombobox`
+- Compound: `LipiCompoundField`, `SelectSegment`, `TextSegment`
+
+**Verified clean before moving.** Every one of the 37 references only framework types
+(InputBase<T>, IJSRuntime, IOptions, IWebHostEnvironment, ILogger) + its own Lipi types — NO
+LiPi.Web service, NO LiPi.Clinic/Master, NO HIS specifics. `IWebHostEnvironment`/`ILogger`
+resolve from LiPi.Components's existing FrameworkReference Microsoft.AspNetCore.App (already
+proven — LipiEmptyState and LipiTable inject the same). `LipiInputBase : InputBase<TValue>`
+needs Microsoft.AspNetCore.Components.Forms (shared framework — present). No new package.
+
+**Namespace mechanics.** The .razor files had no @namespace directive (folder-derived
+namespace), so moving the folder would have computed LiPi.Components.Forms — a mismatch with
+the .cs files' explicit `namespace LiPi.Components;`. Fix: every migrated .razor got an explicit
+`@namespace LiPi.Components` directive (decouples namespace from folder, standard library
+practice). The .cs files' `namespace LiPi.Web.Components.Shared;` → `namespace LiPi.Components;`.
+Internal fully-qualified references (the `LiPi.Web.Components.Shared.RequiredVisualStyle.ApricotTint`
+collision-avoidance pattern from LipiInputDefaults, used to disambiguate the property/enum name
+clash) rewritten to `LiPi.Components.RequiredVisualStyle...` — still disambiguates correctly.
+
+**Consumer edits (kept everything compiling — minimal blast radius).** The whole app resolved
+the family via a single global `@using LiPi.Web.Components.Shared` in the webroot _Imports.razor.
+The redirect is therefore one line:
+
+- `src\LiPi.Web\_Imports.razor` — `+@using LiPi.Components` (after the existing Shared using).
+  This covers EVERY .razor consumer: all HIS pages, and the four still-in-Web date/time pickers
+  (`LipiDatePicker`, `LipiTimePicker`, `LipiDateTimePicker`, `LipiDateRangePicker`) that
+  `@inherits LipiInputBase<T>` — they now inherit the moved base across the project boundary
+  (LiPi.Web → LiPi.Components reference already exists). The other two _Imports.razor (Components
+  subfolder, Pages) don't declare the Shared using and need no change — the webroot one is
+  hierarchically above them.
+- `src\LiPi.Web\Components\Shared\LipiSpinner.razor.cs` — `+using LiPi.Components;` (the one .cs
+  code-behind referencing a moved type, `InputLabelPosition`; .cs files don't read _Imports).
+- `src\LiPi.Web\Program.cs` — `+using LiPi.Components;` so `Configure<LipiInputDefaults>`
+  resolves from the new namespace. (DI registration unchanged; the assembly was already
+  referenced via `using LiPi.Components.DataDisplay;`.)
+
+Verified no type-name collision between the migrated set and the remaining Shared files, so the
+dual `@using` (old + new) in _Imports is unambiguous.
+
+**Global CSS unchanged.** `lipi-inputs.css` and `lipi-selection-family.css` STAY in
+src\LiPi.Web\wwwroot\css\ (global utility CSS, already linked in App.razor, consumed by the
+migrated components' scoped CSS via the documented `.lipi-input-*` class contract). Per the
+token-seam pattern, redistributable components depend on the documented class contract; moving
+global CSS would be unnecessary churn. App.razor unchanged — no new links, no cache bump.
+
+**⚠ MANUAL DELETION STEP (required, sequence matters).** The deploy script is copy-only (no
+delete). The 37 OLD copies in src\LiPi.Web\Components\Shared\ MUST be removed BEFORE deploying
+the new ones, or the build sees duplicate type definitions in two projects (ambiguous reference
+errors). The exact `Remove-Item` block is documented at the top of deploy-downloads.ps1.
+Sequence: (1) run the Remove-Item block → (2) run deploy → (3) dotnet build.
+
+**Gate.** After delete-old → deploy-new → `dotnet build src\LiPi.Web\LiPi.Web.csproj`: solution
+builds green; existing HIS forms still render (date pickers inherit the moved base via the
+_Imports redirect); `LipiCheckbox` is now resolvable from LiPi.Components for the LipiTable
+selection column (unblocks Stage 3 checkbox work).
+
+**Files**:
+
+- 37 component files → `src\LiPi.Components\Forms\*` (namespace LiPi.Components)
+- `src\LiPi.Web\_Imports.razor` — +@using LiPi.Components
+- `src\LiPi.Web\Components\Shared\LipiSpinner.razor.cs` — +using LiPi.Components
+- `src\LiPi.Web\Program.cs` — +using LiPi.Components
+- `deploy-downloads.ps1` — 37 entries repointed to Forms\ + manual-deletion block
+- `docs\CHANGE-LOG.md` — this amendment (A43)
+
+---
+
+### A44 — Phase 2.8 Migration Stage 1 fix-up: LiPi.Components build errors + LiPicons v1.0.4 icon cutover (input family)
+
+**Phase**: 2 Sub-step 2.8 — Migration Stage 1 follow-up (build fix + icon cutover)
+**Date**: 2026-05-31
+**Status**: ✅ Shipped — resolves the 26 build errors from the A43 migration; input family now renders LiPicons (not Lucide)
+
+**Trigger.** The A43 migration moved the input/selection family into LiPi.Components. First
+build surfaced 26 errors + 57 warnings, all tracing to three root causes — none a logic bug,
+all consequences of the cross-project move. Fixed here, and per the locked icon direction the
+LucideIcon dependency is resolved by cutting the family over to LiPicons (not by vendoring
+LucideIcon forward).
+
+**Root cause 1 — missing framework usings in LiPi.Components (≈22 errors).**
+`IsDevelopment()` (Microsoft.Extensions.Hosting) and the `ILogger` `Log*` methods
+(Microsoft.Extensions.Logging) are extension methods. They resolved in LiPi.Web via that
+project's imports; in LiPi.Components they were unqualified. Fixes:
+- **New `src\LiPi.Components\_Imports.razor`** — project-wide Razor usings (System, Components,
+  Forms, Web, JSInterop, Extensions.Hosting, Extensions.Logging, Extensions.Options). This
+  resolves every `.razor` component's errors at once (TextBox, TextArea, NumberInput, Select,
+  Combobox, MultiSelect, MultiCombobox, SelectSegment, TextSegment).
+- **The four base `.cs` files** (`.cs` don't read `_Imports`) got explicit usings:
+  `LipiInputBase.cs` + `LipiContainerBase.cs` → +`using Microsoft.Extensions.Hosting;` (they
+  had AspNetCore.Hosting for the IWebHostEnvironment type, but the modern `IsDevelopment()`
+  extension lives in Extensions.Hosting). `LipiSelectBase.cs` + `LipiMultiSelectBase.cs` → had
+  neither Hosting nor Logging; added AspNetCore.Hosting + Extensions.Hosting + Extensions.Logging.
+
+**Root cause 2 — LucideIcon unresolvable → full LiPicons cutover for the input family
+(50+ RZ10012 warnings).** The migrated components rendered `<LucideIcon>`, which stays in
+LiPi.Web (Tier C, being retired). A redistributable component can't reference back into
+LiPi.Web. Per the locked "LiPicons everywhere, retire Lucide" direction, the fix is the icon
+cutover (Path A), not vendoring LucideIcon. To do it cleanly the LiPicons package was first
+updated to **v1.0.4 (1,164 icons)** — which added exactly the glyphs the family needed
+(`minus`, `square`, `check-square`, `circle-x`), making the Lucide→LiPicons map fully 1:1 with
+zero substitutions.
+
+In 10 component files (`LipiCombobox`, `LipiCompoundField`, `LipiMultiCombobox`,
+`LipiMultiSelect`, `LipiNumberInput`, `LipiSelect`, `LipiTextArea`, `LipiTextBox`, `LipiToggle`,
+`SelectSegment`):
+- `<LucideIcon>` → `<LipiIcon>`; attribute `CssClass` → `Class` (LipiIcon's API).
+- `+@using LiPicons.Blazor` after each `@namespace LiPi.Components`.
+- Name map: `x` → `close`, `alert-triangle` → `warning` (both markup and the
+  `EffectiveTrailingIcon` C# switch defaults). All other names unchanged — `check`, `plus`,
+  `search`, `info`, `minus`, `square`, `check-square`, `circle-x`, `chevron-up`, `chevron-down`
+  exist natively in v1.0.4. Every icon name in the family verified against the v1.0.4 manifest.
+- LipiCheckbox / LipiRadio draw their indicator via inline SVG + CSS (no icon dependency) — not
+  touched by the cutover.
+
+**Root cause 3 — LipiColumn.razor.cs `ColumnAlign.Inherit` (1 error).** The Stage-2 fix made
+earlier this session (the enum has no `Inherit` member; null Align falls through to the type
+default) had never actually deployed. Corrected file shipped.
+
+**Warnings also fixed (CS1570 malformed XML doc comments).**
+- `LipiSelectBase.cs` — duplicate `/// <summary>` opener collapsed.
+- `LipiMultiSelectBase.cs` — `InputBase<List<TValue>>` in a `<summary>` escaped to
+  `InputBase&lt;List&lt;TValue&gt;&gt;`.
+- `LipiCheckboxGroup.razor` — `Required && IsEmpty` in a doc comment escaped to `&amp;&amp;`.
+
+**LiPicons v1.0.4 re-vendor.** `libs\LiPicons.Blazor\` updated from v1.0.2 → v1.0.4: `icons.json`
+(1,149 → 1,164 icons), regenerated `LipiconName.cs`, version-bumped csproj. Same filenames, same
+deploy entries (overwrite in place) — no repoint, no deletion needed. The EmbeddedResource
+repoint to local `icons.json` preserved.
+
+**Naming note.** The icon system is **LiPicons** (one word); the Blazor package/namespace is
+**`LiPicons.Blazor`**; the component written in markup is **`<LipiIcon>`** (Lipi-prefixed, like
+all components). All code uses these forms; verified no `LiPiIcons` / `LiPi Icons` variants.
+
+**Deploy note — `_Imports.razor` filename collision.** LiPi.Web already has an `_Imports.razor`
+deploy key. The deploy script matches by source filename in Downloads\LiPi\, so two files named
+`_Imports.razor` can't coexist there. The LiPi.Components one is delivered as source filename
+`_Imports.Components.razor` with a deploy entry mapping it to `src\LiPi.Components\_Imports.razor`
+(Copy-Item names the destination from the target path, so it lands correctly named).
+
+**Gate.** `dotnet build src\LiPi.Web\LiPi.Web.csproj` → green (was 26 errors). Input components
+render LiPicons glyphs; LipiTable's selection column can use the real LipiCheckbox; all existing
+HIS forms render unchanged (icons swapped like-for-like).
+
+**Files**:
+
+- `libs\LiPicons.Blazor\*` — re-vendored v1.0.4 (csproj, LipiIcon.razor, LipiconVariant.cs, LipiconRenderer.cs, IconManifest.cs, LipiconName.cs, icons.json)
+- `src\LiPi.Components\_Imports.razor` — NEW (framework usings; source file _Imports.Components.razor)
+- `src\LiPi.Components\Forms\LipiInputBase.cs`, `LipiSelectBase.cs`, `LipiMultiSelectBase.cs`, `LipiContainerBase.cs` — +Hosting/Logging usings (+XML fixes in SelectBase/MultiSelectBase)
+- `src\LiPi.Components\Forms\LipiCombobox.razor`, `LipiCompoundField.razor`, `LipiMultiCombobox.razor`, `LipiMultiSelect.razor`, `LipiNumberInput.razor`, `LipiSelect.razor`, `LipiTextArea.razor`, `LipiTextBox.razor`, `LipiToggle.razor`, `SelectSegment.razor` — LucideIcon→LipiIcon cutover
+- `src\LiPi.Components\Forms\LipiCheckboxGroup.razor` — XML doc-comment escape
+- `src\LiPi.Components\DataDisplay\LipiTable\LipiColumn.razor.cs` — ColumnAlign.Inherit fix
+- `deploy-downloads.ps1` — +_Imports.Components.razor entry
+- `docs\CHANGE-LOG.md` — this amendment (A44)
+
+---
+
+### A45 — Phase 2.8 Stage 3: LipiTable rows/cells (density, selection column, avatar, copy, row hooks)
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 3 (rows/cells refinement)
+**Date**: 2026-05-31
+**Status**: ✅ Shipped — six rows/cells features land on the LipiTable bare chassis (A42); all rendering, no selection behavior yet (that is Stage 4).
+
+**Scope.** Stage 3 turns the bare chassis into a presentable table. Six features, all in one stage per the locked plan, built against the existing type scaffolding (the `TableDensity` / `SelectionMode` / `RowStatusPlacement` enums already existed from Stage 1A):
+
+1. **Density (§14.2/§14.3).** New `Density` parameter (`TableDensity`, default `Comfortable`) → `data-density="compact|comfortable|spacious"` on the table root. `lipi-table-tokens.css` restructured: the measurement tokens (row height 32/40/52, body font 11/13/14, cell padding, selection-column width, avatar diameter 24/32/40, row border 0.5/1/1px, hover transition 80/120/160ms) now switch per `[data-density]` block. The header font stays constant at 12px (`--ts-label`) across all densities per §14.3 — header is structural scaffolding, not content. Comfortable is defined on both `:root` (fallback when no attribute is present) and its own `[data-density="comfortable"]` block.
+
+2. **Selection column (§5.6) — structure only, inert.** New `SelectionMode` parameter (default `None`). When not `None`, a leading select column renders a **pure-visual checkbox placeholder** (`<span class="lipi-table-select-box">`, density-sized, `role="checkbox" aria-disabled="true"`) — header (Multi mode only) + per-row. The grid template gains a leading `var(--lipi-table-select-w)` track. The placeholder is visibly present but **does nothing**.
+
+   **Design note (changed during build).** The original plan rendered the *real* migrated `LipiCheckbox` here (read-only/inert). That failed at runtime: `LipiCheckbox<bool>` derives from Blazor `InputBase<T>`, which throws `InvalidOperationException: requires a value for the 'ValueExpression' parameter` whenever it has no two-way binding — a hard requirement, not EditContext-gated. Rather than satisfy it with a dummy `ValueExpression`/no-op `ValueChanged` (a false construct), we switched to a pure-visual placeholder. This also matches how mature data grids (AG-Grid, MUI DataGrid) render selection cells — a lightweight visual the grid controls centrally, not a bound form-input per row. Stage 4's selection model will own checkbox state centrally and render the real interactive control then.
+
+   ⚠️ **STAGE 4 RE-TEST OBLIGATION:** the selection column is a *visual placeholder only* this stage. When Stage 4 wires real selection behavior (toggle, select-all, indeterminate, cross-page banner), the placeholder is replaced by the real interactive control and the **full selection column must be re-tested** — render, keyboard (Space toggle, Ctrl/Cmd+A), indeterminate state, `RowDisabled` interaction, and the `var(--lipi-table-select-w)` track sizing across all three densities. Do not assume the Stage 3 visual proves Stage 4 behavior.
+
+3. **Avatar (§3.3.2).** `ColumnType.Avatar` now renders a real avatar: a circular `<img>` when the value looks like a URL (http/https/`/`/`data:image`) and the column is not `IsInitials`; otherwise an initials circle with a deterministic 8-color hash background (same name → same color, stable across renders via an FNV-style hash). New `IsInitials` column parameter forces the initials treatment. Diameter follows density.
+
+4. **Cell ellipsis + copy affordance (§3.8).** Text-like cells get a native `title` tooltip for truncated content (ellipsis was already in the chassis CSS). `Copyable="true"` columns show a hover-reveal copy button (LiPicons `copy` glyph) that copies the cell value to the clipboard; on success the icon swaps to `check` and an inline **"Copied!"** flash shows for ~1.4s, then clears. Copy is **isolation-clean** — it uses a component-local JS file (see below) and an optional `OnCopy` `EventCallback<string>` for hosts that want to raise their own toast. No dependency on `LipiToast` (which is still in `LiPi.Web`, unmigrated).
+
+5. **Row formatting hooks (§22.2–22.5).** `RowStatus` (`Func<TItem,string?>`) → applies `lipi-status-strip-{left|right|top}` + `data-status` on the row; placement via new `RowStatusPlacement` parameter. `RowClass` (`Func<TItem,string?>`, appended after the standard row classes) and `RowStyle` (`Func<TItem,string?>`, inline) are caller escape hatches. `RowDisabled` (`Func<TItem,bool>`) → `lipi-table-row--disabled` (opacity 0.5, `pointer-events:none`).
+
+6. **Status strip taxonomy.** `lipi-status-tokens.css` strip-color rules extended from 3 values (active/pending/locked) to the **full 16-value taxonomy** (§22.2.2) — success/completed/published (green), warning/in-progress/suspended/draft (amber), failed/error/cancelled (red), info (blue), inactive/archived (neutral). The chip rules already covered all 16; this brings the strip rules to parity.
+
+**Component-local JS (Option B — self-contained package).** New `src\LiPi.Components\wwwroot\lipi-table.js` exposes `window.lipiTable.copy(text)` (async Clipboard API + `execCommand` fallback, returns bool). Because `LiPi.Components` is a `Microsoft.NET.Sdk.Razor` project with `IsPackable=true`, the file is served at `_content/LiPi.Components/lipi-table.js` and packs into the NuGet automatically — so the table ships its own JS, no host wiring required by an external consumer. This is the first static web asset in the package's `wwwroot`; the deploy auto-creates the directory. (The token CSS seam remains in `LiPi.Web\wwwroot` for now; consolidating all component static assets under `_content/` is queued for the Phase 2.10 isolation audit rather than done piecemeal.)
+
+**Files.**
+- Component (LiPi.Components): `LipiTable.razor` (+selection column, avatar img/initials, copy affordance, row hooks, density attr), `LipiTable.razor.cs` (+7 parameters, avatar hash, copy JS interop, row helpers), `LipiTable.razor.css` (+Stage 3 rules), `LipiColumn.razor.cs` (+`IsInitials`, `CopyTarget` params), `ColumnDefinition.cs` (+`IsInitials`, `CopyTarget`), **new** `wwwroot\lipi-table.js`.
+- Shared CSS (LiPi.Web wwwroot): `lipi-table-tokens.css` (density restructure), `lipi-status-tokens.css` (16-value strip coverage).
+- Demo (LiPi.Web): `StyleGuideDataDisplay.razor` (+3 sections: density toggle, avatar/selection/copy, row status & formatting) + `.razor.css` (+`sg-density-toggle`).
+- `App.razor`: +`_content/LiPi.Components/lipi-table.js` script (before `blazor.web.js`); all cache versions bumped 20260532 → **20260533** (token CSS changed).
+
+**Not in scope (deferred).** Selection *behavior* (toggle, select-all, banner) → Stage 4. Sort / filter / pin / group / tree / edit → their respective later stages. `CopyTarget=Href/Url` is plumbed on the column but only `Value` is wired this stage (Link/File columns are bare-chassis text).
+
+**Build-fix follow-ups (same A45 batch).**
+- *Selection checkbox → pure-visual placeholder* (see design note above): the real `LipiCheckbox` threw `ValueExpression` at runtime; replaced with `<span class="lipi-table-select-box">`.
+- *Copy button scoped-CSS fix (two attempts)*: the copy button was initially emitted via `RenderTreeBuilder` (C#), so Blazor's per-component scope attribute (`[b-xxxxx]`) never reached it — the scoped `.lipi-table-cell-copy` rules in `LipiTable.razor.css` didn't match, and the button rendered with default browser chrome (always-visible boxed button instead of the hover-reveal icon). Confirmed via DevTools (only user-agent + global resets applied to the button). First attempt moved the button to **markup** in `LipiTable.razor` — but DevTools showed the `<button>` *still* had no scope attribute while sibling `<div>`s did, so the scoped rules still didn't apply. Final fix: the `.lipi-table-cell-copy*` and `.lipi-table-select-box*` rules were moved **out of the scoped `LipiTable.razor.css` into the global `lipi-table-tokens.css`**. Global CSS matches on class name alone (scope attribute is additive), so `.lipi-table-row:hover .lipi-table-cell-copy` resolves correctly. The structural cell rules (`.lipi-table-cell` position context, `.lipi-table-cell-select`) stay scoped — they sit on `<div>`s that do receive the scope attribute. Cache bumped 20260533 → **20260534** (token CSS changed again). **Lesson: scoped Blazor CSS is unreliable for elements rendered conditionally/dynamically; component-global rules belong in the `lipi-*-tokens.css` seam file, which is the documented home for the table's non-scoped styling anyway.**
+- *Class strings* for both elements built via `CopyButtonClass`/`SelectBoxClass` helpers to avoid literal+ternary concatenation in markup attributes (Razor rule 3).
+
+**Verification gate.** `dotnet build src\LiPi.Web\LiPi.Web.csproj` green; demo page `/admin/style-guide/data-display`: density toggle visibly changes row height/font; avatar column shows initials with stable hash colors; selection placeholder boxes render (inert — clicking does nothing, by design); Code column shows hover-copy with "Copied!" flash + `OnCopy` echo; row status strips + high-CTC RowStyle tint render. The table now has **zero dependency on unmigrated Tier-B components** — no `LipiToast` (copy uses inline flash + `OnCopy`), no `LipiCheckbox` (selection uses the pure-visual placeholder), keeping `LiPi.Components` isolation-clean.
+
+---
+
+### A46 — Phase 2.8 Stage 4a: LipiTable selection (core)
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 4a (selection — core)
+**Date**: 2026-05-31
+**Status**: ✅ Shipped — real interactive single/multi selection with bound state. Power interactions (4b) and scale features (4c) deferred.
+
+**Scope.** Stage 4 (selection) is sliced 4a/4b/4c. This is **4a — core selection**: the 80% that makes selection work on a single page, eye-verifiable. It replaces the Stage 3 inert placeholder with a real, bound `LipiCheckbox`, discharging the Stage 3 re-test obligation.
+
+**Selection state model (§5.2.2).** Internal `HashSet<object> _selectedKeys` keyed via `KeySelector` — the spec-mandated key-set (not `TItem` references), so cross-page persistence (4c) drops in without rework. Single-page this slice.
+
+**Parameters added (§5.7).**
+- `@bind-SelectedItems` (`IReadOnlyList<TItem>` + `SelectedItemsChanged`) — never null, empty list when none; reflects visible selected rows.
+- `@bind-SelectedKeys` (`IReadOnlyCollection<object>?` + `SelectedKeysChanged`) — raw key set; wired now (cheap, completes the binding surface, 4c builds on it).
+- `OnSelectionChanged` (`EventCallback<SelectionChangedContext<TItem>>`) — fires after every change.
+- `AllowDeselectInSingleMode` (default true) — §5.1.4.
+- `SelectionPlacement` (Left default) — §5.6.1; **Left honored, Right declared but visually deferred** (see "not in scope").
+
+**`SelectionChangedContext` signature note.** The on-disk `Contexts.cs` record (from Stage 1 scaffolding) is `(SelectedItems, AddedItems, RemovedItems, Reason)` — an added/removed diff model — which differs from the §5.7.3 spec text `(SelectedKeys, SelectedItemsVisible, IsSelectAllAcrossPagesActive, Reason)`. **On-disk wins** (strict file rule; the record predates this stage and is the richer API). `SelectionChangeReason` uses the on-disk enum values (`UserClickCheckbox`, `UserSelectAllOnPage`, `UserClearSelection`, `Programmatic`, `DataChange`, plus the 4b/4c reasons already declared). Spec doc to be reconciled to match the code in the Phase 2.10 audit.
+
+**Rendering (§5.6) — real LipiCheckbox, indeterminate resolved.**
+- **The earlier indeterminate concern was a false alarm.** `LipiCheckbox` already supports tri-state natively via `TValue=bool?` (null → CSS dash + `aria-checked="mixed"`). No `Indeterminate` parameter exists or is needed; `LipiCheckboxGroup` has no select-all of its own. So the header select-all is simply a `bool?` checkbox — no Forms-family change, no table-local visual, no deferral.
+- **Header select-all** (`Multi` only): `LipiCheckbox TValue="bool?"` — `HeaderTriValue` maps to true (all visible selected) / false (none) / null (some → indeterminate dash). `:set` ignores the incoming value and routes to `ToggleSelectAllOnPageAsync` (decides add vs remove from current state). §5.6.2.
+- **Row checkbox**: `LipiCheckbox TValue="bool"` — `:get` = `IsRowSelected`, `:set` routes to `ToggleRowAsync`. Disabled when the row is `RowDisabled`. §5.6.3.
+- **`@bind-Value:get/:set` binding form** used deliberately: it makes the Razor compiler emit a non-null `ValueExpression`, which is what the Stage 3 inert checkbox lacked (that threw `InvalidOperationException: requires a value for ValueExpression`). Explicit `Value`+`ValueChanged` without `:get/:set` does not guarantee `ValueExpression` and risks the same throw. **Lesson: bind LipiCheckbox via `@bind-Value:get/:set`, never bare `Value`+`ValueChanged`.**
+- **`lipi-table-row--selected`** modifier (subtle `--color-primary-pale` tint, wins over striping) added to selected rows.
+
+**Behavior (4a = click-to-toggle).**
+- Multi: row checkbox toggles that key; header toggles all visible rows (page-level, §5.3.1 step 1 — no across-pages banner, that's 4c).
+- Single: selecting a row replaces any prior selection; `AllowDeselectInSingleMode` controls whether re-clicking clears it.
+- Disabled rows are non-interactive (checkbox disabled).
+- Every change emits `SelectedItemsChanged` + `SelectedKeysChanged` + `OnSelectionChanged` (with added/removed diff + reason), then re-renders.
+
+**Public programmatic API (via `@ref`, §5.7.4 — 4a subset).** `SelectAsync` / `DeselectAsync` / `ToggleSelectionAsync` / `SelectKeysAsync` / `DeselectKeysAsync` / `SelectAllOnPageAsync` / `ClearSelectionAsync` / `GetSelectedKeys` / `GetSelectedVisibleItems` / `IsSelected` / `IsKeySelected`.
+
+**Files.**
+- Component (LiPi.Components): `LipiTable.razor` (real checkboxes + row-selected class), `LipiTable.razor.cs` (selection state model + params + 11-method ref API), `LipiTable.razor.css` (`lipi-table-row--selected`), `LipiTableTypes.cs` (+`SelectionPlacement` enum). `Contexts.cs` unchanged (record already existed).
+- Shared CSS (LiPi.Web wwwroot): `lipi-table-tokens.css` — dead `.lipi-table-select-box` placeholder rules removed (real checkbox replaces them); `--lipi-table-row-bg-selected` / `--lipi-table-row-selected-accent` tokens added.
+- Demo (LiPi.Web): `StyleGuideDataDisplay.razor` (+ interactive Multi-select demo with live `@bind-SelectedItems` count, + Single-select demo) — the Stage 3 "selection placeholder" note updated to point at the real demo.
+- `App.razor`: cache bump 20260534 → **20260535** (token CSS changed). **deploy-downloads.ps1 unchanged** — every touched file already has an entry; `LipiCheckbox` was deployed in A43.
+
+**Not in scope (deferred).**
+- **4b (power interactions):** shift-click range + anchor, Ctrl/Cmd-click, keyboard (Space / Shift+Space / Ctrl-Cmd+A / Shift+Arrow / Escape), `OnRowClick` modifier interplay, platform tooltip.
+- **4c (scale):** two-step across-pages banner + `IsSelectAllAcrossPagesActive` + `SelectAllAcrossPagesAsync`, bulk action bar (region ③), `PreserveSelectionOnDataChange`, server-side key persistence, `SelectAllBannerTemplate`.
+- **`SelectionPlacement.Right`** — parameter accepted but the checkbox always renders leading in 4a; Right-placement layout is a small follow-up (grid track + cell order), deferred to avoid grid-template churn this slice.
+
+**Runtime-fix follow-ups (same A46 batch).**
+- *FieldIdentifier error → `LipiCheckboxGroup` binding pattern.* `@bind-Value:get/:set` produced a `ValueExpression` of `() => IsRowSelected(item)` — a method call, which `FieldIdentifier.ParseAccessor` rejects ("only supports simple member accessors"). Switched to the proven pattern from `LipiCheckboxGroup`: explicit `Value` (computed) + `ValueChanged` (`EventCallback.Factory.Create<T>`) + `ValueExpression="@(() => _dummyBackingField)"` where the dummy is a real field (parses cleanly, never read). Two dummy fields added (`_rowCheckboxBacking`, `_headerCheckboxBacking`) with `#pragma warning disable CS0649`, mirroring the group's `_childCheckboxBacking`.
+- *Double-click-to-toggle → value-applying handlers.* The first row handler blind-toggled current state, which desynced from `LipiCheckbox`'s internal `CurrentValue` (it sets its own value in `HandleChange` then fires `ValueChanged`), so the first click appeared to do nothing. Fixed by **applying the value the checkbox reports** (`SetRowSelectedAsync(item, checkedState)` — add if checked, remove if not; idempotent), exactly as `LipiCheckboxGroup.OnItemToggleAsync` does. Header handler (`OnHeaderToggleAsync(bool? reported)`) likewise uses the reported tri-state value (true→select all visible, false→deselect). **Lesson: bind LipiCheckbox with a value-applying handler, never a blind toggle — the component owns its own CurrentValue.**
+- *Checkbox clipped at left border.* The selection `LipiCheckbox` has no visible label (AriaLabel only), but its wrapper kept the default right-label layout — an empty label span + gap widened the wrapper past the narrow select track, pushing the indicator left into the table's `overflow:hidden` rounded border. Fixed with a global rule (`.lipi-table-cell-select .lipi-checkbox-wrapper { gap:0 }` + hide the empty `.lipi-checkbox-label-text`). Cache bumped 20260535 → **20260536**.
+
+- *Select-all included disabled rows.* `OnHeaderToggleAsync` / `SelectAllOnPageAsync` selected every visible row including `RowDisabled` ones, and `HeaderState` counted them — so a locked row could be force-selected and the header could never reach "checked." Fixed: select-all and the header tri-state now operate on **selectable (non-disabled) rows only** (`Items.Where(r => !IsRowDisabled(r))`). §5.6.3.
+- *Checkbox not centred in select column.* Root cause (found via DevTools box-model + element inspection): the `LipiCheckbox` renders an empty **helper-text slot** (`lipi-input-helper`, `aria-live`) as a second flex item beside the indicator in the cell, plus an empty label-text span — together they widened the cell content and pushed the visible indicator left of centre. Fixed with global rules hiding `.lipi-checkbox-label-text` and `.lipi-input-helper` within `.lipi-table-cell-select` (no label or helper text ever shows in a selection column; the checkbox's `AriaLabel` carries the accessible name). Cache bumped to **20260537**.
+
+**Verification gate.** `dotnet build src\LiPi.Web\LiPi.Web.csproj` green; demo `/admin/style-guide/data-display`: Multi-select — row checkboxes toggle, selected rows tint, header shows unchecked/indeterminate-dash/checked as selection count crosses 0 / partial / all, live "N selected: …" updates, locked row's checkbox disabled. Single-select — picking a row moves the selection, "Chosen:" updates. **Discharges the Stage 3 re-test obligation** (placeholder → real interactive control).
+
+---
+
+### A47 — Phase 2.8 Stage 4b: LipiTable selection power interactions (mouse)
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 4b (selection — mouse modifiers + OnRowClick)
+**Date**: 2026-05-31
+**Status**: ✅ Shipped — shift-click range, Ctrl/Cmd-click, OnRowClick interplay. Keyboard deferred to 4d; across-pages range to 4c.
+
+**Scope.** Stage 4b adds the desktop power-selection mouse patterns (§5.4) on top of 4a's core. Keyboard selection (§5.5/§19.3) was sliced out as **Stage 4d** (bundled with the §19.3.1 grid-navigation model, which selection-keyboard depends on). Cross-page shift-click range (§5.4.3) defers to 4c (needs pagination).
+
+**Architecture — cell owns the click (Option B).** `LipiCheckbox`'s `ValueChanged` only carries a `bool`, not the modifier keys. So selection clicks are captured on the **selection cell's `@onclick`** (which receives `MouseEventArgs` with `ShiftKey`/`CtrlKey`/`MetaKey`), and the body row checkbox is made **display-only** via `pointer-events:none` (scoped to `.lipi-table-cell.lipi-table-cell-select` so the header select-all checkbox keeps handling its own click). The checkbox still reflects state through `Value`. This avoids a fragile onclick-vs-onchange ordering dance and gives one clean modifier-aware path.
+
+**Mouse interactions (§5.4).**
+- *Shift-click range (§5.4.1):* on the selection cell or a row body cell, selects/deselects the range from the anchor to the clicked row in display order, inclusive; the anchor's current selected-state sets the direction (anchor selected → range selected; anchor unselected → range cleared). Disabled rows in the range are skipped. Multi-mode only; falls back to a plain toggle if no anchor. The anchor is **not** moved by a shift-click (§5.4.2).
+- *Anchor tracking (§5.4.2):* `_anchorKey` updates on every plain/Ctrl-click (the clicked row becomes the anchor); resets on `ClearSelectionAsync`, and on `OnParametersSet` if the anchor row's key left the data.
+- *Ctrl/Cmd-click (§5.4.4):* toggles only the clicked row (honors both `ctrlKey` and `metaKey` — `IsToggleModifier`; platform-specific tooltip deferred). On a row body, Ctrl/Cmd-click **selects** instead of firing `OnRowClick`.
+- *`OnRowClick` (§23.2.1, pulled into 4b):* new `[Parameter] EventCallback<TItem> OnRowClick`. Plain click on a row **body** fires it (e.g. open-detail); Ctrl/Cmd-click selects without firing; Shift-click extends the range. Disabled rows still fire `OnRowClick` (§22.5.5) but never select. Clickable rows get a `lipi-table-row--clickable` pointer cursor.
+- *Copy-button propagation fix:* the in-cell copy button now stops click propagation (`AddEventStopPropagationAttribute`) so copying doesn't also trigger `OnRowClick`.
+
+**Files.**
+- `LipiTable.razor` — selection cell + body cells get `@onclick` modifier handlers; copy button stop-propagation.
+- `LipiTable.razor.cs` — `_anchorKey`, `OnSelectCellClickAsync`, `OnRowBodyClickAsync`, `ToggleRowAndSetAnchorAsync`, `ApplyShiftRangeAsync`, `IsToggleModifier`, `OnRowClick` param, `lipi-table-row--clickable` in `RowCssClass`, anchor resets. `using Microsoft.AspNetCore.Components.Web` added (MouseEventArgs).
+- `LipiTable.razor.css` — `lipi-table-row--clickable .lipi-table-cell { cursor:pointer }`.
+- `lipi-table-tokens.css` — body select cell `cursor:pointer` + checkbox `pointer-events:none` (scoped to body so header select-all still clicks). Cache bump 20260537 → **20260538**.
+- `StyleGuideDataDisplay.razor` — selection note updated for 4b; new "Row click + modifier-select" demo (`OnRowClick` records last-clicked name, Ctrl/Shift modifiers live).
+- **deploy-downloads.ps1 unchanged** — every touched file already has an entry.
+
+**Not in scope.** Keyboard selection (4d, with §19.3.1 nav model). Cross-page shift-click range (4c). Two-step across-pages banner + bulk bar (4c). `OnRowDoubleClick` (§23.2.2 — later events stage). Platform-specific modifier tooltip (§5.4.5).
+
+**Verification gate.** `dotnet build` green; demo `/admin/style-guide/data-display`: shift-click selects a contiguous range; Ctrl/Cmd-click toggles single rows; in the Row-click demo a plain click records the name while Ctrl/Shift-click drive selection; disabled rows never get range-selected; copy button doesn't trigger row-click.
+
+---
+
+### A48 — Phase 2.8 Stage 4d: LipiTable keyboard navigation + selection
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 4d (keyboard — §19.3.1 nav + §19.3.2 selection)
+**Date**: 2026-05-31
+**Status**: ✅ Shipped — roving-tabindex grid navigation + keyboard selection. Pagination/sort/filter/edit-dependent keys deferred to their stages.
+
+**Scope.** Stage 4d adds the keyboard layer that 4b's slice deferred. Built as one shot per decision. In: §19.3.1 cell-by-cell navigation (arrows, Home/End, Ctrl+Home/End) + §19.3.2 selection keys (Space, Shift+Space, Ctrl/Cmd+Space, Ctrl/Cmd+A, Shift+Arrow, Escape). Deferred by dependency: PageUp/Down + Ctrl+PageUp/Down (pagination/St7), Ctrl/Cmd+Shift+A across-pages (4c), §19.3.3 header sort/filter keys (later stages), §19.3.4 inline-edit keys (later stage), Tab-out to other regions (toolbar/footer don't exist yet).
+
+**Focus model — roving tabindex, FocusAsync (Option A, no JS for focus).** Exactly one body cell is tab-focusable (`tabindex=0`); all others `tabindex=-1`. Focused coords tracked in `_focusRow`/`_focusCol` (default to first cell so Tab can enter). Arrow keys update the coords and set `_pendingFocus`; `OnAfterRenderAsync` then calls `FocusAsync()` on the newly-focused cell. The focused cell's `ElementReference` is captured via an `@ref` **Action lambda** — `@ref="@(el => { if (IsFocusedCell(r,c)) _focusedCellRef = el; })"` — so every cell registers but only the focused one stores into the field (no last-wins, no markup duplication). `role="grid"` cell-by-cell model per §19.3.1.
+
+**Keyboard scroll-guard — the one place pure Blazor can't reach (JS).** Blazor Server decides `preventDefault` client-side *before* the .NET handler runs, so per-key conditional preventDefault is impossible in C#. The combobox avoided this by focusing an `<input>` (arrow keys move the text cursor, not the page) — but grid cells are `<div>`s, where arrows scroll. So a single delegated capture-phase `keydown` listener (`window.lipiTable.initKeyboardGuard`, added to the existing `lipi-table.js`) calls `preventDefault()` for Arrow/Home/End/Space **only when focus is inside a LipiTable body cell**, and **never** for Tab/Escape (those must pass through so focus can leave the grid) or inside an input/textarea. Idempotent; installed once on first render via `OnAfterRenderAsync`. Focus movement itself stays pure Blazor — JS only suppresses the scroll.
+
+**Keyboard map (in scope).**
+- *Navigation:* Arrow Up/Down/Left/Right (cell-by-cell), Home/End (row ends), Ctrl/Cmd+Home/End (grid corners). Coords clamp to grid bounds.
+- *Selection:* Space (toggle focused row + set anchor), Shift+Space (range from anchor), Ctrl/Cmd+Space (toggle without moving anchor — `ToggleRowKeepAnchorAsync`), Ctrl/Cmd+A (select all on page, Multi only), Shift+Arrow Up/Down (extend by one — `ExtendSelectionByOneAsync`, skips disabled), Escape (clear when count > 0). Reuses 4b's `ToggleRowAndSetAnchorAsync` / `ApplyShiftRangeAsync`.
+
+**Focus ring.** `.lipi-table-cell:focus-visible` → 2px inset primary outline (`--lipi-table-focus-ring` token). `:focus-visible` (not `:focus`) so the ring shows on keyboard focus, not mouse-click; programmatic `FocusAsync` after an arrow key counts as keyboard. Inset offset keeps it inside the rounded table border.
+
+**Files.**
+- `LipiTable.razor` — body converted to indexed `@for` loops (need row/col indices); cells get `tabindex`, `@ref` focus-capture lambda, `@onkeydown`.
+- `LipiTable.razor.cs` — focus state (`_focusRow/_focusCol/_pendingFocus/_focusedCellRef`), `CellTabIndex`, `IsFocusedCell`, `OnCellKeyDownAsync` (full key map), `MoveFocus`, `ToggleRowKeepAnchorAsync`, `ExtendSelectionByOneAsync`, `OnAfterRenderAsync` (guard init + FocusAsync), `TotalColumns`/`RowCount`.
+- `LipiTable.razor.css` — `.lipi-table-cell:focus-visible` ring.
+- `lipi-table-tokens.css` — `--lipi-table-focus-ring` token.
+- `lipi-table.js` — `initKeyboardGuard` capture-phase scroll-suppressor.
+- `StyleGuideDataDisplay.razor` — selection note + keyboard hint.
+- `App.razor` — cache bump 20260538 → **20260539** (tokens + js changed).
+- **deploy-downloads.ps1 unchanged** — every touched file already has an entry.
+
+**Runtime-fix follow-ups (A48).**
+- *Disabled rows were keyboard-selectable.* Mouse paths guarded `IsRowDisabled`, but keyboard Space called `ToggleRowAndSetAnchorAsync` directly with no guard. Fixed by guarding disabled at the top of `ToggleRowAndSetAnchorAsync` (defense-in-depth — protects every caller) plus an explicit early-break in the Space branch. Now Space/Shift+Space/Shift+Arrow all refuse disabled rows, matching mouse.
+- *Shift+Space with no anchor did nothing.* Now degrades to a plain toggle + set-anchor (matches how shift-click degrades when no anchor exists, §5.4.2). With an anchor, it extends the range as before.
+
+**Verification gate.** `dotnet build` green; demo `/admin/style-guide/data-display`: click a cell → arrow keys move a visible focus ring cell-by-cell without scrolling the page; Home/End/Ctrl+Home/End jump correctly; Space toggles the focused row; Shift+Space and Shift+Arrow extend the range (skipping the locked row); Ctrl/Cmd+A selects the 5 selectable rows; Esc clears; Tab still exits the grid to the rest of the page.
+
+---
+
+### A49 — Stage 7 prerequisite: LipiButton migrated to LiPi.Components (package-clean)
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 7 prep (component migration pulled forward)
+**Date**: 2026-06-01
+**Status**: ✅ Migrated + compile-verified. LipiButton now lives in the redistributable package so LipiPagination (and future components) can compose it.
+
+**Why now.** Stage 7's LipiPagination composes LipiButton + LipiSelect per the all-LiPi distributable-package directive (no native `<button>`/`<select>` — the package presents a unified LiPi surface to consuming apps). LipiSelect was already migrated (Stage 1, A43/A44) and is package-clean. LipiButton was NOT — it still lived in `LiPi.Web.Components.Shared`. A `LiPi.Components` component cannot reference a `LiPi.Web` component (that would make the package depend on the app and break distribution), so LipiButton had to move first. This is the "clean leaves" migration tier (2.10 audit item 5), pulled forward because pagination needs it.
+
+**The one real coupling — LucideIcon.** An on-disk audit found LipiButton's only blocker was `<LucideIcon>` (a `LiPi.Web` component on the never-migrate list). The `IWebHostEnvironment` / `ILogger` / `IJSRuntime` injections are fine in the package — the csproj has `<FrameworkReference Include="Microsoft.AspNetCore.App" />`, and LipiSelectBase already uses `IWebHostEnvironment` in the package and compiles. (An earlier read incorrectly flagged Env as a blocker; the csproj corrected that.) Fix: swap `<LucideIcon Name Size>` → `<LipiIcon Name Size>` (LiPicons.Blazor, already a package dependency; identical Name/Size API).
+
+**Icon-name verification (the de-risking step).** Lucide and LiPicons use different icon names, so every name LipiButton callers pass was checked against `icons.json` (LiPicons v1.0.4, 1164 icons) before the swap. LipiButton call sites use: `save, check, arrow-right, chevron-down, x, settings, trash, calendar, user`. All exist in LiPicons EXCEPT `x` → remapped to `close` (LiPicons' name; keywords include "x/cancel/dismiss/exit"). Only one call site used `Icon="x"` (the StyleGuide demo close button); the 9 Shared composers use only `calendar` (LipiModal), which exists. (Separately noted: 16 of 26 app-wide Lucide names are absent from LiPicons — a latent LucideIcon→LiPicons cutover for the wider app, tracked for 3.0, NOT addressed here.)
+
+**Compile-verified here.** Built in a minimal `LiPi.Components` harness (FrameworkReference + LipiIcon stub) with the .NET 10 SDK. Two real bugs caught that `LiPi.Web`'s global usings had been masking: `MouseEventArgs` (needs `Microsoft.AspNetCore.Components.Web`) and `Env.IsDevelopment()` (needs `Microsoft.Extensions.Hosting` for the extension method). Both added as explicit `@using` in LipiButton.razor. Final build: 0 warnings, 0 errors. (The real package `_Imports.razor` already provides these project-wide; the inline usings are redundant-but-harmless and make the file self-documenting, matching LipiSelect's pattern.)
+
+**Changes.**
+- MOVED → `src\LiPi.Components\Shared\`: `LipiButton.razor`, `LipiButton.razor.css`, `LipiButtonSpinner.razor`, `LipiButtonTypes.cs`.
+- `LipiButton.razor`: `@namespace LiPi.Components` + `@using LiPicons.Blazor` + `Components.Web` + `Extensions.Hosting`; both `<LucideIcon>` → `<LipiIcon>`.
+- `LipiButtonSpinner.razor`: `@namespace LiPi.Components` (self-contained inline SVG — no icon dependency).
+- `LipiButtonTypes.cs`: `namespace LiPi.Web.Components.Shared` → `LiPi.Components` (`ButtonVariant`, `ButtonSize`).
+- `StyleGuide.razor`: `Icon="x"` → `Icon="close"` (the one demo close button).
+- `deploy-downloads.ps1`: 4 LipiButton entries repointed from `LiPi.Web\Components\Shared\` → `LiPi.Components\Shared\`.
+- NO `_Imports.razor` edit: `LiPi.Web`'s root `_Imports.razor` already has `@using LiPi.Components`, which cascades to `Components\Shared\` (the 9 composers) — so they resolve the moved LipiButton automatically.
+- **Manual delete (Arun):** remove the old `src\LiPi.Web\Components\Shared\LipiButton.razor`, `.razor.css`, `LipiButtonSpinner.razor`, `LipiButtonTypes.cs` after deploy (the deploy script now writes them to the package location; the stale Web copies must go or the type exists in two namespaces).
+
+**Verification gate.** Deploy → delete old Web copies → `dotnet run`. Expect clean build. Check: StyleGuide buttons render with icons (the close button shows the close glyph via `Icon="close"`); modals/drawers/dialogs still show their buttons; no "LipiButton not found" in any Shared composer.
+
+---
+
+### A50 — Phase 2.8 Stage 7: LipiPagination standalone component
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 7 (LipiPagination)
+**Date**: 2026-06-01
+**Status**: ✅ Shipped + runtime-verified (light + dark). Backfilled log entry — the code shipped referencing A50; this entry records it.
+
+**What shipped.** The standalone `LipiPagination` component (`LiPi.Components.DataDisplay`), redistributable and package-clean. Three layout variants collapsed into one component per FLAGS LP-0: `Full` (page-size + row count + page-number buttons + first/last + jump-to-page), `Compact` (page-size + prev/next + "Page X of M"), `Minimal` (prev/next chevrons only). Stateless — render is a pure function of params; only local state is the jump-to-page typed value.
+
+**Composition (LP-12-REVERSED).** The pager composes `LipiSelect<PageSizeOption>` for page-size and `LipiButton` for nav chevrons rather than native `<select>`/`<button>`. Rationale recorded at ship time: keeps the all-LiPi redistributable surface, inherits LipiSelect's keyboard/a11y/theming, and `PageSizeOption.ToString()` lets the dropdown render "All" for the `int.MaxValue` sentinel (a native select can't do that label trick). This deviation from the spec's native-control guidance was deliberate and logged.
+
+**Pure helper.** Page-number windowing (`ComputePageSlots`) + total-page math live in `PaginationMath.cs` under `LiPi.Components.Internal.Algorithms` (LP-14 pattern). Sibling sub-components: `LipiPaginationPageSize`, `LipiPaginationCountDisplay` ("Showing X-Y of Z"), `LipiPaginationLoadMore` (a distinct append-on-demand paradigm, NOT a variant).
+
+**Defaults.** Page-size ladder starts at 5 (5/10/15/25/50/100/200/All) per project-owner deviation from spec §3.3 (clinical lists are often short — finer low-end control). `Siblings`/`BoundaryCount` default 1 (LP-14).
+
+---
+
+### A50.1 — LipiPagination visual-style axes (three independent enums) + demo polish
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 7 (LipiPagination visual refinement)
+**Date**: 2026-06-01
+**Status**: ✅ Shipped + runtime-verified (light + dark). Backfilled log entry.
+
+**The decision.** Pagination became properly themeable via three INDEPENDENT style axes (any combination composes), all token-overridable:
+- `PaginationCellStyle` { Bordered, Borderless } — page-number cell affordance (axis 1).
+- `PaginationActiveStyle` { Solid, Tint } — how the active page is signalled (axis 2).
+- `PaginationChevronStyle` { Auto, Bordered, Ghost } — nav chevron border treatment (axis 3); `Auto` follows CellStyle.
+
+Zero-config default = **Bordered + Solid + Auto** (general-purpose library default). The LiPi HIS in-app look = **Borderless + Tint** (opt-in). Tokens remain the deeper override; deeper tint uses `color-mix(in srgb, primary-pale 60%, primary 40%)` (mode-aware).
+
+**Structural dependency (FLAG LP-A50.1).** The chevron-style axis is BUILT ON the LipiButton composition from A50 — `ChevronsBordered → ButtonVariant.Secondary vs Ghost` is the implementation mechanism. Removing LipiButton from the chevrons would discard the axis. This is structural, not incidental.
+
+**Demo.** StyleGuidePagination gained a "Visual styles" section; the demo's dark-mode washout was fixed by painting `.sg-page { background: var(--color-bg-base); }` (it was the only StyleGuide page with no painted surface, exposing TopNavLayout's non-theming `.tn-content`). A global `.tn-content` fix is deferred to Phase 2.10.
+
+**CSS lesson (standing rule).** A `*/`-sequence inside a CSS comment (e.g. glob text `lipi-*/` or `--color-*/--r-*`) terminates the comment early and silently discards subsequent rules. Found + fixed in StyleGuidePagination.razor.css and lipi-pagination-tokens.css. Every CSS file is now comment-balance + brace-balance linted before delivery.
+
+---
+
+### A51 — Phase 2.8 Stage 7: LipiTable ↔ LipiPagination wiring (client-mode) + status-strip package-ization
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 7 (LipiTable embeds LipiPagination)
+**Date**: 2026-06-02
+**Status**: ✅ Client-mode paging shipped + runtime-verified on a 480-row test page (page nav, page-size, jump-to-page, selection across pages, header tri-state per page, status strips, style axes, light + dark). Server-mode (DataSource), Left/Right side-pager rendering, and keyboard nav remain deferred (see below).
+
+**Roadmap-state correction (important).** An on-disk audit found LipiTable is the **Stage 2/3 chassis only**: it renders `Items` directly with selection (4a/4b/4d) + column/cell/density/preference plumbing. Sorting, filtering, search, tree, grouping, master-detail, and inline-edit are **declared as types/enums/contexts but NOT implemented** (verified: `OrderBy`=0, `Skip`/`Take`=0 files). The Stage-7 handoff's "Stages 4–6 DONE" was inaccurate — only Stage 4 *selection* shipped. Pagination therefore wires directly over `Items`; when sort/filter are built later they compose BEFORE the slice (`Items → filter → sort → page`), changing only what feeds `PagedItems`.
+
+**Step 1 — types + params foundation.**
+- `LipiPaginationTypes.cs`: +`PaginationOrientation` { Horizontal, Vertical }; +`PaginationRange` (5 members: Start, End, Total, CurrentPage, PageSize — LP-21, all included now to avoid a breaking add later); +`PageSizeOptions` static helper (`.All`, `.Of`, `.FromInts`, `.Default` — LP-20 consumer ergonomics without weakening the type).
+- `LipiTableTypes.cs`: `PaginationPlacement` expanded 4 → 6 (Bottom default, Top, Both, **Left**, **Right**, None); +`PaginationOptions` record (all-null defaults; `PageSizeOptions` is `IReadOnlyList<PageSizeOption>?` per LP-20, NOT `int`); +`PaginationOptionsPresets.LipiHisDefault`.
+- `LipiTable.razor.cs`: +4 params — `Placement`, `Variant`, `PaginationOptions`, `PaginationSideWidth`.
+- `LipiPagination.razor.cs`: +`Orientation` param only. **No reason callback** (LP-23 Option B).
+
+**Step 2+3 — client-mode slicing + bottom/top pager (merged).** `_currentPage`/`_pageSize` state; `PagedItems` slices `Items` by the current page (`int.MaxValue` size = "All" = whole set); default page size **10** (table convention, independent of the pager's 5-start ladder; consumer overrides via `PaginationOptions.DefaultPageSize`). Render loop iterates `PagedItems`; `aria-rowcount` reports the **total**. Pager renders in Bottom/Top/Both via a reusable `RenderPager()` (RenderTreeBuilder) wiring all resolved params + two-way binds. `OnParametersSet` clamps the current page into range. Page-size change resets to page 1.
+
+**Step 4 — selection × pagination.**
+- **LP-16**: `HeaderState` (tri-state) and `OnHeaderToggleAsync` now operate on `PagedItems` (current page), not all `Items` — fixes the latent bug where the header checkbox would select all rows in the dataset.
+- **LP-17**: +`OnAllOnPageSelected` EventCallback firing `AllOnPageSelectedContext(AllOnPageSelected, PageSelectableCount, TotalCount)` after a header select/deselect — the SEAM for the Stage 4c across-pages banner ("Select all N?"). Stage 7 fires it; the banner UI itself is Stage 4c (NOT built here).
+- **Cross-page persistence**: verified — pagination handlers touch only `_currentPage`, never `_selectedKeys`, so keyed selections survive page navigation by construction.
+
+**`PageChangeReason` reconciliation (LP-22-RETIRED / LP-23 / LP-24).** A build error (CS0101) revealed `PageChangeReason` ALREADY EXISTS in `Contexts.cs` as part of the table's 20+ Context/Reason event-taxonomy family. LP-22's proposed standalone 6-value enum was **retired** (it partially duplicated the existing 8-value enum + the separate `PageSizeChangeReason`). The shipped enum is authoritative; +`PageSnap` added as a 9th value (LP-24, non-breaking) because LP-19 focus logic must distinguish a bounds-snap (focus lands on first row of snapped page, treat as navigation) from `DataChange` (preserve focused-row identity). LP-23: `PageChangeReason`/`PageChangedContext` belong to LipiTable's `Contexts.cs`; the redistributable `LipiPagination` exposes ZERO table vocabulary and fires only its existing `CurrentPageChanged(int)` — the composing table infers reason (it wired the handlers). `AllOnPageSelectedContext` likewise lives in `Contexts.cs` (table taxonomy).
+
+**Status strip → package feature + header alignment fix (Path 1 + option b).** The row status strip is now OWNED by LipiTable (package feature) instead of split between the component and app-side `lipi-status-tokens.css`. The `.lipi-status-strip-{left,right,top}` rendering + `[data-status]` colors + `--lipi-status-strip-width` moved INTO `LipiTable.razor.css`, bound DIRECTLY to the foundation semantic palette (`--color-success/warning/danger/info/text-tertiary`) with hard hex fallbacks (A22/A26) — zero dependency on the app-side status file. The header row now carries a matching transparent strip of the same width (`HeaderStripClass`), so header content aligns with body content (fixes the header-shift when `RowStatus` is set). `lipi-status-tokens.css` retains only the shared `--color-status-*` token taxonomy + `.lipi-table-status` chip.
+
+**Pager row-shift fix.** The "Showing X-Y of Z" readout (`.lipi-pagination-count`) had no reserved width, so its text gaining digits across pages (81-90 → 91-100 → 101-110) widened it and shifted the nav strip right/left. Fixed with `min-width: var(--lipi-pagination-count-min-w, 24ch)` + `text-align: left` + `flex-shrink: 0` — stable width for the common range, token-overridable, degrades gracefully for pathological totals.
+
+**Two Razor traps hit + fixed (now on the manual pre-delivery checklist).** (1) `@{ }` cannot nest inside a `@switch`/`@for` case body (already code context) → RZ1010; moved the `pageRows` local to the top legal `@{ }` block. (2) `@member` appended to literal attribute text (`class="lipi-table-header-row@HeaderStripClass"`) does NOT evaluate — it renders literally, breaking the header's grid (collapsed to `display:block`, cells stacked); fixed by wrapping the whole value as `class="@($"lipi-table-header-row{HeaderStripClass}")"`. Brace/comment lint doesn't catch these — both are now manual `.razor` checks.
+
+**Test page.** `StyleGuideTablePaging.razor` (+`.razor.css`) at `/admin/style-guide/data-display/table-paging` — a deterministic 480-row dataset with 5 sections (Default/Full/Bottom + multi-select + jump, HIS Borderless+Tint, Top placement size 25, Both placement, Compact variant) and a live cross-page selection readout. Linked from the StyleGuide hub Phase 2.8 group (along with the A50.1 Pagination link, which the on-disk hub was missing).
+
+**Flags recorded this stage.** LP-12.1 (scope carve-out: LP-12/LP-13 native-control guidance applies to NEW table-internal chrome from Stage 7 onward, NOT the shipped A50 pager); LP-20 (PaginationOptions.PageSizeOptions = `IReadOnlyList<PageSizeOption>?`); LP-21 (PaginationRange 5 members); LP-22-RETIRED; LP-23; LP-24 (PageSnap); LP-A50.1 (chevron axis depends on LipiButton); PROCESS-1 (strategic chat verifies shipped surface before authoring amendments that name existing types — three documented re-derivation errors: LP-12/13, PageSizeOptions, LP-22).
+
+**Changes.**
+- `LipiPaginationTypes.cs`: +PaginationOrientation, +PaginationRange, +PageSizeOptions helper (PageChangeReason NOT here — it's in Contexts.cs, LP-23).
+- `LipiPagination.razor.cs`: +Orientation param (no reason callback).
+- `LipiTableTypes.cs`: PaginationPlacement 6 values; +PaginationOptions record; +PaginationOptionsPresets.
+- `LipiTable.razor.cs`: +Placement/Variant/PaginationOptions/PaginationSideWidth params; pagination state + PagedItems slice + handlers + ClampCurrentPage + resolution helpers; LP-16 page-aware HeaderState/OnHeaderToggleAsync; +OnAllOnPageSelected (LP-17); +HeaderStripClass; Left/Right Dev-warning (vertical rendering not yet implemented).
+- `LipiTable.razor`: iterate PagedItems; outer pagination wrap + top/bottom pager slots + RenderPager(); header class as interpolated expression; @HeaderStripClass on header row.
+- `LipiTable.razor.css`: pager wrapper layout; status-strip rendering moved in (foundation-token-bound, +header gutter).
+- `Contexts.cs`: +PageSnap (9th PageChangeReason value, LP-24); +AllOnPageSelectedContext record (LP-17).
+- `lipi-status-tokens.css`: strip rendering + width token REMOVED (moved to LipiTable); retains --color-status-* tokens + .lipi-table-status chip.
+- `LipiPaginationCountDisplay.razor.css`: +min-width/text-align/flex-shrink (row-shift fix).
+- `StyleGuideTablePaging.razor` (+.razor.css): NEW 480-row test page.
+- `StyleGuide.razor`: +Pagination and +Table Paging links (Phase 2.8 group).
+- `deploy-downloads.ps1`: +2 test-page entries (396 keys total, no duplicates).
+
+**Verification gate.** Deploy the Stage-7 set → `dotnet run` → open the Table Paging page. Confirm: row stays still across 9→10→11→back; header tri-state reflects current page only; selection persists across pages (readout count holds); status-strip header aligns with body; light + dark both correct. Server-mode, Left/Right vertical pager, and keyboard nav (Alt+PageUp/Down, Ctrl+Home/End) are DEFERRED — not in this entry.
+
+---
+
+### A52 — Phase 2.8 Stage 7: side-pager, keyboard nav, empty-state height, pager alignment
+
+**Phase**: 2 Sub-step 2.8 — Data Display, Stage 7 (continuation of A51)
+**Date**: 2026-06-02
+**Status**: ✅ All client-side; runtime-verified on the 480-row test page (light + dark). Server-mode (DataSource) remains the only deferred Stage-7 item.
+
+**Scope.** Everything built after the A51 client-mode wiring: the Left/Right vertical side-pager, pagination keyboard nav, the empty-table behavior (disabled pager + EmptyRows reserved height + compact mode), and the PaginationAlign zone-alignment option. Several latent bugs found and fixed along the way (RowCount, the alignment flexbox mechanics). All on `LiPi.Components` (redistributable) + the demo/test page in `LiPi.Web`.
+
+**Left/Right side-pager — vertical rendering (Option A).** Placement=Left/Right now renders (previously resolution-only with a Dev-warning). The vertical pager is a narrow column beside the grid: chevron-up (prev) / stacked "current / total" / chevron-down (next), in bordered boxes, vertically centered, with a filled surface (`--color-bg-subtle`) and a divider against the grid. Full auto-downgrades to Compact for side placement (locked rule). Design decisions:
+- Mockup options A/B/C were compared; Option A (rotated Compact strip) chosen — B (vertical number rail) is an anti-pattern, C (rotated horizontal) makes text sideways.
+- Icons are oriented in code-behind (`PrevIcon`/`NextIcon` → chevron-up/down when vertical). **Icon-verification (A49 discipline):** `chevron-up`/`chevron-down` exist in LiPicons v1.0.4; `chevrons-up`/`chevrons-down` do NOT — so `FirstIcon`/`LastIcon` stay horizontal (`chevrons-left/right`) and vertical-Full is intentionally unsupported (side placement is Compact anyway). The vertical indicator shows stacked `current / total` (not "Page X of M") to match the mockup; full text preserved as the indicator's `aria-label`.
+- New: `PaginationOrientation` consumed (root `--vertical` class), `CompactChevronVariant` (bordered when vertical), the side-layout CSS (`lipi-table-pagination-wrap--side` → row layout, grid flex-grows with `min-width:0`, side column fixed width from `PaginationSideWidth`).
+
+**Keyboard navigation (Step 7, whole-table scope).** Pagination shortcuts added to the A48 cell-keydown handler (`OnCellKeyDownAsync`): **Alt+PageDown** (next page), **Alt+PageUp** (prev page), **Ctrl+Alt+Home** (first page), **Ctrl+Alt+End** (last page). After a page change, focus lands on the first cell of the new page (LP-19 `UserKeyboard`). Chosen chord set (option a) deliberately AVOIDS Ctrl+Home/End, which A48 already uses for grid-corner focus — no regression. The capture-phase JS scroll-guard (`lipi-table.js`) gained Alt-gated PageUp/PageDown suppression (plain PageUp/Down still scrolls a focused table). `NavigateToPageByKeyboard` + `PaginationTotalPages` helpers added.
+
+**Latent bug fixed — RowCount.** A48's `RowCount` was `Items.Count` (all rows) but only `PagedItems.Count` render per page; arrow-key focus could target rows not on the current page. Fixed to `PagedItems.Count` so keyboard focus clamps to the current page.
+
+**Empty table — disabled pager (UX decision).** When the table has zero rows, the pager still RENDERS but is `Disabled` (greyed chevrons, inert page-size) and the count reads "No items". Rationale (per project owner): a vanished pager is ambiguous (no data? load failure? still loading?); a persistent disabled pager is an affirmative "loaded, zero results" signal and prevents layout reflow when data arrives. Wired as `Disabled = IsLoading || PaginationTotalCount == 0`.
+
+**EmptyRows — row-count-based reserved height (+ compact mode).** New `EmptyRows` (int?) reserves height for the non-data states (empty/loading/error) expressed as a ROW COUNT, not a raw length — the table multiplies by its own density row-height (`--lipi-table-row-min-h`), so it's density-correct and can't be an odd CSS value. Two modes (root class):
+- **EmptyRows 1–2 → compact:** EXACT N-row height, clipped, with a small inline text (no big illustration) — for a genuinely short empty strip. Fixes the initial bug where 1 and 6 looked identical (the Card-size `LipiEmptyState` illustration is ~200px and dominated any min-height floor).
+- **EmptyRows 3+ → reserve:** FLOOR of N rows (min-height); the full illustration shows and may grow taller (never clipped).
+- **unset → content-driven** (unchanged). Threshold is a const (`CompactEmptyMaxRows = 2`). `min-height` floor design rejected in favor of this because a raw px value is arbitrary, isn't density-aware, and invites odd values.
+
+**PaginationAlign — pager zone alignment.** New `PaginationAlign` { SpaceBetween (default), Start, Center, End } on `PaginationOptions`. SpaceBetween (count left, nav right) is the data-grid standard and the new out-of-box look (previously left-packed/drifty). On `LipiPagination`: `Align` param + `AlignClass`; on LipiTable: `ResolvedAlign` wired into the embedded pager. Reachability concern (wide tables pushing nav off-screen) checked and dismissed — the table is `overflow:hidden` with `minmax()` grid tracks, so it never h-scrolls; the pager always spans the visible container.
+
+**The alignment flexbox fix (record this so it isn't reintroduced).** Getting `justify-content` to actually move the cluster required THREE things, found via a diagnostic build (temporary colored outlines proved the CSS was live, isolating it as a layout problem):
+1. `flex-wrap: nowrap` on `.lipi-pagination` — with `wrap`, a wide row-count pushed the nav onto its own full-width line, defeating alignment.
+2. `.lipi-pagination-main { flex: 0 0 auto }` — the left group (size+count, wrapped into one `.lipi-pagination-main` div) must not grow, or it eats the free space.
+3. **`.lipi-pagination--horizontal { width: 100% }`** — THE key fix: a shrink-wrapped flex container has zero free space, so `justify-content` does nothing. The horizontal pager must fill its parent. (Vertical pager stays content-width.)
+Markup restructured: page-size + count wrapped in `.lipi-pagination-main`, so alignment positions the two GROUPS (left cluster + nav), making the count's width irrelevant to alignment while preserving the A51 row-shift fix.
+
+**Changes.**
+- `LipiPagination.razor.cs`: +Orientation consumption (`IsVertical`/`OrientationClass`/oriented icons), +`Align` param + `AlignClass`, +`CompactChevronVariant`. (Also: the `Orientation` PARAM had to be (re)added — an earlier deploy gap left it referenced-but-undeclared; CS0103/CS0117 fixed.)
+- `LipiPagination.razor`: root nav gets `@OrientationClass @AlignClass`; oriented chevron icons; vertical stacked indicator; size+count wrapped in `.lipi-pagination-main`.
+- `LipiPagination.razor.css`: vertical-orientation rules; stacked-indicator styling; `.lipi-pagination--horizontal { width:100% }`; `nowrap`; `.lipi-pagination-main` group + the four align modes.
+- `LipiPaginationTypes.cs`: +`PaginationAlign` enum.
+- `LipiTableTypes.cs`: `PaginationOptions` +`Align`.
+- `LipiTable.razor.cs`: +`EmptyRows` param + compact/reserve helpers (`IsCompactEmpty`/`EmptyRowsModeClass`/`CompactStateText`/`EmptyRowsStyleVar`); +`ResolvedAlign`; +`NavigateToPageByKeyboard`/`PaginationTotalPages`; RowCount→PagedItems fix; keyboard chords in `OnCellKeyDownAsync`; side-placement resolution (removed the old Dev-warning).
+- `LipiTable.razor`: side-pager slots (Left/Right) + wrap modifier; pager `Disabled` when empty; EmptyRows mode class + style var on root; compact-state branches in empty/loading/error; `Align` passed to RenderPager.
+- `LipiTable.razor.css`: side-placement row layout; status-strip header gutter (A51, retained); EmptyRows compact/reserve `.lipi-table-statewrap` heights + `.lipi-table-state-compact` text.
+- `lipi-table.js`: Alt-gated PageUp/PageDown scroll-guard.
+- `StyleGuideTablePaging.razor`: +sections — alignment (Start/Center/End), side-pager (Left/Right), empty tables (EmptyRows 1/2/3/6).
+
+**Process notes.**
+- **Staleness (recurring):** several uploaded files this stage were stale (pre-Step-1 `LipiPagination.razor.cs` missing `Orientation`; A48-era `LipiTable.razor` missing pager wiring; a scratch CSS missing side-pager rules). Each was caught by grepping the file for the members an edit depended on, and rebasing onto the current `/outputs` copies. **The `/outputs` folder is the reliable source of truth for these files.**
+- **Layout-debug lesson:** for CSS layout bugs, request computed `width`/`flex`/`justify-content` first; the shrink-wrap container cause would have been obvious from one computed-width reading rather than several deploy rounds. The diagnostic-outline trick (prove the rule is live before theorizing) is the right first step.
+
+**Verification gate.** Deploy the Stage-7 set → `dotnet run` → Table Paging page. Confirm: side-pagers render (Left/Right, stacked indicator); Alt+PageUp/Down + Ctrl+Alt+Home/End navigate pages with focus landing on the new page; empty tables show disabled "No items" pager; EmptyRows 1/2 are thin compact strips, 3/6 show the full illustration; alignment Start/Center/End/Between are visually distinct. Server-mode (DataSource) is NOT in this entry.
+
+---
+
+---
+
+### A53 — Phase 2.8 Stage 7→shared query layer: sort (S1), quick search (S2), column filters S3a
+
+**Phase**: 2 Sub-step 2.8 — Data Display. Shared query layer for LipiTable (reused by LipiList later).
+**Date**: 2026-06-03
+**Status**: ✅ All client-side; runtime-verified on the 480-row test page (light + dark). S3b/S3c pending.
+
+**Roadmap reorder (locked).** The shared query layer (sort + quick search + column filters) is built on LipiTable BEFORE LipiList, because LipiList reuses the same query machinery (descriptors, pipeline, operator engine). Build-once-reuse-twice. Pipeline order is fixed: `Items → quick-search → filters → sort → page`.
+
+**S1 — Sort (single + multi-column).** Header-click cycles a column unsorted→asc→desc (`SortCycleMode.ThreeState` default; `TwoState` available). Shift-click adds the column to a multi-column chain with visible priority numbers. Indicator: faint stacked up/down chevrons at rest (opacity 0.3, discoverable), solid chevron-up/down when active. Auto-disabled for Actions/Avatar/template-only columns; per-column `Sortable="false"` opts out. `NullSortOrder` is direction-aware. Public surface: `OnSortChanged`/`SortChangedContext`, `ClearSortAsync()`, `CurrentSort`. ColumnDefinition gained `Sortable`; the old `SortComparer` was erased to `Comparison<object?>?` so the table sorts boxed values without knowing TValue. Header-vs-data alignment fix: the sort button's `justify-content` rules must target the REAL emitted align classes `.lipi-table-cell--right`/`--center` (not `header-cell--*`), or right/center headers drift from their data.
+
+**S2 — Quick search.** `ShowQuickSearch` (default false) renders a minimal toolbar with a right-aligned box (placeholder "Quick search…", search icon, clear ✕). **Semicolon `;`-separated terms** (comma rejected — commas appear constantly in real cell data e.g. "Gupta, Aarav" / "₹ 65,000.00"); spaces are literal WITHIN a term; case-insensitive Ordinal `Contains` across all non-opted-out columns; a row matches when EVERY term matches SOME column (AND across terms, OR across columns). Per-column `Searchable="false"` opt-out; template-only columns auto-excluded. 300ms C# debounce (CancellationTokenSource, each keystroke cancels the prior pending apply). `HighlightMatches` (default false) wraps matched substrings in `<mark>` — **built-in TEXT cells only** (the table cannot reach into caller `<CellTemplate>` markup; documented limitation). Searching matches the RAW value (`40000`), not the formatted display (`₹ 40,000.00`). `QuickSearchChangedContext`; resets to page 1. ColumnDefinition gained `Searchable`. Toolbar surface joined to the table as one card (shared bg/border, top-rounded, flush via negative margin; table top corners squared via `.lipi-table-has-toolbar`); search-box border bumped to `--color-border-strong` for contrast on the card.
+
+**S3a — Column filters (HeaderIcon + text/universal operators).** `FilterMode.HeaderIcon` (default) shows a funnel per filterable header — faint outline at rest, brighter on header-hover, and the **Fill icon variant + primary color when active**. Click opens a popover: operator dropdown + value input (hidden for Empty/NotEmpty) + Clear/Apply.
+- **`FilterApplyMode { Apply (default), Live }`** — Apply shows an Apply button (explicit commit); Live filters as operator/value change (300ms debounced), no Apply button.
+- **`FilterChipsPlacement { Separate (default), Inline }`** — Separate = chips in their own strip below the toolbar, joined to the card and wrapping; Inline = chips ride inside the toolbar beside the search box and scroll horizontally in one line (so the toolbar never grows); Inline falls back to a separate strip when there's no toolbar (`ShowQuickSearch=false`).
+- **`FilterCaseSensitive`** (default false = OrdinalIgnoreCase; true = Ordinal).
+- **Operators (S3a):** text + universal — Contains, NotContains, Equals, NotEquals, StartsWith, EndsWith, Empty, NotEmpty. The `MatchesFilter(value, descriptor)` switch is the extension point; S3b adds numeric/date/boolean/In/relative cases. `OperatorsFor(def)` (S3a returns the text+universal set for all columns; S3b refines by ColumnType) and `OperatorLabel(op)` already carry labels for the FULL operator set.
+- **Active-filter chips:** `Column: operator "value"` (value omitted for Empty/NotEmpty), per-chip ✕, Clear all.
+- Public surface: `OnFilterChanged`/`FilterChangedContext`, `ClearAllFiltersAsync()`, `CurrentFilters`. `Filterable` auto-disabled for Actions/Avatar/template-only; `Filterable="false"` opts out. ColumnDefinition gained `Filterable`. Pipeline complete: `Items → quick-search → filters → sort → page`; filter changes reset to page 1; `PaginationTotalCount` reads the filtered set.
+- **Popover positioning (the fiddly part).** Popover is `position:fixed` so it escapes the table's `overflow:hidden` and never clips (even a 1-row filtered table). Anchored to the funnel button's viewport rect via new JS `lipiTable.getRect(el)`. **Measurement is done in `OnAfterRenderAsync`, NOT the click handler** (A48 rule: an ElementReference is only reliably resolvable after the DOM commits — measuring in the click handler returned a null rect → popover flew to the 0,0 corner). A `_pendingPopoverAnchor` flag defers it; the popover stays `visibility:hidden` until measured (no corner-flash); flips ABOVE the funnel when within ~280px of the viewport bottom.
+- **Dismissal (three ways):** backdrop click, **page scroll**, and **Esc** — all via one JS listener pair (`lipiTable.onScrollClose`/`offScrollClose`, capture-phase scroll + keydown) calling `[JSInvokable] ClosePopoverFromJs()`. The table now implements `IDisposable` (holds a `DotNetObjectReference<LipiTable<TItem>>`, deregisters listeners + disposes the ref on teardown).
+
+**Spec-vs-reality fixes (record so they aren't reintroduced).**
+- Created `FilterApplyMode` + `FilterChipsPlacement` enums in `LipiTableTypes.cs` — they did NOT previously exist.
+- Real `FilterChangeReason` values (from `Contexts.cs`): `UserApplyPopover`, `UserApplyDrawer`, `UserRemoveChip`, `UserClearAll`, `Programmatic`, `PersistenceRestore`, `ResetToDefault`. Used UserApplyPopover/UserRemoveChip/UserClearAll (NOT the invented UserApply/UserClear).
+- `FilterDescriptor(string ColumnKey, FilterOperator Operator, object? Value, object? ValueEnd)` — `ValueEnd` reserved for Between (S3b).
+- **Two icon APIs (must keep straight):** `LipiButton.Icon` takes a kebab STRING (`"chevron-left"`); `LipiIcon.Name` takes the `LipiconName` ENUM. In Razor markup the enum needs the `@` prefix: `Name="@LipiconName.Search"` — without it the literal string `"LipiconName.Search"` is passed → runtime "unknown icon name" + nothing renders.
+- **Icon-exists-in-json ≠ enum-member-exists.** `x` is in icons.json but `LipiconName.X` does NOT exist (single-letter names dropped by the enum generator) → use `LipiconName.Close`. Verified-valid members used this arc (all compiled): Check, CheckCircle, Copy, ChevronUp, ChevronDown, Close, Search, Filter. Active funnel uses `LipiconVariant.Fill`.
+- CS8602 in the sort fallback: `a`/`b` are provably non-null after the null-check block, but flow analysis doesn't track it through `object?` → null-forgiving `a!.ToString() ?? string.Empty`.
+
+**Changes.**
+- `ColumnDefinition.cs`: +`Sortable`, +`Searchable`, +`Filterable`; `SortComparer` erased to `Comparison<object?>?`.
+- `LipiColumn.razor.cs`: +`Searchable`/`Filterable` params + `ResolveSortable`/`ResolveFilterable` (auto-disable Actions/Avatar/template-only) + erased-comparer builder.
+- `LipiTableTypes.cs`: +`FilterApplyMode`, +`FilterChipsPlacement` enums.
+- `LipiTable.razor.cs`: sort engine (`SortedItems`, `CompareRows`, `OnHeaderSortAsync`, `ClearSortAsync`); quick-search engine (`SearchedItems`, semicolon term parse, debounce, `HighlightSegments`); filter engine (`FilteredItems`, `MatchesFilter`, `OperatorsFor`, `OperatorLabel`, draft state, Apply/Live commit, chip helpers, `ClearAllFiltersAsync`); popover anchor (`getRect` via OnAfterRender, flip, hide-until-measured); `IDisposable` + `DotNetObjectReference` + `[JSInvokable] ClosePopoverFromJs`; `FilterCaseSensitive`; pipeline repointed `Items→search→filters→sort→page`; `PaginationTotalCount` reads filtered set.
+- `LipiTable.razor`: sort button + indicators in headers; quick-search toolbar (joined card); funnel per filterable header (`@ref` dict, Fill-when-active) + inline popover (operator select, value input, Clear/Apply) + backdrop; chips (inline-in-toolbar + separate strip) with per-chip ✕ + Clear all; `RenderMaybeHighlighted` cell emitter; `has-toolbar` covers toolbar OR separate chips strip.
+- `LipiTable.razor.css`: sort button/indicator + right/center justify on real cell-align classes; quick-search toolbar + joined-card surface + match `<mark>`; funnel button (idle/hover/active) + fixed-position popover + chips (separate joined-strip + inline horizontal-scroll); header cell `position:relative` anchor.
+- `lipi-table.js`: +`getRect(el)` (viewport rect for fixed anchoring); +`onScrollClose`/`offScrollClose` (capture-phase scroll + Esc keydown → `ClosePopoverFromJs`).
+- `StyleGuideTablePaging.razor`: first demo table opted into `ShowQuickSearch` + `HighlightMatches` (HeaderIcon filters appear by default since `FilterMode` defaults to HeaderIcon).
+
+**Queued (design items, NOT locked features).**
+- **Better filtering UX exploration** — after the baseline (S3a + S3b + S3c Drawer) ships, revisit whether the funnel→popover→operator-dropdown pattern can be made easier for clinical users. Project owner finds the conventional pattern rudimentary; wants an easier method, including multi-value like "Radiation OR Surgical Oncology". To be a DESIGN DISCUSSION informed by the working baseline, then decided — not pre-committed. Whatever emerges rides on the same FilterDescriptor engine + pipeline (a new presentation, like Drawer), not a rebuild.
+- **`In` operator (multi-value)** — partially addresses the OR-across-values need; lands in S3b (Boolean+In sub-slice) with a distinct-value multi-select editor.
+
+**Verification gate.** Deploy the set → `dotnet run` → Table Paging page (first table). Sort: click headers (tri-state), shift-click (multi-column priority). Quick search: `oncology`, then `gupta; oncology` (cross-column AND), clear. Filters: funnel → contains "onc" → Apply → rows filter + chip + Fill funnel; popover anchors to funnel, flips above near bottom (1-row table), closes on backdrop/scroll/Esc; try `FilterApplyMode=Live` and `FilterChipsPlacement=Inline`. S3b (numeric/date/boolean/In/relative editors) and S3c (Drawer) are NOT in this entry.
+
+---
+
+### A54 — DateTime picker family migrated to LiPi.Components.Forms + capability redesign
+
+**Date:** 2026-06-03
+**Scope:** Independent PR. Migrate the Date/Time picker family from `LiPi.Web.Components.Shared`
+into the redistributable `LiPi.Components.Forms`; absorb `IDateFormatService` +
+`IClinicTimezoneService` mechanics as parameter-driven static helpers; add a time-source model,
+an AM/PM segmented toggle, and a Direction×Span date-range preset system.
+
+### Isolation / namespace
+- All four pickers + `LipiDateTimeTypes.cs` moved to `namespace LiPi.Components.Forms`
+  (physically `src\LiPi.Components\Forms\`). Base classes `LipiInputBase<T>`/`LipiContainerBase`
+  were already package-side — PR did not widen to the input-base layer.
+- Pickers no longer inject HIS services. The two `@inject`s and `@using LiPi.Web.Services`
+  removed. Each picker carries a direct `@using LiPicons.Blazor`.
+- **LucideIcon → LipiIcon** in all migrated pickers (LucideIcon is in `LiPi.Web`, unusable from
+  the package). Verified enum members: x→Close, calendar→Calendar, clock→Clock,
+  chevron-left/right→ChevronLeft/ChevronRight.
+
+### New package code
+- `LipiTimeResolver.cs` — `LipiTimeSource { Server, Utc, Client, SpecificZone }` (default
+  Server, SaaS-safe); `LipiTimeZones.IndiaIST` (Asia/Kolkata + ICU-less fixed-offset fallback,
+  ported from ClinicTimezoneService); static `LipiTimeResolver` (ResolveNow/ResolveToday/
+  ToZone/Compose — clinic-free ports of GetClinicLocalNow/ToClinicLocal/ToUtc).
+- `LipiDateFormat.cs` — DateFormatService engine ported verbatim (token translation, ISO +
+  forgiving parse, 12h/24h cross-format parse, segment-order regex); takes explicit format.
+- `lipi-input.js` — appended `window.lipiInput.getClientNow()` (browser local parts + tz
+  offset) for the `Client` time source.
+
+### LipiInputDefaults (extended)
++5 properties (India defaults): `DefaultDateFormat="DD/MM/YYYY"`, `DefaultTimeFormat="24h"`,
+`DefaultWeekStart=Sunday`, `DefaultTimeSource=Server`, `DefaultTimeZone=null`. App configures
+in Program.cs; per-component params override; a HIS feeds these from clinic config.
+
+### Per-component params added
+- DatePicker/RangePicker: `TimeSource`, `TimeZone`, `WeekStart` + `ResolvedToday` (today honors
+  the source). RangePicker injects `IOptions<LipiInputDefaults>` directly (not a LipiInputBase
+  subclass).
+- TimePicker: `TimeSource`, `TimeZone`. Now button → `LipiTimeResolver.ResolveNow`.
+- DateTimePicker: `TimeSource`, `TimeZone`, `DisplayZone` + `WorkingZone` computed
+  (`DisplayZone ?? TimeZone ?? DefaultTimeZone ?? IndiaIST`) — preserves pre-migration
+  clinic-IST behavior. Kept `DateTimeOffset?` binding; zoneless `DateTime?` mode deferred.
+
+### AM/PM segmented toggle (TimePicker)
+Native `<select>` period segment replaced with a themed two-button segmented toggle
+(`role=radiogroup`, roving tabindex, arrow-key switching, active option filled `--color-primary`,
+`lipi-*` CSS tokens only). No LipiSelect dependency — respects the LP-12 chrome-vs-action
+principle. Resolves the unstyleable native-dropdown issue.
+
+### Direction × Span date-range presets (LipiDateTimeTypes.cs + RangePicker)
+- `PresetDirection { Past, Future, Both }` × `PresetSpan { Day, Week, Month, Quarter, Year }`
+  (cumulative). `FiscalYearStart` (int month, default 4=April; 1=calendar quarters). Quarters
+  are FISCAL (aligned to FiscalYearStart).
+- `LipiDateRangePresets.Build(direction, span, today, weekStart, fyStartMonth)` generates the
+  list. RangePicker gains `PresetDirection`/`PresetSpan`/`FiscalYearStart` + `EffectivePresets`
+  (explicit `Presets` wins; else builds; else no panel). Existing bundles retained.
+- 19 presets; no future-FY/year. Date math validated against a fixed-date reference table
+  before C# implementation.
+
+### Deploy / demo
+- `deploy-downloads.ps1`: added the 2 helpers; relocated 4 pickers + 6 CSS + types file
+  Shared→Forms. `_Imports.razor` (Web) += LiPi.Components.Forms; `_Imports.Components.razor`
+  += LiPi.Components.Forms + LiPicons.Blazor.
+- `StyleGuide.razor`: interactive Direction×Span presets demo (live Direction/Span/FY
+  dropdowns) added to the Date & Time section; existing 12h demo now shows the AM/PM toggle.
+- **Manual step required at deploy:** delete old-location picker files from
+  `src\LiPi.Web\Components\Shared\` (deploy copies but can't delete → duplicate-component
+  errors otherwise).
+
+### Deferred (out of scope, recorded)
+Zoneless `DateTime?` DateTimePicker mode; cleanup/removal of the old HIS date/time services;
+S3b-ii table date filter (will reuse migrated pickers + carry a zone param for instant windows).
+
+---
+
+### A55 — Phase 2.8 column filters S3b: typed operators + editors (numeric / date / boolean / In)
+
+**Phase**: 2 Sub-step 2.8 — Data Display (LipiTable filtering; continuation of A53/S3a).
+**Date**: 2026-06-04
+**Status**: ✅ Deployed + runtime-confirmed on the table-filters demo. Logged after the fact — A54 (DateTime PR) took the prior number; this is the S3a→S3b continuation.
+
+**Scope.** Extends A53/S3a (text + universal operators) to FULL typed filtering, all on the same `FilterDescriptor` engine + `Items→quick-search→filters→sort→page` pipeline — new operator/editor coverage, not new architecture.
+
+**Typed operators (`MatchesFilter`).** Numeric: `=, ≠, <, ≤, >, ≥, Between`. Date: `On / Before / After / Between` + a relative set. Boolean: `IsTrue / IsFalse`. `In`: set membership. (text + universal carried from S3a.)
+
+**`OperatorsFor(ColumnType)`** now returns the operator subset per column type (numeric / date / boolean / string), refining S3a's "text+universal for all." **`EditorFor` → `FilterEditor { None, Text, Number, NumberRange, Date, DateRange, RelativeN, Multi }`** picks the popover editor from operator+type (Between→NumberRange/DateRange; relative→RelativeN; In→Multi).
+
+**Date columns — option (c) (locked).** The funnel opens a themed `LipiDateRangePicker` directly (PresetDirection=Both, PresetSpan=Year → Today / This month / Last quarter presets *replace* a relative-operator dropdown); commits a Between window, or open-ended After/Before. **Quarters here are CALENDAR quarters** (filter context) — deliberately distinct from the picker's FISCAL quarters in A54: a filter window is a literal date range, not a fiscal-report boundary. **`In` editor** = distinct-value checkbox checklist (the partial multi-value answer flagged in A53's queued items).
+
+**Zone/week params ("the filter carries the zone, not the picker").** `FilterTimeZone` (`TimeZoneInfo?`) anchors date-window + relative-"today" boundaries for `DateTimeOffset` columns; `FilterWeekStart` (default Sunday) sets week boundaries for relative week math. Both resolved in the engine, not the picker.
+
+**Polish round.** In-chip text joins the selected values (was rendering the `List<>` type name); Between chip shows both bounds; header funnel absolutely-positioned so header text still aligns by `col.Align` (text→left, numeric→right, date/bool/status→center) with the funnel overlaid; active-filter underline affordance via `:has()`; CS1574 cref fix in `LipiDateTimeTypes.cs` (qualified `CommonReports`/`CommonScheduling`).
+
+**Changes** (draft state was still scalar at this point — unified next by A56/PR1).
+- `LipiTable.razor.cs`: typed `MatchesFilter` cases; `OperatorsFor(ColumnType)`; `EditorFor` + `FilterEditor` enum; relative-date resolution via `FilterTimeZone`; week math via `FilterWeekStart`; `FilterTimeZone`/`FilterWeekStart` params.
+- `LipiTable.razor`: per-type popover editors (number, number-range, date-range-picker option-c, In-checklist); chip-text fixes.
+- `LipiTable.razor.css`: funnel absolute-position + align-by-`Align`; active-filter `:has()` underline.
+- `LipiDateTimeTypes.cs`: CS1574 cref qualification.
+- `StyleGuideTableFilters.razor` (+ `.razor.css`): typed-filter demo at `/admin/style-guide/data-display/table-filters` (hub Phase 2.8 group, `data-enhance-nav="false"`, `DemoStaff` 10-row model).
+
+**Verification gate.** Table-filters demo: numeric Between; date option-c picker (presets); boolean IsTrue/IsFalse; In checklist; chips render values (not type names); funnel stays aligned per column type.
+
+---
+
+### A56 — Phase 2.8 S3b→S3c prep: LipiTable filter draft model unified (per-column `ColumnDraft`)
+
+**Phase**: 2 Sub-step 2.8 — Data Display. Prep for the S3c filter Drawer (PR3).
+**Date**: 2026-06-04
+**Status**: ✅ Deployed + popover-regression confirmed (text / number-range / In-checklist / date-option-c editors identical to A55/S3b — no regression).
+
+**Scope.** Pure refactor — no behavior change, no engine change. Replaces LipiTable's 7 scalar draft fields (`_draftOperator/_draftValue/_draftValueEnd/_draftMulti/_draftDateStart/_draftDateEnd/_draftColumnKey`) with a single keyed `Dictionary<string, ColumnDraft>`.
+
+**Why.** The header popover edits one column at a time, but the S3c filter Drawer shows EVERY filterable column at once — scalar fields can't hold multiple columns' in-progress edits simultaneously. Both presentations now drive the same per-column draft store. The filter engine (`MatchesFilter`/`OperatorsFor`/`EditorFor`/`CoerceDraft`/chips, A53+A55) is **untouched**.
+
+**Changes.**
+- `LipiTable.razor.cs`: new private `class ColumnDraft { Operator, Value, ValueEnd, Multi (HashSet), DateStart, DateEnd }`; `Dictionary<string, ColumnDraft> _drafts`; `EnsureDraft(def)` (lazy, render-safe) + `SeedDraft(def)` (re-seed on popover open); the 6 draft handlers (`OnDraftOperatorChanged/ValueChanged/ValueEndChanged/DateStartChanged/DateEndChanged/ToggleDraftMulti`) + `CommitDraftAsync` all keyed by `ColumnKey`.
+- `LipiTable.razor`: popover markup rebound via a hoisted `var d = EnsureDraft(col);` at the top of the open-popover block; date callbacks via `EventCallback.Factory.Create<DateOnly?>`.
+- `.css` untouched.
+
+**Deploy note.** This PR was delivered earlier but never reached disk (the on-disk `LipiTable.razor.cs` remained the S3b scalar-draft version); re-shipped and re-verified against that base before logging.
+
+**Verification gate (the "PR1 popover check").** Table-filters demo popover: text / number-range / In-checklist / date(option-c) editors behave IDENTICALLY to A55/S3b — open, edit, Apply, chip, clear; no regression.
+
+**Deferred.** S3c filter Drawer (PR3) composes `<LipiDrawer Open= OnClose=>` declaratively over this unified draft.
+
+---
+
+### A57 — Phase 2.8 overlay cluster → `LiPi.Components.Overlays` (+ LipiSpinner → `LiPi.Components.Feedback`)
+
+**Phase**: 2 Sub-step 2.8 — independent PR. Pulled the 2.10 service-coupled migration forward so S3c's filter Drawer can compose a package `LipiDrawer`.
+**Date**: 2026-06-04
+**Status**: ✅ Build clean, 0 warnings (`dotnet build src\LiPi.Web`).
+
+**Isolation / namespace.** 38 files (Modal + Drawer + Toast + DynamicTabs components, 4 dialogs, 2 hosts, 12 services/interfaces, type files) → `namespace LiPi.Components.Overlays` (physically `src\LiPi.Components\Overlays\`). **Zero `LiPi.Web.*` refs — the build-enforced §25.3 grep passes.** Sub-component renames `ModalBody/ModalFooter/DrawerBody/DrawerFooter → Lipi*` (a type-NAME change, so consumer markup was rewritten, not just re-namespaced).
+
+**Stays in LiPi.Web (established seam — same as `lipi-inputs.css`).** `lipi-overlays.css` (keeps its valid `.tn-content` pin-shift) and `lipi-overlay-interop.js` are NOT moved → no `App.razor` change; scoped `.razor.css` auto-bundles via `LiPi.Web.styles.css`.
+
+**LipiSpinner.** Migrated to a new `LiPi.Components.Feedback` namespace (collision-free vs `Forms`, correct family per the 2.10 clean-leaves plan) because `LipiToast` depends on it; old LiPi.Web copy orphan-deleted; both `_Imports` + `GlobalUsings` `+= Feedback`.
+
+**Icons (LucideIcon → LipiIcon).** Static names mapped (`chevron-left/right→ChevronLeft/Right`, `x→Close`). `Icon` params kept `string?` — direct passthrough, because **`LipiIcon.Name` is a `string`** and **`LipiconName` is a const-string class, NOT an enum** (the const *is* the kebab key); unknown name → renders nothing, never throws. `SeverityIcon` remapped to real keys (`check`/`warning`/`close`/`info`). **Deferred:** caller-side Lucide-name→LiPicon-key cutover (2.10/3.0).
+
+**Consumer repoint.** LiPi.Web `_Imports += @using LiPi.Components.Overlays` (+ Feedback); new `GlobalUsings.cs` covers `.cs` consumers. *Deploy:* 38 keys repointed (+4 spinner→Feedback), 4 renamed keys swapped, GlobalUsings key added, no dupes. **Manual orphan-deletion required** (deploy copies, can't delete).
+
+**Deferred (build-safe, flagged).** `LipiDrawer.razor.css` 5 hardcoded icon-cell hex → token scrub; packaging `lipi-overlays.css` + interop JS into `_content/` for true redistributability (project-wide seam, 2.10).
+
+**Record so they aren't reintroduced.**
+- Isolation audits must grep component **tags**, not just `LiPi.Web.*` namespaces — the namespace grep was clean while `<LucideIcon>`/`<LipiSpinner>` deps survived (surfaced only at build as RZ10012).
+- Orphan deletion is mandatory + manual; leaving old copies → `CS0104` / `RZ9985` for every moved type.
+- `Get-ChildItem -Recurse -Include *.razor` enumerates nothing without a wildcard path — use `-Filter` (the rename sweep matched 0 files first pass).
+- Deploy copies whatever sits in `Downloads\LiPi`; stale older files there silently re-overwrite fresh edits.
+- `@rendermode InteractiveServer` needs `@using static …RenderMode` in the package `_Imports`.
+- **Pre-existing bug found:** `StyleGuide.razor` nav link is `/admin/style-guide/overlays`; the real route is `/admin/style-guide-overlays` (hyphen). One-char fix, left untouched.
+
+**Verification gate.** Build 0 warnings; `/admin/style-guide-overlays` — modals/drawers/toasts open, focus-trap + scroll-lock work, severity icons render.
+
+---
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)

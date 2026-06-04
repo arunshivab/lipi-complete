@@ -1,0 +1,21 @@
+@* SPEC: Phase 2.1 LipiButton design package §loading state *@
+@* Decorative spinner — animation defined in LipiButton.razor.css via ::deep *@
+@* Namespace: LiPi.Components (migrated A49) *@
+
+@namespace LiPi.Components
+
+<svg class="lipi-button-spinner"
+     width="@Size" height="@Size"
+     viewBox="0 0 24 24"
+     fill="none"
+     stroke="currentColor"
+     stroke-width="2"
+     stroke-linecap="round"
+     aria-hidden="true">
+    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+    <path d="M12 2 A10 10 0 0 1 22 12"/>
+</svg>
+
+@code {
+    [Parameter] public int Size { get; set; } = 16;
+}

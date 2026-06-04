@@ -1,0 +1,14 @@
+/* SPEC: 03-LipiPagination-Spec.md §7 tokens — row-count text */
+.lipi-pagination-count {
+    font-size: var(--lipi-pagination-text-count-size, 13px);
+    color: var(--lipi-pagination-text-count, var(--color-text-tertiary, #94a3b8));
+    white-space: nowrap;
+    /* A51: reserve a stable width so the readout text changing length (e.g.
+       "Showing 81-90 of 480" -> "91-100 of 480") does NOT shift the nav strip
+       beside it. 24ch covers the common range (up to ~5-digit totals incl. commas)
+       and degrades gracefully (grows) only for pathologically large totals.
+       Left-aligned so the text pins to its start edge within the reserved box. */
+    min-width: var(--lipi-pagination-count-min-w, 24ch);
+    text-align: left;
+    flex-shrink: 0;
+}

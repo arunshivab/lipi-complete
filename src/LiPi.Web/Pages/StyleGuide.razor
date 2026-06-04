@@ -125,6 +125,19 @@
                 <h3 class="sg-nav-header">Phase 2.7</h3>
                 <a class="sg-nav-link" href="/admin/style-guide/feedback" data-enhance-nav="false">Feedback Components →</a>
             </div>
+            @* AMEND: docs/CHANGE-LOG.md A41 (2026-05-30) — Phase 2.8 nav group.
+               Same data-enhance-nav="false" rationale as the Phase 2.6/2.7 groups above.
+               Data Display showcase page covers LipiEmptyState (Stage 2); LipiTable,
+               LipiList, and LipiPagination links will be added to this same page/group
+               as those components ship in later 2.8 stages. *@
+            <div class="sg-nav-group">
+                <h3 class="sg-nav-header">Phase 2.8</h3>
+                <a class="sg-nav-link" href="/admin/style-guide/data-display" data-enhance-nav="false">Data Display →</a>
+                @* A50.1: LipiPagination standalone demo. A51: LipiTable+LipiPagination wiring test (480 rows). *@
+                <a class="sg-nav-link" href="/admin/style-guide/data-display/pagination" data-enhance-nav="false">Pagination →</a>
+                <a class="sg-nav-link" href="/admin/style-guide/data-display/table-paging" data-enhance-nav="false">Table Paging →</a>
+                <a class="sg-nav-link" href="/admin/style-guide/data-display/table-filters" data-enhance-nav="false">Table Filters →</a>
+            </div>
         </aside>
 
         <!-- Content -->
@@ -271,7 +284,7 @@
                     <LipiButton Icon="check">Icon Left</LipiButton>
                     <LipiButton IconRight="arrow-right">Icon Right</LipiButton>
                     <LipiButton Icon="save" IconRight="chevron-down">Both</LipiButton>
-                    <LipiButton Variant="ButtonVariant.Ghost" Icon="x" AriaLabel="Close" />
+                    <LipiButton Variant="ButtonVariant.Ghost" Icon="close" AriaLabel="Close" />
                     <LipiButton Variant="ButtonVariant.Secondary" Icon="settings" AriaLabel="Settings" />
                     <LipiButton Variant="ButtonVariant.Danger" Icon="trash" AriaLabel="Delete" />
                 </div>
@@ -883,6 +896,57 @@
                                          HelperText="Try the preset panel on left of calendars" />
                 </div>
 
+                @* ====== Direction x Span preset builder (A54) ====== *@
+                <h3 class="sg-h3">Auto-built presets — Direction &times; Span</h3>
+                <p class="sg-p">
+                    Instead of hand-listing presets, set
+                    <code class="sg-code">PresetDirection</code> (Past / Future / Both) and
+                    <code class="sg-code">PresetSpan</code> (Day &lt; Week &lt; Month &lt;
+                    Quarter &lt; Year, cumulative). Quarters + FY align to
+                    <code class="sg-code">FiscalYearStart</code> (default 4 = April; set 1 for
+                    calendar quarters). Change the controls below and reopen the picker.
+                </p>
+
+                <div class="sg-input-grid sg-input-grid-3" style="margin-bottom: var(--sp-md);">
+                    <label class="sg-p" style="display:flex; flex-direction:column; gap:4px;">
+                        Direction
+                        <select value="@_sg.PresetDir" @onchange="@(e => _sg.PresetDir = Enum.Parse<PresetDirection>(e.Value!.ToString()!))">
+                            <option value="Past">Past</option>
+                            <option value="Future">Future</option>
+                            <option value="Both">Both</option>
+                        </select>
+                    </label>
+                    <label class="sg-p" style="display:flex; flex-direction:column; gap:4px;">
+                        Span
+                        <select value="@_sg.PresetSpanSel" @onchange="@(e => _sg.PresetSpanSel = Enum.Parse<PresetSpan>(e.Value!.ToString()!))">
+                            <option value="Day">Day</option>
+                            <option value="Week">Week</option>
+                            <option value="Month">Month</option>
+                            <option value="Quarter">Quarter</option>
+                            <option value="Year">Year</option>
+                        </select>
+                    </label>
+                    <label class="sg-p" style="display:flex; flex-direction:column; gap:4px;">
+                        FiscalYearStart
+                        <select value="@_sg.PresetFy" @onchange="@(e => _sg.PresetFy = int.Parse(e.Value!.ToString()!))">
+                            <option value="4">April (4) — Indian FY</option>
+                            <option value="1">January (1) — calendar</option>
+                            <option value="7">July (7)</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="sg-input-grid sg-input-grid-1">
+                    <LipiDateRangePicker Name="sg-drp-built"
+                                         Label="@($"Presets: {_sg.PresetDir} / {_sg.PresetSpanSel} / FY-start {_sg.PresetFy}")"
+                                         @bind-StartValue="_sg.DrpBuiltStart"
+                                         @bind-EndValue="_sg.DrpBuiltEnd"
+                                         PresetDirection="_sg.PresetDir"
+                                         PresetSpan="_sg.PresetSpanSel"
+                                         FiscalYearStart="_sg.PresetFy"
+                                         HelperText="Open the picker — left panel reflects the controls above" />
+                </div>
+
             </section>
 
             <!-- ====== LABEL POSITIONS (Phase 2.5.5) ====== -->
@@ -1273,6 +1337,13 @@
         public DateTimeOffset? DtpStacked { get; set; }
         public DateOnly? DrpStart    { get; set; }
         public DateOnly? DrpEnd      { get; set; }
+
+        // Direction x Span preset builder demo (A54)
+        public PresetDirection PresetDir     { get; set; } = PresetDirection.Past;
+        public PresetSpan      PresetSpanSel { get; set; } = PresetSpan.Month;
+        public int             PresetFy      { get; set; } = 4;
+        public DateOnly?       DrpBuiltStart { get; set; }
+        public DateOnly?       DrpBuiltEnd   { get; set; }
 
         // Phase 2.5.5 — Label Positions demo state
         public string LpTop        { get; set; } = string.Empty;

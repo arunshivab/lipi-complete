@@ -1,0 +1,781 @@
+/* ============================================================
+   LipiTable.razor.css — scoped component styles (bare chassis)
+   ============================================================
+   SPEC:  docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §2.2.6/§2.2.7 (header/body),
+          §3.6.1 (CSS Grid), §2.5 (z-index), §2.7 (light/dark)
+   PHASE: 2.8 Data Display — Stage 2 core shell
+
+   Consumes only --lipi-table-* tokens (lipi-table-tokens.css) + structure tokens
+   (--sp-*, --r-*). No hex literals, no --color-* direct refs. Blazor scoped CSS:
+   auto-scoped to LipiTable markup via the framework [b-xxxxx] attribute.
+
+   CSS Grid model (§3.6.1): the header row and each body row are independent grid
+   containers sharing the same grid-template-columns (set inline from the column tracks).
+   This keeps columns aligned without a parent display:grid that would fight sticky
+   positioning. Each row is display:grid; the table root is a vertical flex/block stack.
+   ============================================================ */
+
+.lipi-table {
+    display: block;
+    width: 100%;
+    background: var(--lipi-table-bg);
+    border: 1px solid var(--lipi-table-border);
+    border-radius: var(--lipi-table-radius);
+    overflow: hidden;            /* clip header/body to the rounded corners */
+    font-family: var(--lipi-table-font);
+    font-size: var(--lipi-table-cell-size);
+    color: var(--lipi-table-cell-text);
+}
+
+/* ── Header row (region ⑥) ───────────────────────────────────────────────── */
+.lipi-table-header-row {
+    display: grid;
+    align-items: stretch;
+    background: var(--lipi-table-header-bg);
+    border-bottom: 1px solid var(--lipi-table-border);
+    position: sticky;
+    top: 0;
+    z-index: var(--lipi-table-z-header);
+}
+
+.lipi-table-header-cell {
+    display: flex;
+    align-items: center;
+    padding: var(--lipi-table-header-pad-y) var(--lipi-table-cell-pad-x);
+    font-size: var(--lipi-table-header-size);
+    font-weight: var(--lipi-table-header-weight);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--lipi-table-header-text);
+    min-width: 0;                /* allow ellipsis inside grid track */
+}
+
+.lipi-table-header-cell-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Body (region ⑦) ─────────────────────────────────────────────────────── */
+.lipi-table-body {
+    display: block;
+    width: 100%;
+}
+
+.lipi-table-row {
+    display: grid;
+    align-items: center;
+    min-height: var(--lipi-table-row-min-h);
+    background: var(--lipi-table-row-bg);
+    border-bottom: 1px solid var(--lipi-table-border-subtle);
+}
+
+.lipi-table-row:last-child {
+    border-bottom: 0;
+}
+
+/* Striped rows (default on; toggled by --striped modifier on root) */
+.lipi-table--striped .lipi-table-row:nth-child(even) {
+    background: var(--lipi-table-row-bg-alt);
+}
+
+.lipi-table-row:hover {
+    background: var(--lipi-table-row-bg-hover);
+}
+
+/* ── Cells ───────────────────────────────────────────────────────────────── */
+.lipi-table-cell {
+    display: flex;
+    align-items: center;
+    padding: var(--lipi-table-cell-pad-y) var(--lipi-table-cell-pad-x);
+    min-width: 0;                /* enable ellipsis within grid track */
+}
+
+.lipi-table-cell-content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+}
+
+/* Alignment modifiers (resolved per column in code-behind) */
+.lipi-table-cell--left,
+.lipi-table-header-cell.lipi-table-cell--left   { justify-content: flex-start; text-align: left; }
+.lipi-table-cell--center,
+.lipi-table-header-cell.lipi-table-cell--center { justify-content: center; text-align: center; }
+.lipi-table-cell--right,
+.lipi-table-header-cell.lipi-table-cell--right  { justify-content: flex-end; text-align: right; }
+
+/* Right-aligned numeric cells use tabular figures for column alignment */
+.lipi-table-cell--right .lipi-table-cell-content {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Type-specific cell content ──────────────────────────────────────────── */
+.lipi-table-cell-mono {
+    font-family: var(--lipi-table-mono-font);
+    font-variant-numeric: tabular-nums;
+}
+
+.lipi-table-cell-empty {
+    color: var(--lipi-table-cell-muted);
+}
+
+.lipi-table-cell-bool-true {
+    color: var(--lipi-table-bool-true);
+}
+
+/* Avatar placeholder (bare chassis — initials circle) */
+.lipi-table-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--lipi-table-avatar-size);
+    height: var(--lipi-table-avatar-size);
+    border-radius: 50%;
+    background: var(--lipi-table-avatar-bg);
+    color: var(--lipi-table-avatar-text);
+    font-size: var(--ts-small);
+    font-weight: var(--fw-semi);
+}
+
+/* ── Body-state wrapper (empty / loading / error) ───────────────────────── */
+.lipi-table-statewrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: var(--sp-xl);
+}
+
+/* EmptyRows (Stage 7) — two modes, set by a root class:
+   • --empty-reserve (EmptyRows >= 3): FLOOR of N rows; the full illustration shows and may grow taller.
+   • --empty-compact (EmptyRows 1-2): EXACT N rows tall + clipped, with a small inline text (no big
+     illustration) — for a genuinely short empty strip. Height = N x the density row-height. */
+.lipi-table--empty-reserve .lipi-table-statewrap {
+    min-height: calc(var(--lipi-table-row-min-h) * var(--lipi-table-empty-rows, 0));
+}
+.lipi-table--empty-compact .lipi-table-statewrap {
+    height: calc(var(--lipi-table-row-min-h) * var(--lipi-table-empty-rows, 1));
+    min-height: 0;
+    padding: 0 var(--lipi-table-cell-pad-x);   /* no big vertical padding — keep it row-thin */
+    overflow: hidden;                            /* stay exactly N rows tall */
+}
+
+/* Compact empty/loading/error text: a single muted centered line that fits one row. */
+.lipi-table-state-compact {
+    font-size: var(--lipi-table-cell-size, 13px);
+    color: var(--lipi-table-cell-muted, var(--color-text-tertiary, #94a3b8));
+    text-align: center;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lipi-table-state-compact--error {
+    color: var(--color-danger, #dc2626);
+}
+
+/* ============================================================
+   Stage 3 (A45) — rows/cells: density wiring, selection column,
+   avatar, copy affordance, disabled rows, status strip spacing
+   ============================================================ */
+
+/* ── Density: body font + cell padding now read density-driven tokens ───── */
+.lipi-table { font-size: var(--lipi-table-cell-size); }
+
+.lipi-table-header-cell {
+    min-height: var(--lipi-table-header-min-h);
+    padding-top: var(--lipi-table-header-pad-y);
+    padding-bottom: var(--lipi-table-header-pad-y);
+}
+
+.lipi-table-cell {
+    padding-top: var(--lipi-table-cell-pad-y);
+    padding-bottom: var(--lipi-table-cell-pad-y);
+}
+
+.lipi-table-row {
+    transition: background var(--lipi-table-hover-tr) ease;
+    border-bottom-width: var(--lipi-table-row-border-w);
+}
+
+/* ── Selection column (Stage 3: visible, inert) ─────────────────────────── */
+.lipi-table-cell-select {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: var(--lipi-table-select-cell-pad);
+    padding-right: var(--lipi-table-select-cell-pad);
+    overflow: visible;       /* checkbox focus ring shouldn't clip */
+}
+
+/* ── Avatar — real image variant + initials circle (density-sized) ──────── */
+.lipi-table-avatar,
+.lipi-table-avatar-img {
+    width: var(--lipi-table-avatar-size);
+    height: var(--lipi-table-avatar-size);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.lipi-table-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* background is set inline (deterministic hash color); text is white for contrast */
+    color: #fff;
+    font-size: var(--ts-small);
+    font-weight: var(--fw-semi);
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.lipi-table-avatar-img {
+    object-fit: cover;
+    background: var(--lipi-table-avatar-bg);
+}
+
+
+/* Reduced motion: drop the hover/opacity transitions. */
+@media (prefers-reduced-motion: reduce) {
+    .lipi-table-row { transition: none; }
+}
+
+/* ── Disabled row (§22.5) ───────────────────────────────────────────────── */
+/* ── Selected row (Stage 4a, §2.2 lipi-table-row--selected) ─────────────── */
+.lipi-table-row--selected {
+    background: var(--lipi-table-row-bg-selected);
+}
+/* Selected wins over the striped-alt background. */
+.lipi-table--striped .lipi-table-row--selected:nth-child(even),
+.lipi-table--striped .lipi-table-row--selected:nth-child(odd) {
+    background: var(--lipi-table-row-bg-selected);
+}
+
+.lipi-table-row--disabled {
+    opacity: var(--lipi-table-row-disabled-opacity);
+    pointer-events: none;       /* non-interactive */
+}
+
+/* Clickable rows (OnRowClick is set) get a pointer cursor on body cells (Stage 4b, §5.4.4). */
+.lipi-table-row--clickable .lipi-table-cell {
+    cursor: pointer;
+}
+/* But keep the copy button reachable for keyboard users is moot here — the whole
+   row is non-interactive by spec when RowDisabled is true. */
+
+/* ── Keyboard focus ring (Stage 4d, §19.3.1) — the focused body cell gets a 2px inset
+   primary ring. :focus-visible so mouse clicks don't show it; only keyboard focus does.
+   Inset (negative offset) keeps the ring inside the row so it isn't clipped by the
+   table's rounded overflow:hidden border. ── */
+.lipi-table-cell:focus-visible {
+    outline: 2px solid var(--lipi-table-focus-ring);
+    outline-offset: -2px;
+    border-radius: var(--r-sm);
+}
+
+/* ============================================================
+   Row status strip — PACKAGE FEATURE (moved into LipiTable scoped CSS, A51).
+   Previously lived in app-side lipi-status-tokens.css; now owned by the component
+   so a consumer of the redistributable LipiTable gets strips with no external file.
+   Colors bind DIRECTLY to the foundation semantic palette (--color-success/warning/
+   danger/info/text-tertiary), each with a hard hex fallback (A22/A26 self-sufficiency)
+   — zero dependency on the app-side status-token file.
+
+   Strip width is a component token with a 4px fallback. The HEADER row also carries a
+   transparent strip of the SAME width (applied via .lipi-status-strip-* on the header),
+   so header content and body content start at the same x-offset — fixes the header shift.
+   ============================================================ */
+.lipi-table {
+    --lipi-table-strip-w: var(--lipi-status-strip-width, 4px);
+}
+
+/* Strip placement — same width on header + body so the left/right gutter is continuous. */
+.lipi-table-header-row.lipi-status-strip-left,
+.lipi-table-row.lipi-status-strip-left  { border-left:  var(--lipi-table-strip-w) solid transparent; }
+.lipi-table-header-row.lipi-status-strip-right,
+.lipi-table-row.lipi-status-strip-right { border-right: var(--lipi-table-strip-w) solid transparent; }
+.lipi-table-header-row.lipi-status-strip-top,
+.lipi-table-row.lipi-status-strip-top   { border-top:   var(--lipi-table-strip-w) solid transparent; }
+
+/* Body rows get the status COLOR per data-status; header stays transparent (no status). */
+.lipi-table-row.lipi-status-strip-left[data-status="active"],
+.lipi-table-row.lipi-status-strip-right[data-status="active"],
+.lipi-table-row.lipi-status-strip-top[data-status="active"],
+.lipi-table-row.lipi-status-strip-left[data-status="success"],
+.lipi-table-row.lipi-status-strip-right[data-status="success"],
+.lipi-table-row.lipi-status-strip-top[data-status="success"],
+.lipi-table-row.lipi-status-strip-left[data-status="completed"],
+.lipi-table-row.lipi-status-strip-right[data-status="completed"],
+.lipi-table-row.lipi-status-strip-top[data-status="completed"],
+.lipi-table-row.lipi-status-strip-left[data-status="published"],
+.lipi-table-row.lipi-status-strip-right[data-status="published"],
+.lipi-table-row.lipi-status-strip-top[data-status="published"]   { border-color: var(--color-success, #10b981); }
+
+.lipi-table-row.lipi-status-strip-left[data-status="pending"],
+.lipi-table-row.lipi-status-strip-right[data-status="pending"],
+.lipi-table-row.lipi-status-strip-top[data-status="pending"],
+.lipi-table-row.lipi-status-strip-left[data-status="warning"],
+.lipi-table-row.lipi-status-strip-right[data-status="warning"],
+.lipi-table-row.lipi-status-strip-top[data-status="warning"],
+.lipi-table-row.lipi-status-strip-left[data-status="in-progress"],
+.lipi-table-row.lipi-status-strip-right[data-status="in-progress"],
+.lipi-table-row.lipi-status-strip-top[data-status="in-progress"],
+.lipi-table-row.lipi-status-strip-left[data-status="suspended"],
+.lipi-table-row.lipi-status-strip-right[data-status="suspended"],
+.lipi-table-row.lipi-status-strip-top[data-status="suspended"],
+.lipi-table-row.lipi-status-strip-left[data-status="draft"],
+.lipi-table-row.lipi-status-strip-right[data-status="draft"],
+.lipi-table-row.lipi-status-strip-top[data-status="draft"]       { border-color: var(--color-warning, #f59e0b); }
+
+.lipi-table-row.lipi-status-strip-left[data-status="locked"],
+.lipi-table-row.lipi-status-strip-right[data-status="locked"],
+.lipi-table-row.lipi-status-strip-top[data-status="locked"],
+.lipi-table-row.lipi-status-strip-left[data-status="failed"],
+.lipi-table-row.lipi-status-strip-right[data-status="failed"],
+.lipi-table-row.lipi-status-strip-top[data-status="failed"],
+.lipi-table-row.lipi-status-strip-left[data-status="error"],
+.lipi-table-row.lipi-status-strip-right[data-status="error"],
+.lipi-table-row.lipi-status-strip-top[data-status="error"],
+.lipi-table-row.lipi-status-strip-left[data-status="cancelled"],
+.lipi-table-row.lipi-status-strip-right[data-status="cancelled"],
+.lipi-table-row.lipi-status-strip-top[data-status="cancelled"]   { border-color: var(--color-danger, #dc2626); }
+
+.lipi-table-row.lipi-status-strip-left[data-status="info"],
+.lipi-table-row.lipi-status-strip-right[data-status="info"],
+.lipi-table-row.lipi-status-strip-top[data-status="info"]        { border-color: var(--color-info, #1b4da0); }
+
+.lipi-table-row.lipi-status-strip-left[data-status="inactive"],
+.lipi-table-row.lipi-status-strip-right[data-status="inactive"],
+.lipi-table-row.lipi-status-strip-top[data-status="inactive"],
+.lipi-table-row.lipi-status-strip-left[data-status="archived"],
+.lipi-table-row.lipi-status-strip-right[data-status="archived"],
+.lipi-table-row.lipi-status-strip-top[data-status="archived"]    { border-color: var(--color-text-tertiary, #94a3b8); }
+
+
+/* ============================================================
+   Stage 7 (Step 2+3) — embedded pagination layout
+   The wrap stacks: [top pager?] / table grid / [bottom pager?].
+   Pager spacing uses structure tokens with hard fallbacks (A22/A26).
+   Side (Left/Right) layout is a later sub-step — not styled here.
+   ============================================================ */
+.lipi-table-pagination-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-md, 12px);
+    width: 100%;
+}
+
+.lipi-table-pager {
+    display: flex;
+    width: 100%;
+}
+
+/* Bottom pager: align the bar to the start; consumers can override via PaginationOptions later. */
+.lipi-table-pager-bottom {
+    justify-content: flex-start;
+}
+
+.lipi-table-pager-top {
+    justify-content: flex-start;
+}
+
+/* ── Side placement (Left/Right) — Stage 7 side-pager ───────────────────────
+   The wrap becomes a horizontal row: [side pager | grid] for Left,
+   [grid | side pager] for Right (slot order set in markup). The grid flex-grows
+   to fill remaining width; the side pager is a fixed-width column (inline flex
+   basis from PaginationSideWidth) that vertically centers its vertical pager. */
+.lipi-table-pagination-wrap--side {
+    flex-direction: row;
+    align-items: stretch;
+}
+.lipi-table-pagination-wrap--side > .lipi-table {
+    flex: 1 1 auto;
+    min-width: 0;            /* let the grid shrink instead of overflowing the row */
+}
+.lipi-table-pager-side {
+    display: flex;
+    align-items: center;        /* vertically center the vertical pager in the column */
+    justify-content: center;
+    background: var(--color-bg-subtle, #f1f5f9);   /* filled column so it reads as a control (mockup A) */
+    padding: var(--sp-sm, 8px) 0;
+}
+/* Divider between grid and side column — on the side the column actually sits. */
+.lipi-table-pager-left {
+    border-right: 1px solid var(--lipi-table-border, var(--color-border-default, #e2e8f0));
+}
+.lipi-table-pager-right {
+    border-left: 1px solid var(--lipi-table-border, var(--color-border-default, #e2e8f0));
+}
+/* Note: rounded-corner reconciliation between grid + side column is left simple here;
+   the side column carries its own outer-corner radius on its free edge. Refine if needed. */
+
+
+/* ── Sort affordance (Stage S1) ──────────────────────────────────────────── */
+.lipi-table-header-cell--sortable {
+    cursor: pointer;
+}
+.lipi-table-header-cell { position: relative; }   /* anchor for the filter popover */
+/* The clickable header is a reset button so the whole cell reads as one target. */
+.lipi-table-header-sortbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xs, 4px);
+    width: 100%;
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    text-align: inherit;
+    cursor: pointer;
+}
+/* Match the header content alignment to the cell alignment (data cells use
+   .lipi-table-cell--right / --center). The sort button is width:100%, so without this it
+   left-packs and the header label drifts off from right/center-aligned data below it. */
+.lipi-table-cell--right .lipi-table-header-sortbtn  { justify-content: flex-end; }
+.lipi-table-cell--center .lipi-table-header-sortbtn { justify-content: center; }
+
+.lipi-table-sort-indicator {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    line-height: 0;
+}
+/* Idle: faint, only fully visible on hover/focus of the header. */
+.lipi-table-sort-indicator--idle {
+    opacity: 0.3;                /* faintly visible at rest so sortable columns are discoverable */
+    transition: opacity 120ms ease;
+    color: var(--lipi-table-text-muted, var(--color-text-tertiary, #94a3b8));
+}
+.lipi-table-header-cell--sortable:hover .lipi-table-sort-indicator--idle,
+.lipi-table-header-sortbtn:focus-visible .lipi-table-sort-indicator--idle {
+    opacity: 0.6;                /* stronger hint on hover/focus */
+}
+/* Active: solid, uses the primary/text color. */
+.lipi-table-sort-indicator--active {
+    color: var(--lipi-table-sort-active, var(--color-text-primary, #0f172a));
+}
+/* Stacked up/down chevrons for the idle hint (no combined glyph in LiPicons). */
+.lipi-table-sort-stack {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 0;
+}
+.lipi-table-sort-stack > :last-child { margin-top: -4px; }   /* tighten the stack */
+
+/* Multi-sort priority badge (1-based) next to the active chevron. */
+.lipi-table-sort-priority {
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+    margin-left: 2px;
+    color: var(--lipi-table-sort-active, var(--color-text-secondary, #475569));
+}
+
+
+/* ── Quick-search toolbar (Stage S2) ─────────────────────────────────────── */
+.lipi-table-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md, 12px);
+    padding: var(--sp-sm, 8px) var(--sp-md, 12px);
+    /* (B) Give the toolbar the table's surface and JOIN it to the table top: same bg + side/top
+       border, rounded top corners only, flat bottom (the table continues below). */
+    background: var(--lipi-table-bg, var(--color-bg-surface, #fff));
+    border: 1px solid var(--lipi-table-border, var(--color-border-default, #e2e8f0));
+    border-bottom: 0;
+    border-top-left-radius: var(--lipi-table-radius, 10px);
+    border-top-right-radius: var(--lipi-table-radius, 10px);
+}
+/* Sit flush on the table only in the normal stacked layout (not the side-pager row). */
+.lipi-table-pagination-wrap:not(.lipi-table-pagination-wrap--side) > .lipi-table-toolbar,
+.lipi-table-pagination-wrap:not(.lipi-table-pagination-wrap--side) > .lipi-table-filter-chips--separate {
+    margin-bottom: calc(-1 * var(--sp-md, 12px));
+}
+/* When BOTH toolbar and a separate chips strip are present, the toolbar is no longer the
+   bottom-most card-top, so its corners must not round at the bottom (they already don't) and
+   the chips strip below it must not round its top (the toolbar carries the top rounding). */
+.lipi-table-toolbar + .lipi-table-filter-chips--separate {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+/* When a toolbar is present, the table's own top corners must square off so the two pieces
+   read as one continuous card. The toolbar carries the top rounding. */
+.lipi-table-has-toolbar:not(.lipi-table-pagination-wrap--side) .lipi-table {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+.lipi-table-toolbar-spacer { flex: 1 1 auto; }   /* pushes the search box to the right */
+
+.lipi-table-quicksearch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 280px;
+    max-width: 100%;
+}
+.lipi-table-quicksearch-icon {
+    position: absolute;
+    left: 10px;
+    display: inline-flex;
+    color: var(--lipi-table-text-muted, var(--color-text-tertiary, #94a3b8));
+    pointer-events: none;
+    line-height: 0;
+}
+.lipi-table-quicksearch-input {
+    width: 100%;
+    height: 34px;
+    padding: 0 30px 0 32px;
+    box-sizing: border-box;
+    border: 1px solid var(--color-border-strong, #94a3b8);
+    border-radius: var(--r-sm, 6px);
+    font: inherit;
+    font-size: var(--lipi-table-cell-size, 14px);
+    color: var(--color-text-primary, #0f172a);
+    background: var(--color-bg-base, #fff);
+    outline: none;
+}
+.lipi-table-quicksearch-input:focus {
+    border-color: var(--color-border-focus, var(--color-primary, #2563eb));
+    box-shadow: 0 0 0 3px var(--color-primary-pale, rgba(37,99,235,.15));
+}
+.lipi-table-quicksearch-clear {
+    position: absolute;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    background: none;
+    border: 0;
+    border-radius: var(--r-sm, 6px);
+    color: var(--lipi-table-text-muted, var(--color-text-tertiary, #94a3b8));
+    cursor: pointer;
+    line-height: 0;
+}
+.lipi-table-quicksearch-clear:hover {
+    color: var(--color-text-primary, #0f172a);
+    background: var(--color-bg-hover, #f1f5f9);
+}
+
+/* Quick-search match highlight (built-in cells only). */
+.lipi-table-cell-mark {
+    background: var(--lipi-table-mark-bg, var(--color-warning-pale, #fef9c3));
+    color: var(--lipi-table-mark-text, var(--color-warning, #854d0e));
+    border-radius: 3px;
+    padding: 0 1px;
+}
+
+
+/* ── Column filter funnel (Stage S3) ─────────────────────────────────────── */
+.lipi-table-filter-btn {
+    position: absolute;            /* out of flex flow so header text aligns purely by justify-content */
+    top: 50%;
+    right: var(--lipi-table-cell-pad-x, 12px);
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    background: none;
+    border: 0;
+    border-radius: var(--r-sm, 6px);
+    color: var(--lipi-table-text-muted, var(--color-text-tertiary, #94a3b8));
+    opacity: 0.45;
+    cursor: pointer;
+    line-height: 0;
+    transition: opacity 120ms ease, color 120ms ease;
+    z-index: 1;
+}
+/* Reserve trailing room so header text never slides under the funnel. */
+.lipi-table-header-cell--sortable,
+.lipi-table-header-cell { padding-right: calc(var(--lipi-table-cell-pad-x, 12px) + 22px); }
+.lipi-table-header-cell:hover .lipi-table-filter-btn { opacity: 0.7; }
+.lipi-table-filter-btn--active {
+    opacity: 1;
+    color: var(--color-primary, #2563eb);
+}
+
+/* Filter popover + backdrop. */
+.lipi-table-filter-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: transparent;
+}
+.lipi-table-filter-popover {
+    /* Position comes from inline PopoverFixedStyle (position:fixed) so it escapes the table's
+       overflow:hidden and never clips — even on a 1-row table. */
+    z-index: 41;
+    width: 240px;
+    background: var(--color-bg-base, #fff);
+    border: 1px solid var(--color-border-default, #e2e8f0);
+    border-radius: var(--r-md, 10px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .12);
+    text-align: left;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    cursor: default;
+}
+.lipi-table-filter-popover-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--color-border-subtle, #f1f5f9);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary, #0f172a);
+}
+.lipi-table-filter-live {
+    font-size: 11px;
+    color: var(--color-success, #16a34a);
+}
+.lipi-table-filter-popover-body { padding: 12px; }
+.lipi-table-filter-label {
+    display: block;
+    font-size: 12px;
+    color: var(--color-text-secondary, #475569);
+    margin-bottom: 4px;
+}
+.lipi-table-filter-select,
+.lipi-table-filter-input {
+    width: 100%;
+    height: 32px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    margin-bottom: 10px;
+    border: 1px solid var(--color-border-strong, #94a3b8);
+    border-radius: var(--r-sm, 6px);
+    font: inherit;
+    font-size: 13px;
+    background: var(--color-bg-base, #fff);
+    color: var(--color-text-primary, #0f172a);
+}
+.lipi-table-filter-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px;
+}
+.lipi-table-filter-clear,
+.lipi-table-filter-apply {
+    flex: 1;
+    height: 32px;
+    border-radius: var(--r-sm, 6px);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid var(--color-border-default, #e2e8f0);
+    background: var(--color-bg-base, #fff);
+    color: var(--color-text-primary, #0f172a);
+}
+.lipi-table-filter-apply {
+    border-color: var(--color-primary, #2563eb);
+    color: var(--color-primary, #2563eb);
+}
+.lipi-table-filter-clear:hover { background: var(--color-bg-hover, #f1f5f9); }
+.lipi-table-filter-apply:hover { background: var(--color-primary-pale, #eff6ff); }
+
+/* ── Active-filter chips strip (Stage S3) ────────────────────────────────── */
+.lipi-table-filter-chips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: var(--sp-sm, 8px) var(--sp-md, 12px);
+    background: var(--lipi-table-bg, var(--color-bg-surface, #fff));
+}
+/* Separate strip joins the card like the toolbar: side+top border, flat bottom, top-rounded. */
+.lipi-table-filter-chips--separate {
+    border: 1px solid var(--lipi-table-border, var(--color-border-default, #e2e8f0));
+    border-bottom: 0;
+    border-top-left-radius: var(--lipi-table-radius, 10px);
+    border-top-right-radius: var(--lipi-table-radius, 10px);
+}
+/* Inline chips ride inside the toolbar (no own surface); take the left, search stays right. */
+.lipi-table-filter-chips--inline {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+    background: none;
+    flex-wrap: nowrap;          /* one line — scroll instead of growing the toolbar */
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.lipi-table-filter-chips--inline .lipi-table-filter-chip { flex: 0 0 auto; }
+.lipi-table-filter-chips--inline .lipi-table-filter-clearall { flex: 0 0 auto; }
+.lipi-table-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px 3px 10px;
+    font-size: 12px;
+    background: var(--color-primary-pale, #eff6ff);
+    color: var(--color-primary, #1d4ed8);
+    border-radius: var(--r-sm, 6px);
+}
+.lipi-table-filter-chip-x {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    line-height: 0;
+    opacity: 0.7;
+}
+.lipi-table-filter-chip-x:hover { opacity: 1; }
+.lipi-table-filter-clearall {
+    font-size: 12px;
+    background: none;
+    border: 0;
+    color: var(--color-text-secondary, #475569);
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 2px 4px;
+}
+
+
+/* ── S3b typed filter editors (range + multi-select) ─────────────────────── */
+.lipi-table-filter-range {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-xs, 4px);
+}
+.lipi-table-filter-range .lipi-table-filter-input { flex: 1 1 0; min-width: 0; }
+.lipi-table-filter-range-sep { color: var(--color-text-tertiary); flex: 0 0 auto; }
+
+.lipi-table-filter-multi {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    padding: var(--sp-xs, 4px);
+}
+.lipi-table-filter-multi-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-xs, 6px);
+    padding: 2px 4px;
+    font-size: var(--ts-sm, 0.8125rem);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    border-radius: var(--r-sm);
+}
+.lipi-table-filter-multi-item:hover { background: var(--color-primary-pale); }
+.lipi-table-filter-multi-item input { flex: 0 0 auto; }
+
+
+/* ── S3b: active-filter affordance — subtle underline + spacing below a filtered header ── */
+.lipi-table-header-cell:has(.lipi-table-filter-btn--active) {
+    box-shadow: inset 0 -2px 0 0 var(--color-primary, #2563eb);
+    padding-bottom: calc(var(--lipi-table-header-pad-y) + 2px);
+}

@@ -1,0 +1,13 @@
+/* SPEC: 03-LipiPagination-Spec.md §8.5.3 — LoadMore mode layout */
+.lipi-pagination-loadmore {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-2, 8px);
+    width: 100%;
+    padding: var(--sp-3, 12px) 0;
+}
+.lipi-pagination-loadmore-hint {
+    font-size: var(--lipi-pagination-text-count-size);
+    color: var(--lipi-pagination-text-count);
+}

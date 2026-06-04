@@ -1,0 +1,32 @@
+@* SPEC: 03-LipiPagination-Spec.md §3.4/§8.3.5 (row-count display) — LP-11 separate sub-component *@
+@* PHASE: 2.8 Stage 7. Independently reusable: cards/panels may show JUST the count next to *@
+@* their own data, without the full pager. Stateless — pure function of params. *@
+
+@namespace LiPi.Components.DataDisplay
+
+<div class="lipi-pagination-count" aria-live="polite">@Text</div>
+
+@code {
+    /// <summary>Total row count across all pages.</summary>
+    [Parameter, EditorRequired] public int TotalCount { get; set; }
+
+    /// <summary>Current page (1-based).</summary>
+    [Parameter, EditorRequired] public int CurrentPage { get; set; }
+
+    /// <summary>Page size; int.MaxValue means "All".</summary>
+    [Parameter, EditorRequired] public int PageSize { get; set; }
+
+    private bool IsAll => PageSize == LiPi.Components.Internal.Algorithms.PaginationMath.AllValue;
+
+    private string Text
+    {
+        get
+        {
+            if (TotalCount <= 0) return "No items";
+            if (IsAll) return $"Showing all {TotalCount:N0} rows";
+            int from = (CurrentPage - 1) * PageSize + 1;
+            int to = System.Math.Min(CurrentPage * PageSize, TotalCount);
+            return $"Showing {from:N0}-{to:N0} of {TotalCount:N0}";
+        }
+    }
+}

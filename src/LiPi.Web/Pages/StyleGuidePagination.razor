@@ -1,0 +1,266 @@
+@* SPEC:  docs/00-COMPONENTS/2.8/03-LipiPagination-Spec.md §8.6 (StyleGuide standalone demo) *@
+@* PHASE: 2.8 Data Display — Stage 7 (LipiPagination demo) — CHANGE-LOG A50, A50.1 (visual styles) *@
+@* DEMO:  lives in LiPi.Web (not redistributable) per packaging rule. *@
+@page "/admin/style-guide/data-display/pagination"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@rendermode InteractiveServer
+@using LiPi.Components.DataDisplay
+@using LiPicons.Blazor
+
+<PageTitle>LipiPagination — StyleGuide</PageTitle>
+
+<div class="sg-page">
+    <header class="sg-header">
+        <h1>LipiPagination</h1>
+        <p>Page-navigation for LipiTable / LipiList — three variants (Full, Compact, Minimal),
+           a page-size selector, a row-count readout, optional jump-to-page, and a separate
+           Load-more sub-component. Composes LipiSelect + LipiButton; all-LiPi package surface,
+           zero native controls. The page-number window is the AntDesign/Material rule
+           (boundary pages + sibling window + ellipsis), verified against the LP-14 test set.</p>
+    </header>
+
+    @* ── Section 1: Full variant (live) ──────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Full variant</h2>
+        <p class="sg-note-p">
+            The complete bar: page-size selector + row-count readout + first/prev + page numbers
+            + next/last. Bound to live state — click through and watch the window, ellipsis, and
+            readout update. <code>TotalCount=487</code>, default <code>Siblings=1</code>,
+            <code>BoundaryCount=1</code>.
+        </p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_fullPage"
+                        @bind-PageSize="_fullSize"
+                        Variant="PaginationVariant.Full" />
+        <p class="sg-readout">
+            <strong>Page</strong> @_fullPage &nbsp;|&nbsp; <strong>Page size</strong> @_fullSize
+        </p>
+
+        <h3 class="sg-subhead">Full + jump-to-page + wider window (Siblings=2)</h3>
+        <p class="sg-note-p">
+            <code>ShowJumpToPage="true"</code> adds an opt-in "go to page" input (Full only).
+            <code>Siblings="2"</code> widens the window to 5 centred pages so the ellipsis sits
+            further out.
+        </p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_jumpPage"
+                        @bind-PageSize="_jumpSize"
+                        Variant="PaginationVariant.Full"
+                        Siblings="2"
+                        ShowJumpToPage="true" />
+        <p class="sg-readout">
+            <strong>Page</strong> @_jumpPage &nbsp;|&nbsp; <strong>Page size</strong> @_jumpSize
+        </p>
+    </section>
+
+    @* ── Section 1.5: Visual styles (A50.1 — CellStyle / ActiveStyle / ChevronStyle) ── *@
+    <section class="sg-section">
+        <h2>Visual styles</h2>
+        <p class="sg-note-p">
+            Three independent style axes, all token-overridable. <code>CellStyle</code>
+            (<code>Bordered</code> / <code>Borderless</code>) sets the page-number affordance;
+            <code>ActiveStyle</code> (<code>Solid</code> / <code>Tint</code>) sets how the current
+            page is signalled; <code>ChevronStyle</code> (<code>Auto</code> / <code>Bordered</code> /
+            <code>Ghost</code>) controls the nav arrows and defaults to following
+            <code>CellStyle</code>. The zero-config default is
+            <code>CellStyle=Bordered</code> + <code>ActiveStyle=Solid</code>.
+        </p>
+
+        <h3 class="sg-subhead">Bordered grid + Solid active (default)</h3>
+        <p class="sg-note-p">The out-of-the-box look — a bordered button grid with a solid-fill
+            active page. Chevrons follow the grid (bordered) via <code>ChevronStyle=Auto</code>.</p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_vsBsPage"
+                        @bind-PageSize="_vsBsSize"
+                        Variant="PaginationVariant.Full"
+                        CellStyle="PaginationCellStyle.Bordered"
+                        ActiveStyle="PaginationActiveStyle.Solid" />
+
+        <h3 class="sg-subhead">Bordered grid + Tint active</h3>
+        <p class="sg-note-p">Bordered cells, but the active page is a soft primary tint with a
+            primary-colored number; the active cell is ringed in primary so it still reads among
+            the bordered cells.</p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_vsBtPage"
+                        @bind-PageSize="_vsBtSize"
+                        Variant="PaginationVariant.Full"
+                        CellStyle="PaginationCellStyle.Bordered"
+                        ActiveStyle="PaginationActiveStyle.Tint" />
+
+        <h3 class="sg-subhead">Borderless + Solid active</h3>
+        <p class="sg-note-p">Page numbers are plain text; only the active page is filled
+            (solid primary). Chevrons follow as ghost via <code>ChevronStyle=Auto</code>.</p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_vsLsPage"
+                        @bind-PageSize="_vsLsSize"
+                        Variant="PaginationVariant.Full"
+                        CellStyle="PaginationCellStyle.Borderless"
+                        ActiveStyle="PaginationActiveStyle.Solid" />
+
+        <h3 class="sg-subhead">Borderless + Tint active (clinical)</h3>
+        <p class="sg-note-p">The quietest look — borderless numbers, active page a soft primary
+            tint. This is the recommended in-app HIS setting.</p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_vsLtPage"
+                        @bind-PageSize="_vsLtSize"
+                        Variant="PaginationVariant.Full"
+                        CellStyle="PaginationCellStyle.Borderless"
+                        ActiveStyle="PaginationActiveStyle.Tint" />
+
+        <h3 class="sg-subhead">ChevronStyle override</h3>
+        <p class="sg-note-p">Chevrons need not match the grid. Here a borderless number set keeps
+            <code>ChevronStyle=Bordered</code> so the arrows stay framed while the numbers don't.</p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_vsCvPage"
+                        @bind-PageSize="_vsCvSize"
+                        Variant="PaginationVariant.Full"
+                        CellStyle="PaginationCellStyle.Borderless"
+                        ActiveStyle="PaginationActiveStyle.Solid"
+                        ChevronStyle="PaginationChevronStyle.Bordered" />
+    </section>
+
+    @* ── Section 2: Compact variant ──────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Compact variant</h2>
+        <p class="sg-note-p">
+            Prev / "Page X of Y" indicator / Next — for tighter toolbars and side panels.
+            No page-number strip, no page-size selector by default.
+        </p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_compactPage"
+                        @bind-PageSize="_compactSize"
+                        Variant="PaginationVariant.Compact" />
+        <p class="sg-readout">
+            <strong>Page</strong> @_compactPage &nbsp;|&nbsp; <strong>Page size</strong> @_compactSize
+        </p>
+    </section>
+
+    @* ── Section 3: Minimal variant ──────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Minimal variant</h2>
+        <p class="sg-note-p">
+            Just prev / next icon buttons — for cards, mobile, and dense embeds where the
+            chrome must disappear. First/last and the page strip are intentionally absent.
+        </p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_minimalPage"
+                        @bind-PageSize="_minimalSize"
+                        Variant="PaginationVariant.Minimal" />
+        <p class="sg-readout">
+            <strong>Page</strong> @_minimalPage &nbsp;|&nbsp; <strong>Page size</strong> @_minimalSize
+        </p>
+    </section>
+
+    @* ── Section 4: Edge cases ───────────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Edge cases</h2>
+
+        <h3 class="sg-subhead">Few pages (all fit — no ellipsis)</h3>
+        <p class="sg-note-p">
+            <code>TotalCount=38</code> at 10/page → 4 pages. Below the all-fit threshold, so every
+            page renders contiguously with no ellipsis.
+        </p>
+        <LipiPagination TotalCount="38"
+                        @bind-CurrentPage="_fewPage"
+                        @bind-PageSize="_fewSize"
+                        Variant="PaginationVariant.Full" />
+        <p class="sg-readout"><strong>Page</strong> @_fewPage &nbsp;|&nbsp; <strong>Page size</strong> @_fewSize</p>
+
+        <h3 class="sg-subhead">Empty (no rows)</h3>
+        <p class="sg-note-p">
+            <code>TotalCount=0</code> → the row-count reads "No items" and navigation collapses to a
+            single inert page.
+        </p>
+        <LipiPagination TotalCount="0"
+                        @bind-CurrentPage="_emptyPage"
+                        @bind-PageSize="_emptySize"
+                        Variant="PaginationVariant.Full" />
+
+        <h3 class="sg-subhead">Disabled</h3>
+        <p class="sg-note-p">
+            <code>Disabled="true"</code> — the whole bar is inert (e.g. while a page is loading).
+        </p>
+        <LipiPagination TotalCount="487"
+                        @bind-CurrentPage="_disabledPage"
+                        @bind-PageSize="_disabledSize"
+                        Variant="PaginationVariant.Full"
+                        Disabled="true" />
+    </section>
+
+    @* ── Section 5: Load-more (separate sub-component) ───────────────────── *@
+    <section class="sg-section">
+        <h2>Load more</h2>
+        <p class="sg-note-p">
+            <code>LipiPaginationLoadMore</code> is a distinct paradigm from paged navigation — an
+            append-on-demand button, not a variant. It shows a remaining-count hint and hides itself
+            once everything is loaded. Here a click loads 25 more of 487.
+        </p>
+        <LipiPaginationLoadMore LoadedCount="_loaded"
+                                TotalCount="487"
+                                IsLoading="_loadingMore"
+                                OnLoadMoreClicked="OnLoadMore" />
+        <p class="sg-readout"><strong>Loaded</strong> @_loaded <strong>of</strong> 487</p>
+    </section>
+
+    @* ── A11y notes ──────────────────────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Accessibility</h2>
+        <ul class="sg-notes">
+            <li>The nav region carries <code>role="navigation"</code> + an <code>aria-label</code> (defaults to "Pagination").</li>
+            <li>The active page button is marked <code>aria-current="page"</code>.</li>
+            <li>The row-count readout is an <code>aria-live="polite"</code> region so screen readers hear range changes.</li>
+            <li>Ellipsis is presentational (<code>aria-hidden</code>); it is never a focus target.</li>
+            <li>First / Prev / Next / Last are real LipiButtons — full keyboard + focus-ring support, disabled at the ends.</li>
+        </ul>
+    </section>
+</div>
+
+@code {
+    // Full variant
+    private int _fullPage = 1;
+    private int _fullSize = 25;
+
+    // Full + jump + wide window
+    private int _jumpPage = 8;
+    private int _jumpSize = 25;
+
+    // Visual styles (A50.1) — one state pair per demo so they page independently
+    private int _vsBsPage = 1;  private int _vsBsSize = 25;   // Bordered + Solid (default)
+    private int _vsBtPage = 3;  private int _vsBtSize = 25;   // Bordered + Tint
+    private int _vsLsPage = 1;  private int _vsLsSize = 25;   // Borderless + Solid
+    private int _vsLtPage = 3;  private int _vsLtSize = 25;   // Borderless + Tint
+    private int _vsCvPage = 1;  private int _vsCvSize = 25;   // Chevron override
+
+    // Compact
+    private int _compactPage = 1;
+    private int _compactSize = 25;
+
+    // Minimal
+    private int _minimalPage = 1;
+    private int _minimalSize = 25;
+
+    // Edge: few pages
+    private int _fewPage = 1;
+    private int _fewSize = 10;
+
+    // Edge: empty
+    private int _emptyPage = 1;
+    private int _emptySize = 25;
+
+    // Edge: disabled
+    private int _disabledPage = 3;
+    private int _disabledSize = 25;
+
+    // Load more
+    private int _loaded = 25;
+    private bool _loadingMore;
+
+    private async Task OnLoadMore()
+    {
+        _loadingMore = true;
+        StateHasChanged();              // show the spinner before the await
+        await Task.Delay(600);          // simulate a fetch
+        _loaded = Math.Min(_loaded + 25, 487);
+        _loadingMore = false;
+    }
+}

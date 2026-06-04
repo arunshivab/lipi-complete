@@ -605,3 +605,25 @@
         detachKeyboardTrap: detachKeyboardTrap
     };
 })();
+
+// ── DateTime migration (A54): client time-source bridge ──────────────────────
+// When a picker's TimeSource = Client, it reads the BROWSER's local clock/zone here
+// (the server cannot know the client's local date). Returns the local wall-clock parts
+// + the tz offset (minutes, JS sign convention: behind-UTC is positive). The picker
+// builds a local DateTime/DateOnly from the parts (no instant math needed for Today/Now).
+(function () {
+    if (!window.lipiInput) { window.lipiInput = {}; }
+    window.lipiInput.getClientNow = function () {
+        var d = new Date();
+        return {
+            iso: d.toISOString(),
+            tzOffsetMin: d.getTimezoneOffset(),
+            year: d.getFullYear(),
+            month: d.getMonth() + 1,   // JS months are 0-based
+            day: d.getDate(),
+            hour: d.getHours(),
+            minute: d.getMinutes(),
+            second: d.getSeconds()
+        };
+    };
+})();

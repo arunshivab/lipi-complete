@@ -1,0 +1,171 @@
+@* SPEC: docs/00-COMPONENTS/2.8/04-LipiEmptyState-Spec.md §6 (StyleGuide additions) *@
+@* PHASE: 2.8 Data Display — Stage 2 (LipiEmptyState demo) *@
+@* DEMO: lives in LiPi.Web (not redistributable) per packaging rule. *@
+@page "/styleguide/data-display/lipi-empty-state"
+@* NOTE: no explicit @layout — inherits the StyleGuide default layout via _Imports/router,
+   matching the other StyleGuide pages (StyleGuideFeedback, StyleGuideOverlays). If your
+   StyleGuide pages declare an explicit @layout, add the same line here. *@
+@rendermode InteractiveServer
+@using LiPi.Components.DataDisplay
+@using LiPicons.Blazor
+
+<PageTitle>LipiEmptyState — StyleGuide</PageTitle>
+
+<div class="sg-page">
+
+    <header class="sg-header">
+        <h1>LipiEmptyState</h1>
+        <p>The zero-state primitive — centered icon + title + body + optional CTAs for
+           surfaces with no content. Stateless, token-driven, responsive.</p>
+    </header>
+
+    @* ── Section 1: all six variants (Inline) ─────────────────────────── *@
+    <section class="sg-section">
+        <h2>Variants (Inline size)</h2>
+        <div class="sg-grid">
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Default"
+                                Size="EmptyStateSize.Inline"
+                                Title="No data"
+                                Body="Generic empty state — caller picks everything." />
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                Size="EmptyStateSize.Inline"
+                                Title="No users yet"
+                                Body="Add your first user to get started.">
+                    <PrimaryCta>
+                        <button class="sg-btn sg-btn-primary" @onclick="Noop">
+                            <LipiIcon Name="@LipiconName.Plus" Size="16" /> Invite user
+                        </button>
+                    </PrimaryCta>
+                </LipiEmptyState>
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.FilteredEmpty"
+                                Size="EmptyStateSize.Inline"
+                                Title="No matches found"
+                                Body="@($"No results match \"{_search}\". Try different terms.")">
+                    <PrimaryCta>
+                        <button class="sg-btn" @onclick="ClearSearch">
+                            <LipiIcon Name="@LipiconName.Close" Size="16" /> Clear filters
+                        </button>
+                    </PrimaryCta>
+                </LipiEmptyState>
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Error"
+                                Size="EmptyStateSize.Inline"
+                                Title="Couldn't load"
+                                Body="Something went wrong fetching this data.">
+                    <PrimaryCta>
+                        <button class="sg-btn sg-btn-danger" @onclick="Noop">
+                            <LipiIcon Name="@LipiconName.Refresh" Size="16" /> Retry
+                        </button>
+                    </PrimaryCta>
+                </LipiEmptyState>
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Success"
+                                Size="EmptyStateSize.Inline"
+                                Title="All caught up!"
+                                Body="No notifications waiting." />
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Coming"
+                                Size="EmptyStateSize.Inline"
+                                Title="Reports coming soon"
+                                Body="This feature ships in a future release.">
+                    <SecondaryCta>
+                        <button class="sg-btn" @onclick="Noop">Learn more</button>
+                    </SecondaryCta>
+                </LipiEmptyState>
+            </div>
+
+        </div>
+    </section>
+
+    @* ── Section 2: three sizes (Empty variant) ───────────────────────── *@
+    <section class="sg-section">
+        <h2>Sizes (Empty variant)</h2>
+        <div class="sg-stack">
+            <div class="sg-cell">
+                <span class="sg-tag">Inline (~120px)</span>
+                <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                Size="EmptyStateSize.Inline"
+                                Title="No records"
+                                Body="Inline size — fits a table body slot." />
+            </div>
+            <div class="sg-cell">
+                <span class="sg-tag">Card (~200px)</span>
+                <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                Size="EmptyStateSize.Card"
+                                Title="No records"
+                                Body="Card size — fits inside a panel or card." />
+            </div>
+            <div class="sg-cell">
+                <span class="sg-tag">Page (~320px)</span>
+                <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                Size="EmptyStateSize.Page"
+                                Title="No records"
+                                Body="Page size — full-page empty state with larger icon and spacing." />
+            </div>
+        </div>
+    </section>
+
+    @* ── Section 3: custom icons ──────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Custom icons</h2>
+        <div class="sg-grid">
+            <div class="sg-cell">
+                <span class="sg-tag">Icon="search" (explicit Lipicon name)</span>
+                <LipiEmptyState Size="EmptyStateSize.Card"
+                                Icon="@LipiconName.Search"
+                                Title="Search the catalogue"
+                                Body="Type a query to begin." />
+            </div>
+            <div class="sg-cell">
+                <span class="sg-tag">IconTemplate (custom emoji)</span>
+                <LipiEmptyState Size="EmptyStateSize.Card"
+                                Title="Welcome aboard"
+                                Body="Custom IconTemplate slot.">
+                    <IconTemplate>
+                        <span style="font-size: 40px;">🎉</span>
+                    </IconTemplate>
+                </LipiEmptyState>
+            </div>
+            <div class="sg-cell">
+                <span class="sg-tag">Icon="" (explicit opt-out, no icon)</span>
+                <LipiEmptyState Size="EmptyStateSize.Card"
+                                Icon=""
+                                Title="No icon here"
+                                Body="Passing Icon=&quot;&quot; suppresses the icon entirely." />
+            </div>
+        </div>
+    </section>
+
+    @* ── A11y notes ───────────────────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Accessibility</h2>
+        <ul class="sg-notes">
+            <li><code>role="region"</code> + <code>aria-label</code> matching the title.</li>
+            <li>Heading level varies by size: Page → <code>h2</code>, Inline/Card → <code>h3</code> (override via <code>TitleHeadingLevel</code>).</li>
+            <li>Icon is <code>aria-hidden="true"</code> (decorative); the title conveys meaning.</li>
+            <li>Body uses <code>&lt;p&gt;</code> for semantic structure.</li>
+        </ul>
+    </section>
+
+</div>
+
+@code {
+    private string _search = "smith";
+
+    private void Noop() { }
+    private void ClearSearch() => _search = string.Empty;
+}

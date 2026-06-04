@@ -1,0 +1,89 @@
+@* SPEC: docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §7 (column filters) — S3b typed filters *@
+@* PHASE: 2.8 Data Display — Stage S3b (numeric/date/boolean/In filter editors) *@
+@* DEMO: one table exercising every typed column filter; not redistributable (LiPi.Web). *@
+@page "/admin/style-guide/data-display/table-filters"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@rendermode InteractiveServer
+@using LiPi.Components.DataDisplay
+@using LiPicons.Blazor
+@using System.Linq
+
+<div class="sg-page">
+    <div class="sg-header">
+        <h1>Table Filters — S3b (typed)</h1>
+        <p>
+            One table, every filter type. Click the funnel on each header and try the operators:
+            text columns (Name / Code) get contains / equals / starts-with / In; the Department and
+            Status columns get In (multi-select); JoinedOn (Date) gets On / Before / After / Between
+            plus relative operators (This month, Last quarter, Last N days, …); Monthly CTC (Currency)
+            gets numeric operators incl. Between; Active (Boolean) gets Is true / Is false. Apply mode
+            is the default (explicit Apply button); active filters show as chips below the toolbar.
+        </p>
+    </div>
+
+    <div class="sg-section">
+        <h2>All filter types in one table</h2>
+        <p class="sg-note-p">
+            Quick search is on too (search across text columns). Combine a quick search with one or
+            more column filters — they AND together. Use the chip ✕ or the popover Clear to remove a
+            single filter, or "Clear all" to reset.
+        </p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-demo"
+                   ShowQuickSearch="true" HighlightMatches="true">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Notes</h2>
+        <ul class="sg-notes">
+            <li><code>OperatorsFor(ColumnType)</code> drives which operators each header offers — numeric,
+                date (+relative), boolean, and In/Status sets.</li>
+            <li>Date relative operators (This month, Last quarter, Last N days) resolve against the table's
+                <code>FilterTimeZone</code> (defaults to server-local "today"); week operators use
+                <code>FilterWeekStart</code>.</li>
+            <li>The <code>In</code> editor lists the column's distinct values as checkboxes — the partial
+                answer to multi-value OR (e.g. Department in Radiation Oncology + Medical Physics).</li>
+            <li>Between uses both <code>Value</code> and <code>ValueEnd</code> on the descriptor.</li>
+        </ul>
+    </div>
+</div>
+
+@code {
+    private sealed record DemoStaff(
+        Guid Id,
+        string Name,
+        string EmployeeCode,
+        string Department,
+        DateOnly JoinedOn,
+        decimal MonthlyCtc,
+        bool IsActive,
+        string Status);
+
+    private readonly List<DemoStaff> _staff = new()
+    {
+        new(Guid.NewGuid(), "Aarav Sharma",   "EMP-00142", "Radiation Oncology", new DateOnly(2021, 6, 14),  92000m,  true,  "active"),
+        new(Guid.NewGuid(), "Priya Nair",     "EMP-00198", "Medical Physics",    new DateOnly(2022, 1, 3),   78500m,  true,  "active"),
+        new(Guid.NewGuid(), "Sneha Iyer",     "EMP-00341", "Pharmacy",           new DateOnly(2024, 2, 11),  47500m,  false, "locked"),
+        new(Guid.NewGuid(), "Rohan Mehta",    "EMP-00231", "Nursing",            new DateOnly(2020, 9, 28),  54000m,  false, "suspended"),
+        new(Guid.NewGuid(), "Fatima Khan",    "EMP-00277", "Administration",     new DateOnly(2023, 3, 19),  61000m,  true,  "pending"),
+        new(Guid.NewGuid(), "Vikram Reddy",   "EMP-00305", "Radiation Oncology", new DateOnly(2019, 11, 2),  120000m, true,  "active"),
+        new(Guid.NewGuid(), "Anjali Gupta",   "EMP-00412", "Medical Physics",    new DateOnly(2025, 1, 20),  83000m,  true,  "active"),
+        new(Guid.NewGuid(), "Karthik Menon",  "EMP-00388", "Surgical Oncology",  new DateOnly(2018, 7, 5),   135000m, true,  "active"),
+        new(Guid.NewGuid(), "Deepa Rao",      "EMP-00455", "Nursing",            new DateOnly(2024, 11, 30), 52000m,  false, "pending"),
+        new(Guid.NewGuid(), "Imran Sheikh",   "EMP-00501", "Pharmacy",           new DateOnly(2023, 8, 15),  49500m,  true,  "active"),
+    };
+}

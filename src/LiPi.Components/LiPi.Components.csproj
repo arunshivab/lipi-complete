@@ -1,0 +1,49 @@
+<!--
+  SPEC: docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §25.2.2 (Approved namespace),
+        §25.3.1 (Allowed dependencies), §25.3.2 (Banned dependencies)
+  PHASE: 2.8 Data Display — Stage 1A (created) / Stage 1D (LiPicons reference added)
+  COMPONENT: LiPi.Components — the redistributable component library csproj.
+
+  Targets .NET 10. Uses Microsoft.NET.Sdk.Razor so Razor components (.razor / .razor.css)
+  compile without csproj changes. The only dependencies are the ASP.NET Core shared
+  framework and LiPicons.Blazor (a generic, HIS-agnostic icon package — an allowed
+  dependency under §25.3.1, same category as Microsoft.AspNetCore.Components).
+
+  This project does NOT reference LiPi.Web — it must remain consumable by any Blazor app.
+  Phase 2.10 audit greps for any LiPi.Web.* / LiPi.HIS.* references and fails the build if found.
+
+  LiPicons.Blazor reference (Stage 1D, A40): currently a ProjectReference to the vendored
+  copy at libs\LiPicons.Blazor\. When LiPicons.Blazor publishes to a NuGet feed, this is
+  replaced by a single <PackageReference Include="LiPicons.Blazor" Version="x.y.z" /> —
+  one-line swap, zero component churn.
+-->
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>LiPi.Components</RootNamespace>
+    <AssemblyName>LiPi.Components</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <IsPackable>true</IsPackable>
+    <PackageId>LiPi.Components</PackageId>
+    <Description>LiPi reusable Blazor component library — redistributable for any Blazor application.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Icon rendering. Vendored project reference for now; swap to PackageReference on publish (A40). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\libs\LiPicons.Blazor\LiPicons.Blazor.csproj" />
+  </ItemGroup>
+
+</Project>

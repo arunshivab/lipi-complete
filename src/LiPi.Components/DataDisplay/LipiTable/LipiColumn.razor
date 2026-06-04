@@ -1,0 +1,12 @@
+@* SPEC: docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §3.2 (LipiColumn declaration) *@
+@* PHASE: 2.8 Data Display — Stage 2 core shell *@
+@* COMPONENT: LipiColumn<TItem, TValue> — declarative column; renders no DOM of its own. *@
+@typeparam TItem
+@typeparam TValue
+@namespace LiPi.Components.DataDisplay
+
+@* LipiColumn contributes a column definition to the parent LipiTable via RegisterColumn
+   during OnInitialized. It renders nothing itself — the table reads the captured
+   definition and renders header + cells. ChildContent is captured only so that
+   <CellTemplate>/<HeaderTemplate>/<EditTemplate>/<FilterTemplate> markup parses; those
+   are exposed as typed RenderFragment parameters in the code-behind. *@

@@ -1,0 +1,16 @@
+/* SPEC: 03-LipiPagination-Spec.md §5.1 (size zone), §7 tokens — page-size dropdown layout.
+   Scoped to LipiPaginationPageSize. The LipiSelect's OWN classes (lipi-input-*) live in a
+   different component scope, so the compaction/alignment overrides that target them are in
+   the GLOBAL lipi-pagination-tokens.css (keyed under .lipi-pagination-size-select) — scoped
+   rules here cannot reach another component's elements (A45/A46 lesson). */
+.lipi-pagination-size {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-sm, 8px);
+}
+.lipi-pagination-size-label {
+    font-size: var(--lipi-pagination-text-count-size);
+    color: var(--lipi-pagination-text-count);
+    white-space: nowrap;
+    line-height: 1;
+}

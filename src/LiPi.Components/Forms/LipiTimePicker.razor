@@ -1,0 +1,555 @@
+@* SPEC: docs/00-COMPONENTS/01.5-DateTime.md (shipping in Batch 9d)              *@
+@* PHASE: 2.4 (Batch 9d — Date/Time family ship)                                  *@
+@* AMEND: docs/CHANGE-LOG.md A20 (pending)                                         *@
+@*                                                                                  *@
+@* LipiTimePicker — segmented time-of-day input bound to TimeOnly?.               *@
+@*                                                                                  *@
+@* No popover (decision A3). Pure segmented layout:                                *@
+@*   24h mode: 2 numeric segments (HH MM)                                          *@
+@*   12h mode: 2 numeric segments + 1 AM/PM select (HH MM AM/PM)                   *@
+@*                                                                                  *@
+@* Now button reads the resolved time source (LipiTimeResolver.ResolveNow) and snaps  *@
+@* the nearest past Step (e.g., Step=15, current 09:23 → snaps to 09:15). User     *@
+@* sees the snapped value and can edit it — convenience action, not silent         *@
+@* mutation.                                                                        *@
+@*                                                                                  *@
+@* Step parameter validation (Flag 6 C2 lock):                                     *@
+@*   User-typed input that violates Step → REJECT with error in helper slot.       *@
+@*   Now button SNAPS to Step boundary. The asymmetry is deliberate:               *@
+@*   user input represents explicit intent that should not be silently mutated;    *@
+@*   Now is "fill in current moment, snapped" which IS the intent.                 *@
+
+@inherits LipiInputBase<TimeOnly?>
+@namespace LiPi.Components.Forms
+@using LiPicons.Blazor
+
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<div class="lipi-input-wrapper lipi-timepicker @CssClasses @(Class ?? string.Empty)"
+     style="@InlineStyle">
+
+    @* ===== LABEL ROW ===== *@
+    <label class="lipi-input-label" for="@EffectiveId">
+        <span class="lipi-input-label-text">@_resolvedLabel</span>
+        @if (Required)
+        {
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+        @if (LabelConfidence.HasValue)
+        {
+            <span class="lipi-input-confidence-pill lipi-input-confidence-@ConfidenceCssClass"
+                  aria-label="@ConfidenceAriaLabel">
+                @ConfidenceLabelText
+            </span>
+        }
+    </label>
+
+    @* ===== FIELD ROW ===== *@
+    <div class="lipi-input-field lipi-timepicker-field" id="@EffectiveId">
+
+        <div class="lipi-timepicker-segments">
+            @* HH segment *@
+            <input @ref="_hourRef"
+                   type="text"
+                   class="lipi-timepicker-segment lipi-timepicker-segment-hour"
+                   value="@_hourText"
+                   placeholder="HH"
+                   maxlength="2"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   disabled="@Disabled"
+                   readonly="@ReadOnly"
+                   aria-label="Hour"
+                   @oninput="HandleHourInput"
+                   @onblur="HandleSegmentBlur"
+                   @onkeydown="HandleHourKeyDown" />
+
+            <span class="lipi-timepicker-separator" aria-hidden="true">:</span>
+
+            @* MM segment *@
+            <input @ref="_minuteRef"
+                   type="text"
+                   class="lipi-timepicker-segment lipi-timepicker-segment-minute"
+                   value="@_minuteText"
+                   placeholder="MM"
+                   maxlength="2"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   disabled="@Disabled"
+                   readonly="@ReadOnly"
+                   aria-label="Minute"
+                   @oninput="HandleMinuteInput"
+                   @onblur="HandleSegmentBlur"
+                   @onkeydown="HandleMinuteKeyDown" />
+
+            @* AM/PM select (12h mode only) *@
+            @if (_resolvedTimeFormat == "12h")
+            {
+<div class="lipi-timepicker-period-toggle"
+                     role="radiogroup"
+                     aria-label="AM or PM"
+                     @onkeydown="HandlePeriodKeyDown">
+                    <button type="button"
+                            class="lipi-timepicker-period-option @(_periodText == "AM" ? "lipi-timepicker-period-option--active" : "")"
+                            role="radio"
+                            aria-checked="@(_periodText == "AM")"
+                            tabindex="@(_periodText == "AM" ? "0" : "-1")"
+                            disabled="@(Disabled || ReadOnly)"
+                            @ref="_periodRef"
+                            @onclick="@(() => SetPeriod("AM"))">AM</button>
+                    <button type="button"
+                            class="lipi-timepicker-period-option @(_periodText == "PM" ? "lipi-timepicker-period-option--active" : "")"
+                            role="radio"
+                            aria-checked="@(_periodText == "PM")"
+                            tabindex="@(_periodText == "PM" ? "0" : "-1")"
+                            disabled="@(Disabled || ReadOnly)"
+                            @onclick="@(() => SetPeriod("PM"))">PM</button>
+                </div>
+            }
+        </div>
+
+        @* Clear button — only when value set *@
+        @if (CurrentValue.HasValue && !Disabled && !ReadOnly)
+        {
+            <button type="button"
+                    class="lipi-timepicker-clear"
+                    aria-label="Clear time"
+                    tabindex="-1"
+                    @onclick="HandleClearClick">
+                <LipiIcon Name="@LipiconName.Close" Size="14" />
+            </button>
+        }
+
+        @* Now button *@
+        @if (ShowNow && !Disabled && !ReadOnly)
+        {
+            <button type="button"
+                    class="lipi-timepicker-now"
+                    aria-label="Set to current time"
+                    @onclick="HandleNowClick">
+                <LipiIcon Name="@LipiconName.Clock" Size="14" />
+                <span>Now</span>
+            </button>
+        }
+    </div>
+
+    @* ===== HELPER ROW ===== *@
+    @if (Defaults.Value.AlwaysReserveHelperSlot || HasHelperContent)
+    {
+        <div class="lipi-input-helper @HelperStateClass"
+             role="@HelperRole"
+             aria-live="@HelperAriaLive"
+             id="@HelperId">
+            @HelperText
+        </div>
+    }
+
+</div>
+
+@code {
+    // ==========================================================================
+    // COMPONENT-SPECIFIC PARAMETERS
+    // ==========================================================================
+
+    /// <summary>Override the clinic's default time format. Pass null (default) to
+    /// use the resolved <c>TimeFormat</c> / <c>DefaultTimeFormat</c>. Values: "12h" / "24h" / null.</summary>
+    [Parameter] public string? TimeFormat { get; set; }
+
+    /// <summary>Where "now" is sourced from for the Now button. Null → <see cref="LipiInputDefaults.DefaultTimeSource"/> (Server).</summary>
+    [Parameter] public LipiTimeSource? TimeSource { get; set; }
+
+    /// <summary>Explicit zone when the resolved source is SpecificZone. Null → <see cref="LipiInputDefaults.DefaultTimeZone"/>.</summary>
+    [Parameter] public TimeZoneInfo? TimeZone { get; set; }
+
+    /// <summary>Minute step size. Default 1 (any minute). Common values: 5, 15, 30
+    /// for appointment scheduling. User-typed values that violate Step are rejected
+    /// with an error message; the Now button snaps to the nearest past Step boundary.
+    /// (Flag 6 C2 lock — asymmetric on purpose.)</summary>
+    [Parameter] public int Step { get; set; } = 1;
+
+    /// <summary>Whether the "Now" button is visible. Default true.</summary>
+    [Parameter] public bool ShowNow { get; set; } = true;
+
+    // ==========================================================================
+    // INPUTBASE OVERRIDES
+    // ==========================================================================
+
+    protected override string ComponentIdPrefix => "tp";
+    protected override string ComponentTypeName => "LipiTimePicker";
+    protected override bool IsEmpty => !CurrentValue.HasValue;
+
+    protected override bool TryParseValueFromString(
+        string? value,
+        out TimeOnly? result,
+        out string validationErrorMessage)
+    {
+        validationErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            result = null;
+            return true;
+        }
+
+        var parsed = LipiDateFormat.ParseTime(value, _resolvedTimeFormat);
+        if (!parsed.HasValue)
+        {
+            result = null;
+            validationErrorMessage = $"The {DisplayName ?? FieldIdentifier.FieldName} field must be a valid time.";
+            return false;
+        }
+
+        // Step validation
+        if (Step > 1 && parsed.Value.Minute % Step != 0)
+        {
+            result = null;
+            validationErrorMessage = $"Time must be in {Step}-minute increments.";
+            return false;
+        }
+
+        result = parsed.Value;
+        return true;
+    }
+
+    protected override string FormatValueAsString(TimeOnly? value)
+    {
+        return value.HasValue
+            ? LipiDateFormat.FormatTime(value.Value, _resolvedTimeFormat)
+            : string.Empty;
+    }
+
+    // ==========================================================================
+    // INTERNAL STATE
+    // ==========================================================================
+
+    private ElementReference _hourRef;
+    private ElementReference _minuteRef;
+    private ElementReference _periodRef;
+
+    private string _resolvedTimeFormat = "24h";
+    private string _hourText = string.Empty;
+    private string _minuteText = string.Empty;
+    private string _periodText = "AM";
+    private bool _suppressValueRoundTrip;
+
+    // ==========================================================================
+    // LIFECYCLE
+    // ==========================================================================
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        _resolvedTimeFormat = (TimeFormat ?? (TimeFormat ?? Defaults.Value.DefaultTimeFormat)).ToLowerInvariant();
+        if (_resolvedTimeFormat != "12h") _resolvedTimeFormat = "24h";
+
+        if (!_suppressValueRoundTrip)
+        {
+            SyncDisplayFromValue();
+        }
+    }
+
+    private void SyncDisplayFromValue()
+    {
+        if (CurrentValue.HasValue)
+        {
+            var v = CurrentValue.Value;
+            if (_resolvedTimeFormat == "12h")
+            {
+                var hour12 = v.Hour == 0 ? 12 : (v.Hour > 12 ? v.Hour - 12 : v.Hour);
+                _hourText = hour12.ToString("D2", CultureInfo.InvariantCulture);
+                _periodText = v.Hour >= 12 ? "PM" : "AM";
+            }
+            else
+            {
+                _hourText = v.Hour.ToString("D2", CultureInfo.InvariantCulture);
+            }
+            _minuteText = v.Minute.ToString("D2", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            _hourText = string.Empty;
+            _minuteText = string.Empty;
+            _periodText = "AM";
+        }
+    }
+
+    // ==========================================================================
+    // HOUR SEGMENT
+    // ==========================================================================
+
+    private async Task HandleHourInput(ChangeEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+        var raw = e.Value?.ToString() ?? string.Empty;
+        var filtered = new string(raw.Where(char.IsDigit).ToArray());
+        if (filtered.Length > 2) filtered = filtered.Substring(0, 2);
+        _hourText = filtered;
+        _suppressValueRoundTrip = true;
+
+        // Auto-advance: when 2 digits typed, focus minute
+        if (filtered.Length == 2)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("lipiDatePicker.focusElement", _minuteRef);
+            }
+            catch (Exception) { }
+        }
+    }
+
+    private async Task HandleHourKeyDown(KeyboardEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+
+        if (e.Key == "ArrowUp")
+        {
+            await IncrementHour(1);
+        }
+        else if (e.Key == "ArrowDown")
+        {
+            await IncrementHour(-1);
+        }
+    }
+
+    private async Task IncrementHour(int delta)
+    {
+        var maxHour = _resolvedTimeFormat == "12h" ? 12 : 23;
+        var minHour = _resolvedTimeFormat == "12h" ? 1 : 0;
+
+        if (!int.TryParse(_hourText, out var h))
+        {
+            h = (delta > 0) ? minHour : maxHour;
+        }
+        else
+        {
+            h += delta;
+            if (h > maxHour) h = minHour;
+            if (h < minHour) h = maxHour;
+        }
+
+        _hourText = h.ToString("D2", CultureInfo.InvariantCulture);
+        _suppressValueRoundTrip = true;
+        TryAssembleAndCommit();
+        await Task.CompletedTask;
+    }
+
+    // ==========================================================================
+    // MINUTE SEGMENT
+    // ==========================================================================
+
+    private void HandleMinuteInput(ChangeEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+        var raw = e.Value?.ToString() ?? string.Empty;
+        var filtered = new string(raw.Where(char.IsDigit).ToArray());
+        if (filtered.Length > 2) filtered = filtered.Substring(0, 2);
+        _minuteText = filtered;
+        _suppressValueRoundTrip = true;
+    }
+
+    private async Task HandleMinuteKeyDown(KeyboardEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+
+        if (e.Key == "ArrowUp")
+        {
+            await IncrementMinute(Step > 0 ? Step : 1);
+        }
+        else if (e.Key == "ArrowDown")
+        {
+            await IncrementMinute(-(Step > 0 ? Step : 1));
+        }
+    }
+
+    private async Task IncrementMinute(int delta)
+    {
+        if (!int.TryParse(_minuteText, out var m))
+        {
+            m = delta > 0 ? 0 : 60 - (Step > 0 ? Step : 1);
+        }
+        else
+        {
+            m = (m + delta + 60) % 60;
+        }
+
+        _minuteText = m.ToString("D2", CultureInfo.InvariantCulture);
+        _suppressValueRoundTrip = true;
+        TryAssembleAndCommit();
+        await Task.CompletedTask;
+    }
+
+    // ==========================================================================
+    // PERIOD SEGMENT (AM/PM)
+    // ==========================================================================
+
+    private void SetPeriod(string period)
+    {
+        if (Disabled || ReadOnly) return;
+        if (_periodText == period) return;   // no-op if already selected
+        _periodText = period;
+        _suppressValueRoundTrip = true;
+        TryAssembleAndCommit();
+    }
+
+    private async Task HandlePeriodKeyDown(KeyboardEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+
+        if (e.Key is "ArrowUp" or "ArrowDown" or "ArrowLeft" or "ArrowRight")
+        {
+            SetPeriod(_periodText == "AM" ? "PM" : "AM");
+        }
+        await Task.CompletedTask;
+    }
+
+    // ==========================================================================
+    // ASSEMBLY + COMMIT
+    // ==========================================================================
+
+    private void HandleSegmentBlur()
+    {
+        if (Disabled || ReadOnly) { _suppressValueRoundTrip = false; return; }
+
+        // Bug fix (May 8): blur fires on EVERY focus change, including the
+        // HH→MM auto-advance transition. If we commit partial input there,
+        // ParseTime("14:", "24h") fails → user sees "must be a valid time"
+        // error mid-entry. The fix: distinguish "user moved between segments"
+        // (partial — skip commit, preserve mid-entry state) from "user left
+        // the field entirely with valid content" (commit) and "user cleared
+        // both segments" (commit empty, clear field).
+        //
+        // For 12h mode the period select is always populated (AM default), so
+        // it doesn't factor into the partial check — partial means HH or MM
+        // alone, not period.
+        var hourFilled = !string.IsNullOrEmpty(_hourText);
+        var minuteFilled = !string.IsNullOrEmpty(_minuteText);
+
+        if (!hourFilled && !minuteFilled)
+        {
+            // Both empty — user cleared the field. Commit clear, clearing any
+            // stale parse errors via the empty-string round-trip.
+            CurrentValueAsString = string.Empty;
+            _suppressValueRoundTrip = false;
+            MarkFieldAsTouched();
+            return;
+        }
+
+        if (!hourFilled || !minuteFilled)
+        {
+            // Partial — one segment populated, the other empty. User is mid-
+            // entry (e.g., auto-advance HH→MM just fired on HH's blur). Skip
+            // commit to avoid the partial-string parse error. Keep
+            // _suppressValueRoundTrip set so OnParametersSet doesn't wipe the
+            // partial state on re-render. The flag clears at the next FULL
+            // commit (both segments populated) or full clear (both empty).
+            //
+            // Side effect: if user truly abandons the field with partial
+            // input, the inner CurrentValue stays at its previous value
+            // (null for fresh entry) while display shows the partial. This
+            // is acceptable — partial input is invalid input.
+            return;
+        }
+
+        // Both segments populated — full commit.
+        // Pad single-digit hour/minute (Up-arrow incremented values may be 1-9).
+        if (_hourText.Length == 1) _hourText = "0" + _hourText;
+        if (_minuteText.Length == 1) _minuteText = "0" + _minuteText;
+
+        CurrentValueAsString = AssembleString();
+        _suppressValueRoundTrip = false;
+        MarkFieldAsTouched();
+    }
+
+    private void TryAssembleAndCommit()
+    {
+        if (string.IsNullOrEmpty(_hourText) || string.IsNullOrEmpty(_minuteText)) return;
+
+        if (_hourText.Length == 1) _hourText = "0" + _hourText;
+        if (_minuteText.Length == 1) _minuteText = "0" + _minuteText;
+
+        CurrentValueAsString = AssembleString();
+    }
+
+    private string AssembleString() =>
+        _resolvedTimeFormat == "12h"
+            ? $"{_hourText}:{_minuteText} {_periodText}"
+            : $"{_hourText}:{_minuteText}";
+
+    // ==========================================================================
+    // CLEAR + NOW
+    // ==========================================================================
+
+    private void HandleClearClick()
+    {
+        if (Disabled || ReadOnly) return;  // defensive — button is hidden, but be defense-in-depth
+        // Issue 3 parity (carried from LipiDatePicker): route clearing through
+        // CurrentValueAsString so any stale _parsingValidationMessages (e.g., from
+        // a prior step-violating input like "09:23" with Step=15) gets cleared.
+        _suppressValueRoundTrip = true;
+        CurrentValueAsString = string.Empty;
+        _suppressValueRoundTrip = false;
+        SyncDisplayFromValue();
+        MarkFieldAsTouched();
+    }
+
+    private void HandleNowClick()
+    {
+        if (Disabled || ReadOnly) return;  // defensive — button is hidden, but defense-in-depth
+
+        // Read clinic-local now (NOT system clock — see service contract)
+        var now = LipiTimeResolver.ResolveNow(TimeSource ?? Defaults.Value.DefaultTimeSource, TimeZone ?? Defaults.Value.DefaultTimeZone);
+        var nowTime = TimeOnly.FromDateTime(now);
+
+        // Snap to Step (Flag 6 C2 lock — Now snaps, user input rejects)
+        if (Step > 1)
+        {
+            var totalMinutes = nowTime.Hour * 60 + nowTime.Minute;
+            var snapped = (totalMinutes / Step) * Step;  // floor to nearest past
+            nowTime = new TimeOnly(snapped / 60, snapped % 60);
+        }
+        else
+        {
+            // Even with Step=1, drop seconds — TimePicker only deals in minutes
+            nowTime = new TimeOnly(nowTime.Hour, nowTime.Minute);
+        }
+
+        // Issue 3 parity: route through CurrentValueAsString so any stale
+        // _parsingValidationMessages (e.g., from a prior step-violating typed input)
+        // gets cleared on Now-click.
+        _suppressValueRoundTrip = true;
+        CurrentValueAsString = LipiDateFormat.FormatTime(nowTime, _resolvedTimeFormat);
+        _suppressValueRoundTrip = false;
+        SyncDisplayFromValue();
+        MarkFieldAsTouched();
+    }
+
+    // ==========================================================================
+    // CSS
+    // ==========================================================================
+
+    private string CssClasses
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                $"lipi-input-{Size.ToString().ToLowerInvariant()}",
+                $"lipi-input-state-{StateCssToken(ResolvedState)}"
+            };
+            if (IsEmpty) classes.Add("lipi-input-empty");
+            if (Required && IsEmpty && ResolvedState == InputState.Default
+                && EffectiveRequiredStyle == LiPi.Components.RequiredVisualStyle.ApricotTint)
+            {
+                classes.Add("lipi-input-state-required-empty");
+            }
+            classes.Add($"lipi-timepicker-format-{_resolvedTimeFormat}");
+            return string.Join(" ", classes);
+        }
+    }
+}

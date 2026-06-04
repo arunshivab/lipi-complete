@@ -1,0 +1,334 @@
+@* SPEC: docs/00-COMPONENTS/01.4-MultiSelect.md (shipping in Batch 9c) *@
+@* PHASE: 2.3 (Batch 9b)                                                  *@
+@* AMEND: docs/CHANGE-LOG.md A19 (pending)                                 *@
+@*                                                                         *@
+@* LipiMultiSelect — chip-style multi-selection.                           *@
+@*                                                                         *@
+@* Caller's model: public List<string> Allergies { get; set; } = new();    *@
+@*                                                                         *@
+@* <LipiMultiSelect TValue="string"                                        *@
+@*                  Name="allergies"                                       *@
+@*                  Label="Allergies"                                      *@
+@*                  Items="@_commonAllergies"                              *@
+@*                  @bind-Value="m.Allergies"                              *@
+@*                  Searchable="true"                                      *@
+@*                  AllowFreeText="true"                                   *@
+@*                  MaxSelections="10"                                     *@
+@*                  MaxVisibleChips="5" />                                 *@
+@*                                                                         *@
+@* Identity TValue/TItem mapping — caller provides primitive list directly. *@
+@* For templated rendering with rich item shape, use LipiMultiCombobox      *@
+@* (Batch 9c).                                                              *@
+@*                                                                         *@
+@* Path 3 from 9a: dropdown panel rendering is declarative Razor in this    *@
+@* file, not extracted to a base RenderFragment. LipiMultiCombobox in 9c    *@
+@* will duplicate the panel structure (intentional, ~80 lines). Trigger to  *@
+@* extract: 3+ multi-dropdown consumers.                                    *@
+
+@namespace LiPi.Components
+@using LiPicons.Blazor
+@typeparam TValue
+@inherits LipiMultiSelectBase<TValue, TValue>
+
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+
+<div class="@CssClasses @_resolvedLabelPositionClass lipi-input-multiline @(Class ?? string.Empty)" style="@InlineStyle">
+
+    @* ===== LABEL ROW ===== *@
+    <label class="lipi-input-label" for="@EffectiveId">
+        <span class="lipi-input-label-text">@_resolvedLabel</span>
+        @if (Required)
+        {
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+        @if (LabelConfidence.HasValue)
+        {
+            <span class="lipi-input-confidence-pill lipi-input-confidence-@ConfidenceCssClass"
+                  aria-label="@ConfidenceAriaLabel">
+                @ConfidenceLabelText
+            </span>
+        }
+    </label>
+
+    @* ===== INPUT BODY (field + helper grouped for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
+
+    @* ===== FIELD BAR ===== *@
+    <div class="lipi-input-field"
+         id="@EffectiveId"
+         @ref="_anchorRef"
+         role="combobox"
+         aria-expanded="@(_isOpen ? "true" : "false")"
+         aria-haspopup="listbox"
+         aria-controls="@EffectiveDropdownId"
+         aria-multiselectable="true"
+         aria-invalid="@AriaInvalidAttr"
+         aria-describedby="@AriaDescribedByAttr"
+         tabindex="@(Disabled ? -1 : 0)"
+         @onclick="HandleAnchorClick"
+         @onkeydown="HandleKeyDown"
+         @onblur="HandleAnchorBlur">
+
+        @{
+            var (visibleChips, hiddenCount) = GetChipsToRender();
+        }
+
+        @* ----- CHIPS ----- *@
+        @foreach (var v in visibleChips)
+        {
+            <span class="lipi-multi-chip" role="presentation">
+                <span class="lipi-multi-chip-label">@GetLabelForValue(v)</span>
+                @if (!Disabled && !ReadOnly)
+                {
+                    <button type="button"
+                            class="lipi-multi-chip-remove"
+                            tabindex="-1"
+                            aria-label="Remove @GetLabelForValue(v)"
+                            @onclick="@(() => HandleChipRemove(v))"
+                            @onclick:stopPropagation="true">
+                        <LipiIcon Name="close" Size="12" />
+                    </button>
+                }
+            </span>
+        }
+
+        @* ----- +M MORE SUMMARY CHIP (Q2) ----- *@
+        @if (hiddenCount > 0)
+        {
+            <span class="lipi-multi-summary-chip"
+                  role="button"
+                  tabindex="-1"
+                  aria-label="Show all selected items"
+                  @onclick="HandleSummaryChipClick"
+                  @onclick:stopPropagation="true">
+                +@hiddenCount more
+            </span>
+        }
+
+        @* ----- SEARCH INPUT (when Searchable) ----- *@
+        @if (Searchable)
+        {
+            <input type="text"
+                   @ref="_searchInputRef"
+                   class="lipi-multi-search-input"
+                   form="lipi-select-orphan"
+                   placeholder="@(ShowPlaceholder ? Placeholder : null)"
+                   value="@_searchText"
+                   disabled="@Disabled"
+                   readonly="@ReadOnly"
+                   autocomplete="off"
+                   @oninput="HandleSearchInput"
+                   @onkeydown="HandleKeyDown"
+                   @onkeydown:stopPropagation="true"
+                   @onclick:stopPropagation="true" />
+        }
+        else if (ShowPlaceholder)
+        {
+            <span class="lipi-multi-placeholder">@Placeholder</span>
+        }
+
+        @* ----- TRAILING CHEVRON ----- *@
+        <span class="lipi-multi-chevron" aria-hidden="true">
+            <LipiIcon Name="@(_isOpen ? "chevron-up" : "chevron-down")" Size="@IconPx" />
+        </span>
+
+    </div>
+
+    @* ===== DROPDOWN PANEL ===== *@
+    @if (_isOpen)
+    {
+        <div class="lipi-select-dropdown lipi-multi-dropdown"
+             id="@EffectiveDropdownId"
+             role="listbox"
+             aria-multiselectable="true"
+             aria-label="@_resolvedLabel options">
+
+            @{
+                var (selected, unselected) = GetFilteredOptions();
+                var totalShown = selected.Count + unselected.Count;
+                var globalIdx = 0;
+                var capReached = AtMaxSelections;
+            }
+
+            @if (capReached)
+            {
+                <div class="lipi-multi-cap-hint">
+                    <LipiIcon Name="info" Size="12" />
+                    Maximum @MaxSelections reached. Remove a selection to add another.
+                </div>
+            }
+
+            <div class="lipi-select-options" tabindex="-1">
+
+                @if (totalShown == 0)
+                {
+                    <div class="lipi-select-empty">
+                        <span>No matching options</span>
+                        @if (_resolvedAllowFreeText && !string.IsNullOrWhiteSpace(_searchText))
+                        {
+                            <button type="button"
+                                    class="lipi-select-add-new"
+                                    @onclick="CommitFreeTextAsync"
+                                    @onclick:stopPropagation="true">
+                                <LipiIcon Name="plus" Size="12" />
+                                Add "@_searchText" as new
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    @* Selected group (rendered when dropdown was opened from
+                       +M more summary click — Q2). Sorted alphabetical. *@
+                    @if (selected.Count > 0)
+                    {
+                        <div class="lipi-select-section-heading">@SelectedHeading</div>
+                        @foreach (var item in selected)
+                        {
+                            var idx = globalIdx++;
+                            var isHighlighted = idx == _highlightedIndex;
+                            var v = ItemValue(item);
+                            var checkedNow = v is not null && IsSelected(v);
+                            var cap = !checkedNow && capReached;
+                            <div class="lipi-select-option lipi-multi-option @(isHighlighted ? "lipi-select-option-highlighted" : null) @(checkedNow ? "lipi-select-option-selected" : null) @(cap ? "lipi-select-option-disabled" : null)"
+                                 role="option"
+                                 data-option-index="@idx"
+                                 aria-selected="@(checkedNow ? "true" : "false")"
+                                 aria-disabled="@(cap ? "true" : "false")"
+                                 @onclick="@(() => SelectAndContinueAsync(item))"
+                                 @onmouseenter="@(() => _highlightedIndex = idx)">
+                                <span class="lipi-multi-option-check">
+                                    @if (checkedNow)
+                                    {
+                                        <LipiIcon Name="check-square" Size="14" />
+                                    }
+                                    else
+                                    {
+                                        <LipiIcon Name="square" Size="14" />
+                                    }
+                                </span>
+                                @ItemContent(item)
+                            </div>
+                        }
+                        @if (unselected.Count > 0)
+                        {
+                            <div class="lipi-select-divider" role="separator"></div>
+                        }
+                    }
+
+                    @* Unselected group — when summary-click open: alphabetical.
+                       When normal open: original Items order. *@
+                    @if (unselected.Count > 0)
+                    {
+                        @if (_isFromSummaryClick && selected.Count > 0)
+                        {
+                            <div class="lipi-select-section-heading">@AvailableHeading</div>
+                        }
+                        @if (ShouldVirtualize)
+                        {
+                            <Virtualize Items="@unselected" Context="vitem" ItemSize="36">
+                                @{
+                                    var vIdx = selected.Count + unselected.IndexOf(vitem);
+                                    var vHighlighted = vIdx == _highlightedIndex;
+                                    var vv = ItemValue(vitem);
+                                    var vChecked = vv is not null && IsSelected(vv);
+                                    var vCap = !vChecked && capReached;
+                                }
+                                <div class="lipi-select-option lipi-multi-option @(vHighlighted ? "lipi-select-option-highlighted" : null) @(vChecked ? "lipi-select-option-selected" : null) @(vCap ? "lipi-select-option-disabled" : null)"
+                                     role="option"
+                                     data-option-index="@vIdx"
+                                     aria-selected="@(vChecked ? "true" : "false")"
+                                     aria-disabled="@(vCap ? "true" : "false")"
+                                     @onclick="@(() => SelectAndContinueAsync(vitem))"
+                                     @onmouseenter="@(() => _highlightedIndex = vIdx)">
+                                    <span class="lipi-multi-option-check">
+                                        @if (vChecked)
+                                        {
+                                            <LipiIcon Name="check-square" Size="14" />
+                                        }
+                                        else
+                                        {
+                                            <LipiIcon Name="square" Size="14" />
+                                        }
+                                    </span>
+                                    @ItemContent(vitem)
+                                </div>
+                            </Virtualize>
+                        }
+                        else
+                        {
+                            @foreach (var item in unselected)
+                            {
+                                var idx = globalIdx++;
+                                var isHighlighted = idx == _highlightedIndex;
+                                var v = ItemValue(item);
+                                var checkedNow = v is not null && IsSelected(v);
+                                var cap = !checkedNow && capReached;
+                                <div class="lipi-select-option lipi-multi-option @(isHighlighted ? "lipi-select-option-highlighted" : null) @(checkedNow ? "lipi-select-option-selected" : null) @(cap ? "lipi-select-option-disabled" : null)"
+                                     role="option"
+                                     data-option-index="@idx"
+                                     aria-selected="@(checkedNow ? "true" : "false")"
+                                     aria-disabled="@(cap ? "true" : "false")"
+                                     @onclick="@(() => SelectAndContinueAsync(item))"
+                                     @onmouseenter="@(() => _highlightedIndex = idx)">
+                                    <span class="lipi-multi-option-check">
+                                        @if (checkedNow)
+                                        {
+                                            <LipiIcon Name="check-square" Size="14" />
+                                        }
+                                        else
+                                        {
+                                            <LipiIcon Name="square" Size="14" />
+                                        }
+                                    </span>
+                                    @ItemContent(item)
+                                </div>
+                            }
+                        }
+                    }
+                }
+            </div>
+        </div>
+    }
+
+    @* ===== HELPER ROW ===== *@
+    @if (Defaults.Value.AlwaysReserveHelperSlot || HasHelperContent)
+    {
+        <div class="lipi-input-helper @HelperStateClass"
+             role="@HelperRole"
+             aria-live="@HelperAriaLive"
+             id="@HelperId">
+            @HelperText
+        </div>
+    }
+
+    </div>@* end lipi-input-body *@
+</div>
+
+@code {
+    // ==========================================================================
+    // ABSTRACT IMPLEMENTATIONS — identity selectors (TItem = TValue)
+    // ==========================================================================
+
+    /// <summary>MultiSelect renders the chip container (multi-line by nature).
+    /// Top-aligns label in Left/Right LabelPosition. Phase 2.5.5.</summary>
+    protected override bool IsMultiLine => true;
+
+    protected override TValue? ItemValue(TValue item) => item;
+
+    protected override string ItemLabel(TValue item)
+    {
+        if (item is null) return string.Empty;
+        if (item is IFormattable f)
+            return f.ToString(null, System.Globalization.CultureInfo.CurrentCulture);
+        return item.ToString() ?? string.Empty;
+    }
+
+    protected override RenderFragment<TValue> ItemContent =>
+        item => @<text><span class="lipi-multi-option-label">@ItemLabel(item)</span></text>;
+}

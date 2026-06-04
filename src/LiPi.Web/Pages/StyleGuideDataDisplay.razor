@@ -1,0 +1,392 @@
+@* SPEC: docs/00-COMPONENTS/2.8/04-LipiEmptyState-Spec.md §6 (StyleGuide additions) *@
+@* PHASE: 2.8 Data Display — Stage 2 (LipiEmptyState demo) *@
+@* DEMO: lives in LiPi.Web (not redistributable) per packaging rule. *@
+@page "/admin/style-guide/data-display"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@rendermode InteractiveServer
+@using LiPi.Components.DataDisplay
+@using LiPicons.Blazor
+@using System.Linq
+
+<PageTitle>LipiEmptyState — StyleGuide</PageTitle>
+
+<div class="sg-page">
+
+    <header class="sg-header">
+        <h1>LipiEmptyState</h1>
+        <p>The zero-state primitive — centered icon + title + body + optional CTAs for
+           surfaces with no content. Stateless, token-driven, responsive.</p>
+    </header>
+
+    @* ── Section 1: all six variants (Inline) ─────────────────────────── *@
+    <section class="sg-section">
+        <h2>Variants (Inline size)</h2>
+        <div class="sg-grid">
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Default"
+                                Size="EmptyStateSize.Inline"
+                                Title="No data"
+                                Body="Generic empty state — caller picks everything." />
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                Size="EmptyStateSize.Inline"
+                                Title="No users yet"
+                                Body="Add your first user to get started.">
+                    <PrimaryCta>
+                        <button class="sg-btn sg-btn-primary" @onclick="Noop">
+                            <LipiIcon Name="@LipiconName.Plus" Size="16" /> Invite user
+                        </button>
+                    </PrimaryCta>
+                </LipiEmptyState>
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.FilteredEmpty"
+                                Size="EmptyStateSize.Inline"
+                                Title="No matches found"
+                                Body="@($"No results match \"{_search}\". Try different terms.")">
+                    <PrimaryCta>
+                        <button class="sg-btn" @onclick="ClearSearch">
+                            <LipiIcon Name="@LipiconName.Close" Size="16" /> Clear filters
+                        </button>
+                    </PrimaryCta>
+                </LipiEmptyState>
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Error"
+                                Size="EmptyStateSize.Inline"
+                                Title="Couldn't load"
+                                Body="Something went wrong fetching this data.">
+                    <PrimaryCta>
+                        <button class="sg-btn sg-btn-danger" @onclick="Noop">
+                            <LipiIcon Name="@LipiconName.Refresh" Size="16" /> Retry
+                        </button>
+                    </PrimaryCta>
+                </LipiEmptyState>
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Success"
+                                Size="EmptyStateSize.Inline"
+                                Title="All caught up!"
+                                Body="No notifications waiting." />
+            </div>
+
+            <div class="sg-cell">
+                <LipiEmptyState Variant="EmptyStateVariant.Coming"
+                                Size="EmptyStateSize.Inline"
+                                Title="Reports coming soon"
+                                Body="This feature ships in a future release.">
+                    <SecondaryCta>
+                        <button class="sg-btn" @onclick="Noop">Learn more</button>
+                    </SecondaryCta>
+                </LipiEmptyState>
+            </div>
+
+        </div>
+    </section>
+
+    @* ── Section 2: three sizes (Empty variant) ───────────────────────── *@
+    <section class="sg-section">
+        <h2>Sizes (Empty variant)</h2>
+        <div class="sg-stack">
+            <div class="sg-cell">
+                <span class="sg-tag">Inline (~120px)</span>
+                <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                Size="EmptyStateSize.Inline"
+                                Title="No records"
+                                Body="Inline size — fits a table body slot." />
+            </div>
+            <div class="sg-cell">
+                <span class="sg-tag">Card (~200px)</span>
+                <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                Size="EmptyStateSize.Card"
+                                Title="No records"
+                                Body="Card size — fits inside a panel or card." />
+            </div>
+            <div class="sg-cell">
+                <span class="sg-tag">Page (~320px)</span>
+                <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                Size="EmptyStateSize.Page"
+                                Title="No records"
+                                Body="Page size — full-page empty state with larger icon and spacing." />
+            </div>
+        </div>
+    </section>
+
+    @* ── Section 3: custom icons ──────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Custom icons</h2>
+        <div class="sg-grid">
+            <div class="sg-cell">
+                <span class="sg-tag">Icon="search" (explicit Lipicon name)</span>
+                <LipiEmptyState Size="EmptyStateSize.Card"
+                                Icon="@LipiconName.Search"
+                                Title="Search the catalogue"
+                                Body="Type a query to begin." />
+            </div>
+            <div class="sg-cell">
+                <span class="sg-tag">IconTemplate (custom emoji)</span>
+                <LipiEmptyState Size="EmptyStateSize.Card"
+                                Title="Welcome aboard"
+                                Body="Custom IconTemplate slot.">
+                    <IconTemplate>
+                        <span style="font-size: 40px;">🎉</span>
+                    </IconTemplate>
+                </LipiEmptyState>
+            </div>
+            <div class="sg-cell">
+                <span class="sg-tag">Icon="" (explicit opt-out, no icon)</span>
+                <LipiEmptyState Size="EmptyStateSize.Card"
+                                Icon=""
+                                Title="No icon here"
+                                Body="Passing Icon=&quot;&quot; suppresses the icon entirely." />
+            </div>
+        </div>
+    </section>
+
+    @* ── LipiTable — bare chassis (Stage 2 core shell) ────────────────── *@
+    <section class="sg-section">
+        <h2>LipiTable — static data (bare chassis)</h2>
+        <p class="sg-note-p">
+            First LipiTable slice: declarative columns, CSS-Grid layout, per-type cell
+            rendering, light/dark aware. No sort / filter / selection / pagination yet —
+            those land in later stages.
+        </p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-demo-staff">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" AggregateFn="LipiAggregate.Sum" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+
+        <h3 class="sg-subhead">Empty state (no rows)</h3>
+        <LipiTable TItem="DemoStaff" Items="@_emptyStaff" KeySelector="@(s => s.Id)" TableId="sg-demo-empty"
+                   EmptyTitle="No staff yet" EmptyBody="Add your first staff member to see them here.">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── Stage 3: Density ─────────────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>LipiTable — density</h2>
+        <p class="sg-note-p">
+            Three densities via the <code>Density</code> parameter — Compact (32px rows),
+            Comfortable (40px, default), Spacious (52px). Row height, font size, padding,
+            and avatar/checkbox sizing all scale; the header font stays constant.
+        </p>
+
+        <div class="sg-density-toggle">
+            <button class="sg-btn @(_density == TableDensity.Compact ? "sg-btn-primary" : string.Empty)"
+                    @onclick="SetCompact">Compact</button>
+            <button class="sg-btn @(_density == TableDensity.Comfortable ? "sg-btn-primary" : string.Empty)"
+                    @onclick="SetComfortable">Comfortable</button>
+            <button class="sg-btn @(_density == TableDensity.Spacious ? "sg-btn-primary" : string.Empty)"
+                    @onclick="SetSpacious">Spacious</button>
+        </div>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-demo-density"
+                   Density="@_density">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── Stage 3: Avatar + Selection column + Copy ────────────────────── *@
+    <section class="sg-section">
+        <h2>LipiTable — avatar, selection column, copy</h2>
+        <p class="sg-note-p">
+            Avatar column renders initials with a deterministic hash color (or an image when
+            the value is a URL). The selection column now has real interactive checkboxes
+            (see the dedicated selection demo below). Hover a row to reveal the copy affordance
+            on the Code column; click to copy, with an inline "Copied!" flash.
+        </p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-demo-rich"
+                   SelectionMode="SelectionMode.Multi"
+                   RowStatus="@(s => s.Status)"
+                   RowDisabled="@(s => s.Status == "locked")"
+                   OnCopy="OnDemoCopy">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="" Type="ColumnType.Avatar" IsInitials="true" Width="56px" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)" Header="Code" Type="ColumnType.Mono" Copyable="true" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+        @if (!string.IsNullOrEmpty(_lastCopied))
+        {
+            <p class="sg-note-p"><code>OnCopy</code> fired — last copied: <code>@_lastCopied</code></p>
+        }
+    </section>
+
+    @* ── Stage 3: Row status strip placement + row class/style ─────────── *@
+    <section class="sg-section">
+        <h2>LipiTable — row status strip &amp; formatting hooks</h2>
+        <p class="sg-note-p">
+            <code>RowStatus</code> draws a colored left strip per row from the shared status
+            taxonomy. <code>RowClass</code> / <code>RowStyle</code> are caller escape hatches;
+            here high-CTC rows get a subtle tint via <code>RowStyle</code>.
+        </p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-demo-rows"
+                   RowStatus="@(s => s.Status)"
+                   RowStyle="@(s => s.MonthlyCtc >= 100000m ? "background: var(--color-accent-pale);" : null)">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── Stage 4a: Interactive selection ──────────────────────────────── *@
+    <section class="sg-section">
+        <h2>LipiTable — selection (Stage 4a + 4b + 4d)</h2>
+        <p class="sg-note-p">
+            Real interactive selection. The header checkbox is a <code>bool?</code>
+            <code>LipiCheckbox</code> with native tri-state — empty, indeterminate (some rows
+            selected), checked (all on page). Row checkboxes toggle selection; selected rows get
+            a tint. <code>@@bind-SelectedItems</code> reflects the live selection. Locked rows are
+            disabled. <strong>4b power interactions:</strong> <em>Shift-click</em> a row to select
+            the range from the last-clicked row; <em>Ctrl/Cmd-click</em> toggles a single row.
+            Keyboard + across-pages come in 4d/4c.
+        </p>
+        <p class="sg-note-p">
+            <strong>4d keyboard:</strong> click a cell, then use <em>arrow keys</em> to move focus
+            cell-by-cell (a focus ring shows the active cell), <em>Home/End</em> for row ends,
+            <em>Ctrl+Home/End</em> for the grid corners. <em>Space</em> toggles the focused row's
+            selection; <em>Shift+Space</em> or <em>Shift+Arrow</em> extends the range;
+            <em>Ctrl/Cmd+A</em> selects all on the page; <em>Esc</em> clears. Arrow/Space no longer
+            scroll the page while the grid has focus.
+        </p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-demo-select"
+                   SelectionMode="SelectionMode.Multi"
+                   @bind-SelectedItems="_selectedStaff"
+                   RowDisabled="@(s => s.Status == "locked")">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+
+        <p class="sg-note-p">
+            <strong>@_selectedStaff.Count selected:</strong>
+            @if (_selectedStaff.Count == 0)
+            {
+                <span>none</span>
+            }
+            else
+            {
+                <span>@string.Join(", ", _selectedStaff.Select(x => x.Name))</span>
+            }
+        </p>
+
+        <h3 class="sg-subhead">Single-select mode</h3>
+        <p class="sg-note-p">
+            <code>SelectionMode.Single</code> — exactly one row; clicking another moves the
+            selection. No header select-all (nothing to select-all in single mode).
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-demo-single"
+                   SelectionMode="SelectionMode.Single"
+                   @bind-SelectedItems="_selectedSingle">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+        </LipiTable>
+        <p class="sg-note-p">
+            <strong>Chosen:</strong> @(_selectedSingle.Count == 0 ? "none" : _selectedSingle[0].Name)
+        </p>
+
+        <h3 class="sg-subhead">Row click + modifier-select (4b)</h3>
+        <p class="sg-note-p">
+            With <code>OnRowClick</code> set, a <em>plain click</em> on a row body fires the
+            callback (here: records the name below) — typical for "open detail." A
+            <em>Ctrl/Cmd-click</em> selects the row instead of firing <code>OnRowClick</code>;
+            a <em>Shift-click</em> extends the selection range. Clickable rows show a pointer cursor.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-demo-rowclick"
+                   SelectionMode="SelectionMode.Multi"
+                   @bind-SelectedItems="_selectedRowClick"
+                   OnRowClick="OnDemoRowClick"
+                   RowDisabled="@(s => s.Status == "locked")">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+        </LipiTable>
+        <p class="sg-note-p">
+            <strong>Last row-click:</strong> @(_lastRowClick ?? "none") &nbsp;|&nbsp;
+            <strong>@_selectedRowClick.Count selected</strong>
+        </p>
+    </section>
+
+    @* ── A11y notes ───────────────────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Accessibility</h2>
+        <ul class="sg-notes">
+            <li><code>role="region"</code> + <code>aria-label</code> matching the title.</li>
+            <li>Heading level varies by size: Page → <code>h2</code>, Inline/Card → <code>h3</code> (override via <code>TitleHeadingLevel</code>).</li>
+            <li>Icon is <code>aria-hidden="true"</code> (decorative); the title conveys meaning.</li>
+            <li>Body uses <code>&lt;p&gt;</code> for semantic structure.</li>
+        </ul>
+    </section>
+
+</div>
+
+@code {
+    private string _search = "smith";
+    private TableDensity _density = TableDensity.Comfortable;
+    private string? _lastCopied;
+    private IReadOnlyList<DemoStaff> _selectedStaff = Array.Empty<DemoStaff>();
+    private IReadOnlyList<DemoStaff> _selectedSingle = Array.Empty<DemoStaff>();
+    private IReadOnlyList<DemoStaff> _selectedRowClick = Array.Empty<DemoStaff>();
+    private string? _lastRowClick;
+
+    private void Noop() { }
+    private void ClearSearch() => _search = string.Empty;
+
+    // Stage 3 demo handlers (named methods — Blazor rule 8: no assignment lambdas in @onclick)
+    private void SetCompact() => _density = TableDensity.Compact;
+    private void SetComfortable() => _density = TableDensity.Comfortable;
+    private void SetSpacious() => _density = TableDensity.Spacious;
+    private void OnDemoCopy(string value) => _lastCopied = value;
+    private void OnDemoRowClick(DemoStaff s) => _lastRowClick = s.Name;
+
+    // ── LipiTable demo data ──────────────────────────────────────────────
+    private sealed record DemoStaff(
+        Guid Id,
+        string Name,
+        string EmployeeCode,
+        string Department,
+        DateOnly JoinedOn,
+        decimal MonthlyCtc,
+        bool IsActive,
+        string Status);
+
+    private readonly List<DemoStaff> _staff = new()
+    {
+        new(Guid.NewGuid(), "Aarav Sharma",   "EMP-00142", "Radiation Oncology", new DateOnly(2021, 6, 14),  92000m,  true,  "active"),
+        new(Guid.NewGuid(), "Priya Nair",     "EMP-00198", "Medical Physics",    new DateOnly(2022, 1, 3),   78500m,  true,  "active"),
+        new(Guid.NewGuid(), "Sneha Iyer",     "EMP-00341", "Pharmacy",           new DateOnly(2024, 2, 11),  47500m,  false, "locked"),
+        new(Guid.NewGuid(), "Rohan Mehta",    "EMP-00231", "Nursing",            new DateOnly(2020, 9, 28),  54000m,  false, "suspended"),
+        new(Guid.NewGuid(), "Fatima Khan",    "EMP-00277", "Administration",     new DateOnly(2023, 3, 19),  61000m,  true,  "pending"),
+        new(Guid.NewGuid(), "Vikram Reddy",   "EMP-00305", "Radiation Oncology", new DateOnly(2019, 11, 2),  120000m, true,  "active"),
+    };
+
+    private readonly List<DemoStaff> _emptyStaff = new();
+}

@@ -1,0 +1,246 @@
+/* ============================================================
+   lipi-table-tokens.css — LipiTable token definitions
+   ============================================================
+   SPEC:  docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §24 (multi-industry tokens),
+          §2.5 (z-index layers), §3.6 (grid), §14.3 (per-density visual specs)
+   PHASE: 2.8 Data Display — Stage 2 core shell (A42) + Stage 3 rows/cells (A45)
+   AMEND: docs/CHANGE-LOG.md A42 (initial), A42.1 (header weight), A45 (density + Stage 3)
+
+   Single seam binding the --lipi-table-* tokens (consumed by LipiTable's scoped CSS)
+   to the project's real --color-* contract from themes/mode-{light,dark}.css. The
+   component scoped CSS never references --color-* directly — it goes through these
+   aliases — so the component stays redistributable and the host palette plugs in here.
+
+   DENSITY (A45 / §14.3): the measurement tokens (row height, font size, paddings,
+   selection-column width, avatar diameter, expand-chevron width, status-strip width are
+   constant) switch per [data-density="compact|comfortable|spacious"] applied on the
+   table root by LipiTable. Comfortable is the default and is also defined on :root so a
+   table with no data-density attribute still renders correctly. Color/structure tokens
+   that don't vary with density stay in :root.
+
+   The header font is intentionally CONSTANT at 12px (--ts-label) across all densities per
+   §14.3 — it's structural scaffolding, not content. Only the body scales.
+
+   LOAD ORDER (App.razor): after themes/mode-*.css, grouped with the other lipi-*.css
+   component token files.
+   ============================================================ */
+
+:root {
+    /* ── Surfaces ────────────────────────────────────────────────────────── */
+    --lipi-table-bg:            var(--color-bg-surface);
+    --lipi-table-header-bg:     var(--color-bg-subtle);
+    --lipi-table-row-bg:        var(--color-bg-surface);
+    --lipi-table-row-bg-alt:    var(--color-bg-subtle);    /* striped */
+    --lipi-table-row-bg-hover:  var(--color-bg-hover);
+
+    /* ── Borders ─────────────────────────────────────────────────────────── */
+    --lipi-table-border:        var(--color-border-default);
+    --lipi-table-border-subtle: var(--color-border-subtle);
+    --lipi-table-radius:        var(--r-md);
+
+    /* ── Text ────────────────────────────────────────────────────────────── */
+    --lipi-table-header-text:   var(--color-text-primary);
+    --lipi-table-cell-text:     var(--color-text-primary);
+    --lipi-table-cell-muted:    var(--color-text-tertiary);
+
+    /* ── Fonts (header size constant; body size is density-driven below) ──── */
+    --lipi-table-header-size:   var(--ts-label);   /* 12px uppercase header — constant per §14.3 */
+    --lipi-table-header-weight: var(--fw-bold);    /* 700 — bold header band (A42.1) */
+    --lipi-table-font:          var(--font-ui);
+    --lipi-table-mono-font:     var(--font-mono);
+
+    /* ── Boolean true glyph ──────────────────────────────────────────────── */
+    --lipi-table-bool-true:     var(--color-success);
+
+    /* ── Avatar palette (initials hash colors set in scoped CSS; bg/text below) ── */
+    --lipi-table-avatar-bg:     var(--color-primary-pale);
+    --lipi-table-avatar-text:   var(--color-primary);
+
+    /* ── Copy affordance ─────────────────────────────────────────────────── */
+    --lipi-table-copy-icon:        var(--color-text-tertiary);
+    --lipi-table-copy-icon-hover:  var(--color-primary);
+    --lipi-table-copy-flash-bg:    var(--color-primary-pale);
+    --lipi-table-copy-flash-text:  var(--color-primary);
+
+    /* ── Disabled row ────────────────────────────────────────────────────── */
+    --lipi-table-row-disabled-opacity: 0.5;
+
+    /* ── Selected row (Stage 4a) — subtle primary tint + left accent ─────── */
+    --lipi-table-row-bg-selected:     var(--color-primary-pale);
+    --lipi-table-row-selected-accent: var(--color-primary);
+
+    /* ── Keyboard focus ring (Stage 4d, §19.3.1 / §2.2) ──────────────────── */
+    --lipi-table-focus-ring:          var(--color-primary);
+
+    /* ── Selection checkbox cell ─────────────────────────────────────────── */
+    --lipi-table-select-cell-pad: var(--sp-sm);
+
+    /* ── Z-index layers (§2.5) ───────────────────────────────────────────── */
+    --lipi-table-z-pinned:        1;
+    --lipi-table-z-header:        2;
+    --lipi-table-z-pinned-header: 3;
+    --lipi-table-z-group:         4;
+    --lipi-table-z-stickybar:     5;
+    --lipi-table-z-popover:       10;
+
+    /* ── Density: Comfortable (default; also the :root fallback) — §14.3 ──── */
+    --lipi-table-row-min-h:      40px;
+    --lipi-table-header-min-h:   44px;
+    --lipi-table-cell-size:      13px;   /* body font */
+    --lipi-table-cell-pad-x:     12px;
+    --lipi-table-cell-pad-y:     8px;
+    --lipi-table-header-pad-y:   8px;
+    --lipi-table-select-w:       44px;   /* selection column track width */
+    --lipi-table-avatar-size:    32px;
+    --lipi-table-row-border-w:   1px;
+    --lipi-table-hover-tr:       120ms;
+}
+
+/* ── Density: Compact (§14.3) ────────────────────────────────────────────── */
+[data-density="compact"] {
+    --lipi-table-row-min-h:      32px;
+    --lipi-table-header-min-h:   36px;
+    --lipi-table-cell-size:      11px;
+    --lipi-table-cell-pad-x:     8px;
+    --lipi-table-cell-pad-y:     4px;
+    --lipi-table-header-pad-y:   6px;
+    --lipi-table-select-w:       36px;
+    --lipi-table-avatar-size:    24px;
+    --lipi-table-row-border-w:   0.5px;
+    --lipi-table-hover-tr:       80ms;
+}
+
+/* ── Density: Comfortable (explicit; matches :root default) ──────────────── */
+[data-density="comfortable"] {
+    --lipi-table-row-min-h:      40px;
+    --lipi-table-header-min-h:   44px;
+    --lipi-table-cell-size:      13px;
+    --lipi-table-cell-pad-x:     12px;
+    --lipi-table-cell-pad-y:     8px;
+    --lipi-table-header-pad-y:   8px;
+    --lipi-table-select-w:       44px;
+    --lipi-table-avatar-size:    32px;
+    --lipi-table-row-border-w:   1px;
+    --lipi-table-hover-tr:       120ms;
+}
+
+/* ── Density: Spacious (§14.3) ───────────────────────────────────────────── */
+[data-density="spacious"] {
+    --lipi-table-row-min-h:      52px;
+    --lipi-table-header-min-h:   52px;
+    --lipi-table-cell-size:      14px;
+    --lipi-table-cell-pad-x:     16px;
+    --lipi-table-cell-pad-y:     12px;
+    --lipi-table-header-pad-y:   12px;
+    --lipi-table-select-w:       52px;
+    --lipi-table-avatar-size:    40px;
+    --lipi-table-row-border-w:   1px;
+    --lipi-table-hover-tr:       160ms;
+}
+
+/* ============================================================
+   Stage 3 (A45) — copy affordance + selection placeholder (GLOBAL, not scoped)
+   ============================================================
+   These two elements are authored in LipiTable.razor markup, but Blazor's scoped-CSS
+   attribute ([b-xxxxx]) was not reaching them reliably, so their rules live here in the
+   global token file instead of LipiTable.razor.css. Global CSS matches on class name
+   alone (scope attribute is additive), so .lipi-table-row:hover .lipi-table-cell-copy
+   still resolves correctly — the row/cell carry these classes regardless of scope.
+   The structural cell rules (.lipi-table-cell position:relative, .lipi-table-cell-select)
+   stay scoped — they sit on <div>s that DO receive the scope attribute.
+   ============================================================ */
+
+/* ── Selection placeholder REMOVED in Stage 4a (A46): the inert .lipi-table-select-box
+   span was replaced by a real, interactive LipiCheckbox (TValue=bool rows / bool? header)
+   now that selection behavior exists. Its rules are gone; the checkbox styling comes from
+   the migrated LipiCheckbox component itself. ── */
+
+/* ── Copy affordance (§3.8) — hover-reveal icon + "Copied!" flash ── */
+.lipi-table-cell-copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--lipi-table-copy-icon);
+    cursor: pointer;
+    opacity: 0;                       /* hidden until row/cell hover */
+    transition: opacity var(--tr-fast), color var(--tr-fast), background var(--tr-fast);
+}
+.lipi-table-row:hover .lipi-table-cell-copy,
+.lipi-table-cell:focus-within .lipi-table-cell-copy {
+    opacity: 1;
+}
+.lipi-table-cell-copy:hover {
+    color: var(--lipi-table-copy-icon-hover);
+    background: var(--color-bg-hover);
+}
+.lipi-table-cell-copy:focus-visible {
+    outline: none;
+    opacity: 1;
+    box-shadow: 0 0 0 2px var(--lipi-table-copy-flash-bg);
+}
+.lipi-table-cell-copy--done {
+    opacity: 1;
+    color: var(--lipi-table-copy-flash-text);
+    background: var(--lipi-table-copy-flash-bg);
+}
+.lipi-table-cell-copy--done::after {
+    content: "Copied!";
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 4px);
+    transform: translateY(-50%);
+    white-space: nowrap;
+    font-size: var(--ts-micro);
+    font-weight: var(--fw-medium);
+    color: var(--lipi-table-copy-flash-text);
+    background: var(--lipi-table-copy-flash-bg);
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .lipi-table-cell-copy { transition: none; }
+}
+
+/* ── Selection checkbox cell — indicator-only layout (Stage 4a, A46) ─────────
+   The table's selection LipiCheckbox has no visible label (AriaLabel only). The
+   checkbox wrapper is inline-flex with a gap + an empty label-text span, which
+   widens the wrapper past the narrow select-column track and pushes the indicator
+   left, clipping it against the table's rounded (overflow:hidden) border. Collapsing
+   the gap and zero-sizing the empty label span centres the indicator in the track.
+   Global (not scoped) because it styles the migrated LipiCheckbox's internals from
+   the table — scoped CSS wouldn't reach across the component boundary. ── */
+.lipi-table-cell-select .lipi-checkbox-wrapper {
+    gap: 0;
+    cursor: pointer;
+}
+.lipi-table-cell-select .lipi-checkbox-label-text {
+    display: none;          /* no visible label in the selection column */
+}
+/* The checkbox's helper-text slot (validation/aria-live messages) renders as an empty
+   ~24px element beside the indicator in the cell's flex row, pushing the checkbox
+   left of centre. No helper text is ever shown in a selection column, so hide it. */
+.lipi-table-cell-select .lipi-input-helper {
+    display: none;
+}
+
+/* ── Stage 4b (A47): cell-owned selection clicks ─────────────────────────────
+   The selection CELL handles clicks (via @onclick) so it can read Shift/Ctrl/Cmd
+   modifiers from MouseEventArgs — the checkbox's own change event can't carry them.
+   So in BODY rows the LipiCheckbox is display-only: pointer-events:none lets the click
+   fall through to the cell handler, and the cell shows a pointer cursor. Scoped to the
+   BODY select cell (.lipi-table-cell.lipi-table-cell-select) so the HEADER select-all
+   checkbox (.lipi-table-header-cell.lipi-table-cell-select) keeps handling its own click. ── */
+.lipi-table-cell.lipi-table-cell-select {
+    cursor: pointer;
+}
+.lipi-table-cell.lipi-table-cell-select .lipi-checkbox-wrapper {
+    pointer-events: none;       /* clicks fall through to the cell's @onclick */
+}

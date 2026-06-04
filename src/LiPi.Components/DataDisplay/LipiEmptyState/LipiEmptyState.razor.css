@@ -1,0 +1,148 @@
+/* ============================================================
+   LipiEmptyState.razor.css — scoped component styles
+   ============================================================
+   SPEC:  docs/00-COMPONENTS/2.8/04-LipiEmptyState-Spec.md
+          §2.3 (size dimensions), §2.4 (class naming), §9.3 (CSS contract)
+   PHASE: 2.8 Data Display — Stage 2 (LipiEmptyState)
+
+   Consumes only the --lipi-empty-* tokens (defined in lipi-empty-tokens.css)
+   and the structure tokens (--sp-*, --r-*). No hex literals, no px literals
+   other than 0. The --lipi-empty-* tokens themselves bind to the real
+   --color-* contract from themes/mode-{light,dark}.css (see A40 reconciliation).
+
+   Blazor scoped CSS: these rules are auto-scoped to LipiEmptyState's markup
+   via the [b-xxxxx] attribute the framework injects. The lipi-empty-* class
+   names are still used (per §2.4) so the cascade reads naturally and consumers
+   can target them if ever needed via ::deep.
+   ============================================================ */
+
+/* ── Container ──────────────────────────────────────────────────────────── */
+.lipi-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* Size: Inline (~120px) */
+.lipi-empty--inline {
+    min-height: var(--lipi-empty-min-h-inline);
+    padding: var(--lipi-empty-pad-inline);
+    gap: var(--lipi-empty-gap-icon-title);
+}
+
+/* Size: Card (~200px) */
+.lipi-empty--card {
+    min-height: var(--lipi-empty-min-h-card);
+    padding: var(--lipi-empty-pad-card);
+    gap: var(--lipi-empty-gap-icon-title);
+}
+
+/* Size: Page (~320px) */
+.lipi-empty--page {
+    min-height: var(--lipi-empty-min-h-page);
+    padding: var(--lipi-empty-pad-page);
+    gap: var(--lipi-empty-gap-icon-title-page);
+}
+
+/* ── Variant container accents (subtle bg wash) ─────────────────────────── */
+.lipi-empty--default,
+.lipi-empty--empty,
+.lipi-empty--filtered {
+    background: var(--lipi-empty-bg-default);
+}
+
+.lipi-empty--error {
+    background: var(--lipi-empty-bg-error);
+    border-radius: var(--r-md);
+}
+
+.lipi-empty--success {
+    background: var(--lipi-empty-bg-success);
+    border-radius: var(--r-md);
+}
+
+.lipi-empty--coming {
+    background: var(--lipi-empty-bg-default);
+}
+
+/* ── Icon ───────────────────────────────────────────────────────────────── */
+.lipi-empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.lipi-empty--default .lipi-empty-icon,
+.lipi-empty--empty .lipi-empty-icon { color: var(--lipi-empty-icon-color-empty); }
+.lipi-empty--filtered .lipi-empty-icon { color: var(--lipi-empty-icon-color-filtered); }
+.lipi-empty--error .lipi-empty-icon { color: var(--lipi-empty-icon-color-error); }
+.lipi-empty--success .lipi-empty-icon { color: var(--lipi-empty-icon-color-success); }
+.lipi-empty--coming .lipi-empty-icon { color: var(--lipi-empty-icon-color-coming); }
+
+/* ── Title ──────────────────────────────────────────────────────────────── */
+.lipi-empty-title {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-weight: var(--lipi-empty-title-weight);
+    color: var(--lipi-empty-title-color);
+    line-height: var(--lipi-empty-title-line-height);
+}
+
+.lipi-empty--inline .lipi-empty-title { font-size: var(--lipi-empty-title-size-inline); }
+.lipi-empty--card .lipi-empty-title { font-size: var(--lipi-empty-title-size-card); }
+.lipi-empty--page .lipi-empty-title { font-size: var(--lipi-empty-title-size-page); }
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+.lipi-empty-body {
+    margin: 0;
+    font-family: var(--font-ui);
+    color: var(--lipi-empty-body-color);
+    line-height: var(--lipi-empty-body-line-height);
+}
+
+.lipi-empty--inline .lipi-empty-body {
+    font-size: var(--lipi-empty-body-size-inline);
+    max-width: var(--lipi-empty-body-max-w-inline);
+}
+.lipi-empty--card .lipi-empty-body {
+    font-size: var(--lipi-empty-body-size-card);
+    max-width: var(--lipi-empty-body-max-w-card);
+}
+.lipi-empty--page .lipi-empty-body {
+    font-size: var(--lipi-empty-body-size-page);
+    max-width: var(--lipi-empty-body-max-w-page);
+}
+
+/* ── Title→Body gap (overrides the container gap between these two) ──────── */
+.lipi-empty-title + .lipi-empty-body {
+    margin-top: calc(var(--lipi-empty-gap-title-body) - var(--lipi-empty-gap-icon-title));
+}
+.lipi-empty--page .lipi-empty-title + .lipi-empty-body {
+    margin-top: calc(var(--lipi-empty-gap-title-body-page) - var(--lipi-empty-gap-icon-title-page));
+}
+
+/* ── Actions (CTA container) ────────────────────────────────────────────── */
+.lipi-empty-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--lipi-empty-gap-cta-cta);
+    margin-top: calc(var(--lipi-empty-gap-body-cta) - var(--lipi-empty-gap-icon-title));
+}
+.lipi-empty--page .lipi-empty-actions {
+    margin-top: calc(var(--lipi-empty-gap-body-cta-page) - var(--lipi-empty-gap-icon-title-page));
+}
+
+.lipi-empty-actions-primary,
+.lipi-empty-actions-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Reduced motion: no transitions here; nothing to disable (§4.6) ─────── */

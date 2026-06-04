@@ -1,0 +1,453 @@
+@* SPEC:  docs/03-Phase-2.5-Selection-Components/01-LipiCheckbox.md
+           — 17 locked decisions
+   PHASE: 2.5 Step 7 — first selection-family component
+          (re-shipped at step 9 with lock 6 fix)
+   AMEND: docs/CHANGE-LOG.md A15 (pending — Phase 2.5 close-out)
+          Audit item #11 reframing: LipiCheckbox is shipped fresh in 2.5
+          (not amended), so cascade parameter ships from day one alongside
+          standalone usage. Both paths are first-class.
+          Audit item #19 lock 6 (May 16, 2026): Label/AriaLabel filter fix.
+          CollectParameterValidationErrors now suppresses base class's
+          "Label parameter is required" error when AriaLabel is provided
+          (inline-left layout pattern support).
+
+   Design guarantees:
+     - Standalone (no group context): GroupContext is null, ResolvedReadOnly
+       collapses to ReadOnly. Touched-state managed locally via _isTouched.
+     - Inside LipiCheckboxGroup: cascade parameter resolves to non-null;
+       group ReadOnly forces all children read-only; OnChildInteracted
+       coordinates touched-state at the group level.
+
+   Audit-item alignments:
+     #1  (Layout-vs-Shape): wrapper layout primitives live in family CSS;
+         this component's .razor.css owns only shape (indicator dimensions,
+         border-radius, transforms, helper indent).
+     #11 (component is new, not amended): cascade parameter is a
+         first-class part of the API, not a v1.1+ addition.
+     #12 (cascade record contract): GroupContext.OnChildInteracted fires
+         from THIS component on @onchange ONLY (not @onfocus, not @onblur).
+         Tab-through with no action does NOT trigger touched per Decision
+         2.13.
+     #16 (validation attribute path): MustBeTrueAttribute lives in
+         LiPi.Components (referenced by callers, no direct
+         dependency in this file).
+     #17 (--color-required-strong token): consumed by indicator's
+         Required-Empty border treatment; defined in mode-light/dark.
+
+   Phase 2.2.5 inheritance carries forward:
+     - LipiInputBase<TValue> owns the 18 common parameters, EditContext
+       subscription, anonymous-id fallback, env-gated parameter validation,
+       state cascade. We add only checkbox-specific bits.
+     - TValue restricted to bool / bool? at runtime (whitelist in
+       OnInitialized via ValidateOrFallback pattern).
+*@
+
+@namespace LiPi.Components
+@typeparam TValue
+@inherits LipiInputBase<TValue>
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+
+@*
+   Wrapper is the <label> element — entire row is the click hit target per
+   Decision 1.10 (WCAG 2.5.5 / 2.5.8 met at all sizes). Helper text renders
+   OUTSIDE the wrapper as a sibling div per Decision 1.13 (clicking helper
+   does NOT toggle the checkbox).
+
+   Family classes emitted (per Decision 5.5 pre-delivery checklist):
+     - .lipi-checkbox-wrapper          — component-specific (this file's .razor.css)
+     - .lipi-input-{size}              — Phase 2.2 family (lipi-inputs.css)
+     - .lipi-input-label-pos-{pos}     — Phase 2.5 family (lipi-selection-family.css)
+     - .lipi-input-disabled            — Phase 2.5 family (when disabled)
+     - .lipi-input-readonly            — Phase 2.5 family (when read-only)
+     - .lipi-input-error               — Phase 2.5 family (when in error state)
+     - Caller-provided Class           — appended last for layout utilities
+*@
+<label class="@WrapperCssClasses" for="@EffectiveId" style="@InlineStyle">
+
+    @* Hidden native input — preserves form semantics, native click, screen reader.
+       Visually hidden via .lipi-checkbox-input-hidden (scoped CSS). Pattern A
+       value flow: checked attribute reflects CurrentValue; @onchange writes
+       CurrentValue back via the (TValue)(object) cast pattern (matches
+       LipiNumberInput<TValue> precedent for generic value coercion). *@
+    <input id="@EffectiveId"
+           name="@_resolvedName"
+           type="checkbox"
+           class="lipi-checkbox-input-hidden"
+           checked="@(CurrentValue is true)"
+           disabled="@Disabled"
+           readonly="@ResolvedReadOnly"
+           required="@Required"
+           aria-checked="@AriaCheckedAttr"
+           aria-required="@(Required ? "true" : null)"
+           aria-invalid="@AriaInvalidAttr"
+           aria-describedby="@AriaDescribedByAttr"
+           aria-label="@(string.IsNullOrEmpty(_resolvedLabel) ? AriaLabel : null)"
+           @onchange="HandleChange" />
+
+    @* Custom-styled indicator span. Renders the check (when CurrentValue is true)
+       or the dash (when CurrentValue is null — tri-state indeterminate). Visual
+       state treatments live in the scoped CSS via state-class composition. *@
+    <span class="@IndicatorCssClasses" aria-hidden="true">
+        @if (CurrentValue is true)
+        {
+            <svg class="lipi-checkbox-checkmark" viewBox="0 0 16 16" fill="none">
+                <polyline points="3.5,8.5 6.5,11.5 12.5,5"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round" />
+            </svg>
+        }
+        else if (CurrentValue is null)
+        {
+            @* Tri-state dash — pure CSS (no JS interop on native indeterminate
+               property). aria-checked="mixed" on the input handles SR semantics. *@
+            <span class="lipi-checkbox-dash"></span>
+        }
+    </span>
+
+    @* Label text or template. LabelTemplate wins over Label string per Decision 1.17. *@
+    <span class="lipi-checkbox-label-text">
+        @if (LabelTemplate is not null)
+        {
+            @LabelTemplate
+        }
+        else
+        {
+            @_resolvedLabel
+            @if (Required)
+            {
+                @* Locked Decision 6 (Approach D, Phase 2.2 precedent): asterisk + ARIA
+                   + tooltip ALWAYS render when Required, regardless of RequiredVisualStyle.
+                   Sighted ApricotTint users get apricot indicator border (the ambient cue);
+                   SR users get asterisk + aria-required="true" + title tooltip. Never an
+                   either/or — both signals fire. *@
+                <span class="lipi-input-required-asterisk"
+                      aria-label="required field"
+                      title="Required">*</span>
+            }
+        }
+    </span>
+</label>
+
+@* Helper / error / warning / success message slot. Renders OUTSIDE the <label>
+   so clicking it does not toggle the checkbox. Position H2 (indented under label
+   text) — indent values per size live in the scoped CSS. *@
+@if (HasHelperContent || Defaults.Value.AlwaysReserveHelperSlot)
+{
+    <div id="@HelperId"
+         class="@HelperCssClasses"
+         role="@HelperRole"
+         aria-live="@HelperAriaLive">
+        @HelperText
+    </div>
+}
+
+
+@code {
+    // ==========================================================================
+    // PHASE 2.5 CASCADE PARAMETER (audit item #11 — first-class from day one)
+    // ──────────────────────────────────────────────────────────────────────────
+    // When LipiCheckbox renders inside a LipiCheckboxGroup, the group cascades
+    // a LipiCheckboxGroupContext via:
+    //   <CascadingValue Value="..." Name="LipiCheckboxGroupContext" IsFixed="false">
+    //
+    // GroupContext is null in standalone usage. ResolvedReadOnly collapses to the
+    // local ReadOnly when GroupContext is null; otherwise group ReadOnly OR's
+    // with local ReadOnly (group read-only forces all children read-only).
+    // ==========================================================================
+
+    [CascadingParameter(Name = "LipiCheckboxGroupContext")]
+    public LipiCheckboxGroupContext? GroupContext { get; set; }
+
+    private bool ResolvedReadOnly =>
+        (GroupContext?.ReadOnly ?? false) || ReadOnly;
+
+
+    // ==========================================================================
+    // LIPICHECKBOX-SPECIFIC PARAMETERS (Decision 1.17)
+    // ==========================================================================
+
+    /// <summary>Position of the label relative to the indicator.
+    /// Default <see cref="InputLabelPosition.Right"/> — indicator on left,
+    /// label on right (LTR reading order, matches native HTML and every major
+    /// design system).</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; }
+        = InputLabelPosition.Right;
+
+    /// <summary>Render fragment that wins over <see cref="LipiInputBase{TValue}.Label"/>
+    /// when both are provided. Use for labels that need rich content (links, icons).
+    /// Plain-text labels: use the <see cref="LipiInputBase{TValue}.Label"/> string.</summary>
+    [Parameter] public RenderFragment? LabelTemplate { get; set; }
+
+    /// <summary>Accessible label for screen readers when <see cref="LipiInputBase{TValue}.Label"/>
+    /// is intentionally empty (rare — usually set Label). Required when Label is empty
+    /// (env-gated check in CollectParameterValidationErrors).</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+
+    // ==========================================================================
+    // BASE CLASS OVERRIDES
+    // ==========================================================================
+
+    /// <summary>Component id namespace — produces id="cb-{Name}".</summary>
+    protected override string ComponentIdPrefix => "cb";
+
+    /// <summary>Type name for log messages.</summary>
+    protected override string ComponentTypeName => "LipiCheckbox";
+
+    /// <summary>Tri-state aware: empty for bool? means CurrentValue is null
+    /// (the indeterminate state). For bool, "empty" means false.</summary>
+    protected override bool IsEmpty
+    {
+        get
+        {
+            if (default(TValue) is null)
+            {
+                // bool? — empty when null (indeterminate)
+                return CurrentValue is null;
+            }
+            // bool — "empty" means false (Required + unchecked → apricot tint)
+            return CurrentValue is false;
+        }
+    }
+
+    /// <summary>Adapter for InputBase's string round-trip (used by EditContext
+    /// message-store rehydration and form submission paths). Primary value flow
+    /// is via @onchange below — this is fallback plumbing only.</summary>
+    protected override bool TryParseValueFromString(
+        string? value,
+        out TValue result,
+        out string validationErrorMessage)
+    {
+        validationErrorMessage = string.Empty;
+
+        if (bool.TryParse(value, out var b))
+        {
+            result = (TValue)(object)b;
+            return true;
+        }
+
+        // Empty string → null for bool?, parse failure for bool
+        if (string.IsNullOrEmpty(value) && default(TValue) is null)
+        {
+            result = default!;
+            return true;
+        }
+
+        result = default!;
+        validationErrorMessage = $"Cannot parse '{value}' as a boolean checkbox value.";
+        return false;
+    }
+
+    /// <summary>Append the LipiCheckbox-specific component-validation checks.</summary>
+    /// <remarks>
+    /// Filter pattern (audit item #19 lock 6, May 16, 2026): when caller provides
+    /// AriaLabel, the empty-Label case is intentional — the label sits visually
+    /// elsewhere (e.g., inline-left layout pattern with sibling div as text label).
+    /// We REMOVE the base class's "Label parameter is required" error so that
+    /// pattern works without throwing in Dev. We then ADD our own AriaLabel-aware
+    /// requirement: at least ONE of Label or AriaLabel must be non-empty.
+    ///
+    /// NOTE on filter brittleness: the RemoveAll pattern depends on LipiInputBase's
+    /// exact error wording ("Label parameter is required..."). If the base class
+    /// changes its error text, this filter silently breaks. Tracked for future
+    /// base-class refactor toward structured error representation (issue codes
+    /// instead of free-text matching).
+    /// </remarks>
+    protected override List<string> CollectParameterValidationErrors()
+    {
+        var errors = base.CollectParameterValidationErrors();
+
+        // Suppress base's "Label parameter is required" when AriaLabel covers
+        // the accessible-name requirement.
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+        }
+
+        // TValue whitelist — bool or bool? only.
+        var t = typeof(TValue);
+        if (t != typeof(bool) && t != typeof(bool?))
+        {
+            errors.Add(
+                $"TValue must be bool or bool?. Got '{t.FullName}'. " +
+                $"For tri-state checkboxes use TValue=bool? (null=indeterminate). " +
+                $"For binary checkboxes use TValue=bool.");
+        }
+
+        // AriaLabel required when Label is empty (WCAG 2.1 SC 4.1.2 — accessible name).
+        // Pairs with the filter above: if neither Label nor AriaLabel is set, we
+        // surface ONE clear error (not the base's generic Label-required plus our
+        // AriaLabel-required, which would double-fire).
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+        {
+            errors.Add("AriaLabel is required when Label is empty (accessible name for assistive tech).");
+        }
+
+        return errors;
+    }
+
+
+    // ==========================================================================
+    // EVENT HANDLER — Pattern A: @onchange with (TValue)(object) cast
+    // ──────────────────────────────────────────────────────────────────────────
+    // Primary value flow. Follows the LipiNumberInput<TValue> precedent for
+    // generic value coercion. Tri-state click-on-null resolution per Decision
+    // 1.5 — when current value is null, click resolves to true (not false,
+    // which is what the browser's native indeterminate checkbox would return).
+    // ==========================================================================
+
+    private async Task HandleChange(ChangeEventArgs e)
+    {
+        if (Disabled || ResolvedReadOnly) return;
+
+        bool isChecked = e.Value is bool b ? b : false;
+
+        // Tri-state click-on-null per Decision 1.5: CurrentValue null → click → true.
+        // Programmatic return-to-null is the only way back to indeterminate.
+        if (default(TValue) is null && CurrentValue is null)
+        {
+            isChecked = true;
+        }
+
+        CurrentValue = (TValue)(object)isChecked;
+        await ValueChanged.InvokeAsync(CurrentValue);
+        EditContext?.NotifyFieldChanged(FieldIdentifier);
+
+        // Touched-state coordination (audit item #12 + Decision 2.13).
+        // OnChildInteracted fires on @onchange ONLY — not @onfocus, not @onblur.
+        // Tab-through with no action does NOT trigger touched (per Decision 2.13).
+        if (GroupContext is not null)
+        {
+            await GroupContext.OnChildInteracted.InvokeAsync();
+        }
+        else
+        {
+            MarkFieldAsTouched();
+        }
+    }
+
+
+    // ==========================================================================
+    // CSS CLASS COMPOSITION
+    // ──────────────────────────────────────────────────────────────────────────
+    // Wrapper emits the family classes alongside component-specific. Per item #1:
+    // ALL layout primitives live in family CSS (.lipi-input-label-pos-*, etc.);
+    // the wrapper's .razor.css contains only the wrapper's shape rules (none in
+    // the standalone case — family CSS owns the wrapper's display: inline-flex).
+    // ==========================================================================
+
+    private string WrapperCssClasses
+    {
+        get
+        {
+            var classes = new List<string>(8)
+            {
+                "lipi-checkbox-wrapper",
+                $"lipi-input-{Size.ToString().ToLowerInvariant()}",
+                $"lipi-input-label-pos-{LabelPosition.ToString().ToLowerInvariant()}"
+            };
+
+            if (Disabled)         classes.Add("lipi-input-disabled");
+            if (ResolvedReadOnly) classes.Add("lipi-input-readonly");
+            if (HasErrorState)    classes.Add("lipi-input-error");
+            if (CurrentValue is true) classes.Add("lipi-checkbox-checked");
+
+            // Caller-provided Class is append-only for layout utilities (per Phase 2.2 convention)
+            if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    /// <summary>Indicator class composition. State precedence cascade per Decision 1.4:
+    /// Disabled > ReadOnly > Error > Checked > Required-Empty > Default. Implemented
+    /// at render time via class composition; visual rules in scoped CSS.</summary>
+    private string IndicatorCssClasses
+    {
+        get
+        {
+            var classes = new List<string>(4) { "lipi-checkbox-indicator" };
+
+            if (Disabled)
+            {
+                classes.Add("lipi-checkbox-indicator-disabled");
+            }
+            else if (ResolvedReadOnly)
+            {
+                classes.Add("lipi-checkbox-indicator-readonly");
+            }
+            else if (HasErrorState)
+            {
+                classes.Add("lipi-checkbox-indicator-error");
+            }
+            else if (CurrentValue is true || CurrentValue is null)
+            {
+                // Checked OR indeterminate — both render with primary fill.
+                // The dash vs check differentiation happens in the template above.
+                classes.Add("lipi-checkbox-indicator-checked");
+            }
+            else if (Required && IsEmpty
+                     && EffectiveRequiredStyle == LiPi.Components.RequiredVisualStyle.ApricotTint)
+            {
+                classes.Add("lipi-checkbox-indicator-required-empty");
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+
+
+    // ==========================================================================
+    // HELPER SLOT COMPOSITION
+    // ──────────────────────────────────────────────────────────────────────────
+    // Helper renders below the wrapper; state colors via family CSS classes.
+    // Indent below the label text per Decision 1.13 — values hardcoded per size
+    // in the scoped CSS (not a custom property, because helper renders OUTSIDE
+    // the wrapper as a sibling div — custom properties on the wrapper don't
+    // cascade to siblings).
+    //
+    // HelperText, HasHelperContent, HelperRole, HelperAriaLive use inherited
+    // LipiInputBase members — no redeclaration needed.
+    // ==========================================================================
+
+    private string HelperCssClasses
+    {
+        get
+        {
+            var stateClass = ResolvedState switch
+            {
+                InputState.Error   => "lipi-input-helper-error",
+                InputState.Warning => "lipi-input-helper-warning",
+                InputState.Success => "lipi-input-helper-success",
+                _                  => null
+            };
+
+            return stateClass is null
+                ? "lipi-input-helper lipi-input-helper-bottom lipi-checkbox-helper-indent"
+                : $"lipi-input-helper lipi-input-helper-bottom lipi-checkbox-helper-indent {stateClass}";
+        }
+    }
+
+    private bool HasErrorState => ResolvedState == InputState.Error;
+
+
+    // ==========================================================================
+    // ARIA ATTRIBUTE HELPERS
+    // ──────────────────────────────────────────────────────────────────────────
+    // aria-checked="mixed" only for tri-state null per Decision 1.15.
+    // AriaInvalidAttr and AriaDescribedByAttr use inherited LipiInputBase
+    // members — no redeclaration needed.
+    // ==========================================================================
+
+    private string AriaCheckedAttr => CurrentValue switch
+    {
+        true  => "true",
+        false => "false",
+        null  => "mixed",
+        _     => "false"
+    };
+}

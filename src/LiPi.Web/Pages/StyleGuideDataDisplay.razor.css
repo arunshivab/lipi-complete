@@ -1,0 +1,138 @@
+/* LipiEmptyStateStandaloneDemo.razor.css — scoped demo styling (LiPi.Web, not redistributable) */
+/* PHASE: 2.8 Data Display — Stage 2 (LipiEmptyState demo) */
+
+.sg-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: var(--sp-xl);
+    font-family: var(--font-ui);
+    color: var(--color-text-primary);
+}
+
+.sg-header h1 {
+    margin: 0 0 var(--sp-xs);
+    font-size: var(--ts-page-title);
+    font-weight: var(--fw-bold);
+}
+
+.sg-header p {
+    margin: 0 0 var(--sp-xl);
+    color: var(--color-text-secondary);
+    font-size: var(--ts-body);
+    max-width: 640px;
+}
+
+.sg-section {
+    margin-bottom: var(--sp-2xl);
+}
+
+.sg-section h2 {
+    margin: 0 0 var(--sp-lg);
+    font-size: var(--ts-section);
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border-default);
+    padding-bottom: var(--sp-sm);
+}
+
+.sg-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--sp-lg);
+}
+
+.sg-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-lg);
+}
+
+.sg-cell {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-md);
+    padding: var(--sp-md);
+    position: relative;
+}
+
+.sg-tag {
+    display: inline-block;
+    font-size: var(--ts-micro);
+    font-weight: var(--fw-medium);
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: var(--sp-sm);
+}
+
+.sg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xs);
+    font-family: var(--font-ui);
+    font-size: var(--ts-small);
+    font-weight: var(--fw-medium);
+    padding: var(--sp-xs) var(--sp-md);
+    border-radius: var(--r-sm);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.sg-btn:hover { background: var(--color-bg-hover); }
+
+.sg-btn-primary {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-text-inverse);
+}
+.sg-btn-primary:hover { background: var(--color-primary-hover); }
+
+.sg-btn-danger {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: var(--color-text-inverse);
+}
+.sg-btn-danger:hover { background: var(--color-danger-hover); }
+
+.sg-notes {
+    margin: 0;
+    padding-left: var(--sp-lg);
+    color: var(--color-text-secondary);
+    font-size: var(--ts-body);
+    line-height: 1.7;
+}
+
+.sg-notes code {
+    font-family: var(--font-mono);
+    font-size: var(--ts-mono-data);
+    background: var(--color-bg-subtle);
+    padding: 0 var(--sp-xs);
+    border-radius: var(--r-sm);
+    color: var(--color-text-primary);
+}
+
+/* ── LipiTable demo additions (Stage 2 core shell, A42) ─────────────────── */
+.sg-note-p {
+    margin: 0 0 var(--sp-lg);
+    color: var(--color-text-secondary);
+    font-size: var(--ts-body);
+    line-height: 1.6;
+    max-width: 640px;
+}
+
+.sg-subhead {
+    margin: var(--sp-xl) 0 var(--sp-md);
+    font-size: var(--ts-section);
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+}
+
+/* ── Stage 3 (A45): density toggle button row ───────────────────────────── */
+.sg-density-toggle {
+    display: flex;
+    gap: var(--sp-sm);
+    margin: 0 0 var(--sp-lg);
+    flex-wrap: wrap;
+}

@@ -1,0 +1,754 @@
+@* SPEC: docs/00-COMPONENTS/01.5-DateTime.md (shipping in Batch 9d)              *@
+@* PHASE: 2.4 (Batch 9d — Date/Time family ship)                                  *@
+@* AMEND: docs/CHANGE-LOG.md A20 (pending)                                         *@
+@*                                                                                  *@
+@* LipiDateRangePicker — date range picker with separate StartValue and EndValue. *@
+@*                                                                                  *@
+@* Architecture note (E1 lock):                                                    *@
+@*   Binds to TWO separate DateOnly? properties, NOT a single composite value.    *@
+@*   Caller binds StartValue/EndValue to model fields independently. This         *@
+@*   matches how date ranges are typically stored in databases (start_date +      *@
+@*   end_date columns) and avoids forcing a synthetic composite type on callers.  *@
+@*                                                                                  *@
+@* Inheritance:                                                                     *@
+@*   Direct ComponentBase. NOT LipiInputBase<TValue> — there's no single TValue.   *@
+@*   NOT LipiContainerBase — the segment-registration model doesn't fit a         *@
+@*   2-calendar popover with internal state. Visual scaffolding (label, field,    *@
+@*   helper) is hand-rolled to match the family appearance. The component still   *@
+@*   participates in EditForm validation if Required is set; validation is on     *@
+@*   StartValue (range invalid if Start null while EndValue set, etc.).           *@
+@*                                                                                  *@
+@* Popover (E1):                                                                    *@
+@*   Two calendars side-by-side. Right always shows month after left. Both       *@
+@*   share month/year dropdown navigation and respect MinDate/MaxDate/predicates. *@
+@*   Mobile <640px: single calendar, sequential picking.                          *@
+@*                                                                                  *@
+@* Range visualization (E3):                                                       *@
+@*   Start cell: solid blue circle.                                                 *@
+@*   End cell: solid blue circle.                                                   *@
+@*   In-range cells: light blue background (continuous bar).                       *@
+@*   Hover preview: dashed background while selecting end.                         *@
+@*                                                                                  *@
+@* Presets (E2):                                                                    *@
+@*   Optional preset panel on left of calendars. Click preset = sets range +      *@
+@*   closes popover. Empty/null Presets list = no preset panel.                    *@
+@*                                                                                  *@
+@* Open-ended ranges (E4):                                                          *@
+@*   AllowOpenEnd=false (default): both ends required.                             *@
+@*   AllowOpenEnd=true: end can be null. Field shows "13/01/2026 → ongoing".      *@
+@*   "Set as ongoing" button appears in popover after start picked.                 *@
+
+@using System.Globalization
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@implements IDisposable
+@namespace LiPi.Components.Forms
+@using LiPicons.Blazor
+@inject IJSRuntime JS
+@inject Microsoft.Extensions.Options.IOptions<LiPi.Components.LipiInputDefaults> Defaults
+
+<div class="lipi-input-wrapper lipi-daterange @CssClasses @_resolvedLabelPositionClass @(Class ?? string.Empty)"
+     style="@InlineStyle"
+     @ref="_wrapperRef">
+
+    @* ===== LABEL ROW ===== *@
+    <label class="lipi-input-label">
+        <span class="lipi-input-label-text">@(Label ?? string.Empty)</span>
+        @if (Required)
+        {
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+    </label>
+
+    @* ===== FIELD ROW ===== *@
+    @* ===== INPUT BODY (field + helper grouped for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
+
+    <div class="lipi-input-field lipi-daterange-field" @ref="_anchorRef">
+
+        @* Read-only display of the range — clicking opens popover *@
+        <button type="button"
+                class="lipi-daterange-display"
+                aria-label="@FieldAriaLabel"
+                aria-expanded="@(_isPopoverOpen ? "true" : "false")"
+                aria-haspopup="dialog"
+                disabled="@(Disabled || ReadOnly)"
+                @onclick="HandleFieldClick">
+            <span class="lipi-daterange-text">@DisplayText</span>
+        </button>
+
+        @* Clear button — only when value set *@
+        @if ((StartValue.HasValue || EndValue.HasValue) && !Disabled && !ReadOnly)
+        {
+            <button type="button"
+                    class="lipi-daterange-clear"
+                    aria-label="Clear range"
+                    tabindex="-1"
+                    @onclick="HandleClearClick">
+                <LipiIcon Name="@LipiconName.Close" Size="14" />
+            </button>
+        }
+
+        @* Calendar icon *@
+        <span class="lipi-daterange-icon" aria-hidden="true">
+            <LipiIcon Name="@LipiconName.Calendar" Size="16" />
+        </span>
+    </div>
+
+    @* ===== POPOVER ===== *@
+    @if (_isPopoverOpen)
+    {
+        <div class="lipi-daterange-popover"
+             role="dialog"
+             aria-label="Date range picker"
+             tabindex="-1"
+             @ref="_popoverRef"
+             @onkeydown="HandlePopoverKeyDown">
+
+            <div class="lipi-daterange-popover-body">
+
+                @* Preset panel — left side *@
+                @if (EffectivePresets is not null && EffectivePresets.Count > 0)
+                {
+                    <div class="lipi-daterange-presets" role="list" aria-label="Quick presets">
+                        @foreach (var preset in EffectivePresets)
+                        {
+                            <button type="button"
+                                    class="lipi-daterange-preset"
+                                    role="listitem"
+                                    @onclick="@(() => HandlePresetClick(preset))">
+                                @preset.Label
+                            </button>
+                        }
+                    </div>
+                }
+
+                @* Two calendars side-by-side *@
+                <div class="lipi-daterange-calendars">
+                    @{
+                        // Left calendar: _displayMonth (start side)
+                        // Right calendar: _displayMonth + 1 month
+                        var rightMonth = AddMonths(_displayMonth, 1);
+                    }
+
+                    <div class="lipi-daterange-cal lipi-daterange-cal-left">
+                        @RenderCalendar(_displayMonth, isLeft: true)
+                    </div>
+
+                    <div class="lipi-daterange-cal lipi-daterange-cal-right">
+                        @RenderCalendar(rightMonth, isLeft: false)
+                    </div>
+                </div>
+            </div>
+
+            @* Footer: ongoing / today buttons *@
+            <div class="lipi-daterange-footer">
+                @if (AllowOpenEnd && _stagedStart.HasValue && !_stagedEnd.HasValue)
+                {
+                    <button type="button"
+                            class="lipi-daterange-ongoing"
+                            @onclick="HandleSetOngoing">
+                        Set as ongoing
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+    @* ===== HELPER ROW ===== *@
+    @if (!string.IsNullOrEmpty(HelperText))
+    {
+        <div class="lipi-input-helper" id="@HelperId">@HelperText</div>
+    }
+
+    </div>@* end lipi-input-body *@
+
+</div>
+
+@code {
+    // ==========================================================================
+    // PARAMETERS
+    // ==========================================================================
+
+    /// <summary>The HTML name attribute. Drives wrapper id and accessibility wiring.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    /// <summary>Visible label text.</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>Start of the date range. Bind via @bind-StartValue or use
+    /// StartValue / StartValueChanged manually.</summary>
+    [Parameter] public DateOnly? StartValue { get; set; }
+
+    /// <summary>Callback when StartValue changes.</summary>
+    [Parameter] public EventCallback<DateOnly?> StartValueChanged { get; set; }
+
+    /// <summary>End of the date range. Bind via @bind-EndValue or use
+    /// EndValue / EndValueChanged manually.</summary>
+    [Parameter] public DateOnly? EndValue { get; set; }
+
+    /// <summary>Callback when EndValue changes.</summary>
+    [Parameter] public EventCallback<DateOnly?> EndValueChanged { get; set; }
+
+    /// <summary>Override clinic's default date format. Falls back to
+    /// the resolved <c>Format</c> / <c>DefaultDateFormat</c>.</summary>
+    [Parameter] public string? Format { get; set; }
+
+    /// <summary>First day of the calendar week. Null → <see cref="LipiInputDefaults.DefaultWeekStart"/> (Sunday).</summary>
+    [Parameter] public DayOfWeek? WeekStart { get; set; }
+
+    /// <summary>Where "today" is sourced for the today highlight + default anchor. Null → <see cref="LipiInputDefaults.DefaultTimeSource"/>.</summary>
+    [Parameter] public LipiTimeSource? TimeSource { get; set; }
+
+    /// <summary>Explicit zone when the resolved source is SpecificZone. Null → <see cref="LipiInputDefaults.DefaultTimeZone"/>.</summary>
+    [Parameter] public TimeZoneInfo? TimeZone { get; set; }
+
+    /// <summary>Earliest selectable date (inclusive). Defaults to no minimum.</summary>
+    [Parameter] public DateOnly? MinDate { get; set; }
+
+    /// <summary>Latest selectable date (inclusive). Defaults to no maximum.</summary>
+    [Parameter] public DateOnly? MaxDate { get; set; }
+
+    /// <summary>Custom predicate. Returns false for non-selectable dates.</summary>
+    [Parameter] public Func<DateOnly, bool>? IsDateAllowed { get; set; }
+
+    /// <summary>Predicate for blackout dates (with hover tooltip via
+    /// <see cref="GetDisabledReason"/>).</summary>
+    [Parameter] public Func<DateOnly, bool>? IsDateDisabled { get; set; }
+
+    /// <summary>Hover-tooltip reason text for disabled dates.</summary>
+    [Parameter] public Func<DateOnly, string?>? GetDisabledReason { get; set; }
+
+    /// <summary>When true, EndValue can be left null (open-ended range). Default false.</summary>
+    [Parameter] public bool AllowOpenEnd { get; set; } = false;
+
+    /// <summary>Optional preset panel. Null or empty = no preset panel renders.</summary>
+    [Parameter] public List<DateRangePreset>? Presets { get; set; }
+
+    /// <summary>Direction of auto-built presets (Past / Future / Both). Only used when
+    /// <see cref="Presets"/> is not explicitly set and this is non-null.</summary>
+    [Parameter] public PresetDirection? PresetDirection { get; set; }
+
+    /// <summary>Cumulative span tier of auto-built presets (Day &lt; Week &lt; Month &lt;
+    /// Quarter &lt; Year). Defaults to Month when a direction is set without a span.</summary>
+    [Parameter] public PresetSpan PresetSpan { get; set; } = PresetSpan.Month;
+
+    /// <summary>Fiscal-year start month (1–12) for quarter + FY presets. Default 4 (April,
+    /// Indian FY). Set to 1 (January) for calendar quarters.</summary>
+    [Parameter] public int FiscalYearStart { get; set; } = 4;
+
+    /// <summary>Whether the field is required (renders asterisk; no built-in validation
+    /// since this component has dual values).</summary>
+    [Parameter] public bool Required { get; set; } = false;
+
+    /// <summary>Disables the entire component.</summary>
+    [Parameter] public bool Disabled { get; set; } = false;
+
+    /// <summary>ReadOnly mode — display only, no popover open.</summary>
+    [Parameter] public bool ReadOnly { get; set; } = false;
+
+    /// <summary>Helper text below the field.</summary>
+    [Parameter] public string? HelperText { get; set; }
+
+    /// <summary>Extra wrapper class.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Inline style on the wrapper.</summary>
+    [Parameter] public string? InlineStyle { get; set; }
+
+    /// <summary>Component size — Small/Medium/Large. Default Medium.</summary>
+    [Parameter] public InputSize Size { get; set; } = InputSize.Medium;
+
+    // ── Phase 2.5.5 — LabelPosition cross-family retrofit ─────────────────────────────────
+
+    /// <summary>Position of the label relative to the input field. Top (default) — label above.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; } = InputLabelPosition.Top;
+
+    /// <summary>Accessible name when Label is empty. Required when Label="" (WCAG 2.1 SC 4.1.2).</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    private string _resolvedLabelPositionClass = string.Empty;
+
+    // ==========================================================================
+    // INTERNAL STATE
+    // ==========================================================================
+
+    private ElementReference _wrapperRef;
+    private ElementReference _anchorRef;
+    private ElementReference _popoverRef;
+    private DotNetObjectReference<LipiDateRangePicker>? _dotNetRef;  // for OnOutsideClick JSInvokable
+
+    private bool _isPopoverOpen;
+    private DateOnly _displayMonth = DateOnly.FromDateTime(DateTime.Today);  // left calendar's month
+
+    // "Today" honoring the chosen time source (Server/Utc/SpecificZone). A HIS pins
+    // SpecificZone(clinic) so the highlight reflects the clinic's calendar day.
+    private DateOnly ResolvedToday =>
+        LipiTimeResolver.ResolveToday(
+            TimeSource ?? Defaults.Value.DefaultTimeSource,
+            TimeZone ?? Defaults.Value.DefaultTimeZone);
+
+    // Explicit Presets win; otherwise build from PresetDirection/PresetSpan/FiscalYearStart
+    // (honoring the resolved week start + today). Null direction + null Presets = no panel.
+    private List<DateRangePreset>? EffectivePresets =>
+        Presets
+        ?? (PresetDirection is { } dir
+            ? LipiDateRangePresets.Build(dir, PresetSpan, ResolvedToday,
+                WeekStart ?? Defaults.Value.DefaultWeekStart, FiscalYearStart)
+            : null);
+    private DateOnly? _stagedStart;
+    private DateOnly? _stagedEnd;
+    private DateOnly? _hoverDate;  // for range preview while selecting end
+    private string _resolvedFormat = "DD/MM/YYYY";
+    private DayOfWeek[] _dowOrder = new DayOfWeek[7];
+
+    // ==========================================================================
+    // LIFECYCLE
+    // ==========================================================================
+
+    protected override void OnParametersSet()
+    {
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
+
+        _resolvedFormat = Format ?? (Format ?? Defaults.Value.DefaultDateFormat);
+        var weekStart = (WeekStart ?? Defaults.Value.DefaultWeekStart);
+        for (var i = 0; i < 7; i++)
+        {
+            _dowOrder[i] = (DayOfWeek)(((int)weekStart + i) % 7);
+        }
+
+        // Sync staged from caller bindings when popover not open
+        if (!_isPopoverOpen)
+        {
+            _stagedStart = StartValue;
+            _stagedEnd = EndValue;
+        }
+    }
+
+    private string DisplayText
+    {
+        get
+        {
+            if (!StartValue.HasValue && !EndValue.HasValue) return "Select date range";
+            var startStr = StartValue.HasValue
+                ? LipiDateFormat.FormatDate(StartValue.Value, _resolvedFormat)
+                : "—";
+            var endStr = EndValue.HasValue
+                ? LipiDateFormat.FormatDate(EndValue.Value, _resolvedFormat)
+                : (AllowOpenEnd ? "ongoing" : "—");
+            return $"{startStr} → {endStr}";
+        }
+    }
+
+    private string FieldAriaLabel
+    {
+        get
+        {
+            var l = Label ?? "Date range";
+            return $"{l}: {DisplayText}. Click to open calendar.";
+        }
+    }
+
+    // ==========================================================================
+    // POPOVER
+    // ==========================================================================
+
+    private async Task HandleFieldClick()
+    {
+        if (Disabled || ReadOnly) return;
+        if (_isPopoverOpen) await ClosePopoverAsync();
+        else await OpenPopoverAsync();
+    }
+
+    private async Task OpenPopoverAsync()
+    {
+        if (_isPopoverOpen) return;
+
+        // Initialize staged state
+        _stagedStart = StartValue;
+        _stagedEnd = EndValue;
+        _hoverDate = null;
+
+        // Position to start month, or today's month if no start
+        var anchor = StartValue ?? ResolvedToday;
+        _displayMonth = new DateOnly(anchor.Year, anchor.Month, 1);
+
+        _isPopoverOpen = true;
+        StateHasChanged();
+        await Task.Yield();
+
+        _dotNetRef ??= DotNetObjectReference.Create(this);
+
+        try
+        {
+            await JS.InvokeVoidAsync("lipiDatePicker.positionPopover", _anchorRef, _popoverRef);
+            await JS.InvokeVoidAsync("lipiDatePicker.attachReposition", _anchorRef, _popoverRef);
+            // Issue 1 fix (May 8 patch): outside-click dismisses popover
+            await JS.InvokeVoidAsync("lipiDatePicker.attachOutsideClick", _wrapperRef, _dotNetRef);
+            // Issue 2 fix (May 8 patch): trap navigation keys to prevent page scroll
+            await JS.InvokeVoidAsync("lipiDatePicker.attachKeyboardTrap", _popoverRef);
+            await JS.InvokeVoidAsync("lipiDatePicker.focusElement", _popoverRef);
+        }
+        catch (Exception) { }
+    }
+
+    private async Task ClosePopoverAsync()
+    {
+        if (!_isPopoverOpen) return;
+        try
+        {
+            await JS.InvokeVoidAsync("lipiDatePicker.detachReposition", _popoverRef);
+            await JS.InvokeVoidAsync("lipiDatePicker.detachOutsideClick", _wrapperRef);
+            await JS.InvokeVoidAsync("lipiDatePicker.detachKeyboardTrap", _popoverRef);
+        }
+        catch (Exception) { }
+        _isPopoverOpen = false;
+        _hoverDate = null;
+        StateHasChanged();
+    }
+
+    /// <summary>JS-invoked when user mousedowns outside the wrapper while the popover
+    /// is open. Closes the popover. Issue 1 fix (May 8 patch).</summary>
+    [JSInvokable]
+    public async Task OnOutsideClick()
+    {
+        if (!_isPopoverOpen) return;
+        await ClosePopoverAsync();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        if (_dotNetRef is not null)
+        {
+            try
+            {
+                _ = JS.InvokeVoidAsync("lipiDatePicker.detachReposition", _popoverRef).AsTask();
+                _ = JS.InvokeVoidAsync("lipiDatePicker.detachOutsideClick", _wrapperRef).AsTask();
+                _ = JS.InvokeVoidAsync("lipiDatePicker.detachKeyboardTrap", _popoverRef).AsTask();
+            }
+            catch (Exception) { }
+            _dotNetRef.Dispose();
+            _dotNetRef = null;
+        }
+    }
+
+    private async Task HandleClearClick()
+    {
+        if (Disabled || ReadOnly) return;  // defensive — button is hidden, but defense-in-depth
+        if (StartValueChanged.HasDelegate) await StartValueChanged.InvokeAsync(null);
+        if (EndValueChanged.HasDelegate) await EndValueChanged.InvokeAsync(null);
+    }
+
+    // ==========================================================================
+    // CELL CLICK STATE MACHINE
+    //   - Click 1 (no staged start, OR both staged): set staged start, clear end
+    //   - Click 2 (staged start, no staged end): set staged end (or staged start if before)
+    //   - On staged end commit: emit StartValueChanged/EndValueChanged + close
+    // ==========================================================================
+
+    private async Task HandleCellClick(DateOnly date)
+    {
+        if (IsCellDisabled(date)) return;
+
+        // Clamp to MinDate/MaxDate
+        if (MinDate.HasValue && date < MinDate.Value) return;
+        if (MaxDate.HasValue && date > MaxDate.Value) return;
+
+        if (!_stagedStart.HasValue || (_stagedStart.HasValue && _stagedEnd.HasValue))
+        {
+            // First click — start a new range
+            _stagedStart = date;
+            _stagedEnd = null;
+            _hoverDate = null;
+        }
+        else
+        {
+            // Second click — finalize end
+            if (date < _stagedStart.Value)
+            {
+                // User clicked before start → swap (start becomes the new earlier date)
+                _stagedEnd = _stagedStart;
+                _stagedStart = date;
+            }
+            else
+            {
+                _stagedEnd = date;
+            }
+
+            await CommitAndClose();
+            return;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task CommitAndClose()
+    {
+        if (StartValueChanged.HasDelegate)
+            await StartValueChanged.InvokeAsync(_stagedStart);
+        if (EndValueChanged.HasDelegate)
+            await EndValueChanged.InvokeAsync(_stagedEnd);
+        await ClosePopoverAsync();
+    }
+
+    private async Task HandleSetOngoing()
+    {
+        if (!_stagedStart.HasValue) return;
+        _stagedEnd = null;
+        if (StartValueChanged.HasDelegate)
+            await StartValueChanged.InvokeAsync(_stagedStart);
+        if (EndValueChanged.HasDelegate)
+            await EndValueChanged.InvokeAsync(null);
+        await ClosePopoverAsync();
+    }
+
+    private async Task HandlePresetClick(DateRangePreset preset)
+    {
+        var (start, end) = preset.Resolver();
+        _stagedStart = start;
+        _stagedEnd = end;
+        await CommitAndClose();
+    }
+
+    private void HandleCellHover(DateOnly date)
+    {
+        _hoverDate = date;
+    }
+
+    private async Task HandlePopoverKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await ClosePopoverAsync();
+        }
+    }
+
+    // ==========================================================================
+    // CELL DISABLED LOGIC
+    // ==========================================================================
+
+    private bool IsCellDisabled(DateOnly date)
+    {
+        if (MinDate.HasValue && date < MinDate.Value) return true;
+        if (MaxDate.HasValue && date > MaxDate.Value) return true;
+        if (IsDateAllowed is not null && !IsDateAllowed(date)) return true;
+        if (IsDateDisabled is not null && IsDateDisabled(date)) return true;
+        return false;
+    }
+
+    private string? GetCellDisabledReason(DateOnly date)
+    {
+        if (IsDateDisabled is not null && IsDateDisabled(date))
+        {
+            var reason = GetDisabledReason?.Invoke(date);
+            if (!string.IsNullOrWhiteSpace(reason)) return reason;
+            return "Date unavailable";
+        }
+        if (MinDate.HasValue && date < MinDate.Value)
+            return $"Earliest allowed: {LipiDateFormat.FormatDate(MinDate.Value, _resolvedFormat)}";
+        if (MaxDate.HasValue && date > MaxDate.Value)
+            return $"Latest allowed: {LipiDateFormat.FormatDate(MaxDate.Value, _resolvedFormat)}";
+        if (IsDateAllowed is not null && !IsDateAllowed(date))
+            return "Date unavailable";
+        return null;
+    }
+
+    // ==========================================================================
+    // RANGE STATE PER-CELL — used by RenderCalendar for visualization
+    // ==========================================================================
+
+    private bool IsCellInRange(DateOnly date)
+    {
+        if (!_stagedStart.HasValue) return false;
+
+        // Committed range
+        if (_stagedEnd.HasValue)
+        {
+            return date > _stagedStart.Value && date < _stagedEnd.Value;
+        }
+
+        // Hover preview (start picked, hovering toward end)
+        if (_hoverDate.HasValue)
+        {
+            var hi = _hoverDate.Value > _stagedStart.Value ? _hoverDate.Value : _stagedStart.Value;
+            var lo = _hoverDate.Value > _stagedStart.Value ? _stagedStart.Value : _hoverDate.Value;
+            return date > lo && date < hi;
+        }
+
+        return false;
+    }
+
+    private bool IsCellRangeStart(DateOnly date) =>
+        _stagedStart.HasValue && date == _stagedStart.Value;
+
+    private bool IsCellRangeEnd(DateOnly date) =>
+        _stagedEnd.HasValue && date == _stagedEnd.Value;
+
+    private bool IsCellHoverEnd(DateOnly date) =>
+        _hoverDate.HasValue && !_stagedEnd.HasValue && _stagedStart.HasValue
+        && date == _hoverDate.Value && date != _stagedStart.Value;
+
+    // ==========================================================================
+    // CALENDAR RENDER (shared by left and right calendars)
+    //
+    // JUDGMENT: this RenderFragment is duplicated mentally from LipiDatePicker's
+    // calendar grid. Per Path 3 declarative-duplication rule, this is the SECOND
+    // place we have a calendar grid. Path 3 trigger to extract = 3rd consumer.
+    // We're at 2 now; extracting prematurely would be over-architecture. Comment
+    // is here so the next person sees the trigger threshold.
+    // ==========================================================================
+
+    private RenderFragment RenderCalendar(DateOnly month, bool isLeft) => __builder =>
+    {
+        <div class="lipi-daterange-cal-header">
+            @if (isLeft)
+            {
+                <button type="button"
+                        class="lipi-daterange-nav"
+                        aria-label="Previous month"
+                        @onclick="HandlePrevMonth">
+                    <LipiIcon Name="@LipiconName.ChevronLeft" Size="16" />
+                </button>
+            }
+            else
+            {
+                <span class="lipi-daterange-nav-spacer" aria-hidden="true"></span>
+            }
+
+            <span class="lipi-daterange-cal-title">
+                @CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month.Month) @month.Year
+            </span>
+
+            @if (!isLeft)
+            {
+                <button type="button"
+                        class="lipi-daterange-nav"
+                        aria-label="Next month"
+                        @onclick="HandleNextMonth">
+                    <LipiIcon Name="@LipiconName.ChevronRight" Size="16" />
+                </button>
+            }
+            else
+            {
+                <span class="lipi-daterange-nav-spacer" aria-hidden="true"></span>
+            }
+        </div>
+
+        <div class="lipi-daterange-dow-row">
+            @foreach (var dow in _dowOrder)
+            {
+                <span class="lipi-daterange-dow-cell">@DayShort(dow)</span>
+            }
+        </div>
+
+        <div class="lipi-daterange-grid">
+            @{
+                var firstOfMonth = new DateOnly(month.Year, month.Month, 1);
+                var weekStart = (WeekStart ?? Defaults.Value.DefaultWeekStart);
+                var leadingDays = ((int)firstOfMonth.DayOfWeek - (int)weekStart + 7) % 7;
+                var gridStart = firstOfMonth.AddDays(-leadingDays);
+
+                for (var row = 0; row < 6; row++)
+                {
+                    <div class="lipi-daterange-row">
+                        @for (var col = 0; col < 7; col++)
+                        {
+                            var cellDate = gridStart.AddDays(row * 7 + col);
+                            var isOtherMonth = cellDate.Month != month.Month;
+                            var isToday      = cellDate == ResolvedToday;
+                            var isStart      = IsCellRangeStart(cellDate);
+                            var isEnd        = IsCellRangeEnd(cellDate);
+                            var isInRange    = IsCellInRange(cellDate);
+                            var isHoverEnd   = IsCellHoverEnd(cellDate);
+                            var isDisabled   = IsCellDisabled(cellDate);
+                            var disReason    = isDisabled ? GetCellDisabledReason(cellDate) : null;
+
+                            <button type="button"
+                                    class="@CellClass(isOtherMonth, isToday, isStart, isEnd, isInRange, isHoverEnd, isDisabled)"
+                                    title="@disReason"
+                                    disabled="@isDisabled"
+                                    @onclick="@(() => HandleCellClick(cellDate))"
+                                    @onmouseenter="@(() => HandleCellHover(cellDate))">
+                                @cellDate.Day
+                            </button>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    };
+
+    private void HandlePrevMonth()
+    {
+        _displayMonth = AddMonths(_displayMonth, -1);
+    }
+
+    private void HandleNextMonth()
+    {
+        _displayMonth = AddMonths(_displayMonth, 1);
+    }
+
+    private static DateOnly AddMonths(DateOnly d, int months)
+    {
+        var dt = new DateTime(d.Year, d.Month, 1).AddMonths(months);
+        return new DateOnly(dt.Year, dt.Month, 1);
+    }
+
+    // ==========================================================================
+    // CSS HELPERS
+    // ==========================================================================
+
+    private string CssClasses
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                $"lipi-input-{Size.ToString().ToLowerInvariant()}",
+            };
+            if (Disabled) classes.Add("lipi-input-state-disabled");
+            else if (ReadOnly) classes.Add("lipi-input-state-readonly");
+            else classes.Add("lipi-input-state-default");
+            return string.Join(" ", classes);
+        }
+    }
+
+    private string CellClass(bool isOtherMonth, bool isToday, bool isStart, bool isEnd,
+                             bool isInRange, bool isHoverEnd, bool isDisabled)
+    {
+        var classes = new List<string> { "lipi-daterange-day-cell" };
+        if (isOtherMonth) classes.Add("lipi-daterange-day-cell-other-month");
+        if (isToday)      classes.Add("lipi-daterange-day-cell-today");
+        if (isStart)      classes.Add("lipi-daterange-day-cell-start");
+        if (isEnd)        classes.Add("lipi-daterange-day-cell-end");
+        if (isInRange)    classes.Add("lipi-daterange-day-cell-in-range");
+        if (isHoverEnd)   classes.Add("lipi-daterange-day-cell-hover-end");
+        if (isDisabled)   classes.Add("lipi-daterange-day-cell-disabled");
+        return string.Join(" ", classes);
+    }
+
+    private string HelperId => $"drp-{Name}-helper";
+
+    private static string DayShort(DayOfWeek dow) => dow switch
+    {
+        DayOfWeek.Sunday    => "Sun",
+        DayOfWeek.Monday    => "Mon",
+        DayOfWeek.Tuesday   => "Tue",
+        DayOfWeek.Wednesday => "Wed",
+        DayOfWeek.Thursday  => "Thu",
+        DayOfWeek.Friday    => "Fri",
+        DayOfWeek.Saturday  => "Sat",
+        _                   => dow.ToString().Substring(0, 3),
+    };
+}

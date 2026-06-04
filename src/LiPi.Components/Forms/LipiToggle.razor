@@ -1,0 +1,263 @@
+@* SPEC:  docs/03-Phase-2.5-Selection-Components/04-LipiToggle.md
+           — 29 locked decisions
+   PHASE: 2.5 Step 12 — final selection-family component
+   AMEND: docs/CHANGE-LOG.md A15 (pending — Phase 2.5 close-out)
+
+   LipiToggle is the pill-track settings switch. Always binary bool — no
+   nullable variant, no tri-state, no LipiToggleGroup.
+
+   Key divergences from LipiCheckbox (all per spec §"Architectural divergences"):
+     1. Visual anatomy: track + thumb (not indicator + checkmark)
+     2. No tri-state: always bool, never bool?
+     3. IsEmpty always false: both on/off are valid; no apricot required cue
+     4. Animation pattern: slide + cross-fade via --tr-toggle; M3 pressed stretch
+     5. role="switch" (explicit) vs role="checkbox" (implicit on checkbox)
+     6. IconWhenOn: check icon inside thumb when on (clinical-confirmation signal)
+     7. No cascade parameter: no LipiToggleGroup exists
+
+   Audit-item alignments:
+     #15c InputLabelPosition (shared enum, not LipiToggleLabelPosition)
+     #19 lock 6 Label/AriaLabel filter (same pattern as all selection-family)
+*@
+
+@namespace LiPi.Components
+@using LiPicons.Blazor
+@inherits LipiInputBase<bool>
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+
+@*
+   Wrapper is <label> so the entire row is the click hit target.
+   Helper renders OUTSIDE as a sibling div (clicking helper text
+   does not toggle the switch).
+
+   Family classes emitted:
+     - .lipi-toggle-wrapper            — component-specific
+     - .lipi-input-{size}              — Phase 2.2 family
+     - .lipi-input-label-pos-{pos}     — Phase 2.5 family
+     - .lipi-input-disabled            — Phase 2.5 family
+     - .lipi-input-readonly            — Phase 2.5 family
+     - .lipi-input-error               — Phase 2.5 family
+     - .lipi-toggle-checked            — toggle-specific (drives CSS translate)
+*@
+<label class="@WrapperCssClasses" for="@EffectiveId" style="@InlineStyle">
+
+    @* Hidden native input — form semantics, click, keyboard, screen reader.
+       role="switch" + aria-checked carry the semantic: "this setting is on/off."
+       (role="switch" is explicit; <input type="checkbox"> defaults to checkbox role.) *@
+    <input id="@EffectiveId"
+           name="@_resolvedName"
+           type="checkbox"
+           role="switch"
+           class="lipi-toggle-input-hidden"
+           checked="@CurrentValue"
+           disabled="@Disabled"
+           required="@Required"
+           aria-checked="@(CurrentValue ? "true" : "false")"
+           aria-required="@(Required ? "true" : null)"
+           aria-invalid="@AriaInvalidAttr"
+           aria-describedby="@AriaDescribedByAttr"
+           aria-label="@(string.IsNullOrEmpty(_resolvedLabel) ? AriaLabel : null)"
+           @onchange="HandleChange" />
+
+    @* Track: pill-shaped container. Thumb slides inside.
+       Relative positioning so the thumb's absolute positioning is anchored here.
+       Background color shifts grey→primary on toggle via .lipi-toggle-checked.
+       Focus ring appears on the track (not the hidden input) via
+       .lipi-toggle-input-hidden:focus-visible + .lipi-toggle-track in scoped CSS. *@
+    <span class="@TrackCssClasses" aria-hidden="true">
+        @* Thumb: circle that slides left→right on toggle.
+           transform: translateX(Npx) driven by state; transitions via --tr-toggle.
+           Width grows ~30% on :active (M3 press-stretch pattern). *@
+        <span class="lipi-toggle-thumb">
+            @if (IconWhenOn)
+            {
+                @* Check icon inside thumb — only visible when on (opacity: 0→1 transition).
+                   Provides clinical-confirmation signal. Color: --color-primary (same as
+                   track off-state, creating visual continuity). *@
+                <span class="lipi-toggle-thumb-icon">
+                    <LipiIcon Name="check" Size="@ThumbIconSizePx" />
+                </span>
+            }
+        </span>
+    </span>
+
+    @* Label text or template. LabelTemplate wins over Label string. *@
+    <span class="lipi-toggle-label-text">
+        @if (LabelTemplate is not null)
+        {
+            @LabelTemplate
+        }
+        else
+        {
+            @_resolvedLabel
+        }
+        @if (Required)
+        {
+            @* Asterisk always renders when Required regardless of RequiredVisualStyle
+               (Decision 6 Approach D). The toggle has no apricot tint, but the asterisk
+               still signals the field's importance and feeds aria-required. *@
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+    </span>
+</label>
+
+@* Helper slot — sibling outside label. All states single-bottom slot per audit item #2.
+   Helper indent wider than checkbox (track width + 8px gap). Values in scoped CSS. *@
+@if (HasHelperContent || Defaults.Value.AlwaysReserveHelperSlot)
+{
+    <div id="@HelperId"
+         class="@HelperCssClasses"
+         role="@HelperRole"
+         aria-live="@HelperAriaLive">
+        @HelperText
+    </div>
+}
+
+
+@code {
+    // ==========================================================================
+    // LIPI-TOGGLE-SPECIFIC PARAMETERS
+    // ==========================================================================
+
+    /// <summary>Position of the label relative to the track.
+    /// Default <see cref="InputLabelPosition.Right"/> — track on left, label on right.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; }
+        = InputLabelPosition.Right;
+
+    /// <summary>Rich label render fragment — wins over <see cref="LipiInputBase{TValue}.Label"/>
+    /// string when non-null.</summary>
+    [Parameter] public RenderFragment? LabelTemplate { get; set; }
+
+    /// <summary>Accessible label when Label is intentionally empty.
+    /// Either Label or AriaLabel must be non-empty (WCAG 2.1 SC 4.1.2).</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    /// <summary>Render a check icon inside the thumb when toggle is ON. Default false.
+    /// <list type="bullet">
+    ///   <item>false (default) — plain track; color + position carry the semantic</item>
+    ///   <item>true — check icon adds clinical-confirmation signal (HIPAA audit mode,
+    ///     role-activation, feature-flag toggles where "on" is security-relevant)</item>
+    /// </list>
+    /// </summary>
+    [Parameter] public bool IconWhenOn { get; set; } = false;
+
+
+    // ==========================================================================
+    // BASE CLASS OVERRIDES
+    // ==========================================================================
+
+    protected override string ComponentIdPrefix => "tgl";
+    protected override string ComponentTypeName => "LipiToggle";
+
+    /// <summary>Always false — both on and off are valid; no apricot required cue.
+    /// Required on a toggle means "this setting matters" not "you must turn it on."
+    /// Use [MustBeTrue] on the model property if the toggle must be ON for validity.</summary>
+    protected override bool IsEmpty => false;
+
+    protected override bool TryParseValueFromString(
+        string? value, out bool result, out string validationErrorMessage)
+    {
+        validationErrorMessage = string.Empty;
+        if (bool.TryParse(value, out result)) return true;
+        result = default;
+        validationErrorMessage = $"Cannot parse '{value}' as bool.";
+        return false;
+    }
+
+    protected override List<string> CollectParameterValidationErrors()
+    {
+        var errors = base.CollectParameterValidationErrors();
+
+        // Label/AriaLabel filter per audit item #19 lock 6.
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+            errors.Add("AriaLabel is required when Label is empty (accessible name).");
+
+        return errors;
+    }
+
+
+    // ==========================================================================
+    // EVENT HANDLER
+    // ==========================================================================
+
+    private async Task HandleChange(ChangeEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+        var isChecked = e.Value is bool b ? b : false;
+        CurrentValue = isChecked;
+        await ValueChanged.InvokeAsync(isChecked);
+        EditContext?.NotifyFieldChanged(FieldIdentifier);
+        MarkFieldAsTouched();
+    }
+
+
+    // ==========================================================================
+    // CSS CLASS COMPOSITION
+    // ==========================================================================
+
+    private string WrapperCssClasses
+    {
+        get
+        {
+            var classes = new List<string>(8)
+            {
+                "lipi-toggle-wrapper",
+                $"lipi-input-{Size.ToString().ToLowerInvariant()}",
+                $"lipi-input-label-pos-{LabelPosition.ToString().ToLowerInvariant()}"
+            };
+
+            if (CurrentValue)     classes.Add("lipi-toggle-checked");
+            if (Disabled)         classes.Add("lipi-input-disabled");
+            if (ReadOnly)         classes.Add("lipi-input-readonly");
+            if (HasErrorState)    classes.Add("lipi-input-error");
+            if (!string.IsNullOrWhiteSpace(Class)) classes.Add(Class);
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    private string TrackCssClasses
+    {
+        get
+        {
+            var classes = new List<string>(2) { "lipi-toggle-track" };
+            if (HasErrorState) classes.Add("lipi-toggle-track-error");
+            return string.Join(" ", classes);
+        }
+    }
+
+    private bool HasErrorState => ResolvedState == InputState.Error;
+
+    private string HelperCssClasses
+    {
+        get
+        {
+            var stateClass = ResolvedState switch
+            {
+                InputState.Error   => "lipi-input-helper-error",
+                InputState.Warning => "lipi-input-helper-warning",
+                InputState.Success => "lipi-input-helper-success",
+                _                  => null
+            };
+            return stateClass is null
+                ? "lipi-input-helper lipi-input-helper-bottom lipi-toggle-helper-indent"
+                : $"lipi-input-helper lipi-input-helper-bottom lipi-toggle-helper-indent {stateClass}";
+        }
+    }
+
+    /// <summary>Thumb icon size in pixels per size variant.
+    /// Fits inside the thumb: 6/8/10px (Small/Medium/Large).</summary>
+    private int ThumbIconSizePx => Size switch
+    {
+        InputSize.Small => 6,
+        InputSize.Large => 10,
+        _               => 8   // Medium default
+    };
+}

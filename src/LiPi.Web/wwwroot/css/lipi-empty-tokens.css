@@ -1,0 +1,86 @@
+/* ============================================================
+   lipi-empty-tokens.css — LipiEmptyState token definitions
+   ============================================================
+   SPEC:  docs/00-COMPONENTS/2.8/04-LipiEmptyState-Spec.md §5 (Multi-industry tokens)
+   PHASE: 2.8 Data Display — Stage 1D / Stage 2 (LipiEmptyState)
+   AMEND: docs/CHANGE-LOG.md A40
+
+   This file is the SINGLE SEAM between LipiEmptyState's component CSS (which
+   consumes only --lipi-empty-* tokens) and the project's real semantic color
+   contract (themes/mode-light.css + themes/mode-dark.css). The component never
+   touches --color-* directly; it goes through these --lipi-empty-* aliases, so
+   the component stays redistributable and the host's palette plugs in here.
+
+   TOKEN RECONCILIATION (A40) — the LipiEmptyState spec referenced three token
+   names that do not exist in this codebase. Bound to the real established tokens:
+     spec --color-text-faint        -> --color-text-tertiary   (the muted tier)
+     spec --color-danger-alpha-04   -> --color-danger-pale     (subtle-bg tier)
+     spec --color-success-alpha-04  -> --color-success-pale    (subtle-bg tier)
+   All other --color-* references (text-primary, text-secondary, danger, success,
+   info) exist verbatim in the mode files and resolve correctly in light AND dark
+   via the [data-mode] cascade — no mode-specific block needed here.
+
+   LOAD ORDER (App.razor): must load AFTER themes/mode-*.css (it consumes their
+   tokens) and may load with the other lipi-*.css component files. Structure tokens
+   (--sp-*, --r-*) come from 00-baseline.css which loads first. Px literals below are
+   component-specific dimensions per spec §2.3 (not theme colors), so they live here
+   rather than in the theme files — same pattern as the other lipi-*.css token blocks.
+   ============================================================ */
+
+:root {
+    /* ── Size-based dimensions (§2.3) ────────────────────────────────────── */
+    --lipi-empty-min-h-inline: 120px;
+    --lipi-empty-min-h-card:   200px;
+    --lipi-empty-min-h-page:   320px;
+
+    --lipi-empty-pad-inline:   var(--sp-lg);   /* 16px */
+    --lipi-empty-pad-card:     var(--sp-xl);   /* 24px */
+    --lipi-empty-pad-page:     40px;           /* no --sp- token at 40px; spec-specific */
+
+    /* ── Icon sizes (§2.3) ───────────────────────────────────────────────── */
+    --lipi-empty-icon-size-inline: 32px;
+    --lipi-empty-icon-size-card:   48px;
+    --lipi-empty-icon-size-page:   64px;
+
+    /* ── Title text (§2.3 / §5) ──────────────────────────────────────────── */
+    --lipi-empty-title-size-inline: 16px;
+    --lipi-empty-title-size-card:   18px;
+    --lipi-empty-title-size-page:   24px;
+    --lipi-empty-title-weight:      var(--fw-semi);            /* 600 */
+    --lipi-empty-title-color:       var(--color-text-primary);
+    --lipi-empty-title-line-height: 1.3;
+
+    /* ── Body text (§2.3 / §5) ───────────────────────────────────────────── */
+    --lipi-empty-body-size-inline: 13px;
+    --lipi-empty-body-size-card:   14px;
+    --lipi-empty-body-size-page:   15px;
+    --lipi-empty-body-color:       var(--color-text-secondary);
+    --lipi-empty-body-line-height: 1.5;
+    --lipi-empty-body-max-w-inline: 320px;
+    --lipi-empty-body-max-w-card:   400px;
+    --lipi-empty-body-max-w-page:   480px;
+
+    /* ── Spacing between elements (§5) ───────────────────────────────────── */
+    --lipi-empty-gap-icon-title: var(--sp-sm);  /* 8px  */
+    --lipi-empty-gap-title-body: var(--sp-xs);  /* 4px  */
+    --lipi-empty-gap-body-cta:   var(--sp-md);  /* 12px */
+    --lipi-empty-gap-cta-cta:    var(--sp-sm);  /* 8px  */
+
+    /* Page-size gaps (more breathing room, §5) */
+    --lipi-empty-gap-icon-title-page: var(--sp-lg);  /* 16px */
+    --lipi-empty-gap-title-body-page: var(--sp-md);  /* 12px */
+    --lipi-empty-gap-body-cta-page:   var(--sp-xl);  /* 24px */
+
+    /* ── Variant icon tint (§5; A40 reconciliation) ──────────────────────── */
+    --lipi-empty-icon-color-default:  var(--color-text-tertiary); /* was --color-text-faint */
+    --lipi-empty-icon-color-empty:    var(--color-text-tertiary);
+    --lipi-empty-icon-color-filtered: var(--color-text-tertiary);
+    --lipi-empty-icon-color-error:    var(--color-danger);
+    --lipi-empty-icon-color-success:  var(--color-success);
+    --lipi-empty-icon-color-coming:   var(--color-info);
+
+    /* ── Variant container bg (§5; A40 reconciliation) ───────────────────── */
+    --lipi-empty-bg-default: transparent;
+    --lipi-empty-bg-error:   var(--color-danger-pale);   /* was --color-danger-alpha-04 */
+    --lipi-empty-bg-success: var(--color-success-pale);  /* was --color-success-alpha-04 */
+}

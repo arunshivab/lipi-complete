@@ -1,0 +1,680 @@
+@* SPEC: docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §2.1 (regions), §2.2.6/§2.2.7 (header/body),
+        §3.3.2 (per-type cell), §3.6.1 (CSS Grid), §19 (role=grid),
+        §5.6 (selection column render), §14 (density), §22.2-22.5 (row status/class/style/disabled),
+        §3.8 (copy affordance) *@
+@* PHASE: 2.8 Data Display - Stage 2 core shell (bare chassis) + Stage 3 rows/cells (A45) *@
+@* COMPONENT: LipiTable<TItem> *@
+@typeparam TItem
+@namespace LiPi.Components.DataDisplay
+@using LiPi.Components
+@using LiPicons.Blazor
+@using LiPi.Components.Forms
+
+@* Column children register via cascade; LipiColumn renders no DOM, so ChildContent is
+   placed in a display:none holder purely to trigger each column's OnInitialized. *@
+<CascadingValue Value="this" IsFixed="true">
+    <div style="display:none">@ChildContent</div>
+</CascadingValue>
+
+<div class="@($"lipi-table-pagination-wrap{PaginationWrapModifier}{((ShowToolbar || ShowSeparateChips) ? " lipi-table-has-toolbar" : string.Empty)}")">
+
+@if (ShowSidePager && Placement == PaginationPlacement.Left)
+{
+    <div class="lipi-table-pager lipi-table-pager-side lipi-table-pager-left" style="@($"flex:0 0 {PaginationSideWidth};")">
+        @RenderPager()
+    </div>
+}
+
+@if (ShowTopPager)
+{
+    <div class="lipi-table-pager lipi-table-pager-top">
+        @RenderPager()
+    </div>
+}
+
+@* Region 5 — Toolbar (quick search S2; inline filter chips S3) *@
+@if (ShowToolbar)
+{
+    <div class="lipi-table-toolbar">
+        @if (ShowInlineChips)
+        {
+            <div class="lipi-table-filter-chips lipi-table-filter-chips--inline">
+                @foreach (var f in _filters)
+                {
+                    <span class="lipi-table-filter-chip">
+                        @FilterChipText(f)
+                        <button type="button" class="lipi-table-filter-chip-x"
+                                @onclick="@(() => ClearColumnFilterAsync(f.ColumnKey))" aria-label="Remove filter">
+                            <LipiIcon Name="@LipiconName.Close" Size="12" />
+                        </button>
+                    </span>
+                }
+                <button type="button" class="lipi-table-filter-clearall" @onclick="ClearAllFiltersAsync">Clear all</button>
+            </div>
+        }
+        else
+        {
+            <div class="lipi-table-toolbar-spacer"></div>
+        }
+        @if (ShowQuickSearch)
+        {
+            <div class="lipi-table-quicksearch">
+                <span class="lipi-table-quicksearch-icon" aria-hidden="true">
+                    <LipiIcon Name="@LipiconName.Search" Size="16" />
+                </span>
+                <input type="text"
+                       class="lipi-table-quicksearch-input"
+                       placeholder="@QuickSearchPlaceholder"
+                       value="@_quickSearch"
+                       @oninput="OnQuickSearchInput"
+                       aria-label="@QuickSearchPlaceholder" />
+                @if (!string.IsNullOrEmpty(_quickSearch))
+                {
+                    <button type="button" class="lipi-table-quicksearch-clear"
+                            @onclick="ClearQuickSearchAsync" aria-label="Clear search">
+                        <LipiIcon Name="@LipiconName.Close" Size="15" />
+                    </button>
+                }
+            </div>
+        }
+    </div>
+}
+
+@* Separate filter-chips strip (below toolbar, above grid) — when not inline *@
+@if (ShowSeparateChips)
+{
+    <div class="lipi-table-filter-chips lipi-table-filter-chips--separate">
+        @foreach (var f in _filters)
+        {
+            <span class="lipi-table-filter-chip">
+                @FilterChipText(f)
+                <button type="button" class="lipi-table-filter-chip-x"
+                        @onclick="@(() => ClearColumnFilterAsync(f.ColumnKey))" aria-label="Remove filter">
+                    <LipiIcon Name="@LipiconName.Close" Size="12" />
+                </button>
+            </span>
+        }
+        <button type="button" class="lipi-table-filter-clearall" @onclick="ClearAllFiltersAsync">Clear all</button>
+    </div>
+}
+
+<div class="@($"{RootClass}{EmptyRowsModeClass}")" style="@($"{EmptyRowsStyleVar}{Style}")" role="grid"
+     data-density="@DensityAttr"
+     aria-rowcount="@(PaginationTotalCount)">
+
+    @{
+        var cols = VisibleColumns;
+        var state = ResolveBodyState();
+        var gridTemplate = EffectiveGridTemplate;
+        var pageRows = PagedItems;
+    }
+
+    @* -- Region 6 - Column header row (always renders, even with zero rows) -- *@
+    <div class="@($"lipi-table-header-row{HeaderStripClass}")" role="row" style="grid-template-columns:@gridTemplate">
+
+        @* Selection column header (Stage 3: structure visible; select-all is inert - Stage 4) *@
+        @if (HasSelectionColumn)
+        {
+            <div class="lipi-table-header-cell lipi-table-cell-select lipi-table-cell--center" role="columnheader">
+                @if (SelectionMode == SelectionMode.Multi)
+                {
+                    @* Real LipiCheckbox, TValue=bool? for native tri-state: true=all, false=none,
+                       null=indeterminate (some). :set ignores the incoming value and routes to the
+                       page select-all toggle, which decides add/remove from current state. §5.6.2 *@
+                    <LipiCheckbox TValue="bool?"
+                                  Name="@SelectAllName"
+                                  Value="@HeaderTriValue"
+                                  ValueChanged="@(Microsoft.AspNetCore.Components.EventCallback.Factory.Create<bool?>(this, OnHeaderToggleAsync))"
+                                  ValueExpression="@(() => _headerCheckboxBacking)"
+                                  Size="@CheckboxSize"
+                                  Label=""
+                                  AriaLabel="Select all rows on this page" />
+                }
+            </div>
+        }
+
+        @for (int i = 0; i < cols.Count; i++)
+        {
+            var col = cols[i];
+            var sortDesc = col.Sortable ? SortFor(col.ColumnKey) : null;
+            var ariaSort = sortDesc is null ? "none"
+                : (sortDesc.Direction == SortDirection.Ascending ? "ascending" : "descending");
+            <div class="lipi-table-header-cell @AlignClass(col.Align) @(col.Sortable ? "lipi-table-header-cell--sortable" : string.Empty)"
+                 role="columnheader" aria-sort="@ariaSort">
+                @if (col.Sortable)
+                {
+                    <button type="button" class="lipi-table-header-sortbtn"
+                            @onclick="@(e => OnHeaderSortAsync(col, e.ShiftKey))"
+                            aria-label="@($"Sort by {col.Header}")">
+                        @if (col.HasHeaderTemplate && col.HeaderTemplate is not null)
+                        {
+                            @col.HeaderTemplate
+                        }
+                        else
+                        {
+                            <span class="lipi-table-header-cell-text">@col.Header</span>
+                        }
+                        <span class="lipi-table-sort-indicator @(sortDesc is null ? "lipi-table-sort-indicator--idle" : "lipi-table-sort-indicator--active")" aria-hidden="true">
+                            @if (sortDesc is null)
+                            {
+                                @* Idle: faint stacked up/down chevrons (no combined glyph in LiPicons). *@
+                                <span class="lipi-table-sort-stack">
+                                    <LipiIcon Name="@LipiconName.ChevronUp" Size="10" />
+                                    <LipiIcon Name="@LipiconName.ChevronDown" Size="10" />
+                                </span>
+                            }
+                            else if (sortDesc.Direction == SortDirection.Ascending)
+                            {
+                                <LipiIcon Name="@LipiconName.ChevronUp" Size="14" />
+                            }
+                            else
+                            {
+                                <LipiIcon Name="@LipiconName.ChevronDown" Size="14" />
+                            }
+                            @if (IsMultiSort && sortDesc is not null)
+                            {
+                                <span class="lipi-table-sort-priority">@(sortDesc.Priority + 1)</span>
+                            }
+                        </span>
+                    </button>
+                }
+                else if (col.HasHeaderTemplate && col.HeaderTemplate is not null)
+                {
+                    @col.HeaderTemplate
+                }
+                else
+                {
+                    <span class="lipi-table-header-cell-text">@col.Header</span>
+                }
+
+                @if (FilterMode == FilterMode.HeaderIcon && col.Filterable)
+                {
+                    var fdesc = FilterFor(col.ColumnKey);
+                    <button type="button" @ref="_filterBtnRefs[col.ColumnKey]"
+                            class="lipi-table-filter-btn @(fdesc is not null ? "lipi-table-filter-btn--active" : string.Empty)"
+                            @onclick="@(() => OpenFilterPopover(col))"
+                            aria-label="@($"Filter {col.Header}")"
+                            aria-haspopup="true" aria-expanded="@(_openFilterKey == col.ColumnKey)">
+                        <LipiIcon Name="@LipiconName.Filter"
+                                  Variant="@(fdesc is not null ? LipiconVariant.Fill : LipiconVariant.Regular)"
+                                  Size="13" />
+                    </button>
+                    @if (_openFilterKey == col.ColumnKey)
+                    {
+                        var d = EnsureDraft(col);
+                        <div class="lipi-table-filter-backdrop" @onclick="CloseFilterPopover"></div>
+                        <div class="lipi-table-filter-popover" style="@PopoverFixedStyle" @onclick:stopPropagation="true">
+                            <div class="lipi-table-filter-popover-head">
+                                <span>Filter: @col.Header</span>
+                                @if (FilterApplyMode == FilterApplyMode.Live)
+                                {
+                                    <span class="lipi-table-filter-live">live</span>
+                                }
+                            </div>
+                            <div class="lipi-table-filter-popover-body">
+                                @if (col.Type is ColumnType.Date or ColumnType.DateTime)
+                                {
+                                    @* Option (c): themed range picker IS the date filter. Presets replace relative operators. *@
+                                    <label class="lipi-table-filter-label">Date range</label>
+                                    <LipiDateRangePicker Name="@($"filt-{col.ColumnKey}")"
+                                                         StartValue="d.DateStart"
+                                                         StartValueChanged="@(EventCallback.Factory.Create<DateOnly?>(this, v => OnDraftDateStartChanged(col.ColumnKey, v)))"
+                                                         EndValue="d.DateEnd"
+                                                         EndValueChanged="@(EventCallback.Factory.Create<DateOnly?>(this, v => OnDraftDateEndChanged(col.ColumnKey, v)))"
+                                                         AllowOpenEnd="true"
+                                                         PresetDirection="PresetDirection.Both"
+                                                         PresetSpan="PresetSpan.Year"
+                                                         TimeZone="@FilterTimeZone"
+                                                         WeekStart="@FilterWeekStart" />
+                                }
+                                else
+                                {
+                                <label class="lipi-table-filter-label">Operator</label>
+                                <select class="lipi-table-filter-select" value="@d.Operator" @onchange="@(e => OnDraftOperatorChanged(col.ColumnKey, e))">
+                                    @foreach (var op in OperatorsFor(col))
+                                    {
+                                        <option value="@op">@OperatorLabelFor(col, op)</option>
+                                    }
+                                </select>
+                                @switch (EditorFor(col, d.Operator))
+                                {
+                                    case FilterEditor.Number:
+                                        <label class="lipi-table-filter-label">Value</label>
+                                        <input type="number" class="lipi-table-filter-input"
+                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                        break;
+
+                                    case FilterEditor.NumberRange:
+                                        <label class="lipi-table-filter-label">From / To</label>
+                                        <div class="lipi-table-filter-range">
+                                            <input type="number" class="lipi-table-filter-input"
+                                                   value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                            <span class="lipi-table-filter-range-sep">–</span>
+                                            <input type="number" class="lipi-table-filter-input"
+                                                   value="@d.ValueEnd" @oninput="@(e => OnDraftValueEndChanged(col.ColumnKey, e))" />
+                                        </div>
+                                        break;
+
+                                    case FilterEditor.Date:
+                                        <label class="lipi-table-filter-label">Date</label>
+                                        <input type="date" class="lipi-table-filter-input"
+                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                        break;
+
+                                    case FilterEditor.DateRange:
+                                        <label class="lipi-table-filter-label">From / To</label>
+                                        <div class="lipi-table-filter-range">
+                                            <input type="date" class="lipi-table-filter-input"
+                                                   value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                            <span class="lipi-table-filter-range-sep">–</span>
+                                            <input type="date" class="lipi-table-filter-input"
+                                                   value="@d.ValueEnd" @oninput="@(e => OnDraftValueEndChanged(col.ColumnKey, e))" />
+                                        </div>
+                                        break;
+
+                                    case FilterEditor.RelativeN:
+                                        <label class="lipi-table-filter-label">Number of days</label>
+                                        <input type="number" min="0" class="lipi-table-filter-input"
+                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                        break;
+
+                                    case FilterEditor.Multi:
+                                        <label class="lipi-table-filter-label">Select one or more</label>
+                                        <div class="lipi-table-filter-multi">
+                                            @foreach (var opt in DistinctValuesFor(col))
+                                            {
+                                                <label class="lipi-table-filter-multi-item">
+                                                    <input type="checkbox"
+                                                           checked="@d.Multi.Contains(opt)"
+                                                           @onchange="@(() => ToggleDraftMulti(col.ColumnKey, opt))" />
+                                                    <span>@opt</span>
+                                                </label>
+                                            }
+                                        </div>
+                                        break;
+
+                                    case FilterEditor.Text:
+                                        <label class="lipi-table-filter-label">Value</label>
+                                        <input type="text" class="lipi-table-filter-input"
+                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                        break;
+
+                                    case FilterEditor.None:
+                                    default:
+                                        break;
+                                }
+                                }
+                                <div class="lipi-table-filter-actions">
+                                    <button type="button" class="lipi-table-filter-clear"
+                                            @onclick="@(() => ClearColumnFilterAsync(col.ColumnKey))">Clear</button>
+                                    @if (FilterApplyMode == FilterApplyMode.Apply)
+                                    {
+                                        <button type="button" class="lipi-table-filter-apply"
+                                                @onclick="@(() => ApplyDraftAsync(col))">Apply</button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    </div>
+
+    @* -- Region 7 - Body -- *@
+    <div class="lipi-table-body" role="rowgroup">
+
+        @switch (state)
+        {
+            case BodyState.Loading:
+                <div class="lipi-table-statewrap">
+                    @if (LoadingTemplate is not null)
+                    {
+                        @LoadingTemplate
+                    }
+                    else if (IsCompactEmpty)
+                    {
+                        <div class="lipi-table-state-compact">@CompactStateText</div>
+                    }
+                    else
+                    {
+                        <LipiEmptyState Variant="EmptyStateVariant.Default"
+                                        Size="EmptyStateSize.Card"
+                                        Title="Loading..."
+                                        Body="Fetching data." />
+                    }
+                </div>
+                break;
+
+            case BodyState.Error:
+                <div class="lipi-table-statewrap">
+                    @if (ErrorTemplate is not null)
+                    {
+                        @ErrorTemplate
+                    }
+                    else if (IsCompactEmpty)
+                    {
+                        <div class="lipi-table-state-compact lipi-table-state-compact--error">@CompactStateText</div>
+                    }
+                    else
+                    {
+                        <LipiEmptyState Variant="EmptyStateVariant.Error"
+                                        Size="EmptyStateSize.Card"
+                                        Title="Couldn't load"
+                                        Body="@LoadError" />
+                    }
+                </div>
+                break;
+
+            case BodyState.Empty:
+                <div class="lipi-table-statewrap">
+                    @if (EmptyTemplate is not null)
+                    {
+                        @EmptyTemplate
+                    }
+                    else if (IsCompactEmpty)
+                    {
+                        <div class="lipi-table-state-compact">@CompactStateText</div>
+                    }
+                    else
+                    {
+                        <LipiEmptyState Variant="EmptyStateVariant.Empty"
+                                        Size="EmptyStateSize.Card"
+                                        Title="@EmptyTitle"
+                                        Body="@EmptyBody" />
+                    }
+                </div>
+                break;
+
+            case BodyState.Normal:
+                @for (var rowIndex = 0; rowIndex < pageRows.Count; rowIndex++)
+                {
+                    var r = rowIndex;
+                    var item = pageRows[r];
+                    var rowKey = RowKey(item);
+                    var disabled = IsRowDisabled(item);
+                    <div class="@RowCssClass(item)" role="row" @key="rowKey"
+                         data-status="@RowDataStatus(item)"
+                         style="@RowInlineStyle(item)">
+
+                        @* Selection cell (Stage 4b): the CELL owns the click so it can read
+                           modifier keys (Shift/Ctrl/Cmd) from MouseEventArgs — the checkbox's
+                           own change event can't carry modifiers. The LipiCheckbox is display-only
+                           here (pointer-events:none via .lipi-table-cell-select), so clicks fall
+                           through to this handler. Value still reflects selection state. §5.4
+                           Stage 4d: cell is keyboard-focusable (roving tabindex) + handles keydown. *@
+                        @if (HasSelectionColumn)
+                        {
+                            var selCol = 0;
+                            <div class="lipi-table-cell lipi-table-cell-select lipi-table-cell--center" role="gridcell"
+                                 tabindex="@CellTabIndex(r, selCol)"
+                                 @ref="_cellRefs[FocusCellKey(r, selCol)]"
+                                 @onclick="@(e => OnSelectCellClickAsync(item, e))"
+                                 @onkeydown="@(e => OnCellKeyDownAsync(e, item, r, selCol))">
+                                <LipiCheckbox TValue="bool"
+                                              Name="@RowSelectName(rowKey)"
+                                              Value="@IsRowSelected(item)"
+                                              ValueChanged="@(Microsoft.AspNetCore.Components.EventCallback.Factory.Create<bool>(this, checkedState => SetRowSelectedAsync(item, checkedState)))"
+                                              ValueExpression="@(() => _rowCheckboxBacking)"
+                                              Disabled="disabled"
+                                              Size="@CheckboxSize"
+                                              Label=""
+                                              AriaLabel="Select row" />
+                            </div>
+                        }
+
+                        @for (var colIndex = 0; colIndex < cols.Count; colIndex++)
+                        {
+                            var c = colIndex + (HasSelectionColumn ? 1 : 0);
+                            var col = cols[colIndex];
+                            <div class="lipi-table-cell @AlignClass(col.Align)" role="gridcell"
+                                 tabindex="@CellTabIndex(r, c)"
+                                 @ref="_cellRefs[FocusCellKey(r, c)]"
+                                 @onclick="@(e => OnRowBodyClickAsync(item, e))"
+                                 @onkeydown="@(e => OnCellKeyDownAsync(e, item, r, c))">
+                                @RenderCellShell(col, item, rowKey)
+                            </div>
+                        }
+                    </div>
+                }
+                break;
+        }
+    </div>
+</div>
+
+@if (ShowBottomPager)
+{
+    <div class="lipi-table-pager lipi-table-pager-bottom">
+        @RenderPager()
+    </div>
+}
+
+@if (ShowSidePager && Placement == PaginationPlacement.Right)
+{
+    <div class="lipi-table-pager lipi-table-pager-side lipi-table-pager-right" style="@($"flex:0 0 {PaginationSideWidth};")">
+        @RenderPager()
+    </div>
+}
+
+</div>@* /lipi-table-pagination-wrap *@
+
+@code {
+    // ── Embedded pager (Stage 7 Step 2+3) ────────────────────────────────
+    // Renders LipiPagination with table-resolved params. Two-way binds drive the
+    // table's _currentPage / _pageSize via the change handlers. Page-size options are
+    // only forwarded when the consumer supplied them (else LipiPagination uses its own
+    // default ladder). The pager exposes no reason callback (LP-23 Option B); the table
+    // owns reason inference in later steps.
+    private RenderFragment RenderPager() => builder =>
+    {
+        var seq = 0;
+        builder.OpenComponent<LipiPagination>(seq++);
+        builder.AddAttribute(seq++, nameof(LipiPagination.TotalCount), PaginationTotalCount);
+        builder.AddAttribute(seq++, nameof(LipiPagination.PageSize), ResolvedPageSize);
+        builder.AddAttribute(seq++, nameof(LipiPagination.CurrentPage), _currentPage);
+        builder.AddAttribute(seq++, nameof(LipiPagination.CurrentPageChanged),
+            EventCallback.Factory.Create<int>(this, OnPaginationPageChanged));
+        builder.AddAttribute(seq++, nameof(LipiPagination.PageSizeChanged),
+            EventCallback.Factory.Create<int>(this, OnPaginationPageSizeChanged));
+        builder.AddAttribute(seq++, nameof(LipiPagination.Variant), ResolvedVariant);
+        builder.AddAttribute(seq++, nameof(LipiPagination.Orientation), ResolvedOrientation);
+        builder.AddAttribute(seq++, nameof(LipiPagination.Align), ResolvedAlign);
+        builder.AddAttribute(seq++, nameof(LipiPagination.CellStyle), ResolvedCellStyle);
+        builder.AddAttribute(seq++, nameof(LipiPagination.ActiveStyle), ResolvedActiveStyle);
+        builder.AddAttribute(seq++, nameof(LipiPagination.ChevronStyle), ResolvedChevronStyle);
+        builder.AddAttribute(seq++, nameof(LipiPagination.Siblings), ResolvedSiblings);
+        builder.AddAttribute(seq++, nameof(LipiPagination.BoundaryCount), ResolvedBoundaryCount);
+        builder.AddAttribute(seq++, nameof(LipiPagination.ShowPageSize), ResolvedShowPageSize);
+        builder.AddAttribute(seq++, nameof(LipiPagination.ShowRowCount), ResolvedShowRowCount);
+        builder.AddAttribute(seq++, nameof(LipiPagination.ShowFirstLast), ResolvedShowFirstLast);
+        builder.AddAttribute(seq++, nameof(LipiPagination.ShowJumpToPage), ResolvedShowJumpToPage);
+        builder.AddAttribute(seq++, nameof(LipiPagination.Disabled), IsLoading || PaginationTotalCount == 0);
+        if (ResolvedPageSizeOptions is not null)
+            builder.AddAttribute(seq++, nameof(LipiPagination.PageSizeOptions), ResolvedPageSizeOptions);
+        builder.CloseComponent();
+    };
+
+    // Cell shell: wraps content + optional copy affordance. Ellipsis via CSS on the content div.
+    private RenderFragment RenderCellShell(ColumnDefinition<TItem> col, TItem item, object rowKey) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "lipi-table-cell-content");
+
+        if (IsTextLike(col.Type))
+        {
+            var titleVal = CellFormatter.FormatValue(col.GetValue(item), col.Type, col.Format);
+            if (!string.IsNullOrEmpty(titleVal))
+                builder.AddAttribute(2, "title", titleVal);
+        }
+
+        builder.AddContent(3, RenderCell(col, item));
+        builder.CloseElement();
+
+        if (col.Copyable && col.Type != ColumnType.Avatar && col.Type != ColumnType.Actions)
+        {
+            var copied = IsCellCopied(rowKey, col.ColumnKey);
+            var copyValue = col.GetValue(item);
+
+            builder.OpenElement(10, "button");
+            builder.AddAttribute(11, "type", "button");
+            builder.AddAttribute(12, "class", "lipi-table-cell-copy" + (copied ? " lipi-table-cell-copy--done" : ""));
+            builder.AddAttribute(13, "aria-label", copied ? "Copied" : "Copy");
+            builder.AddAttribute(14, "title", copied ? "Copied!" : "Copy");
+            builder.AddAttribute(15, "onclick",
+                Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this,
+                    () => CopyCellAsync(copyValue, rowKey, col.ColumnKey)));
+            builder.AddEventStopPropagationAttribute(16, "onclick", true);
+            builder.OpenComponent<LipiIcon>(17);
+            builder.AddComponentParameter(18, nameof(LipiIcon.Name), copied ? LipiconName.Check : LipiconName.Copy);
+            builder.AddComponentParameter(19, nameof(LipiIcon.Size), 14);
+            builder.CloseComponent();
+            builder.CloseElement();
+        }
+    };
+
+    private static bool IsTextLike(ColumnType t) => t switch
+    {
+        ColumnType.Text or ColumnType.Mono or ColumnType.Link or ColumnType.File => true,
+        _ => false
+    };
+
+    private RenderFragment RenderCell(ColumnDefinition<TItem> col, TItem item) => builder =>
+    {
+        if (col.CellTemplate is not null)
+        {
+            var frag = col.CellTemplate(item);
+            if (frag is not null) { builder.AddContent(0, frag); return; }
+        }
+
+        if (col.Type == ColumnType.Actions) return;
+
+        var value = col.GetValue(item);
+
+        switch (col.Type)
+        {
+            case ColumnType.Boolean:
+                RenderBoolean(builder, value);
+                return;
+
+            case ColumnType.Status:
+                RenderStatus(builder, value);
+                return;
+
+            case ColumnType.Mono:
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "class", "lipi-table-cell-mono");
+                builder.AddContent(2, CellFormatter.FormatValue(value, col.Type, col.Format));
+                builder.CloseElement();
+                return;
+
+            case ColumnType.Avatar:
+                RenderAvatar(builder, value, col.IsInitials);
+                return;
+
+            default:
+                var text = CellFormatter.FormatValue(value, col.Type, col.Format);
+                if (string.IsNullOrEmpty(text))
+                {
+                    builder.OpenElement(0, "span");
+                    builder.AddAttribute(1, "class", "lipi-table-cell-empty");
+                    builder.AddContent(2, "-");
+                    builder.CloseElement();
+                }
+                else
+                {
+                    RenderMaybeHighlighted(builder, 3, text);
+                }
+                return;
+        }
+    };
+
+    // Emit cell text, wrapping quick-search matches in <mark> when HighlightMatches is on and
+    // a search is active. Plain AddContent otherwise (zero overhead in the common case).
+    private void RenderMaybeHighlighted(
+        Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, int seq, string text)
+    {
+        if (!ShouldHighlight)
+        {
+            builder.AddContent(seq, text);
+            return;
+        }
+        var segs = HighlightSegments(text);
+        int s = seq;
+        foreach (var (segText, isMatch) in segs)
+        {
+            if (isMatch)
+            {
+                builder.OpenElement(s++, "mark");
+                builder.AddAttribute(s++, "class", "lipi-table-cell-mark");
+                builder.AddContent(s++, segText);
+                builder.CloseElement();
+            }
+            else
+            {
+                builder.AddContent(s++, segText);
+            }
+        }
+    }
+
+    private void RenderBoolean(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, object? value)
+    {
+        var isTrue = value is bool b && b;
+        if (isTrue)
+        {
+            builder.OpenComponent<LipiIcon>(0);
+            builder.AddComponentParameter(1, nameof(LipiIcon.Name), LipiconName.CheckCircle);
+            builder.AddComponentParameter(2, nameof(LipiIcon.Size), 16);
+            builder.AddComponentParameter(3, nameof(LipiIcon.Class), "lipi-table-cell-bool-true");
+            builder.CloseComponent();
+        }
+        else
+        {
+            builder.OpenElement(4, "span");
+            builder.AddAttribute(5, "class", "lipi-table-cell-empty");
+            builder.AddContent(6, "-");
+            builder.CloseElement();
+        }
+    }
+
+    private void RenderStatus(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, object? value)
+    {
+        var raw = value?.ToString();
+        if (string.IsNullOrEmpty(raw))
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "lipi-table-cell-empty");
+            builder.AddContent(2, "-");
+            builder.CloseElement();
+            return;
+        }
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "lipi-table-status");
+        builder.AddAttribute(2, "data-status", raw.ToLowerInvariant());
+        builder.AddContent(3, raw);
+        builder.CloseElement();
+    }
+
+    private void RenderAvatar(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, object? value, bool forceInitials)
+    {
+        var raw = value?.ToString() ?? "";
+
+        if (!forceInitials && !string.IsNullOrWhiteSpace(raw) && LooksLikeUrl(raw))
+        {
+            builder.OpenElement(0, "img");
+            builder.AddAttribute(1, "class", "lipi-table-avatar-img");
+            builder.AddAttribute(2, "src", raw);
+            builder.AddAttribute(3, "alt", "");
+            builder.AddAttribute(4, "loading", "lazy");
+            builder.CloseElement();
+            return;
+        }
+
+        var initials = Initials(raw);
+        var color = AvatarColor(raw);
+        builder.OpenElement(5, "span");
+        builder.AddAttribute(6, "class", "lipi-table-avatar");
+        builder.AddAttribute(7, "style", $"background:{color}");
+        builder.AddContent(8, initials);
+        builder.CloseElement();
+    }
+}

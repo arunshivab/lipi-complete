@@ -1,0 +1,81 @@
+/* ============================================================
+   StyleGuideTablePaging.razor.css — scoped demo-page styles
+   ============================================================
+   PHASE: 2.8 Data Display — Stage 7 (LipiTable + LipiPagination wiring test page)
+   Blazor CSS Isolation: scoped to THIS page. Per the A36 C6 lesson, every
+   StyleGuide*.razor page carries its own sg-* base block — scoped rules from
+   another page do NOT match this page's elements. Mirrors the sibling demo pages.
+   HOST-APP code (LiPi.Web), NOT redistributable — may use foundation tokens directly.
+   ============================================================ */
+
+.sg-page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: var(--sp-xl, 24px) var(--sp-lg, 16px) 64px;
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+}
+
+.sg-header {
+    margin-bottom: var(--sp-xl, 24px);
+}
+
+.sg-header h1 {
+    font-size: var(--ts-page-title, 18px);
+    font-weight: 600;
+    margin: 0 0 var(--sp-sm, 8px);
+    color: var(--color-text-primary);
+}
+
+.sg-header p {
+    font-size: var(--ts-body, 13px);
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    max-width: 760px;
+    margin: 0;
+}
+
+.sg-section {
+    margin-top: var(--sp-2xl, 32px);
+    padding-top: var(--sp-lg, 16px);
+    border-top: 1px solid var(--color-border-subtle, var(--color-border-default));
+}
+
+.sg-section h2 {
+    font-size: var(--ts-section, 15px);
+    font-weight: 600;
+    margin: 0 0 var(--sp-md, 12px);
+    color: var(--color-text-primary);
+}
+
+.sg-note-p {
+    font-size: var(--ts-small, 12px);
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    max-width: 760px;
+    margin: 0 0 var(--sp-md, 12px);
+}
+
+.sg-note-p code {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.92em;
+    padding: 1px 5px;
+    border-radius: var(--r-sm, 6px);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+}
+
+.sg-readout {
+    font-size: var(--ts-small, 12px);
+    color: var(--color-text-secondary);
+    margin: var(--sp-md, 12px) 0 0;
+    padding: var(--sp-sm, 8px) var(--sp-md, 12px);
+    background: var(--color-bg-subtle);
+    border-radius: var(--r-sm, 6px);
+    display: inline-block;
+}
+
+.sg-readout strong {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}

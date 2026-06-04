@@ -1,0 +1,306 @@
+@* SPEC: docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §8 (pagination) *@
+@* PHASE: 2.8 Data Display — Stage 7 (LipiTable + LipiPagination wiring) test page *@
+@* DEMO: lives in LiPi.Web (not redistributable) per packaging rule. *@
+@page "/admin/style-guide/data-display/table-paging"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@rendermode InteractiveServer
+@using LiPi.Components.DataDisplay
+@using LiPicons.Blazor
+@using System.Linq
+
+<PageTitle>LipiTable Paging — StyleGuide</PageTitle>
+
+<div class="sg-page">
+    <header class="sg-header">
+        <h1>LipiTable — pagination wiring (Stage 7)</h1>
+        <p>A large generated dataset (<strong>@_staff.Count</strong> rows) to exercise everything:
+           page navigation, page-size changes, jump-to-page, selection across pages, the
+           header tri-state checkbox (current-page only), row status strips, and the
+           Visual-styles axes. Watch the readout under each table — it tracks live state.</p>
+    </header>
+
+    @* ── 1. Default look (Bordered + Solid), Full variant, bottom ─────────── *@
+    <section class="sg-section">
+        <h2>Default — Full variant, Bottom placement</h2>
+        <p class="sg-note-p">
+            Zero-config pagination (Placement defaults to Bottom, Variant Full). Default page
+            size 10 → @(((_staff.Count + 9) / 10)) pages. Try First/Prev/Next/Last, the page
+            numbers + ellipsis, the page-size dropdown, and jump-to-page.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-default"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   SelectionMode="SelectionMode.Multi"
+                   RowStatus="@(s => s.Status)"
+                   SelectedKeysChanged="@(keys => _selectedCount = keys.Count)"
+                   PaginationOptions="@(new PaginationOptions(ShowJumpToPage: true))">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)" Header="Code" Type="ColumnType.Mono" Copyable="true" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+        <p class="sg-readout">
+            <strong>Selected:</strong> @_selectedCount row(s) across all pages
+        </p>
+    </section>
+
+    @* ── 1b. Pager alignment (PaginationAlign) ───────────────────────────── *@
+    <section class="sg-section">
+        <h2>Pager alignment</h2>
+        <p class="sg-note-p">
+            <code>PaginationOptions(Align: ...)</code>. Default <strong>SpaceBetween</strong>
+            (left zone left, nav right — the standard). Also Start / Center / End.
+        </p>
+
+        <p class="sg-note-p" style="margin-top:var(--sp-md,12px);">Start</p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-align-start"
+                   PaginationOptions="@(new PaginationOptions(Align: PaginationAlign.Start))">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+        </LipiTable>
+
+        <p class="sg-note-p" style="margin-top:var(--sp-lg,16px);">Center</p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-align-center"
+                   PaginationOptions="@(new PaginationOptions(Align: PaginationAlign.Center))">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+        </LipiTable>
+
+        <p class="sg-note-p" style="margin-top:var(--sp-lg,16px);">End</p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-align-end"
+                   PaginationOptions="@(new PaginationOptions(Align: PaginationAlign.End))">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+        </LipiTable>
+    </section>
+
+    @* ── 2. HIS clinical look (Borderless + Tint), Compact-friendly ───────── *@
+    <section class="sg-section">
+        <h2>HIS look — Borderless + Tint (LipiHisDefault)</h2>
+        <p class="sg-note-p">
+            Same data, <code>PaginationOptions=PaginationOptionsPresets.LipiHisDefault</code>
+            (borderless numbers, soft-tint active page). This is the recommended in-app style.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-his"
+                   RowStatus="@(s => s.Status)"
+                   PaginationOptions="@PaginationOptionsPresets.LipiHisDefault">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── 3. Top placement + larger default page size ──────────────────────── *@
+    <section class="sg-section">
+        <h2>Top placement, page size 25</h2>
+        <p class="sg-note-p">
+            <code>Placement=Top</code>, <code>DefaultPageSize=25</code> → @(((_staff.Count + 24) / 25)) pages.
+            The pager renders above the table.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-top"
+                   Placement="PaginationPlacement.Top"
+                   PaginationOptions="@(new PaginationOptions(DefaultPageSize: 25))">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── 4. Both placement (top + bottom, shared state) ───────────────────── *@
+    <section class="sg-section">
+        <h2>Both placement (top + bottom, shared state)</h2>
+        <p class="sg-note-p">
+            <code>Placement=Both</code> renders a pager top and bottom; both drive the same
+            page state — changing one moves the other.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-both"
+                   Placement="PaginationPlacement.Both">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+        </LipiTable>
+    </section>
+
+    @* ── 5. Compact variant ──────────────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Compact variant</h2>
+        <p class="sg-note-p">
+            <code>Variant=Compact</code> — prev / "Page X of Y" / next. Good for tight layouts.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-compact"
+                   Variant="PaginationVariant.Compact">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── 6. Right side-pager (vertical) ──────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Right placement — vertical side-pager</h2>
+        <p class="sg-note-p">
+            <code>Placement=Right</code> → a narrow vertical pager beside the grid (prev-up /
+            "Page X of M" / next-down). Full auto-downgrades to Compact; page-size dropdown is
+            hidden (no room in the column). <code>PaginationSideWidth</code> controls the column width.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-right"
+                   Placement="PaginationPlacement.Right"
+                   Variant="PaginationVariant.Compact">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+        </LipiTable>
+    </section>
+
+    @* ── 7. Left side-pager (vertical) ───────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Left placement — vertical side-pager</h2>
+        <p class="sg-note-p">
+            <code>Placement=Left</code> — same vertical pager, anchored on the left of the grid.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="tp-left"
+                   Placement="PaginationPlacement.Left"
+                   PaginationSideWidth="56px"
+                   Variant="PaginationVariant.Compact">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── 8. Empty table — disabled pager, "No items" ─────────────────────── *@
+    <section class="sg-section">
+        <h2>Empty table — disabled pager</h2>
+        <p class="sg-note-p">
+            Zero rows. The pager still renders (so the user can tell the table loaded and there's
+            genuinely no data, vs. a load failure) but is <strong>disabled</strong> — chevrons greyed,
+            page-size inert — and the row count reads "No items". The empty-state message shows in
+            the body above. Bottom placement. <code>EmptyRows="6"</code> reserves the height of 6 rows (at the current density) so the empty body doesn't collapse — the message centers in that space.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_empty" KeySelector="@(s => s.Id)" TableId="tp-empty"
+                   EmptyRows="6">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── 9. Empty table — EmptyRows=1 (minimal reserved height) ──────────── *@
+    <section class="sg-section">
+        <h2>Empty table — EmptyRows="1"</h2>
+        <p class="sg-note-p">
+            Same as above but <code>EmptyRows="1"</code> — reserves just one row's height. The
+            smallest non-collapsed empty body; compare its height to the 6-row version above.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_empty" KeySelector="@(s => s.Id)" TableId="tp-empty1"
+                   EmptyRows="1">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── 10. EmptyRows=2 (compact) ───────────────────────────────────────── *@
+    <section class="sg-section">
+        <h2>Empty table — EmptyRows="2" (compact)</h2>
+        <p class="sg-note-p">
+            <code>EmptyRows="2"</code> — two rows tall, still <strong>compact</strong> (small text,
+            no illustration; clipped to exactly 2 rows). 1 and 2 use the compact strip.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_empty" KeySelector="@(s => s.Id)" TableId="tp-empty2"
+                   EmptyRows="2">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+
+    @* ── 11. EmptyRows=3 (full illustration, floor) ──────────────────────── *@
+    <section class="sg-section">
+        <h2>Empty table — EmptyRows="3" (full)</h2>
+        <p class="sg-note-p">
+            <code>EmptyRows="3"</code> — at 3+ the full empty-state illustration returns, with the
+            row count as a <strong>floor</strong> (min-height); it can grow taller if the illustration
+            needs more. Compare the thin 1/2 strips above with this and the 6-row version.
+        </p>
+        <LipiTable TItem="DemoStaff" Items="@_empty" KeySelector="@(s => s.Id)" TableId="tp-empty3"
+                   EmptyRows="3">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </section>
+</div>
+
+@code {
+    private int _selectedCount;
+
+    // Deterministic generated dataset — stable across renders (no Random at field init).
+    private static readonly string[] _firstNames =
+    {
+        "Aarav","Priya","Sneha","Rohan","Fatima","Vikram","Ananya","Karthik","Meera","Arjun",
+        "Divya","Rahul","Kavya","Sanjay","Pooja","Aditya","Nisha","Vivek","Lakshmi","Manish"
+    };
+    private static readonly string[] _lastNames =
+    {
+        "Sharma","Nair","Iyer","Mehta","Khan","Reddy","Gupta","Menon","Rao","Singh",
+        "Pillai","Verma","Bose","Joshi","Das","Kapoor","Shetty","Patel","Kulkarni","Roy"
+    };
+    private static readonly string[] _depts =
+    {
+        "Radiation Oncology","Medical Physics","Pharmacy","Nursing","Surgical Oncology",
+        "Pathology","Radiology","Administration","Medical Oncology","Palliative Care"
+    };
+    private static readonly string[] _statuses =
+    {
+        "active","active","active","pending","suspended","locked","inactive","active"
+    };
+
+    private readonly List<DemoStaff> _staff = BuildStaff(480);
+    private readonly List<DemoStaff> _empty = new();   // empty-state demo (section 8)
+
+    private static List<DemoStaff> BuildStaff(int n)
+    {
+        var list = new List<DemoStaff>(n);
+        var seed = new DateOnly(2018, 1, 1);
+        for (int i = 0; i < n; i++)
+        {
+            var name = $"{_firstNames[i % _firstNames.Length]} {_lastNames[(i / 3) % _lastNames.Length]}";
+            var dept = _depts[i % _depts.Length];
+            var joined = seed.AddDays((i * 37) % 2600);
+            var ctc = 40000m + ((i * 1250) % 120000);
+            var status = _statuses[i % _statuses.Length];
+            list.Add(new DemoStaff(
+                Guid.NewGuid(),
+                name,
+                $"EMP-{(10000 + i)}",
+                dept,
+                joined,
+                ctc,
+                status == "active",
+                status));
+        }
+        return list;
+    }
+
+    private sealed record DemoStaff(
+        Guid Id,
+        string Name,
+        string EmployeeCode,
+        string Department,
+        DateOnly JoinedOn,
+        decimal MonthlyCtc,
+        bool IsActive,
+        string Status);
+}

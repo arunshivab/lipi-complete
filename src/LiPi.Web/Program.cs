@@ -7,6 +7,9 @@ using LiPi.Clinic.Audit;
 using LiPi.Web;
 using LiPi.Web.Components.Shared;
 using LiPi.Web.Services;
+using LiPi.Components.DataDisplay;
+using LiPi.Components;  // input/selection family migrated here (A43)
+using LiPi.Components.Overlays;  // overlay cluster migrated here (PR2)
 
 // ── Bootstrap check ──────────────────────────────────────────────────────────
 if (args.Contains("--setup-global-admin"))
@@ -149,6 +152,24 @@ builder.Services.AddScoped<ILipiDynamicTabsService, LipiDynamicTabsService>();
 // LipiValidationSummary, LipiToast) are pure-render Razor components — no DI
 // registration needed beyond this service.
 builder.Services.AddScoped<ILipiToastService, LipiToastService>();
+
+// ── Phase 2.8 Data Display — table preference persistence (A39) ────────────
+// SPEC:  docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §21.4
+// AMEND: docs/CHANGE-LOG.md A38 (Option C architecture), A39 (wire-up)
+//
+// Option C (store abstraction). LiPi.Components ships the default high-level service
+// (TablePreferenceService: JSON + 300ms debounce + per-circuit cache + silent errors +
+// async dispose flush). LiPi.Web supplies only the two lower-level pieces:
+//   • IUserTablePreferenceStore  → EfUserTablePreferenceStore (per-clinic IdentityDbContext)
+//   • ICurrentUserAccessor       → BlazorCurrentUserAccessor (NameIdentifier claim)
+//
+// All three Scoped — one instance per Blazor circuit (single user + single clinic),
+// which makes the accessor/store id-memoization and the service cache safe.
+// Register the two low-level deps before the high-level service for readability
+// (DI order does not matter for resolution).
+builder.Services.AddScoped<ICurrentUserAccessor, BlazorCurrentUserAccessor>();
+builder.Services.AddScoped<IUserTablePreferenceStore, EfUserTablePreferenceStore>();
+builder.Services.AddScoped<ITablePreferenceService, TablePreferenceService>();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();

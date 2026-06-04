@@ -1,0 +1,122 @@
+/* ============================================================
+   lipi-status-tokens.css — shared status taxonomy (Phase 2.8 §2.1/§2.3)
+   ============================================================
+   SPEC:  docs/00-COMPONENTS/2.8/00-Phase2.8-Overview.md §2.1, §2.3
+   PHASE: 2.8 Data Display — Stage 2 core shell (created here; first consumer = LipiTable)
+   AMEND: docs/CHANGE-LOG.md A42
+
+   SHARED infrastructure. Defines:
+     • --color-status-* tokens (one per LipiStatus taxonomy value + neutral fallback)
+     • .lipi-status-strip-{left,right,top} utility classes (row status strips)
+     • .lipi-table-status chip styling + [data-status] color mapping (bare-chassis
+       Status cell rendering; full LipiBadge composition is a later stage)
+
+   Consumers (existing + future): LipiTable, LipiList, LipiCard, LipiAlert, LipiBadge,
+   LipiPill, any future status-rendering component.
+
+   TOKEN RECONCILIATION (A42): the spec's example referenced tokens like
+   --color-success-600 / --color-neutral-400 that don't exist in this codebase. Bound to
+   the real semantic palette from themes/mode-{light,dark}.css: --color-success /
+   --color-warning / --color-danger / --color-info + their -pale tiers + --color-text-*.
+   All resolve per [data-mode], so no mode-specific block is needed here.
+
+   LOAD ORDER (App.razor): after themes/mode-*.css, grouped with the other lipi-*.css
+   token files. Loads before lipi-table-tokens.css is fine (independent token sets).
+   ============================================================ */
+
+:root {
+    /* ── Status hue tokens (bound to real semantic palette) ──────────────── */
+    --color-status-active:      var(--color-success);
+    --color-status-success:     var(--color-success);
+    --color-status-completed:   var(--color-success);
+    --color-status-published:   var(--color-success);
+
+    --color-status-pending:     var(--color-warning);
+    --color-status-warning:     var(--color-warning);
+    --color-status-in-progress: var(--color-warning);
+    --color-status-suspended:   var(--color-warning);
+    --color-status-draft:       var(--color-warning);
+
+    --color-status-locked:      var(--color-danger);
+    --color-status-failed:      var(--color-danger);
+    --color-status-error:       var(--color-danger);
+    --color-status-cancelled:   var(--color-danger);
+
+    --color-status-info:        var(--color-info);
+
+    --color-status-inactive:    var(--color-text-tertiary);
+    --color-status-archived:    var(--color-text-tertiary);
+
+    --color-status-unknown:     var(--color-text-tertiary);
+
+    /* ── Pale backgrounds for chips (bound to -pale tiers) ───────────────── */
+    --color-status-pale-success: var(--color-success-pale);
+    --color-status-pale-warning: var(--color-warning-pale);
+    --color-status-pale-danger:  var(--color-danger-pale);
+    --color-status-pale-info:    var(--color-info-pale);
+    --color-status-pale-neutral: var(--color-bg-subtle);
+
+}
+
+/* ============================================================
+   Row status strips — MOVED (A51).
+   The .lipi-status-strip-* rendering + data-status colors + --lipi-status-strip-width
+   are now OWNED by LipiTable's scoped CSS (package feature), bound directly to the
+   foundation semantic palette. They were removed from this shared file so the strip is
+   self-contained in the redistributable component. This file retains only the genuinely
+   shared --color-status-* token taxonomy and the .lipi-table-status chip.
+   When LipiList/LipiCard need strips, they own their own (or share a future helper) —
+   they do not depend on this file for strip rendering.
+   ============================================================ */
+
+/* ============================================================
+   Status chip (bare-chassis Status cell — LipiTable §3.3.2 Status)
+   A simple pill; full LipiBadge/LipiPill composition is a later stage.
+   ============================================================ */
+.lipi-table-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px var(--sp-sm);
+    border-radius: 999px;
+    font-size: var(--ts-badge);
+    font-weight: var(--fw-medium);
+    line-height: 1.6;
+    text-transform: capitalize;
+    background: var(--color-status-pale-neutral);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+/* Success family */
+.lipi-table-status[data-status="active"],
+.lipi-table-status[data-status="success"],
+.lipi-table-status[data-status="completed"],
+.lipi-table-status[data-status="published"] {
+    background: var(--color-status-pale-success);
+    color: var(--color-success-text-strong);
+}
+
+/* Warning family */
+.lipi-table-status[data-status="pending"],
+.lipi-table-status[data-status="warning"],
+.lipi-table-status[data-status="in-progress"],
+.lipi-table-status[data-status="suspended"],
+.lipi-table-status[data-status="draft"] {
+    background: var(--color-status-pale-warning);
+    color: var(--color-warning-text-strong);
+}
+
+/* Danger family */
+.lipi-table-status[data-status="locked"],
+.lipi-table-status[data-status="failed"],
+.lipi-table-status[data-status="error"],
+.lipi-table-status[data-status="cancelled"] {
+    background: var(--color-status-pale-danger);
+    color: var(--color-danger-text-strong);
+}
+
+/* Info */
+.lipi-table-status[data-status="info"] {
+    background: var(--color-status-pale-info);
+    color: var(--color-info-text-strong);
+}

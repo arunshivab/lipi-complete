@@ -1,0 +1,103 @@
+/* ============================================================
+   lipi-pagination-tokens.css — LipiPagination token definitions + global seams
+   ============================================================
+   SPEC:  docs/00-COMPONENTS/2.8/03-LipiPagination-Spec.md §7 (tokens)
+   PHASE: 2.8 Data Display — Stage 7 (LipiPagination, A50; visual-fix pass A50.1)
+
+   Binds the --lipi-pagination-* tokens (consumed by the scoped component CSS) to the
+   project's REAL foundation color, radius and spacing tokens (--color, --r, --sp). Spec §7 referenced token
+   names that don't exist here (--color-primary-50/500, --color-on-primary,
+   --color-text-faint/secondary, --r-2); remapped to the actual deployed foundation tokens.
+
+   LOAD ORDER (App.razor): after themes/mode-*.css, grouped with the other lipi-*.css token files.
+
+   A50.1 visual fixes:
+     - button-gap -> 6px so the 1 2 3 4 5 row reads as clearly separated cells.
+     - The page-button border/min-width affordance is NOT here anymore: it MUST live in the
+       scoped LipiPagination.razor.css, because a global rule (.lipi-pagination .lipi-pagination-page)
+       and the scoped rule (.lipi-pagination-page[b-hash]) are EQUAL specificity (0,2,0), and the
+       scoped bundle (LiPi.Web.styles.css) loads LAST in App.razor — so the scoped rule wins.
+       Putting it here lost the cascade and the border never rendered. (Lesson logged.)
+     - The page-size LipiSelect compaction stays here (it targets ANOTHER component's
+       lipi-input-* classes, which the LipiPagination scoped file cannot reach — global is correct).
+   ============================================================ */
+
+:root {
+    /* ── Button dimensions ───────────────────────────────────────────────── */
+    --lipi-pagination-button-size:            32px;   /* comfortable default */
+    --lipi-pagination-button-pad-x:           8px;    /* page-number text buttons */
+
+    /* ── Button colors (page-number buttons; nav buttons use LipiButton's own) ── */
+    --lipi-pagination-bg-button:              transparent;
+    --lipi-pagination-bg-button-hover:        var(--color-bg-hover);
+    --lipi-pagination-text-button:            var(--color-text-primary);
+    --lipi-pagination-text-button-hover:      var(--color-text-primary);
+    --lipi-pagination-text-button-disabled:   var(--color-text-tertiary);
+
+    /* Cell border (CellStyle=Bordered). Mode-aware via foundation border tokens. */
+    --lipi-pagination-border-button:          var(--color-border-default);
+    --lipi-pagination-border-button-hover:    var(--color-border-strong);
+
+    /* Active = Solid (ActiveStyle=Solid). Mode-aware via --color-primary / inverse. */
+    --lipi-pagination-bg-button-active-solid:   var(--color-primary);
+    --lipi-pagination-text-button-active-solid: var(--color-text-inverse);
+
+    /* Active = Tint (ActiveStyle=Tint). A50.1 strengthened: deeper than --color-primary-pale.
+       color-mix stays mode-aware automatically (mixes the mode's pale toward the mode's
+       primary), so light deepens #EBF5FF→~#D6E6F5 and dark deepens the 0.12 alpha toward
+       a stronger sky tint — no mode-file edits needed. Hard hex fallback for self-sufficiency. */
+    --lipi-pagination-bg-button-active-tint:    color-mix(in srgb, var(--color-primary-pale, #ebf5ff) 60%, var(--color-primary, #134e8c) 40%);
+    --lipi-pagination-text-button-active-tint:  var(--color-primary);
+    /* In a borderless grid the tint alone carries selection (no ring). */
+    --lipi-pagination-border-button-active-tint:      transparent;
+    /* In a BORDERED grid, ring the active cell in primary so it stands out among bordered cells. */
+    --lipi-pagination-border-button-active-tint-grid: var(--color-primary);
+
+    /* ── Shape ───────────────────────────────────────────────────────────── */
+    --lipi-pagination-button-radius:          var(--r-sm);
+    --lipi-pagination-button-gap:             6px;    /* A50.1: 2px -> 4px -> 6px */
+    --lipi-pagination-zone-gap:               16px;
+
+    /* ── Focus ring ──────────────────────────────────────────────────────── */
+    --lipi-pagination-focus-ring-w:           2px;
+    --lipi-pagination-focus-ring-color:       var(--color-primary);
+
+    /* ── Row-count / label text ──────────────────────────────────────────── */
+    --lipi-pagination-text-count:             var(--color-text-tertiary);
+    --lipi-pagination-text-count-size:        13px;
+
+    /* ── Page-size select compaction (A50.1) ─────────────────────────────── */
+    --lipi-pagination-size-field-h:           28px;   /* compact, aligns with 13px label */
+    --lipi-pagination-size-font:              13px;   /* match the "Rows per page:" label */
+    --lipi-pagination-size-min-w:             62px;   /* room for "200" / "All" + chevron */
+}
+
+/* ============================================================================
+   GLOBAL seam — page-size LipiSelect compaction + alignment.
+   Targets LipiSelect's OWN classes (lipi-input-*), which sit in a different Blazor
+   component scope than LipiPaginationPageSize — so a scoped .razor.css cannot reach
+   them. Intentionally global, narrowly keyed under .lipi-pagination-size-select (passed
+   as LipiSelect's Class), so no other LipiSelect on the page is affected. (Confirmed
+   working — "dropdown size is ok".)
+   ============================================================================ */
+.lipi-pagination-size-select .lipi-input-label {
+    display: none;
+}
+.lipi-pagination-size-select .lipi-input-helper {
+    display: none;
+}
+.lipi-pagination-size-select {
+    display: inline-flex;
+    width: auto;
+    min-width: var(--lipi-pagination-size-min-w);
+}
+.lipi-pagination-size-select .lipi-input-field {
+    min-height: var(--lipi-pagination-size-field-h);
+    height: var(--lipi-pagination-size-field-h);
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.lipi-pagination-size-select .lipi-select-display {
+    font-size: var(--lipi-pagination-size-font);
+    line-height: 1;
+}

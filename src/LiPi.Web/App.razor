@@ -2,7 +2,6 @@
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.Web
 @using LiPi.Web.Components.Theme
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,7 +16,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-
     @*
         CSS CASCADE ORDER — Decision #12 §12.4 (SPEC: 00.2-THEMING-ARCHITECTURE.md)
          1. 00-baseline.css — structural tokens
@@ -37,10 +35,17 @@
         15. lipi-skeleton.css — Phase 2.7 LipiSkeleton family (3 shape primitives + shimmer)
         16. lipi-validation.css — Phase 2.7 LipiValidationSummary field-flash keyframe (global scope)
         17. Blazor CSS Isolation bundle (LiPi.Web.styles.css)
-
         CACHE VERSION HISTORY (reverse-chronological)
         | Version  | Phase / Batch                       | What shipped                                        |
         |----------|-------------------------------------|-----------------------------------------------------|
+        | 20260540 | Phase 2.8 Stage 7 — CHANGE-LOG A50 | LipiPagination (Full/Compact/Minimal variants + page-size selector + count display + Load-more sub-component), composing LipiSelect + the migrated LipiButton. New css/lipi-pagination-tokens.css (binds --lipi-pagination-* to the real --color-* contract). Pure PaginationMath helper (LP-14 page-window algorithm, 15/15 unit tests). New standalone demo page StyleGuidePagination.razor (/admin/style-guide/data-display/pagination). All cache versions bumped 20260539→20260540. |
+        | 20260539 | Phase 2.8 Stage 4d — CHANGE-LOG A48 | LipiTable keyboard navigation (roving-tabindex arrows/Home/End/Ctrl+Home-End) + keyboard selection (Space/Shift+Space/Ctrl+Space/Ctrl+A/Shift+Arrow/Esc). New --lipi-table-focus-ring token + capture-phase scroll-guard in lipi-table.js. All cache versions bumped 20260538→20260539. |
+        | 20260538 | Phase 2.8 Stage 4b — CHANGE-LOG A47 | LipiTable selection mouse modifiers: shift-click range + anchor, Ctrl/Cmd-click toggle, OnRowClick interplay. Body select cell cursor + checkbox pointer-events:none (token CSS). All cache versions bumped 20260537→20260538. |
+        | 20260537 | Phase 2.8 Stage 4a — CHANGE-LOG A46 | LipiTable selection core (real bound LipiCheckbox, tri-state header, single/multi). Checkbox-centering global rules + row-selected tint tokens. Cache 20260534→…→20260537 across 4a runtime fixes. |
+        | 20260534 | Phase 2.8 Stage 3 — CHANGE-LOG A45 | LipiTable rows/cells (density, avatar, copy affordance, row hooks, 16-value status strips). New _content/LiPi.Components/lipi-table.js. Cache 20260532→…→20260534. |
+        | 20260532 | Phase 2.8 Stage 2 core shell — CHANGE-LOG A42.1 | LipiTable header visual tweak: header weight 600→700 (--fw-bold) + header text secondary→primary in lipi-table-tokens.css (column headers read too faint on first render). Token-only; no component change. All cache versions bumped 20260531→20260532. |
+        | 20260531 | Phase 2.8 Stage 2 core shell — CHANGE-LOG A42 | LipiTable bare chassis (generic table, CSS-Grid layout, 14 cell-type rendering, body states). New css/lipi-table-tokens.css + css/lipi-status-tokens.css (shared status taxonomy, first consumer LipiTable). All cache versions bumped 20260530→20260531. |
+        | 20260530 | Phase 2.8 Stage 1D/2 — CHANGE-LOG A40/A41 | Lipicons integration (vendored LiPicons.Blazor, <LipiIcon>) + LipiEmptyState (first Data Display component). New css/lipi-empty-tokens.css (binds --lipi-empty-* to the real --color-* contract). All cache versions bumped 20260526→20260530. |
         | 20260526 | Phase 2.7 — CHANGE-LOG A35           | Phase 2.7 Feedback Components: LipiSpinner, LipiBadge, LipiPill, LipiSkeleton (3), LipiValidationSummary, LipiToast family. Token additions (--color-danger-text-strong + 7 Phase 2.7 component tokens). LipiToastHost wired into TopNavLayout. ILipiToastService registered Scoped. |
         | 20260525 | Phase 2.6.2 — CHANGE-LOG A30–A34    | Phase 2.6.2 close-out: LipiModalTypes recovery (A30), LipiModal declarative family (A31), bug sweep + drawer pin completion (A32), StyleGuideOverlays 30-demo rewrite (A33), DynamicTabs chevron overflow redesign (A34) |
         | 20260524 | Phase 2.6.1 — CHANGE-LOG A27         | LipiCard spec reconciliation: interactivity unified on IsInteractive; accent radius + focus-ring + aria to spec |
@@ -61,39 +66,34 @@
         | 20260511 | Phase 2.3 Batch 9a                  | LipiCompoundField + segments                        |
         | 20260510 | Phase 2.2 Batch 5.4                 | Earlier text-input family work                      |
     *@
-
-    <link rel="stylesheet" href="css/00-baseline.css?v=20260526" />
-    <link rel="stylesheet" href="css/app.css?v=20260526" />
-    <link rel="stylesheet" href="css/dashboard.css?v=20260526" />
-    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260526" />
-    <link rel="stylesheet" href="themes/mode-light.css?v=20260526" />
-    <link rel="stylesheet" href="themes/mode-dark.css?v=20260526" />
-    <link rel="stylesheet" href="css/admin.css?v=20260526" />
-    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260526" />
-    <link rel="stylesheet" href="css/lipi-compound.css?v=20260526" />
-    <link rel="stylesheet" href="css/lipi-multi.css?v=20260526" />
-
+    <link rel="stylesheet" href="css/00-baseline.css?v=20260540" />
+    <link rel="stylesheet" href="css/app.css?v=20260540" />
+    <link rel="stylesheet" href="css/dashboard.css?v=20260540" />
+    <link rel="stylesheet" href="themes/brand-lipi.css?v=20260540" />
+    <link rel="stylesheet" href="themes/mode-light.css?v=20260540" />
+    <link rel="stylesheet" href="themes/mode-dark.css?v=20260540" />
+    <link rel="stylesheet" href="css/admin.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-inputs.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-compound.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-multi.css?v=20260540" />
     @* Phase 2.5 — Selection family (LipiCheckbox/-Group, LipiRadio/-Group, LipiToggle)
        and form utility patterns (lipi-form-row helpers). These ship via the deploy
        script but were never wired in App.razor — caused the LabelPosition.Left grid
        layout on LipiCheckboxGroup to silently fall back to default fieldset layout.
        Stage 1C of Phase 2.6.3 stabilisation closes this Phase 2.5 audit debt. *@
-    <link rel="stylesheet" href="css/lipi-selection-family.css?v=20260526" />
-    <link rel="stylesheet" href="css/lipi-form-utilities.css?v=20260526" />
-
+    <link rel="stylesheet" href="css/lipi-selection-family.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-form-utilities.css?v=20260540" />
     @* Phase 2.6.1 — Layout components (LipiTabs + LipiAlert + LipiCard).
        Without these the tab/alert/card components render unstyled markup. *@
-    <link rel="stylesheet" href="css/lipi-tabs.css?v=20260526" />
-    <link rel="stylesheet" href="css/lipi-alerts.css?v=20260526" />
-    <link rel="stylesheet" href="css/lipi-cards.css?v=20260526" />
-
+    <link rel="stylesheet" href="css/lipi-tabs.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-alerts.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-cards.css?v=20260540" />
     @* Phase 2.6.2 — Overlay surfaces (LipiModal + LipiDrawer + LipiDynamicTabs).
        Without lipi-overlays.css the modal/drawer markup renders without
        position:fixed, no centering, no backdrop, no box-shadow — appears as
        loose elements stacked at the bottom of the page. *@
-    <link rel="stylesheet" href="css/lipi-overlays.css?v=20260526" />
-    <link rel="stylesheet" href="css/lipi-dynamic-tabs.css?v=20260526" />
-
+    <link rel="stylesheet" href="css/lipi-overlays.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-dynamic-tabs.css?v=20260540" />
     @* Phase 2.7 — Feedback Components family (A35):
        - lipi-skeleton.css: shared shimmer keyframe + 3 shape classes for
          LipiSkeletonLine / LipiSkeletonCircle / LipiSkeletonRect. Without this
@@ -103,11 +103,32 @@
          targets ANY input element on the page, not just elements rendered by
          LipiValidationSummary itself. Loaded after component CSS so it can
          override input ring shadows during the 1.5s flash animation. *@
-    <link rel="stylesheet" href="css/lipi-skeleton.css?v=20260526" />
-    <link rel="stylesheet" href="css/lipi-validation.css?v=20260526" />
-
+    <link rel="stylesheet" href="css/lipi-skeleton.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-validation.css?v=20260540" />
+    @* Phase 2.8 — Data Display token files (A40/A41).
+       lipi-empty-tokens.css defines the --lipi-empty-* tokens consumed by
+       LipiEmptyState's scoped CSS. It binds those aliases to the real
+       --color-* contract from themes/mode-*.css, so it MUST load after the
+       theme mode files (it does — they're above). Component layout/structure
+       ships via Blazor CSS isolation (LiPi.Web.styles.css, next line) and the
+       LiPi.Components scoped CSS bundle. *@
+    <link rel="stylesheet" href="css/lipi-empty-tokens.css?v=20260540" />
+    @* Phase 2.8 Stage 2 core shell (A42) — LipiTable token files.
+       lipi-status-tokens.css: shared status taxonomy (--color-status-* + strip/chip
+       classes), first consumed by LipiTable's Status cells. lipi-table-tokens.css:
+       --lipi-table-* tokens bound to the real --color-* contract. Both load after the
+       theme mode files (above). *@
+    <link rel="stylesheet" href="css/lipi-status-tokens.css?v=20260540" />
+    <link rel="stylesheet" href="css/lipi-table-tokens.css?v=20260540" />
+    @* Phase 2.8 Stage 7 (A50) — LipiPagination token file.
+       lipi-pagination-tokens.css: --lipi-pagination-* tokens bound to the real
+       --color-* contract (spec §7's --color-primary-50/500 / --color-on-primary / --r-2
+       don't exist in this project; remapped to --color-primary / --color-primary-pale /
+       --color-bg-hover / --color-text-inverse / --color-text-tertiary / --r-sm). Consumed
+       by LipiPagination's scoped CSS and its sub-components. Loads after the theme mode
+       files (above), grouped with the other lipi-*-tokens.css seam files. *@
+    <link rel="stylesheet" href="css/lipi-pagination-tokens.css?v=20260540" />
     <link rel="stylesheet" href="LiPi.Web.styles.css" />
-
     <style>
         .loading-spinner {
             position: fixed;
@@ -125,13 +146,11 @@
             to { transform: translate(-50%, -50%) rotate(360deg); }
         }
     </style>
-
     @*
         FOUC PREVENTION — MUST be blocking script (no async/defer), MUST be in <head>.
         Runs before browser paints content.
     *@
-    <script src="js/theme-switcher.js?v=20260526"></script>
-
+    <script src="js/theme-switcher.js?v=20260540"></script>
     <HeadOutlet @rendermode="@InteractiveServer" />
 </head>
 <body>
@@ -163,17 +182,14 @@
             </Router>
         </ThemeProvider>
     </CascadingAuthenticationState>
-
     @* Body scripts — order preserved; theme-switcher.js is in <head>, not here.
        Cache version added to ALL JS scripts in this batch — previously only CSS was versioned. *@
-    <script src="js/lipi-login.js?v=20260526"></script>
-    <script src="js/lipi-topnav.js?v=20260526"></script>
-    <script src="js/lipi-shortcuts.js?v=20260526"></script>
-
+    <script src="js/lipi-login.js?v=20260540"></script>
+    <script src="js/lipi-topnav.js?v=20260540"></script>
+    <script src="js/lipi-shortcuts.js?v=20260540"></script>
     @* Phase 2.2: input family helpers (autogrow Batch 3, selectAll Batch 4).
        Loaded BEFORE blazor.web.js so window.lipiInput is available when components first render. *@
-    <script src="js/lipi-input.js?v=20260526"></script>
-
+    <script src="js/lipi-input.js?v=20260540"></script>
     @* Phase 2.6.2: overlay surfaces JS interop (focus trap stack, ghost-click guard,
        body scroll lock with scrollbar compensation, page-inert helper, bfcache pageshow
        reload, document-level Escape listener registration).
@@ -182,16 +198,22 @@
        FocusTrapService / ScrollLockService / setPageInert calls throw JSException
        which is silently swallowed — overlays render but keyboard/scroll behaviors
        degrade silently. *@
-    <script src="js/lipi-overlay-interop.js?v=20260526"></script>
-
+    <script src="js/lipi-overlay-interop.js?v=20260540"></script>
     @* Phase 2.7 (A35): validation summary click-to-field interop. Exposes
        window.lipiValidation.scrollToField(fieldId) — used by LipiValidationSummary
        when the user clicks an error in the bulleted list. Loaded BEFORE blazor.web.js
        so window.lipiValidation is available when the summary first renders.
        Failure mode is silent: if the script doesn't load, the summary still shows
        errors, but clicking an item is a no-op. *@
-    <script src="js/lipi-validation.js?v=20260526"></script>
-
+    <script src="js/lipi-validation.js?v=20260540"></script>
+    @* Phase 2.8 Stage 3 (A45): LipiTable copy-to-clipboard interop. Exposes
+       window.lipiTable.copy(text) — used by LipiTable's hover-copy cell affordance.
+       Component-local static web asset shipped inside LiPi.Components (served at
+       _content/LiPi.Components/lipi-table.js), so the table is self-contained — no host
+       JS dependency. Loaded BEFORE blazor.web.js so window.lipiTable is available when
+       the table first renders. Failure mode is silent: if the script doesn't load, the
+       copy button is a no-op (the inline "Copied!" flash simply won't fire). *@
+    <script src="_content/LiPi.Components/lipi-table.js?v=20260540"></script>
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

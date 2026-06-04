@@ -22,6 +22,13 @@
 
   <!-- Project References -->
   <ItemGroup>
+    <!-- Phase 2.8 (A39): redistributable component library (LipiTable, LipiEmptyState, et al.). -->
+    <ProjectReference Include="..\LiPi.Components\LiPi.Components.csproj" />
+    <!-- Phase 2.8 (A40): vendored icon package — explicit ref so demo pages' _Imports resolve
+         <LipiIcon> directly. (LiPi.Components also references it; explicit here for demo clarity.)
+         Swap to PackageReference on publish. -->
+    <ProjectReference Include="..\..\libs\LiPicons.Blazor\LiPicons.Blazor.csproj" />
+
     <ProjectReference Include="..\..\database\efcore\LiPi.Clinic.Identity\LiPi.Clinic.Identity.csproj" />
     <ProjectReference Include="..\..\database\efcore\LiPi.Master\LiPi.Master.csproj" />
     <ProjectReference Include="..\..\database\efcore\LiPi.Clinic.Abdm\LiPi.Clinic.Abdm.csproj" />

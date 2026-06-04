@@ -1,0 +1,106 @@
+@namespace LiPicons.Blazor
+@using System.Globalization
+@using System.Net
+@using System.Text
+@_markup
+
+@code {
+    /// <summary>Manifest key, e.g. "empty-state", "filter", "close". Required.</summary>
+    [Parameter] public string Name { get; set; } = "";
+
+    /// <summary>Which weight / treatment to render.</summary>
+    [Parameter] public LipiconVariant Variant { get; set; } = LipiconVariant.Regular;
+
+    /// <summary>Pixel width and height (square). The 24×24 viewBox is preserved.</summary>
+    [Parameter] public int Size { get; set; } = 24;
+
+    /// <summary>
+    /// When null, the icon inherits the surrounding text colour (<c>currentColor</c>),
+    /// so CSS tokens can tint it. When set, this value is used as the stroke/fill colour.
+    /// </summary>
+    [Parameter] public string? Color { get; set; }
+
+    /// <summary>Extra CSS class(es) appended to the component's own <c>lipicon</c> root class.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Null → decorative: the icon is hidden from assistive tech (<c>aria-hidden</c>).
+    /// Set → the icon is exposed as an image with this accessible label.
+    /// </summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>
+    /// Optional override for dev-mode behaviour. When null (default), development is
+    /// inferred from the ASPNETCORE_ENVIRONMENT / DOTNET_ENVIRONMENT variables. Blazor
+    /// WebAssembly hosts can set this to <c>builder.HostEnvironment.IsDevelopment()</c>.
+    /// </summary>
+    public static bool? DevModeOverride { get; set; }
+
+    internal static bool IsDevelopment =>
+        DevModeOverride ?? string.Equals(
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
+            "Development",
+            StringComparison.OrdinalIgnoreCase);
+
+    private MarkupString _markup;
+
+    protected override void OnParametersSet() => _markup = Build();
+
+    private MarkupString Build()
+    {
+        // Unknown / empty name: render nothing, warn in dev, never throw — a missing
+        // icon must never crash a clinical screen.
+        if (string.IsNullOrEmpty(Name) || !IconManifest.TryGet(Name, out var paths))
+        {
+            if (IsDevelopment)
+            {
+                Console.Error.WriteLine($"LipiIcon: unknown icon name '{Name}'");
+            }
+
+            return default; // empty MarkupString renders nothing
+        }
+
+        var (inner, strokeWidth) = LipiconRenderer.Render(paths, Variant);
+
+        // Render uses the literal "currentColor"; swap in an explicit colour if requested.
+        var colour = Color ?? "currentColor";
+        if (Color is not null)
+        {
+            inner = inner.Replace("currentColor", Color, StringComparison.Ordinal);
+        }
+
+        var sb = new StringBuilder(inner.Length + 256);
+        sb.Append("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"")
+          .Append(Size.ToString(CultureInfo.InvariantCulture))
+          .Append("\" height=\"")
+          .Append(Size.ToString(CultureInfo.InvariantCulture))
+          .Append("\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"")
+          .Append(WebUtility.HtmlEncode(colour))
+          .Append("\" stroke-linecap=\"round\" stroke-linejoin=\"round\"");
+
+        if (strokeWidth is { } w)
+        {
+            sb.Append(" stroke-width=\"").Append(LipiconRenderer.FormatStroke(w)).Append('"');
+        }
+
+        sb.Append(" class=\"lipicon");
+        if (!string.IsNullOrEmpty(Class))
+        {
+            sb.Append(' ').Append(WebUtility.HtmlEncode(Class));
+        }
+        sb.Append('"');
+
+        if (Title is null)
+        {
+            sb.Append(" aria-hidden=\"true\"");
+        }
+        else
+        {
+            sb.Append(" role=\"img\" aria-label=\"").Append(WebUtility.HtmlEncode(Title)).Append('"');
+        }
+
+        sb.Append('>').Append(inner).Append("</svg>");
+        return new MarkupString(sb.ToString());
+    }
+}

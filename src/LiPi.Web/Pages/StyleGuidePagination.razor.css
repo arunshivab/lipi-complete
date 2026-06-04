@@ -1,0 +1,133 @@
+/* ============================================================
+   StyleGuidePagination.razor.css — scoped demo-page styles
+   ============================================================
+   PHASE: 2.8 Data Display — Stage 7 (LipiPagination demo) — A50 (visual-fix pass A50.1)
+   Blazor CSS Isolation: scoped to THIS page. Per the A36 C6 lesson, every
+   StyleGuide*.razor page carries its own sg-* base block — scoped rules from
+   another page's .razor.css do NOT match this page's elements. Mirrors the
+   StyleGuideDataDisplay.razor.css sg-* vocabulary so the page renders cleanly
+   standalone (no dependency on global StyleGuide styles).
+
+   PACKAGING: This file is HOST-APP code (LiPi.Web), NOT part of the redistributable
+   LiPi.Components package. It is therefore allowed to consume the full foundation
+   token contract directly (--color-bg-base etc.). The LipiPagination COMPONENT is
+   untouched by this file and keeps its lipi-prefixed classes + --lipi-pagination token contract.
+
+   A50.1 dark-mode fix (Option 3):
+     .sg-page now paints background: var(--color-bg-base) so the demo's content column
+     themes correctly in dark mode. Root cause was NOT in LipiPagination — every
+     component token flipped correctly (select, readout, active page). The washout came
+     from this being the only StyleGuide page with no painted surface of its own: the
+     sibling pages (StyleGuide / Feedback / DataDisplay) cover their content in
+     --color-bg-surface cards/cells, which masks the layout's non-theming .tn-content
+     background. This bare page exposed it. Painting --color-bg-base here gives the
+     column a themed surface (light #F1F5F9 / dark #0d1117) while keeping the flat,
+     border-separated section design.
+
+   DEVIATION / 2.10 RECONCILIATION (Option 1, deferred):
+     The real defect is global: .tn-content (TopNavLayout) uses a hardcoded light
+     background and does not participate in the mode flip, so light gutters show on
+     EVERY page in dark mode (older pages just hide most of it under surface cards).
+     The standards-correct fix is to make .tn-content use background: var(--color-bg-base)
+     in the GLOBAL TopNav stylesheet (the scoped TopNavLayout.razor.css does not contain
+     .tn-content). Logged for the Phase 2.10 infrastructure audit; not done here to avoid
+     a shared-layout edit from a file not currently in hand.
+   ============================================================ */
+
+.sg-page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: var(--sp-xl, 24px) var(--sp-lg, 16px) 64px;
+    background: var(--color-bg-base);   /* A50.1: themed surface so dark mode reads correctly */
+    color: var(--color-text-primary);
+}
+
+.sg-header {
+    margin-bottom: var(--sp-xl, 24px);
+}
+
+.sg-header h1 {
+    font-size: var(--ts-page-title, 18px);
+    font-weight: 600;
+    margin: 0 0 var(--sp-sm, 8px);
+    color: var(--color-text-primary);
+}
+
+.sg-header p {
+    font-size: var(--ts-body, 13px);
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    max-width: 760px;
+    margin: 0;
+}
+
+.sg-section {
+    margin-top: var(--sp-2xl, 32px);
+    padding-top: var(--sp-lg, 16px);
+    border-top: 1px solid var(--color-border-subtle, var(--color-border-default));
+}
+
+.sg-section h2 {
+    font-size: var(--ts-section, 15px);
+    font-weight: 600;
+    margin: 0 0 var(--sp-md, 12px);
+    color: var(--color-text-primary);
+}
+
+.sg-subhead {
+    font-size: var(--ts-body, 13px);
+    font-weight: 600;
+    margin: var(--sp-xl, 24px) 0 var(--sp-sm, 8px);
+    color: var(--color-text-primary);
+}
+
+.sg-note-p {
+    font-size: var(--ts-small, 12px);
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    max-width: 760px;
+    margin: 0 0 var(--sp-md, 12px);
+}
+
+.sg-note-p code,
+.sg-header p code {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.92em;
+    padding: 1px 5px;
+    border-radius: var(--r-sm, 6px);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+}
+
+.sg-readout {
+    font-size: var(--ts-small, 12px);
+    color: var(--color-text-secondary);
+    margin: var(--sp-md, 12px) 0 0;
+    padding: var(--sp-sm, 8px) var(--sp-md, 12px);
+    background: var(--color-bg-subtle);
+    border-radius: var(--r-sm, 6px);
+    display: inline-block;
+}
+
+.sg-readout strong {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.sg-notes {
+    margin: 0;
+    padding-left: var(--sp-lg, 16px);
+    font-size: var(--ts-small, 12px);
+    line-height: 1.7;
+    color: var(--color-text-secondary);
+    max-width: 760px;
+}
+
+.sg-notes code {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.92em;
+    padding: 1px 5px;
+    border-radius: var(--r-sm, 6px);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+}

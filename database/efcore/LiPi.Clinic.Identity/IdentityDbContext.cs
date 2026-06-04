@@ -31,6 +31,8 @@ public class IdentityDbContext : DbContext
     // public DbSet<AdSyncRun> AdSyncRuns => Set<AdSyncRun>();  // table dropped
     public DbSet<ClinicProfile> ClinicProfiles => Set<ClinicProfile>();
 	public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
+	// Phase 2.8 (A39): per-user LipiTable state. Sibling of UserPreferences.
+	public DbSet<UserTablePreference> UserTablePreferences => Set<UserTablePreference>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -70,6 +72,23 @@ public class IdentityDbContext : DbContext
         e.Property(p => p.Language).HasMaxLength(10);
         // HasDefaultValue not set here — defaults are enforced at DB level
         // via SQL DEFAULT clauses in the migration script.
+    });
+
+    // Phase 2.8 (A39) — UserTablePreference (LipiTable state). Sibling of UserPreference.
+    // SPEC: docs/00-COMPONENTS/2.8/00-Phase2.8-Overview.md §2.5
+    // Schema "identity" applied by HasDefaultSchema; columns snake_cased by the loop
+    // above (user_id / table_id / prefs_json / updated_at). Composite PK + jsonb +
+    // length cap configured here. The actual table is created by the hand-written SQL
+    // migration (2026-05-16-phase-2.8-user-table-prefs-up.sql), applied per clinic DB.
+    modelBuilder.Entity<UserTablePreference>(e =>
+    {
+        e.HasKey(p => new { p.UserId, p.TableId });
+        e.Property(p => p.TableId).HasMaxLength(200);
+        e.Property(p => p.PrefsJson).HasColumnType("jsonb");
+        e.HasIndex(p => p.UserId);
+        // updated_at: the app (EfUserTablePreferenceStore) sets this UTC value on every
+        // write. NOT configured as store-generated so EF always sends it. The SQL
+        // DEFAULT NOW() in the migration is only a safety net for non-EF inserts.
     });
 
         // =========== User — REMOVED (users now in master.platform_users) ===========

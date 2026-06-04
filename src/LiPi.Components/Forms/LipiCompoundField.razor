@@ -1,0 +1,113 @@
+@* SPEC: docs/00-COMPONENTS/01.3-CompoundField.md (shipping in Batch 9c) *@
+@* PHASE: 2.3 (Batch 9a)                                                  *@
+@* AMEND: docs/CHANGE-LOG.md A19 (pending)                                 *@
+@*                                                                         *@
+@* LipiCompoundField — multi-segment input wrapper.                         *@
+@*                                                                         *@
+@* Caller composes segments inside ChildContent:                            *@
+@*   <LipiCompoundField Name="mobile" Label="Mobile" Required="true">       *@
+@*       <SelectSegment Items="@_isd" @bind-Value="m.MobCC" Width="80px" /> *@
+@*       <TextSegment @bind-Value="m.Mobile" MaxLength="10" />              *@
+@*   </LipiCompoundField>                                                   *@
+@*                                                                         *@
+@* The parent provides CascadingValue<LipiCompoundField> so child segments  *@
+@* can register themselves via [CascadingParameter] in their OnInitialized. *@
+
+@namespace LiPi.Components
+@using LiPicons.Blazor
+@inherits LipiContainerBase
+
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="lipi-input-wrapper @CssClasses @(Class ?? string.Empty)"
+     style="@InlineStyle"
+     @ref="_wrapperRef">
+
+    @* ===== LABEL ROW ===== *@
+    <label class="lipi-input-label" for="@EffectiveId">
+        <span class="lipi-input-label-text">@_resolvedLabel</span>
+        @if (Required)
+        {
+            @* Approach D — asterisk + ARIA + tooltip ALWAYS render at field level. *@
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+        @if (LabelConfidence.HasValue)
+        {
+            <span class="lipi-input-confidence-pill lipi-input-confidence-@ConfidenceCssClass"
+                  aria-label="@ConfidenceAriaLabel">
+                @ConfidenceLabelText
+            </span>
+        }
+    </label>
+
+    @* ===== FIELD BAR (horizontal flex container for segments) ===== *@
+    <div class="lipi-input-field lipi-compound-field-bar"
+         id="@EffectiveId"
+         role="group"
+         aria-label="@_resolvedLabel"
+         aria-invalid="@AriaInvalidAttr"
+         aria-describedby="@AriaDescribedByAttr">
+
+        @if (!string.IsNullOrEmpty(Icon))
+        {
+            <span class="lipi-input-icon-leading" aria-hidden="true">
+                <LipiIcon Name="@Icon" Size="@IconPx" />
+            </span>
+        }
+
+        @* Cascade self so child segments can find us. IsFixed=true: parent ref
+           never changes during the lifetime of children, so children don't
+           need to re-render on cascade-value changes. *@
+        <CascadingValue Value="this" IsFixed="true">
+            @ChildContent
+        </CascadingValue>
+
+    </div>
+
+    @* ===== HELPER ROW ===== *@
+    @if (Defaults.Value.AlwaysReserveHelperSlot || HasHelperContent)
+    {
+        <div class="lipi-input-helper @HelperStateClass"
+             role="@HelperRole"
+             aria-live="@HelperAriaLive"
+             id="@HelperId">
+            @AggregatedHelperText
+        </div>
+    }
+
+</div>
+
+@code {
+    // LipiContainerBase owns:
+    //   - Parameter declarations (Name, Label, Helper, Error, ...)
+    //   - Segment registration / unregistration / NotifyStateChanged
+    //   - AdvanceFocusFromAsync (Q4 auto-advance)
+    //   - OnFocusLeftCompound JSInvokable callback (Q2=Z touched-state)
+    //   - State aggregation (ResolvedState, AnyErrored, AggregatedHelperText)
+    //   - Visual primitives (CssClasses, EffectiveId, HelperId, etc.)
+    //   - Env-gated parameter validation in OnParametersSet
+    //   - DisposeAsync — detaches JS focusout handler + DotNetObjectReference
+    //
+    // LipiCompoundField is intentionally thin — its only responsibilities are
+    // wiring the markup and attaching the JS-side focusout listener on first
+    // render. Future variants (LipiCompoundFieldGroup with a shared submit
+    // button, etc.) can subclass LipiContainerBase directly.
+
+    /// <summary>
+    /// Attach the JS-side focusout listener after first render. The listener
+    /// fires on every focus-out event but only invokes back into C# when
+    /// relatedTarget is OUTSIDE the wrapper (i.e., focus actually left the
+    /// compound, not just moved between segments). See LipiContainerBase
+    /// AttachFocusOutHandlerAsync for the contract.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await AttachFocusOutHandlerAsync();
+        }
+    }
+}

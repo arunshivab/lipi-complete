@@ -1,0 +1,373 @@
+@* SPEC: docs/00-COMPONENTS/01.2-TextInputs.md (LipiTextArea component)            *@
+@* PHASE: 2.2 (Batch 3 ship) + 2.2.5 (Batch 8b — base class migration)            *@
+@* AMEND: docs/CHANGE-LOG.md A16 (pending — Phase 2.2.5 wrap-up at Batch 8c)      *@
+@*                                                                                  *@
+@* Phase 2.2.5 migration: derives from LipiInputBase<string?> instead of           *@
+@* InputBase<string?>. The base now owns all common parameters (Name, Label,      *@
+@* Helper, Error, Warning, Success, Required, Disabled, ReadOnly, Autocomplete,   *@
+@* Size, Icon, AriaDescribedBy, RequiredVisualStyle, LabelConfidence, Cols,       *@
+@* Class), the EditContext subscription for validation auto-population, the      *@
+@* anonymous-id fallback, the env-gated parameter validation, the touched-state  *@
+@* HandleBlur, and the state cascade. LipiTextArea keeps only the multi-line-    *@
+@* specific bits: IconRight, OnIconRightClick, IconRightAriaLabel, MaxLength,    *@
+@* MinRows, MaxRows, plus the markup, autogrow JS interop, and event handlers.   *@
+@*                                                                                  *@
+@* OnFieldBlurred NOT overridden — autogrow happens on input, not blur, and the   *@
+@* base touched-state HandleBlur is sufficient. NotifyFieldChanged forces         *@
+@* validation on tab-past empty Required fields.                                   *@
+
+@namespace LiPi.Components
+@using LiPicons.Blazor
+@inherits LipiInputBase<string?>
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<div class="lipi-input-wrapper @CssClasses @_resolvedLabelPositionClass @(IsMultiLine ? "lipi-input-multiline" : null) @(Class ?? string.Empty)" style="@InlineStyle">
+
+    @* ===== LABEL ROW ===== *@
+    <label class="lipi-input-label" for="@EffectiveId">
+        <span class="lipi-input-label-text">@_resolvedLabel</span>
+        @if (Required)
+        {
+            @* Locked Decision 6 (Approach D): asterisk + ARIA + tooltip ALWAYS render
+               regardless of RequiredVisualStyle. *@
+            <span class="lipi-input-required-asterisk"
+                  aria-label="required field"
+                  title="Required">*</span>
+        }
+        @if (LabelConfidence.HasValue)
+        {
+            <span class="lipi-input-confidence-pill lipi-input-confidence-@ConfidenceCssClass"
+                  aria-label="@ConfidenceAriaLabel">
+                @ConfidenceLabelText
+            </span>
+        }
+    </label>
+
+    @* ===== INPUT BODY (field + helper grouped for Left/Right LabelPosition) ===== *@
+    <div class="lipi-input-body">
+
+    @* ===== TEXTAREA ROW ===== *@
+    <div class="lipi-input-field">
+
+        @if (!string.IsNullOrEmpty(Icon))
+        {
+            <span class="lipi-input-icon-leading" aria-hidden="true">
+                <LipiIcon Name="@Icon" Size="@IconPx" />
+            </span>
+        }
+
+        <textarea id="@EffectiveId"
+                  name="@_resolvedName"
+                  @ref="_textareaRef"
+                  class="lipi-input-control lipi-textarea-control"
+                  rows="@MinRows"
+                  value="@CurrentValueAsString"
+                  placeholder="@Placeholder"
+                  autocomplete="@AutocompleteAttr"
+                  disabled="@Disabled"
+                  readonly="@ReadOnly"
+                  required="@Required"
+                  maxlength="@MaxLengthAttr"
+                  aria-describedby="@AriaDescribedByAttr"
+                  aria-invalid="@AriaInvalidAttr"
+                  @oninput="HandleInput"
+                  @onblur="HandleBlur"></textarea>
+
+        @if (EffectiveTrailingIcon != null)
+        {
+            <button type="button"
+                    class="lipi-input-icon-trailing @(IconRightClickable ? "lipi-input-icon-clickable" : null)"
+                    tabindex="@(IconRightClickable ? 0 : -1)"
+                    aria-hidden="@(IconRightClickable ? null : "true")"
+                    aria-label="@(IconRightClickable ? IconRightAriaLabel : null)"
+                    disabled="@(!IconRightClickable || Disabled)"
+                    @onclick="HandleIconRightClick">
+                <LipiIcon Name="@EffectiveTrailingIcon" Size="@IconPx" />
+            </button>
+        }
+    </div>
+
+    @* ===== HELPER ROW (always reserved when AlwaysReserveHelperSlot=true) ===== *@
+    @if (Defaults.Value.AlwaysReserveHelperSlot || HasHelperContent)
+    {
+        <div class="lipi-input-helper @HelperStateClass"
+             role="@HelperRole"
+             aria-live="@HelperAriaLive"
+             id="@HelperId">
+            @HelperText
+        </div>
+    }
+
+    </div>@* end lipi-input-body *@
+</div>
+
+@code {
+    // ==========================================================================
+    // PARAMETERS — component-specific only (common ones inherited from base)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Inherited from LipiInputBase<string?>:
+    //   Name, Label, Placeholder, Helper, Error, Warning, Success, Required,
+    //   Disabled, ReadOnly, Autocomplete, Size, Icon, AriaDescribedBy,
+    //   RequiredVisualStyle, LabelConfidence, Cols, Class
+    // Inherited from InputBase<string?>:
+    //   Value, ValueChanged, ValueExpression, DisplayName
+    // ==========================================================================
+
+    /// <summary>Lucide icon name for the trailing icon slot. Overridden by validation
+    /// state icons (Error → circle-x, Warning → alert-triangle, Success → check).</summary>
+    [Parameter] public string? IconRight { get; set; }
+
+    /// <summary>Click handler for the trailing icon. When present, the icon renders
+    /// as a focusable &lt;button&gt; element. Requires IconRightAriaLabel.</summary>
+    [Parameter] public EventCallback<MouseEventArgs> OnIconRightClick { get; set; }
+
+    /// <summary>Required when OnIconRightClick is wired (WCAG 2.1 SC 4.1.2 — accessible
+    /// name for interactive controls). Validated at OnParametersSet.</summary>
+    [Parameter] public string? IconRightAriaLabel { get; set; }
+
+    /// <summary>Browser-enforced maximum character count. Forwarded to the textarea
+    /// element's maxlength attribute.</summary>
+    [Parameter] public int? MaxLength { get; set; }
+
+    // ── Phase 2.5.5 — LabelPosition cross-family retrofit ─────────────────────────────────
+
+    /// <summary>Position of the label relative to the textarea. Top (default) — label above.
+    /// Left/Right — label side-by-side (always top-aligned for multiline). Bottom — caption.</summary>
+    [Parameter] public InputLabelPosition LabelPosition { get; set; } = InputLabelPosition.Top;
+
+    /// <summary>Accessible name when Label is empty. Required when Label="" (WCAG 2.1 SC 4.1.2).</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    private string _resolvedLabelPositionClass = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        _resolvedLabelPositionClass = LabelPosition switch
+        {
+            InputLabelPosition.Left   => "lipi-input-label-left",
+            InputLabelPosition.Right  => "lipi-input-label-right",
+            InputLabelPosition.Bottom => "lipi-input-label-bottom",
+            _                         => string.Empty
+        };
+    }
+
+    /// <summary>Initial visible row count — autogrows up from this minimum. Default 2.</summary>
+    [Parameter] public int MinRows { get; set; } = 2;
+
+    /// <summary>Maximum visible row count before scrolling kicks in. Default 8.</summary>
+    [Parameter] public int MaxRows { get; set; } = 8;
+
+    // ==========================================================================
+    // JS INTEROP FIELDS (autogrow)
+    // ==========================================================================
+
+    private ElementReference _textareaRef;
+    private bool _autogrowAttached;
+    private string? _lastValueSeenByJs;
+
+    // ==========================================================================
+    // INPUTBASE<TVALUE> OVERRIDE
+    // ==========================================================================
+
+    /// <summary>Identity passthrough for string TValue.</summary>
+    protected override bool TryParseValueFromString(
+        string? value,
+        out string? result,
+        out string validationErrorMessage)
+    {
+        result = value;
+        validationErrorMessage = string.Empty;
+        return true;
+    }
+
+    // ==========================================================================
+    // BASE CLASS OVERRIDES
+    // ==========================================================================
+
+    /// <summary>Component id namespace — produces id="ta-{Name}" so legacy stylesheets
+    /// targeting #ta-* selectors continue to match.</summary>
+    protected override string ComponentIdPrefix => "ta";
+
+    /// <summary>Type name for log messages — overrides the generic-mangled default.</summary>
+    protected override string ComponentTypeName => "LipiTextArea";
+
+    /// <summary>For string?, "empty" includes both null AND "". The base default
+    /// (CurrentValue is null) would treat "" as non-empty, breaking the apricot-tint
+    /// trigger when a user clears the textarea.</summary>
+    protected override bool IsEmpty => string.IsNullOrEmpty(CurrentValueAsString);
+
+    /// <summary>True — LipiTextArea is multi-line. Triggers top-alignment of labels
+    /// in Left/Right LabelPosition layouts. Phase 2.5.5.</summary>
+    protected override bool IsMultiLine => true;
+
+    /// <summary>Append the LipiTextArea-specific component-validation checks
+    /// (IconRightAriaLabel required when OnIconRightClick is wired; MinRows/MaxRows
+    /// bounds and ordering).</summary>
+    protected override List<string> CollectParameterValidationErrors()
+    {
+        var errors = base.CollectParameterValidationErrors();
+
+        // Phase 2.5.5 — AriaLabel filter
+        if (!string.IsNullOrWhiteSpace(AriaLabel))
+            errors.RemoveAll(e => e.StartsWith("Label parameter is required"));
+        if (string.IsNullOrWhiteSpace(_resolvedLabel) && string.IsNullOrWhiteSpace(AriaLabel))
+            errors.Add("AriaLabel is required when Label is empty (accessible name for assistive tech).");
+
+        if (OnIconRightClick.HasDelegate && string.IsNullOrWhiteSpace(IconRightAriaLabel))
+        {
+            errors.Add("IconRightAriaLabel is required when OnIconRightClick is wired " +
+                       "(WCAG 2.1 SC 4.1.2 — accessible name for interactive controls)");
+        }
+
+        if (MinRows < 1)
+        {
+            errors.Add($"MinRows ({MinRows}) must be >= 1");
+        }
+
+        if (MaxRows < MinRows)
+        {
+            errors.Add($"MaxRows ({MaxRows}) must be >= MinRows ({MinRows})");
+        }
+
+        return errors;
+    }
+
+    // ==========================================================================
+    // AUTOGROW LIFECYCLE
+    // ──────────────────────────────────────────────────────────────────────────
+    // Strategy: native JS listener handles user typing (zero Blazor round-trip).
+    // C# only fires autogrow when CurrentValueAsString changed externally (form
+    // reset, programmatic model patch, server-side data load).
+    // ==========================================================================
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Call base implementation FIRST so any LipiInputBase OnAfterRender work runs
+        // (currently no-op but reserved for future use — e.g., auto-focus-on-error).
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (firstRender)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("lipiInput.attachAutogrow", _textareaRef, MaxRows);
+                _autogrowAttached  = true;
+                _lastValueSeenByJs = CurrentValueAsString;
+            }
+            catch (Exception ex)
+            {
+                // attachAutogrow does the initial measure; if it fails the textarea
+                // still works (just no autogrow). Log + continue.
+                Log.LogWarning(ex,
+                    "[LipiTextArea] autogrow attach failed (id={Id}). Textarea will function without autogrow.",
+                    EffectiveId);
+            }
+        }
+        else if (_autogrowAttached && CurrentValueAsString != _lastValueSeenByJs)
+        {
+            // External value change path — JS native listener didn't fire because no
+            // native input event happened. Trigger a remeasure manually.
+            try
+            {
+                await JS.InvokeVoidAsync("lipiInput.autogrow", _textareaRef, MaxRows);
+                _lastValueSeenByJs = CurrentValueAsString;
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning(ex, "[LipiTextArea] autogrow remeasure failed (id={Id})", EffectiveId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Cleanup attached JS listener on disposal. Calls base.Dispose(disposing) AFTER
+    /// our own cleanup so LipiInputBase's EditContext detach still runs.
+    /// </summary>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && _autogrowAttached)
+        {
+            try
+            {
+                _ = JS.InvokeVoidAsync("lipiInput.detachAutogrow", _textareaRef);
+            }
+            catch
+            {
+                // JS context may be gone during teardown (circuit closed, page unloading).
+                // Detach is best-effort; the DOM will be GC'd anyway.
+            }
+            _autogrowAttached = false;
+        }
+        base.Dispose(disposing);
+    }
+
+    // ==========================================================================
+    // COMPONENT-SPECIFIC RESOLVED PROPERTIES
+    // ==========================================================================
+
+    private bool IconRightClickable => OnIconRightClick.HasDelegate;
+
+    private string CssClasses
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                "lipi-textarea",
+                $"lipi-input-{Size.ToString().ToLowerInvariant()}",
+                $"lipi-input-state-{StateCssToken(ResolvedState)}"
+            };
+            if (IsEmpty)            classes.Add("lipi-input-empty");
+            if (IconRightClickable) classes.Add("lipi-input-icon-right-clickable");
+            if (!string.IsNullOrEmpty(Icon))      classes.Add("lipi-input-has-leading-icon");
+            if (EffectiveTrailingIcon != null)    classes.Add("lipi-input-has-trailing-icon");
+            return string.Join(" ", classes);
+        }
+    }
+
+    /// <summary>Validation-state icons override caller's IconRight when active.</summary>
+    private string? EffectiveTrailingIcon => ResolvedState switch
+    {
+        InputState.Error   => "circle-x",
+        InputState.Warning => "warning",
+        InputState.Success => "check",
+        _                  => IconRight
+    };
+
+    private string? MaxLengthAttr => MaxLength?.ToString();
+
+    // ==========================================================================
+    // EVENT HANDLERS
+    // ==========================================================================
+
+    private void HandleInput(ChangeEventArgs e)
+    {
+        if (Disabled || ReadOnly) return;
+
+        // CurrentValueAsString setter (inherited from InputBase<string?>):
+        //   1. Calls TryParseValueFromString → assigns CurrentValue
+        //   2. Fires ValueChanged.InvokeAsync (fire-and-forget)
+        //   3. Notifies EditContext.NotifyFieldChanged → triggers validation
+        //   4. EditContext fires OnValidationStateChanged
+        //   5. LipiInputBase's HandleValidationStateChanged updates _editContextError
+        //      (gated on _isTouched — silent until first blur)
+        //   6. Re-render: EffectiveError surfaces validation message in helper slot
+        CurrentValueAsString = e.Value?.ToString();
+    }
+
+    // HandleBlur is inherited from LipiInputBase<string?>. It marks _isTouched=true,
+    // forces EditContext.NotifyFieldChanged so [Required] validates on tab-past empty
+    // textareas, and calls our virtual OnFieldBlurred hook (which we don't override —
+    // multi-line text has no component-specific blur logic; autogrow happens on input).
+
+    private async Task HandleIconRightClick(MouseEventArgs e)
+    {
+        if (!IconRightClickable || Disabled) return;
+        await OnIconRightClick.InvokeAsync(e);
+    }
+}

@@ -1,0 +1,59 @@
+@* SPEC: 03-LipiPagination-Spec.md §2.5/§3.3 (page-size dropdown) — LP-11 separate sub-component *@
+@* PHASE: 2.8 Stage 7. Independently reusable: a page may want just the size dropdown above its *@
+@* own data (e.g. image grid with custom prev/next). Composes LipiSelect<PageSizeOption> *@
+@* (LP-12 reversed — all-LiPi). Searchable=false (6 static options). Stateless. *@
+
+@namespace LiPi.Components.DataDisplay
+@* LipiSelect lives in namespace LiPi.Components (Forms\ folder, flat namespace per A43);
+   it is already imported project-wide via LiPi.Components\_Imports.razor — no @using needed. *@
+
+<div class="lipi-pagination-size">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="lipi-pagination-size-label">@Label</label>
+    }
+    <LipiSelect TValue="PageSizeOption"
+                Name="lipi-pagination-size"
+                Label=""
+                Items="@Options"
+                Value="@Selected"
+                ValueChanged="@OnChanged"
+                ValueExpression="@(() => _sizeBacking)"
+                Searchable="false"
+                Disabled="@Disabled"
+                AriaLabel="Rows per page"
+                Class="lipi-pagination-size-select" />
+</div>
+
+@code {
+    /// <summary>Available page-size options (value + display label).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<PageSizeOption> Options { get; set; } = PaginationDefaults.PageSizeOptions;
+
+    /// <summary>The currently-selected page size (matched against Options by value).</summary>
+    [Parameter, EditorRequired] public int PageSize { get; set; }
+
+    /// <summary>Fires with the chosen page-size value.</summary>
+    [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
+
+    /// <summary>Leading label text. Default "Rows per page:". Set empty to hide.</summary>
+    [Parameter] public string? Label { get; set; } = "Rows per page:";
+
+    [Parameter] public bool Disabled { get; set; }
+
+    private PageSizeOption? Selected =>
+        Options.FirstOrDefault(o => o.Value == PageSize) ?? Options.FirstOrDefault();
+
+    // Dummy backing field used only to satisfy InputBase<PageSizeOption>'s ValueExpression
+    // (it must be a simple member accessor to build a valid FieldIdentifier — a computed
+    // property like () => Selected fails at runtime). Same pattern as LipiCheckboxGroup /
+    // LipiRadioGroup. We drive the real value via Value + ValueChanged. See CHANGE-LOG A46/A50.
+    #pragma warning disable CS0649
+    private PageSizeOption? _sizeBacking;
+    #pragma warning restore CS0649
+
+    private async Task OnChanged(PageSizeOption? opt)
+    {
+        if (Disabled || opt is null || opt.Value == PageSize) return;
+        if (PageSizeChanged.HasDelegate) await PageSizeChanged.InvokeAsync(opt.Value);
+    }
+}

@@ -1,0 +1,226 @@
+/* ============================================================
+   LipiPagination.razor.css — scoped component styles
+   ============================================================
+   SPEC:  03-LipiPagination-Spec.md §2 (variants), §5 (focus), §7 (tokens)
+   PHASE: 2.8 Data Display — Stage 7 (A50; visual-fix pass A50.1 — Option C: borderless + soft-tint active, 2px gap)
+
+   SELF-SUFFICIENCY (A22/A26 locked principle): every var() carries a hard fallback,
+   so the component renders correctly even if lipi-pagination-tokens.css is absent or a
+   token is missing. The earlier bare var() refs collapsed the layout (gap/min-width/
+   padding dropped to 0) whenever the token file didn't resolve — that was the "no spacing"
+   bug. These rules also OWN the page-button cell affordance (border/min-width/gap): they
+   sit in the scoped file (elements carry this component's scope attribute) so they win the
+   cascade — a prior attempt to do this from the global tokens file lost on equal-specificity
+   source-order to the scoped bundle, which loads last.
+   ============================================================ */
+
+.lipi-pagination {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;       /* one line — wrap let a wide count push the nav to its own
+                                full-width line, defeating justify-content alignment. */
+    gap: var(--lipi-pagination-zone-gap, 16px);
+    font-family: var(--font-ui, inherit);
+}
+
+/* The HORIZONTAL pager must fill its container, or justify-content has no free space to
+   align within (it would shrink-wrap to content width and sit at the start). The vertical
+   side-pager stays content-width (it's a narrow column). */
+.lipi-pagination--horizontal {
+    width: 100%;
+}
+
+/* Compact / Minimal pack tighter and center their nav */
+.lipi-pagination--compact,
+.lipi-pagination--minimal {
+    justify-content: center;
+}
+
+/* ── Page-number list ────────────────────────────────────────────────────── */
+.lipi-pagination-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--lipi-pagination-button-gap, 2px);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.lipi-pagination-nav > li {
+    display: inline-flex;
+}
+
+/* ── Page-number button (plain button, token-styled, self-sufficient) ────── */
+.lipi-pagination-page {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--lipi-pagination-button-size, 32px);
+    height: var(--lipi-pagination-button-size, 32px);
+    padding: 0 var(--lipi-pagination-button-pad-x, 8px);
+    border: 0;                                  /* A50.1 Option C: borderless page numbers */
+    border-radius: var(--lipi-pagination-button-radius, var(--r-sm, 6px));
+    background: var(--lipi-pagination-bg-button, transparent);
+    color: var(--lipi-pagination-text-button, var(--color-text-primary, #0f172a));
+    font-family: inherit;
+    font-size: var(--lipi-pagination-text-count-size, 13px);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.lipi-pagination-page:hover:not(:disabled):not(.lipi-pagination-page--active) {
+    background: var(--lipi-pagination-bg-button-hover, var(--color-bg-hover, #f1f5f9));
+    color: var(--lipi-pagination-text-button-hover, var(--color-text-primary, #0f172a));
+}
+.lipi-pagination-page--active {
+    background: var(--lipi-pagination-bg-button-active, var(--color-primary-pale, #ebf5ff));
+    color: var(--lipi-pagination-text-button-active, var(--color-primary, #134e8c));
+    border-color: transparent;
+    font-weight: 600;
+    cursor: default;
+}
+.lipi-pagination-page:disabled {
+    color: var(--lipi-pagination-text-button-disabled, var(--color-text-tertiary, #94a3b8));
+    cursor: not-allowed;
+}
+.lipi-pagination-page:focus-visible {
+    outline: var(--lipi-pagination-focus-ring-w, 2px) solid var(--lipi-pagination-focus-ring-color, var(--color-primary, #134e8c));
+    outline-offset: 1px;
+}
+
+/* ── Ellipsis ────────────────────────────────────────────────────────────── */
+.lipi-pagination-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--lipi-pagination-button-size, 32px);
+    height: var(--lipi-pagination-button-size, 32px);
+    color: var(--lipi-pagination-text-count, var(--color-text-tertiary, #94a3b8));
+    user-select: none;
+}
+
+/* ── Compact / Minimal nav rows ──────────────────────────────────────────── */
+.lipi-pagination-compact-nav,
+.lipi-pagination-minimal-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lipi-pagination-button-gap, 2px);
+}
+.lipi-pagination-compact-indicator {
+    font-size: var(--lipi-pagination-text-count-size, 13px);
+    color: var(--lipi-pagination-text-count, var(--color-text-tertiary, #94a3b8));
+    white-space: nowrap;
+    padding: 0 var(--sp-sm, 8px);
+}
+
+/* ── Jump-to-page ────────────────────────────────────────────────────────── */
+.lipi-pagination-jump {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-sm, 8px);
+    font-size: var(--lipi-pagination-text-count-size, 13px);
+    color: var(--lipi-pagination-text-count, var(--color-text-tertiary, #94a3b8));
+}
+.lipi-pagination-jump-input {
+    width: 56px;
+    height: var(--lipi-pagination-button-size, 32px);
+    padding: 0 var(--lipi-pagination-button-pad-x, 8px);
+    border: 1px solid var(--color-border-default, #cbd5e1);
+    border-radius: var(--lipi-pagination-button-radius, var(--r-sm, 6px));
+    background: var(--color-bg-surface, #ffffff);
+    color: var(--color-text-primary, #0f172a);
+    font-family: inherit;
+    font-size: var(--lipi-pagination-text-count-size, 13px);
+    text-align: center;
+}
+.lipi-pagination-jump-input:focus-visible {
+    outline: var(--lipi-pagination-focus-ring-w, 2px) solid var(--lipi-pagination-focus-ring-color, var(--color-primary, #134e8c));
+    outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lipi-pagination-page { transition: none; }
+}
+
+
+/* ============================================================
+   Vertical orientation (Stage 7 side-pager / Left|Right placement).
+   Used when Orientation=Vertical (LipiTable forces this for side placement,
+   and downgrades the variant to Compact — Full doesn't render vertically).
+   Stacks the nav as a narrow column: prev (up) / "Page X of M" / next (down).
+   Icons are oriented in markup (chevron-up/down), so no CSS rotation needed.
+   ============================================================ */
+.lipi-pagination--vertical {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--lipi-pagination-zone-gap, 16px);
+}
+
+/* Compact/Minimal nav stacks vertically when the pager is vertical. */
+.lipi-pagination--vertical .lipi-pagination-compact-nav,
+.lipi-pagination--vertical .lipi-pagination-minimal-nav {
+    flex-direction: column;
+    gap: var(--lipi-pagination-button-gap, 8px);
+}
+
+/* The "Page X of M" indicator reads better centered + tight in a narrow column. */
+.lipi-pagination--vertical .lipi-pagination-compact-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-xs, 4px);
+    padding: var(--sp-xs, 4px) 0;
+    text-align: center;
+    line-height: 1.2;
+}
+/* Stacked current / total (Option A): current page emphasized, total muted, thin divider. */
+.lipi-pagination--vertical .lipi-pagination-compact-current {
+    font-weight: 600;
+    color: var(--lipi-pagination-text-active, var(--color-text-primary, #0f172a));
+}
+.lipi-pagination--vertical .lipi-pagination-compact-sep {
+    width: 14px;
+    height: 1px;
+    background: var(--lipi-pagination-border, var(--color-border-default, #e2e8f0));
+}
+.lipi-pagination--vertical .lipi-pagination-compact-total {
+    color: var(--lipi-pagination-text-count, var(--color-text-tertiary, #94a3b8));
+}
+
+
+/* ── Zone alignment (Stage 7 / PaginationAlign) — horizontal pager only ──────
+   The pager has two parts: .lipi-pagination-main (page-size + row count) and the nav
+   (+ optional jump). Aligning these two GROUPS — rather than the individual zones —
+   makes the row-count's width irrelevant to alignment, so all four modes look distinct
+   even though the count carries a wide min-width (the row-shift fix). */
+
+/* The left group is itself a flex row holding size + count, packed to its start. */
+.lipi-pagination-main {
+    display: flex;
+    align-items: center;
+    gap: var(--lipi-pagination-zone-gap, 16px);
+    flex: 0 0 auto;          /* content width only — must not grow, or it eats the free
+                                space that justify-content needs to move the cluster. */
+}
+
+/* between (default): left group at start, nav pushed to the end. */
+.lipi-pagination--align-between .lipi-pagination-main { margin-right: auto; }
+
+/* start: both groups packed to the start (left group tight, nav right after it). */
+.lipi-pagination--align-start { justify-content: flex-start; }
+.lipi-pagination--align-start .lipi-pagination-main { margin-right: 0; }
+
+/* end: both groups packed to the end. */
+.lipi-pagination--align-end { justify-content: flex-end; }
+.lipi-pagination--align-end .lipi-pagination-main { margin-right: 0; }
+
+/* center: both groups centered as a cluster. */
+.lipi-pagination--align-center { justify-content: center; }
+.lipi-pagination--align-center .lipi-pagination-main { margin-right: 0; }
+
+/* Jump-to-page sits tight after the nav regardless of mode. */
+.lipi-pagination-jump { margin-left: var(--lipi-pagination-zone-gap, 16px); }
+
+/* Vertical pagers never apply horizontal alignment. */
+.lipi-pagination--vertical .lipi-pagination-main { margin-right: 0; }

@@ -1,0 +1,78 @@
+@* SPEC: docs/00-COMPONENTS/2.8/04-LipiEmptyState-Spec.md §2.1 (layout), §4.1 (ARIA structure) *@
+@* PHASE: 2.8 Data Display — Stage 2 (LipiEmptyState) *@
+@* COMPONENT: LipiEmptyState — stateless zero-state primitive *@
+@namespace LiPi.Components.DataDisplay
+@using LiPicons.Blazor
+
+<div role="region"
+     aria-label="@(_hasTitle ? Title : null)"
+     class="@_resolvedRootClass"
+     style="@Style">
+
+    @* ── Icon (§3.3 resolution order) ─────────────────────────────── *@
+    @if (IconTemplate is not null)
+    {
+        <div class="lipi-empty-icon" aria-hidden="true">
+            @IconTemplate
+        </div>
+    }
+    else if (_renderBuiltInIcon && _resolvedIconName is not null)
+    {
+        <div class="lipi-empty-icon" aria-hidden="true">
+            <LipiIcon Name="@_resolvedIconName"
+                      Variant="@_resolvedIconVariant"
+                      Size="@_resolvedIconSize" />
+        </div>
+    }
+
+    @* ── Title (required; element level varies by size §4.2) ───────── *@
+    @if (_hasTitle)
+    {
+        @switch (_resolvedHeadingLevel)
+        {
+            case 1:
+                <h1 class="lipi-empty-title">@Title</h1>
+                break;
+            case 2:
+                <h2 class="lipi-empty-title">@Title</h2>
+                break;
+            case 4:
+                <h4 class="lipi-empty-title">@Title</h4>
+                break;
+            case 5:
+                <h5 class="lipi-empty-title">@Title</h5>
+                break;
+            case 6:
+                <h6 class="lipi-empty-title">@Title</h6>
+                break;
+            default:
+                <h3 class="lipi-empty-title">@Title</h3>
+                break;
+        }
+    }
+
+    @* ── Body (optional) ──────────────────────────────────────────── *@
+    @if (!string.IsNullOrWhiteSpace(Body))
+    {
+        <p class="lipi-empty-body">@Body</p>
+    }
+
+    @* ── CTA container (collapses when both null, §3.5) ────────────── *@
+    @if (PrimaryCta is not null || SecondaryCta is not null)
+    {
+        <div class="lipi-empty-actions">
+            @if (PrimaryCta is not null)
+            {
+                <div class="lipi-empty-actions-primary">
+                    @PrimaryCta
+                </div>
+            }
+            @if (SecondaryCta is not null)
+            {
+                <div class="lipi-empty-actions-secondary">
+                    @SecondaryCta
+                </div>
+            }
+        </div>
+    }
+</div>

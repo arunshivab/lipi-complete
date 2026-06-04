@@ -1,0 +1,66 @@
+<!--
+  VENDORED COPY — LiPicons.Blazor (v1.0.4)
+  Source of truth: https://github.com/arunshivab/lipicons  (src/LiPicons.Blazor)
+  Vendored into the HIS repo at libs\LiPicons.Blazor\ per the icon-strategy lock
+  (CHANGE-LOG A40 / A44) so the HIS builds standalone with no sibling-checkout dependency.
+
+  DIFFERENCE FROM UPSTREAM: the EmbeddedResource path is repointed from
+  "../../dist/json/icons.json" (upstream repo layout) to the local "icons.json"
+  copied alongside this project. Everything else is byte-identical to upstream v1.0.4.
+
+  v1.0.4 (1,164 icons) adds the glyphs the input-family icon cutover needs:
+  minus, square, check-square, circle-x — so the Lucide→Lipicon map is now fully 1:1.
+
+  When LiPicons.Blazor publishes to a NuGet feed, this vendored project + the
+  LiPi.Components / LiPi.Web ProjectReferences to it are replaced by a single
+  PackageReference. Re-vendor by re-copying the six source files + icons.json and
+  re-applying only the EmbeddedResource repoint below.
+-->
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <RootNamespace>LiPicons.Blazor</RootNamespace>
+    <AssemblyName>LiPicons.Blazor</AssemblyName>
+
+    <PackageId>LiPicons.Blazor</PackageId>
+    <Version>1.0.4</Version>
+    <Authors>imagiQa Healthcare Services Pvt Ltd</Authors>
+    <Company>imagiQa Healthcare Services Pvt Ltd</Company>
+    <Product>LiPicons</Product>
+    <Description>Hand-drawn icon system for Hospital Information Systems — Blazor component. 1,164 icons, 6 variants, fully offline (manifest embedded in the assembly). Render with &lt;LipiIcon Name="..." Variant="..." /&gt;.</Description>
+    <PackageTags>blazor;icons;svg;healthcare;his;emr;lipicons;imagiqa</PackageTags>
+    <Copyright>© 2026 imagiQa Healthcare Services Pvt Ltd</Copyright>
+    <PackageProjectUrl>https://github.com/arunshivab/lipicons</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/arunshivab/lipicons</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+  </ItemGroup>
+
+  <!-- The whole manifest ships inside the assembly: no wwwroot copy, no CDN fetch.
+       VENDORED REPOINT: icons.json is local to this folder (was ../../dist/json/icons.json upstream). -->
+  <ItemGroup>
+    <EmbeddedResource Include="icons.json" LogicalName="icons.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LiPicons.Blazor.Tests" />
+  </ItemGroup>
+
+</Project>
