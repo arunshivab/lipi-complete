@@ -59,6 +59,9 @@ public partial class LipiColumn<TItem, TValue> : ComponentBase, IDisposable
     [Parameter] public bool Sortable { get; set; } = true;
     [Parameter] public IComparer<TValue>? SortComparer { get; set; }
     [Parameter] public bool Filterable { get; set; } = true;
+    /// <summary>Relative-date operator buckets this date column offers (active; cascades with the
+    /// table default). Null = inherit (table default, else all). Non-date columns ignore it. (S3b+)</summary>
+    [Parameter] public DateSpan? RelativeDateSpans { get; set; }
     [Parameter] public bool Searchable { get; set; } = true;
     [Parameter] public bool Groupable { get; set; }
     [Parameter] public bool AllowGroup { get; set; }
@@ -104,6 +107,7 @@ public partial class LipiColumn<TItem, TValue> : ComponentBase, IDisposable
             SortComparer = BuildErasedComparer(),
             Searchable = Searchable && !templateOnly,
             Filterable = ResolveFilterable(templateOnly),
+            RelativeDateSpans = ResolveRelativeDateSpans(),
             GetValue = BuildValueAccessor(),
             CellTemplate = CellTemplate is null
                 ? null
@@ -158,6 +162,12 @@ public partial class LipiColumn<TItem, TValue> : ComponentBase, IDisposable
             _                  => true
         };
     }
+
+    // ── Relative-date span resolution (Stage S3b+) ───────────────────────
+    // Cascade: column's own RelativeDateSpans wins; else the table default; else All.
+    // Null at both levels = the full relative set (current behavior, no breaking change).
+    private DateSpan ResolveRelativeDateSpans()
+        => RelativeDateSpans ?? Parent?.RelativeDateSpans ?? DateSpan.All;
 
     // Erase IComparer<TValue> to Comparison<object?> so the table can sort boxed values
     // without knowing TValue. Null when no custom comparer — the table falls back to its

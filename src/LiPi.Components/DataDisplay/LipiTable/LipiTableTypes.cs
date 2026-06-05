@@ -147,6 +147,29 @@ public enum FilterChipsPlacement
     Inline
 }
 
+/// <summary>
+/// Which relative-date operator buckets a date column offers (Stage S3b+). A <c>[Flags]</c>
+/// set so a column — or the table default — can enable any combination. Resolution cascade:
+/// column <c>RelativeDateSpans</c> ?? table <c>RelativeDateSpans</c> ?? <see cref="All"/>, so the
+/// unspecified default preserves the full relative set (no breaking change). This gates ONLY the
+/// relative operators; the absolute operators (On/Before/After/Between, Empty/NotEmpty) and the
+/// date-range picker are unaffected. Buckets: <see cref="Day"/> = Today/Yesterday/Tomorrow plus
+/// Last-N/Next-N-days; <see cref="Week"/>/<see cref="Month"/>/<see cref="Quarter"/>/<see cref="Year"/>
+/// = the This/Last/Next relatives at that grain. A month-only clinic sets
+/// <c>RelativeDateSpans="DateSpan.Month"</c> and the week/quarter/year relatives simply don't appear.
+/// </summary>
+[Flags]
+public enum DateSpan
+{
+    None    = 0,
+    Day     = 1 << 0,
+    Week    = 1 << 1,
+    Month   = 1 << 2,
+    Quarter = 1 << 3,
+    Year    = 1 << 4,
+    All     = Day | Week | Month | Quarter | Year
+}
+
 /// <summary>Loading-state rendering strategy. AlwaysSkeleton is default. Per §18.3.4.</summary>
 public enum LoadingStrategy
 {

@@ -139,6 +139,13 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     /// <summary>First day of week for relative week filters (ThisWeek/LastWeek/NextWeek). (S3b)</summary>
     [Parameter] public DayOfWeek FilterWeekStart { get; set; } = DayOfWeek.Sunday;
 
+    /// <summary>Default relative-date operator buckets offered by date columns (cascade default;
+    /// a column's own <c>RelativeDateSpans</c> overrides). Null = all buckets (the full relative set).
+    /// A month-only clinic sets <c>RelativeDateSpans="DateSpan.Month"</c> here once. Gates only the
+    /// relative operators; absolute ops (On/Before/After/Between) and the date-range picker always
+    /// remain. (S3b+)</summary>
+    [Parameter] public DateSpan? RelativeDateSpans { get; set; }
+
     /// <summary>Where active-filter chips render. Separate strip (default) or inline in the toolbar.</summary>
     [Parameter] public FilterChipsPlacement FilterChipsPlacement { get; set; } = FilterChipsPlacement.Separate;
 
@@ -387,6 +394,29 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
         FilterOperator.ThisYear or FilterOperator.LastYear or
         FilterOperator.LastNDays or FilterOperator.NextNDays;
 
+    // Relative date operators in display order — gated per-column by RelativeDateSpans (S3b+).
+    private static readonly FilterOperator[] RelativeOperatorsInOrder =
+    {
+        FilterOperator.Today, FilterOperator.Yesterday, FilterOperator.Tomorrow,
+        FilterOperator.ThisWeek, FilterOperator.LastWeek, FilterOperator.NextWeek,
+        FilterOperator.ThisMonth, FilterOperator.LastMonth, FilterOperator.NextMonth,
+        FilterOperator.ThisQuarter, FilterOperator.LastQuarter,
+        FilterOperator.ThisYear, FilterOperator.LastYear,
+        FilterOperator.LastNDays, FilterOperator.NextNDays,
+    };
+
+    // Which DateSpan bucket a relative operator belongs to (Day groups the day-grain + Last-N/Next-N).
+    private static DateSpan SpanOf(FilterOperator op) => op switch
+    {
+        FilterOperator.Today or FilterOperator.Yesterday or FilterOperator.Tomorrow
+            or FilterOperator.LastNDays or FilterOperator.NextNDays => DateSpan.Day,
+        FilterOperator.ThisWeek or FilterOperator.LastWeek or FilterOperator.NextWeek => DateSpan.Week,
+        FilterOperator.ThisMonth or FilterOperator.LastMonth or FilterOperator.NextMonth => DateSpan.Month,
+        FilterOperator.ThisQuarter or FilterOperator.LastQuarter => DateSpan.Quarter,
+        FilterOperator.ThisYear or FilterOperator.LastYear => DateSpan.Year,
+        _ => DateSpan.None
+    };
+
     // Resolve a [start,end] DateOnly window for a relative operator, anchored at FilterToday.
     // Week boundaries use FilterWeekStart; quarters are calendar quarters here (filter context).
     private (DateOnly start, DateOnly end) RelativeWindow(FilterOperator op, object? nValue)
@@ -443,20 +473,24 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
 
             case ColumnType.Date:
             case ColumnType.DateTime:
-                return new[]
+            {
+                // Absolute operators first (always offered), then the relative operators
+                // gated by the column's resolved RelativeDateSpans (cascade), then Empty/NotEmpty.
+                var ops = new List<FilterOperator>
                 {
                     FilterOperator.Equals,            // On
                     FilterOperator.LessThan,          // Before
                     FilterOperator.GreaterThan,       // After
                     FilterOperator.Between,
-                    FilterOperator.Today, FilterOperator.Yesterday, FilterOperator.Tomorrow,
-                    FilterOperator.ThisWeek, FilterOperator.LastWeek, FilterOperator.NextWeek,
-                    FilterOperator.ThisMonth, FilterOperator.LastMonth, FilterOperator.NextMonth,
-                    FilterOperator.ThisQuarter, FilterOperator.LastQuarter,
-                    FilterOperator.ThisYear, FilterOperator.LastYear,
-                    FilterOperator.LastNDays, FilterOperator.NextNDays,
-                    FilterOperator.Empty, FilterOperator.NotEmpty
                 };
+                var spans = def.RelativeDateSpans;
+                foreach (var op in RelativeOperatorsInOrder)
+                    if ((spans & SpanOf(op)) != 0)
+                        ops.Add(op);
+                ops.Add(FilterOperator.Empty);
+                ops.Add(FilterOperator.NotEmpty);
+                return ops;
+            }
 
             case ColumnType.Boolean:
                 return new[] { FilterOperator.IsTrue, FilterOperator.IsFalse };

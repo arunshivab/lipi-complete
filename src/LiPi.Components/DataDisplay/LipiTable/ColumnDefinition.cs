@@ -105,4 +105,11 @@ public sealed class ColumnDefinition<TItem>
     /// filterable type AND has a value source). The table shows a header funnel + filter
     /// popover when true. Per-column opt-out via Filterable=false.</summary>
     public bool Filterable { get; init; }
+
+    // ── Relative-date span gating (Stage S3b+) ───────────────────────────
+    /// <summary>Resolved set of relative-date operator buckets this date column offers
+    /// (column override ?? table default ?? All). Gates only the relative operators in
+    /// OperatorsFor; the absolute operators and the date-range picker are unaffected. Non-date
+    /// columns ignore it. Defaults to <see cref="DateSpan.All"/> (full relative set).</summary>
+    public DateSpan RelativeDateSpans { get; init; } = DateSpan.All;
 }

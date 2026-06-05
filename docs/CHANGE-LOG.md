@@ -4857,6 +4857,38 @@ S3b-ii table date filter (will reuse migrated pickers + carry a zone param for i
 
 ---
 
+### A58 — Phase 2.8 S3b+: per-column / table `RelativeDateSpans` relative-date operator gating
+
+**Phase**: 2 Sub-step 2.8 — Data Display (LipiTable filtering; extends A55/S3b).
+**Date**: 2026-06-05
+**Status**: ✅ Build clean (0 warnings); funnel-gating runtime-confirmed (gated relatives vanish; absolute ops + picker remain).
+
+**Scope.** Lets a clinic that thinks in months drop the week/quarter/year relative-date operators — declaratively, per field, with a table-level default. Additive; default preserves current behavior.
+
+**Mechanism.**
+- New **`[Flags] DateSpan { None, Day, Week, Month, Quarter, Year, All }`** (DataDisplay, in `LipiTableTypes.cs`).
+- **Cascade:** `LipiColumn.RelativeDateSpans` (`DateSpan?`) ?? `LipiTable.RelativeDateSpans` (`DateSpan?`) ?? `DateSpan.All`, resolved at column-build time into `ColumnDefinition.RelativeDateSpans`. Both params nullable so "inherit" (null) is distinct from "explicitly none" (`DateSpan.None`).
+- **`OperatorsFor` (date branch) now gates the relative operators** by the resolved span: absolute operators (On/Before/After/Between) emit always, then each relative op whose bucket is enabled (`RelativeOperatorsInOrder` filtered by `SpanOf(op)`), then Empty/NotEmpty. **Default `All` ⇒ byte-identical operator list to before** — no breaking change.
+- **Buckets:** `Day` = Today/Yesterday/Tomorrow **plus** Last-N/Next-N-days; `Week`/`Month`/`Quarter`/`Year` = the This/Last/Next relatives at that grain.
+- **Untouched:** `MatchesFilter`, `EditorFor`, the date-range picker (option-c), and `RelativeWindow` — gating only changes what's *offered*, not how a committed filter evaluates. A gated-out relative simply never appears (no orphan editors); a pre-existing committed filter using a now-gated op still evaluates.
+
+**Usage.**
+- Table-wide: `<LipiTable RelativeDateSpans="DateSpan.Month" ...>`
+- Per-column override: `<LipiColumn ... RelativeDateSpans="DateSpan.Day | DateSpan.Week" />`
+- No relatives on a column (e.g. DOB): `<LipiColumn ... RelativeDateSpans="DateSpan.None" />` (On/Before/After/Between + picker remain).
+
+**Changes** (all edits to existing files — no new files, no deploy-script change).
+- `LipiTableTypes.cs`: `[Flags] DateSpan` enum.
+- `ColumnDefinition.cs`: resolved `RelativeDateSpans` (default `All`).
+- `LipiColumn.razor.cs`: `[Parameter] RelativeDateSpans` + `ResolveRelativeDateSpans()` cascade + wire into `BuildDefinition`.
+- `LipiTable.razor.cs`: `[Parameter] RelativeDateSpans`; `OperatorsFor` date branch rebuilt to gate relatives; `RelativeOperatorsInOrder` + `SpanOf(op)` helpers.
+
+**Record so it isn't reintroduced.** `PresetSpan` (Forms) could NOT be reused as the flags enum — it's a plain sequential enum consumed with cumulative `>=` comparisons in the date-range preset builder (`if (span >= PresetSpan.Week)`), which `[Flags]` power-of-2 values would break. A dedicated `DateSpan` was minted in DataDisplay (filtering is a DataDisplay concern) and `PresetSpan` left untouched.
+
+**Verification gate.** Table-filters demo: a date column with `RelativeDateSpans="DateSpan.Month"` shows only This/Last/Next-month among relatives, while On/Before/After/Between + the date-range picker remain; default (unset) columns are unchanged.
+
+---
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)
