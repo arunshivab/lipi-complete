@@ -132,7 +132,8 @@
                     @{
                         // Left calendar: _displayMonth (start side)
                         // Right calendar: _displayMonth + 1 month
-                        var rightMonth = AddMonths(_displayMonth, 1);
+                        // Right calendar: linked = left + 1; independent = its own tracked month.
+                        var rightMonth = IndependentMonths ? _rightMonth : AddMonths(_displayMonth, 1);
                     }
 
                     <div class="lipi-daterange-cal lipi-daterange-cal-left">
@@ -237,6 +238,12 @@
     /// Quarter &lt; Year). Defaults to Month when a direction is set without a span.</summary>
     [Parameter] public PresetSpan PresetSpan { get; set; } = PresetSpan.Month;
 
+    /// <summary>When true, the left and right calendars navigate independently — each with its own
+    /// prev/next chevrons — instead of the default linked behavior where the right calendar is always
+    /// the month after the left. The right calendar is still prevented from showing a month earlier
+    /// than the left (right ≥ left). Default false (linked).</summary>
+    [Parameter] public bool IndependentMonths { get; set; }
+
     /// <summary>Fiscal-year start month (1–12) for quarter + FY presets. Default 4 (April,
     /// Indian FY). Set to 1 (January) for calendar quarters.</summary>
     [Parameter] public int FiscalYearStart { get; set; } = 4;
@@ -284,6 +291,7 @@
 
     private bool _isPopoverOpen;
     private DateOnly _displayMonth = DateOnly.FromDateTime(DateTime.Today);  // left calendar's month
+    private DateOnly _rightMonth   = DateOnly.FromDateTime(DateTime.Today);  // right calendar's month (IndependentMonths only)
 
     // "Today" honoring the chosen time source (Server/Utc/SpecificZone). A HIS pins
     // SpecificZone(clinic) so the highlight reflects the clinic's calendar day.
@@ -382,6 +390,12 @@
         // Position to start month, or today's month if no start
         var anchor = StartValue ?? ResolvedToday;
         _displayMonth = new DateOnly(anchor.Year, anchor.Month, 1);
+        if (IndependentMonths)
+        {
+            var endAnchor = EndValue ?? AddMonths(_displayMonth, 1);
+            _rightMonth = new DateOnly(endAnchor.Year, endAnchor.Month, 1);
+            if (_rightMonth < _displayMonth) _rightMonth = _displayMonth;   // enforce right >= left on open
+        }
 
         _isPopoverOpen = true;
         StateHasChanged();
@@ -612,12 +626,13 @@
     private RenderFragment RenderCalendar(DateOnly month, bool isLeft) => __builder =>
     {
         <div class="lipi-daterange-cal-header">
-            @if (isLeft)
+            @* PREV: left calendar always; right calendar too when months navigate independently *@
+            @if (isLeft || IndependentMonths)
             {
                 <button type="button"
                         class="lipi-daterange-nav"
                         aria-label="Previous month"
-                        @onclick="HandlePrevMonth">
+                        @onclick="@(() => HandleMonthNav(isLeft, -1))">
                     <LipiIcon Name="@LipiconName.ChevronLeft" Size="16" />
                 </button>
             }
@@ -630,12 +645,13 @@
                 @CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month.Month) @month.Year
             </span>
 
-            @if (!isLeft)
+            @* NEXT: right calendar always; left calendar too when months navigate independently *@
+            @if (!isLeft || IndependentMonths)
             {
                 <button type="button"
                         class="lipi-daterange-nav"
                         aria-label="Next month"
-                        @onclick="HandleNextMonth">
+                        @onclick="@(() => HandleMonthNav(isLeft, 1))">
                     <LipiIcon Name="@LipiconName.ChevronRight" Size="16" />
                 </button>
             }
@@ -689,15 +705,31 @@
         </div>
     };
 
-    private void HandlePrevMonth()
+    // Linked (default): either chevron shifts the consecutive pair. Independent: each calendar moves
+    // on its own, clamped so the left month never passes the right (right >= left always holds).
+    private void HandleMonthNav(bool isLeft, int delta)
     {
-        _displayMonth = AddMonths(_displayMonth, -1);
+        if (!IndependentMonths)
+        {
+            _displayMonth = AddMonths(_displayMonth, delta);
+            return;
+        }
+
+        if (isLeft)
+        {
+            var next = AddMonths(_displayMonth, delta);
+            _displayMonth = next <= _rightMonth ? next : _rightMonth;    // left can't pass right
+        }
+        else
+        {
+            var next = AddMonths(_rightMonth, delta);
+            _rightMonth = next >= _displayMonth ? next : _displayMonth;  // right can't precede left
+        }
     }
 
-    private void HandleNextMonth()
-    {
-        _displayMonth = AddMonths(_displayMonth, 1);
-    }
+    // Retained for any external callers; route through the unified handler.
+    private void HandlePrevMonth() => HandleMonthNav(isLeft: true,  delta: -1);
+    private void HandleNextMonth() => HandleMonthNav(isLeft: false, delta: 1);
 
     private static DateOnly AddMonths(DateOnly d, int months)
     {

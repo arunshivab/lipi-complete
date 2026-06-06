@@ -130,6 +130,32 @@ public enum FilterMode
     None
 }
 
+/// <summary>
+/// Which control opens the filter drawer when <c>FilterMode=Drawer</c> (Stage S3c / PR3).
+/// <see cref="ToolbarButton"/> (default) = a labeled "Filters" button in the toolbar carrying an
+/// active-filter-column count badge; <see cref="HeaderFunnel"/> = a compact funnel-icon button (same
+/// toolbar slot, icon-only). Both open the same drawer.
+/// </summary>
+public enum FilterDrawerTrigger
+{
+    ToolbarButton,
+    HeaderFunnel
+}
+
+/// <summary>
+/// Side the filter drawer slides in from (Stage S3c / PR3). <see cref="Right"/> is default.
+/// DataDisplay-local (maps to the Overlays <c>DrawerPlacement</c> internally) so the table API
+/// stays self-contained. For <see cref="Top"/>/<see cref="Bottom"/>, <c>FilterDrawerSizePx</c>
+/// controls the drawer's height instead of its width.
+/// </summary>
+public enum FilterDrawerSide
+{
+    Right,
+    Left,
+    Top,
+    Bottom
+}
+
 /// <summary>When a column filter commits (Stage S3). Apply = explicit Apply button (default);
 /// Live = filters as the operator/value change, debounced. Configurable per table.</summary>
 public enum FilterApplyMode

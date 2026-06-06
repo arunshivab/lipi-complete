@@ -30,6 +30,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
+using LiPi.Components.Overlays;   // DrawerPlacement (filter drawer, PR3)
 
 namespace LiPi.Components.DataDisplay;
 
@@ -139,6 +140,10 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     /// <summary>First day of week for relative week filters (ThisWeek/LastWeek/NextWeek). (S3b)</summary>
     [Parameter] public DayOfWeek FilterWeekStart { get; set; } = DayOfWeek.Sunday;
 
+    /// <summary>Forwarded to the date-range filter editor's <c>IndependentMonths</c> (popover + drawer):
+    /// when true the two calendars navigate independently (right ≥ left). Default false (linked).</summary>
+    [Parameter] public bool DateFilterIndependentMonths { get; set; }
+
     /// <summary>Default relative-date operator buckets offered by date columns (cascade default;
     /// a column's own <c>RelativeDateSpans</c> overrides). Null = all buckets (the full relative set).
     /// A month-only clinic sets <c>RelativeDateSpans="DateSpan.Month"</c> here once. Gates only the
@@ -151,6 +156,22 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
 
     /// <summary>Fired after the filter set changes (apply, clear, clear-all).</summary>
     [Parameter] public EventCallback<FilterChangedContext> OnFilterChanged { get; set; }
+
+    // ── Filter drawer (Stage S3c / PR3) — active only when FilterMode=Drawer ───
+    /// <summary>Which control opens the filter drawer when <c>FilterMode=Drawer</c>.
+    /// ToolbarButton (labeled, with active-count badge) default; HeaderFunnel (funnel icon).</summary>
+    [Parameter] public FilterDrawerTrigger FilterDrawerTrigger { get; set; } = FilterDrawerTrigger.ToolbarButton;
+
+    /// <summary>Side the filter drawer slides from. Right default; Left supported.
+    /// Maps internally to the Overlays <c>DrawerPlacement</c>.</summary>
+    [Parameter] public FilterDrawerSide FilterDrawerSide { get; set; } = FilterDrawerSide.Right;
+
+    /// <summary>Filter drawer size in px (passed to <c>LipiDrawer.SizePx</c>). Default 420.
+    /// Width for Left/Right sides; height for Top/Bottom. Null delegates to LipiDrawer's Size default.</summary>
+    [Parameter] public int? FilterDrawerSizePx { get; set; } = 420;
+
+    /// <summary>Filter drawer header title. Default "Filters".</summary>
+    [Parameter] public string FilterDrawerTitle { get; set; } = "Filters";
     // Single-mode: allow clicking the selected row to clear it (default true). §5.1.4
     [Parameter] public bool AllowDeselectInSingleMode { get; set; } = true;
     // Checkbox column placement (Left default; Right deferred visual in 4a). §5.6.1
@@ -222,7 +243,8 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     // to exist). Inline placement without a toolbar falls back to the separate strip.
     private bool ShowInlineChips   => FiltersActive && ChipsInline && ShowQuickSearch;
     private bool ShowSeparateChips => FiltersActive && !ShowInlineChips;
-    private bool ShowToolbar       => ShowQuickSearch;   // toolbar = quick-search bar (chips inline ride within it)
+    // Toolbar also renders in Drawer mode so the filter trigger button has a home (PR3).
+    private bool ShowToolbar       => ShowQuickSearch || FilterMode == FilterMode.Drawer;
     private FilterDescriptor? FilterFor(string columnKey) =>
         _filters.FirstOrDefault(f => f.ColumnKey == columnKey);
 
@@ -611,6 +633,16 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
         d.Value = existing?.Operator == FilterOperator.In
             ? string.Empty
             : existing?.Value?.ToString() ?? string.Empty;
+        // Boolean tri-state: map an existing IsTrue/IsFalse back to the editor value; no filter → (Any).
+        if (def.Type == ColumnType.Boolean)
+        {
+            d.Value = existing?.Operator switch
+            {
+                FilterOperator.IsTrue  => "true",
+                FilterOperator.IsFalse => "false",
+                _                      => string.Empty
+            };
+        }
         // Date-range editor (option c): seed start/end from an existing Between filter.
         if (def.Type is ColumnType.Date or ColumnType.DateTime)
         {
@@ -719,6 +751,19 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
             else if (d.DateEnd is { } e2)
                 _filters.Add(new FilterDescriptor(key, FilterOperator.LessThanOrEqual, e2, null));
             // else: no dates picked → no filter (removed above)
+            _currentPage = 1;
+            await FireFilterChanged(previous, FilterChangeReason.UserApplyPopover);
+            StateHasChanged();
+            return;
+        }
+
+        // Boolean tri-state: "true"/"false" → IsTrue/IsFalse; "" → (Any) → no filter (left removed).
+        if (def is not null && def.Type == ColumnType.Boolean)
+        {
+            if (d.Value == "true")
+                _filters.Add(new FilterDescriptor(key, FilterOperator.IsTrue, null, null));
+            else if (d.Value == "false")
+                _filters.Add(new FilterDescriptor(key, FilterOperator.IsFalse, null, null));
             _currentPage = 1;
             await FireFilterChanged(previous, FilterChangeReason.UserApplyPopover);
             StateHasChanged();
@@ -842,6 +887,59 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     {
         if (OnFilterChanged.HasDelegate)
             await OnFilterChanged.InvokeAsync(new FilterChangedContext(_filters.ToArray(), previous, reason));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Filter drawer — Stage S3c / PR3. Declarative <LipiDrawer> over the SAME
+    //  per-column ColumnDraft model (PR1). The drawer never calls a drawer
+    //  service: the parent (this table) owns _filterDrawerOpen and mounts the
+    //  drawer; LipiDrawer invokes OnClose, which un-mounts it. The filter ENGINE
+    //  (OperatorsFor / EditorFor / SeedDraft / CommitDraftAsync / ClearAll) is
+    //  reused verbatim — A58 relative-date gating is inherited via OperatorsFor.
+    // ══════════════════════════════════════════════════════════════════════
+    private bool _filterDrawerOpen;
+
+    // Distinct columns currently carrying a filter (drives the trigger badge).
+    private int ActiveFilterColumnCount => _filters.Select(f => f.ColumnKey).Distinct().Count();
+
+    // DataDisplay FilterDrawerSide → Overlays DrawerPlacement.
+    private DrawerPlacement MapDrawerSide(FilterDrawerSide side) => side switch
+    {
+        FilterDrawerSide.Left   => DrawerPlacement.Left,
+        FilterDrawerSide.Top    => DrawerPlacement.Top,
+        FilterDrawerSide.Bottom => DrawerPlacement.Bottom,
+        _                       => DrawerPlacement.Right
+    };
+
+    // Open: seed a working draft for every filterable column from its committed filter,
+    // so the drawer editors reflect live state, then mount the drawer.
+    private void OpenFilterDrawer()
+    {
+        foreach (var def in _columns.Where(c => c.Filterable))
+            SeedDraft(def);
+        _filterDrawerOpen = true;
+    }
+
+    private void CloseFilterDrawer() => _filterDrawerOpen = false;
+
+    // Apply: commit every filterable column's draft at once, then close. (CommitDraftAsync is
+    // the locked per-column engine path; in Items-only v1.0 it fires OnFilterChanged per changed
+    // column — a single batched event is a possible future refinement, noted in CHANGE-LOG.)
+    private async Task ApplyAllInDrawerAsync()
+    {
+        foreach (var def in _columns.Where(c => c.Filterable))
+            await CommitDraftAsync(def.ColumnKey);
+        _filterDrawerOpen = false;
+    }
+
+    // Clear all: drop every active filter, then re-seed drafts to operator defaults so the
+    // still-open drawer editors visibly reset. Drawer stays open (build a fresh set immediately).
+    private async Task ClearAllInDrawerAsync()
+    {
+        await ClearAllFiltersAsync();
+        foreach (var def in _columns.Where(c => c.Filterable))
+            SeedDraft(def);
+        StateHasChanged();
     }
 
     // ── Chip rendering helpers ────────────────────────────────────────────

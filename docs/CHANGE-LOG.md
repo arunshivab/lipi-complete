@@ -4889,6 +4889,47 @@ S3b-ii table date filter (will reuse migrated pickers + carry a zone param for i
 
 ---
 
+### A59 — Phase 2.8 S3c (PR3): LipiTable filter Drawer mode (`FilterMode.Drawer`)
+
+**Phase**: 2 Sub-step 2.8 — Data Display (LipiTable filtering). Builds on A55/S3b + A56/PR1.
+**Date**: 2026-06-07
+**Status**: ✅ Build clean (0 warnings); deployed; runtime-verified — all four drawer sides + custom sizes, boolean (Any), header alignment, and the in-drawer date calendar.
+
+**Scope.** A single drawer that edits every column's filter at once, as an alternative to the per-column header funnels (`HeaderIcon`). Opt-in via `FilterMode="FilterMode.Drawer"`; default stays `HeaderIcon`.
+
+**Mechanism.**
+- **Declarative composition** — LipiTable owns `_filterDrawerOpen` and renders `<LipiDrawer>` by `@if`-mounting it (no drawer service). `LipiDrawerBody` holds one row per filterable column; `LipiDrawerFooter` holds Clear all / Apply. `OnClose` un-mounts. (LipiDrawer has no `Open` param; mount/unmount is the contract — so there is no slide-*out* animation, by design.)
+- **Reuses the PR1 `ColumnDraft` engine verbatim** — `EnsureDraft`/`SeedDraft`/`OperatorsFor`/`EditorFor`/`CommitDraftAsync`/`ClearAllFiltersAsync`. A58 relative-date gating is inherited through `OperatorsFor`.
+- **Shared `FilterFields(col, d)` RenderFragment** — the operator+editor block was extracted from the header popover so the popover and the drawer now render filter editors from ONE source.
+- **Triggers** — `FilterDrawerTrigger { ToolbarButton (default; "Filters" label + active-column count badge), HeaderFunnel (icon-only) }`. The toolbar now renders in Drawer mode even when `ShowQuickSearch=false`, so the trigger has a home.
+- **Placement / size** — `FilterDrawerSide { Right (default), Left, Top, Bottom }` → maps to Overlays `DrawerPlacement`; `FilterDrawerSizePx` (`int?`, default 420) → `LipiDrawer.SizePx` (width for L/R, height for T/B); `FilterDrawerTitle` (default "Filters").
+- **Apply / Clear** — Apply commits every filterable column's draft at once, then closes. Clear all drops every filter, re-seeds drafts to defaults, and stays open. Drawer is always manual-apply (ignores `FilterApplyMode.Live`).
+- **Boolean (Any)** — boolean columns now render a tri-state **(Any) / True / False** value select instead of the value-less `IsTrue`/`IsFalse` operators; "(Any)" commits no filter (previously a bulk Apply forced true/false). Applies in popover + drawer via the shared fragment; `SeedDraft` + `CommitDraftAsync` gained boolean branches.
+
+**Fixes folded in (both surfaced by Drawer mode).**
+- **`lipi-overlays.css`** — the open drawer's resting transform changed `translate(0)` → `none`. A non-`none` transform makes the drawer a containing block for `position:fixed` children, which mis-anchored `LipiDateRangePicker`'s fixed, JS-positioned calendar off-screen inside the drawer. `none` is visually identical at rest; the slide-in still interpolates from ±100%.
+- **`LipiTable.razor.css`** — the +22px header padding that reserved room for the per-column funnel is now scoped to `.lipi-table-header-cell:has(.lipi-table-filter-btn)`. Only `HeaderIcon` headers (which have a funnel) reserve it; in Drawer/None mode right-aligned numeric/currency headers sit flush with their values (were offset ~22px). Bonus: non-filterable right-aligned headers in `HeaderIcon` now align too.
+
+**Files.** `LipiTableTypes.cs` (`FilterDrawerTrigger`, `FilterDrawerSide`), `LipiTable.razor.cs` (params, drawer state/methods, 4-way `MapDrawerSide`, boolean seed/commit), `LipiTable.razor` (toolbar trigger, `FilterFields` extraction + boolean branch, drawer mount), `LipiTable.razor.css` (drawer/trigger styles + `:has` header-pad scope), `lipi-overlays.css` (transform). Demo: `StyleGuideTableFilters.razor` (Drawer + Left/Top/Bottom/funnel-wide tables).
+
+**Lessons.** (1) Funnel-reservation padding must be conditional on the funnel's presence (`:has`), never unconditional. (2) A CSS transform — even `translate(0)` — on a drawer traps `position:fixed` descendants; rest at `transform: none`. (3) LipiDrawer opens by parent mount, not an `Open` param.
+
+---
+
+### A60 — LipiDateRangePicker `IndependentMonths` + LipiTable `DateFilterIndependentMonths` passthrough
+
+**Phase**: 2 Sub-step 2.8 (table date filter) + Forms (LipiDateRangePicker). Paired with A59.
+**Date**: 2026-06-07
+**Status**: ✅ Build clean; deployed; verified (independent navigation with right ≥ left clamp).
+
+**Scope.** Optional independent navigation of the two calendars in the range picker.
+- **`LipiDateRangePicker`** — new `[Parameter] bool IndependentMonths` (default `false` = linked/consecutive, unchanged for every existing caller). When `true`: each calendar shows its own ‹ › and tracks its own month (`_displayMonth` left, new `_rightMonth` right); navigation is clamped so **right ≥ left** (left can't pass right, right can't precede left; equal months allowed). `_rightMonth` is seeded from `EndValue` on open. A unified `HandleMonthNav(isLeft, delta)` replaces the pair-shifting `HandlePrevMonth`/`HandleNextMonth` (kept as delegating wrappers); `RenderCalendar` renders both chevrons per calendar only in independent mode, linked mode unchanged.
+- **`LipiTable` passthrough** — `DateFilterIndependentMonths` (default `false`) is forwarded to the date filter editor's `IndependentMonths` in `FilterFields`, so it applies in both the header popover and the drawer. Table default stays dependent.
+
+**Files.** `LipiDateRangePicker.razor`; `LipiTable.razor.cs` + `LipiTable.razor` (passthrough); `StyleGuideTableFilters.razor` (independent-months demo table).
+
+---
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)

@@ -9,6 +9,7 @@
 @using LiPi.Components
 @using LiPicons.Blazor
 @using LiPi.Components.Forms
+@using LiPi.Components.Overlays
 
 @* Column children register via cascade; LipiColumn renders no DOM, so ChildContent is
    placed in a display:none holder purely to trigger each column's OnInitialized. *@
@@ -36,6 +37,25 @@
 @if (ShowToolbar)
 {
     <div class="lipi-table-toolbar">
+        @if (FilterMode == FilterMode.Drawer)
+        {
+            <button type="button" class="@FilterTriggerClass"
+                    @onclick="OpenFilterDrawer"
+                    aria-haspopup="dialog" aria-expanded="@_filterDrawerOpen"
+                    aria-label="Filters">
+                <LipiIcon Name="@LipiconName.Filter"
+                          Variant="@(ActiveFilterColumnCount > 0 ? LipiconVariant.Fill : LipiconVariant.Regular)"
+                          Size="15" />
+                @if (FilterDrawerTrigger == FilterDrawerTrigger.ToolbarButton)
+                {
+                    <span class="lipi-table-fdrawer-trigger-text">@FilterDrawerTitle</span>
+                }
+                @if (ActiveFilterColumnCount > 0)
+                {
+                    <span class="lipi-table-fdrawer-trigger-badge">@ActiveFilterColumnCount</span>
+                }
+            </button>
+        }
         @if (ShowInlineChips)
         {
             <div class="lipi-table-filter-chips lipi-table-filter-chips--inline">
@@ -212,98 +232,7 @@
                                 }
                             </div>
                             <div class="lipi-table-filter-popover-body">
-                                @if (col.Type is ColumnType.Date or ColumnType.DateTime)
-                                {
-                                    @* Option (c): themed range picker IS the date filter. Presets replace relative operators. *@
-                                    <label class="lipi-table-filter-label">Date range</label>
-                                    <LipiDateRangePicker Name="@($"filt-{col.ColumnKey}")"
-                                                         StartValue="d.DateStart"
-                                                         StartValueChanged="@(EventCallback.Factory.Create<DateOnly?>(this, v => OnDraftDateStartChanged(col.ColumnKey, v)))"
-                                                         EndValue="d.DateEnd"
-                                                         EndValueChanged="@(EventCallback.Factory.Create<DateOnly?>(this, v => OnDraftDateEndChanged(col.ColumnKey, v)))"
-                                                         AllowOpenEnd="true"
-                                                         PresetDirection="PresetDirection.Both"
-                                                         PresetSpan="PresetSpan.Year"
-                                                         TimeZone="@FilterTimeZone"
-                                                         WeekStart="@FilterWeekStart" />
-                                }
-                                else
-                                {
-                                <label class="lipi-table-filter-label">Operator</label>
-                                <select class="lipi-table-filter-select" value="@d.Operator" @onchange="@(e => OnDraftOperatorChanged(col.ColumnKey, e))">
-                                    @foreach (var op in OperatorsFor(col))
-                                    {
-                                        <option value="@op">@OperatorLabelFor(col, op)</option>
-                                    }
-                                </select>
-                                @switch (EditorFor(col, d.Operator))
-                                {
-                                    case FilterEditor.Number:
-                                        <label class="lipi-table-filter-label">Value</label>
-                                        <input type="number" class="lipi-table-filter-input"
-                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
-                                        break;
-
-                                    case FilterEditor.NumberRange:
-                                        <label class="lipi-table-filter-label">From / To</label>
-                                        <div class="lipi-table-filter-range">
-                                            <input type="number" class="lipi-table-filter-input"
-                                                   value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
-                                            <span class="lipi-table-filter-range-sep">–</span>
-                                            <input type="number" class="lipi-table-filter-input"
-                                                   value="@d.ValueEnd" @oninput="@(e => OnDraftValueEndChanged(col.ColumnKey, e))" />
-                                        </div>
-                                        break;
-
-                                    case FilterEditor.Date:
-                                        <label class="lipi-table-filter-label">Date</label>
-                                        <input type="date" class="lipi-table-filter-input"
-                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
-                                        break;
-
-                                    case FilterEditor.DateRange:
-                                        <label class="lipi-table-filter-label">From / To</label>
-                                        <div class="lipi-table-filter-range">
-                                            <input type="date" class="lipi-table-filter-input"
-                                                   value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
-                                            <span class="lipi-table-filter-range-sep">–</span>
-                                            <input type="date" class="lipi-table-filter-input"
-                                                   value="@d.ValueEnd" @oninput="@(e => OnDraftValueEndChanged(col.ColumnKey, e))" />
-                                        </div>
-                                        break;
-
-                                    case FilterEditor.RelativeN:
-                                        <label class="lipi-table-filter-label">Number of days</label>
-                                        <input type="number" min="0" class="lipi-table-filter-input"
-                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
-                                        break;
-
-                                    case FilterEditor.Multi:
-                                        <label class="lipi-table-filter-label">Select one or more</label>
-                                        <div class="lipi-table-filter-multi">
-                                            @foreach (var opt in DistinctValuesFor(col))
-                                            {
-                                                <label class="lipi-table-filter-multi-item">
-                                                    <input type="checkbox"
-                                                           checked="@d.Multi.Contains(opt)"
-                                                           @onchange="@(() => ToggleDraftMulti(col.ColumnKey, opt))" />
-                                                    <span>@opt</span>
-                                                </label>
-                                            }
-                                        </div>
-                                        break;
-
-                                    case FilterEditor.Text:
-                                        <label class="lipi-table-filter-label">Value</label>
-                                        <input type="text" class="lipi-table-filter-input"
-                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
-                                        break;
-
-                                    case FilterEditor.None:
-                                    default:
-                                        break;
-                                }
-                                }
+                                @FilterFields(col, d)
                                 <div class="lipi-table-filter-actions">
                                     <button type="button" class="lipi-table-filter-clear"
                                             @onclick="@(() => ClearColumnFilterAsync(col.ColumnKey))">Clear</button>
@@ -458,7 +387,164 @@
 
 </div>@* /lipi-table-pagination-wrap *@
 
+@* Filter drawer (PR3) — declarative <LipiDrawer> over the shared ColumnDraft model.
+   Mounted at table root so it escapes the table wrapper's overflow; un-mounts on OnClose. *@
+@if (FilterMode == FilterMode.Drawer && _filterDrawerOpen)
+{
+    <LipiDrawer Placement="@MapDrawerSide(FilterDrawerSide)"
+                SizePx="@FilterDrawerSizePx"
+                Title="@FilterDrawerTitle"
+                Backdrop="DrawerBackdrop.Dimmed"
+                OnClose="CloseFilterDrawer">
+        <LipiDrawerBody>
+            <div class="lipi-table-fdrawer">
+                @foreach (var col in _columns.Where(c => c.Filterable))
+                {
+                    var d = EnsureDraft(col);
+                    <div class="lipi-table-fdrawer-row">
+                        <div class="lipi-table-fdrawer-row-label">@col.Header</div>
+                        <div class="lipi-table-fdrawer-row-fields">
+                            @FilterFields(col, d)
+                        </div>
+                    </div>
+                }
+                @if (!_columns.Any(c => c.Filterable))
+                {
+                    <div class="lipi-table-fdrawer-empty">No filterable columns.</div>
+                }
+            </div>
+        </LipiDrawerBody>
+        <LipiDrawerFooter>
+            <LipiButton Variant="ButtonVariant.Secondary" OnClick="ClearAllInDrawerAsync">Clear all</LipiButton>
+            <LipiButton Variant="ButtonVariant.Primary" OnClick="ApplyAllInDrawerAsync">Apply</LipiButton>
+        </LipiDrawerFooter>
+    </LipiDrawer>
+}
+
 @code {
+
+    // ── PR3 filter-drawer markup helpers ──────────────────────────────────
+    // Shared operator + editor fields for ONE column's filter. Both the header
+    // popover (HeaderIcon mode) and the drawer (Drawer mode) render from this,
+    // so there is a single source of truth for filter editors (and A58 relative-
+    // date gating flows through OperatorsFor identically in both surfaces).
+    private RenderFragment FilterFields(ColumnDefinition<TItem> col, ColumnDraft d) => @<text>
+                                @if (col.Type is ColumnType.Date or ColumnType.DateTime)
+                                {
+                                    @* Option (c): themed range picker IS the date filter. Presets replace relative operators. *@
+                                    <label class="lipi-table-filter-label">Date range</label>
+                                    <LipiDateRangePicker Name="@($"filt-{col.ColumnKey}")"
+                                                         StartValue="d.DateStart"
+                                                         StartValueChanged="@(EventCallback.Factory.Create<DateOnly?>(this, v => OnDraftDateStartChanged(col.ColumnKey, v)))"
+                                                         EndValue="d.DateEnd"
+                                                         EndValueChanged="@(EventCallback.Factory.Create<DateOnly?>(this, v => OnDraftDateEndChanged(col.ColumnKey, v)))"
+                                                         AllowOpenEnd="true"
+                                                         PresetDirection="PresetDirection.Both"
+                                                         PresetSpan="PresetSpan.Year"
+                                                         TimeZone="@FilterTimeZone"
+                                                         WeekStart="@FilterWeekStart"
+                                                         IndependentMonths="@DateFilterIndependentMonths" />
+                                }
+                                else if (col.Type == ColumnType.Boolean)
+                                {
+                                <label class="lipi-table-filter-label">Match</label>
+                                <select class="lipi-table-filter-select" value="@d.Value" @onchange="@(e => OnDraftValueChanged(col.ColumnKey, e))">
+                                    <option value="">(Any)</option>
+                                    <option value="true">True</option>
+                                    <option value="false">False</option>
+                                </select>
+                                }
+                                else
+                                {
+                                <label class="lipi-table-filter-label">Operator</label>
+                                <select class="lipi-table-filter-select" value="@d.Operator" @onchange="@(e => OnDraftOperatorChanged(col.ColumnKey, e))">
+                                    @foreach (var op in OperatorsFor(col))
+                                    {
+                                        <option value="@op">@OperatorLabelFor(col, op)</option>
+                                    }
+                                </select>
+                                @switch (EditorFor(col, d.Operator))
+                                {
+                                    case FilterEditor.Number:
+                                        <label class="lipi-table-filter-label">Value</label>
+                                        <input type="number" class="lipi-table-filter-input"
+                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                        break;
+
+                                    case FilterEditor.NumberRange:
+                                        <label class="lipi-table-filter-label">From / To</label>
+                                        <div class="lipi-table-filter-range">
+                                            <input type="number" class="lipi-table-filter-input"
+                                                   value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                            <span class="lipi-table-filter-range-sep">–</span>
+                                            <input type="number" class="lipi-table-filter-input"
+                                                   value="@d.ValueEnd" @oninput="@(e => OnDraftValueEndChanged(col.ColumnKey, e))" />
+                                        </div>
+                                        break;
+
+                                    case FilterEditor.Date:
+                                        <label class="lipi-table-filter-label">Date</label>
+                                        <input type="date" class="lipi-table-filter-input"
+                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                        break;
+
+                                    case FilterEditor.DateRange:
+                                        <label class="lipi-table-filter-label">From / To</label>
+                                        <div class="lipi-table-filter-range">
+                                            <input type="date" class="lipi-table-filter-input"
+                                                   value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                            <span class="lipi-table-filter-range-sep">–</span>
+                                            <input type="date" class="lipi-table-filter-input"
+                                                   value="@d.ValueEnd" @oninput="@(e => OnDraftValueEndChanged(col.ColumnKey, e))" />
+                                        </div>
+                                        break;
+
+                                    case FilterEditor.RelativeN:
+                                        <label class="lipi-table-filter-label">Number of days</label>
+                                        <input type="number" min="0" class="lipi-table-filter-input"
+                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                        break;
+
+                                    case FilterEditor.Multi:
+                                        <label class="lipi-table-filter-label">Select one or more</label>
+                                        <div class="lipi-table-filter-multi">
+                                            @foreach (var opt in DistinctValuesFor(col))
+                                            {
+                                                <label class="lipi-table-filter-multi-item">
+                                                    <input type="checkbox"
+                                                           checked="@d.Multi.Contains(opt)"
+                                                           @onchange="@(() => ToggleDraftMulti(col.ColumnKey, opt))" />
+                                                    <span>@opt</span>
+                                                </label>
+                                            }
+                                        </div>
+                                        break;
+
+                                    case FilterEditor.Text:
+                                        <label class="lipi-table-filter-label">Value</label>
+                                        <input type="text" class="lipi-table-filter-input"
+                                               value="@d.Value" @oninput="@(e => OnDraftValueChanged(col.ColumnKey, e))" />
+                                        break;
+
+                                    case FilterEditor.None:
+                                    default:
+                                        break;
+                                }
+                                }
+
+    </text>;
+
+    // Trigger button class (computed to avoid string literals inside a Razor attribute).
+    private string FilterTriggerClass
+    {
+        get
+        {
+            var c = "lipi-table-fdrawer-trigger";
+            if (FilterDrawerTrigger == FilterDrawerTrigger.HeaderFunnel) c += " lipi-table-fdrawer-trigger--funnel";
+            if (ActiveFilterColumnCount > 0) c += " lipi-table-fdrawer-trigger--active";
+            return c;
+        }
+    }
     // ── Embedded pager (Stage 7 Step 2+3) ────────────────────────────────
     // Renders LipiPagination with table-resolved params. Two-way binds drive the
     // table's _currentPage / _pageSize via the change handlers. Page-size options are

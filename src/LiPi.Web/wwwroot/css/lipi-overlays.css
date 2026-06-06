@@ -253,7 +253,11 @@
 .lipi-drawer-right.open,
 .lipi-drawer-left.open,
 .lipi-drawer-top.open,
-.lipi-drawer-bottom.open { transform: translate(0); }
+.lipi-drawer-bottom.open { transform: none; }   /* PR3: 'none' (not translate(0)) so the drawer is NOT a
+                                                    containing block for position:fixed children — fixes the
+                                                    LipiDateRangePicker calendar (fixed + JS viewport coords)
+                                                    being mis-anchored/off-screen inside the drawer. Visually
+                                                    identical at rest; slide-in still interpolates from ±100%. */
 
 /* Animate=false opt-out (A32) — no transition, instant slide-in */
 .lipi-drawer-no-animate { transition: none !important; }

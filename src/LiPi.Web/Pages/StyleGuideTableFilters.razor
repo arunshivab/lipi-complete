@@ -48,6 +48,160 @@
     </div>
 
     <div class="sg-section">
+        <h2>Drawer mode — S3c (PR3)</h2>
+        <p class="sg-note-p">
+            The same columns and data with <code>FilterMode="FilterMode.Drawer"</code>. The per-column
+            header funnels are replaced by a single <strong>Filters</strong> button in the toolbar (with an
+            active-filter count badge); it opens a right-side drawer listing every filterable column. Edit any
+            number of columns, then <strong>Apply</strong> commits them all at once and closes the drawer;
+            <strong>Clear all</strong> resets every column and keeps the drawer open. Date columns keep their
+            relative-date (A58) gating. Vary <code>FilterDrawerSide</code>, <code>FilterDrawerWidthPx</code>,
+            and <code>FilterDrawerTrigger</code> to change side, width, and trigger style.
+        </p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-drawer-demo"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   FilterMode="FilterMode.Drawer">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Drawer — Left side, 480px</h2>
+        <p class="sg-note-p">Same drawer anchored on the <strong>left</strong> at a custom width: <code>FilterDrawerSide="FilterDrawerSide.Left"</code> + <code>FilterDrawerSizePx="480"</code>.</p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-drawer-left"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   FilterMode="FilterMode.Drawer"
+                   FilterDrawerSide="FilterDrawerSide.Left" FilterDrawerSizePx="480">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Drawer — Top, 360px tall</h2>
+        <p class="sg-note-p">Top placement; for Top/Bottom, <code>FilterDrawerSizePx</code> sets the drawer <strong>height</strong>: <code>FilterDrawerSide="FilterDrawerSide.Top"</code> + <code>FilterDrawerSizePx="360"</code>.</p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-drawer-top"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   FilterMode="FilterMode.Drawer"
+                   FilterDrawerSide="FilterDrawerSide.Top" FilterDrawerSizePx="360">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Drawer — Bottom, 320px tall</h2>
+        <p class="sg-note-p">Bottom placement at 320px height: <code>FilterDrawerSide="FilterDrawerSide.Bottom"</code> + <code>FilterDrawerSizePx="320"</code>.</p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-drawer-bottom"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   FilterMode="FilterMode.Drawer"
+                   FilterDrawerSide="FilterDrawerSide.Bottom" FilterDrawerSizePx="320">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Drawer — wide 560px + funnel trigger</h2>
+        <p class="sg-note-p">Right side at 560px with the compact funnel-icon trigger instead of the labelled button: <code>FilterDrawerSizePx="560"</code> + <code>FilterDrawerTrigger="FilterDrawerTrigger.HeaderFunnel"</code>.</p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-drawer-funnel"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   FilterMode="FilterMode.Drawer"
+                   FilterDrawerSizePx="560" FilterDrawerTrigger="FilterDrawerTrigger.HeaderFunnel">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Independent calendar months</h2>
+        <p class="sg-note-p">Drawer filter with <code>DateFilterIndependentMonths="true"</code>: open the
+            <strong>Joined</strong> date filter and each calendar navigates on its own ‹ › — pick the start
+            month on the left and a far-apart end month on the right. The right calendar is prevented from
+            going earlier than the left. Default (omit the flag) keeps the linked consecutive pair.</p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-indep-months"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   FilterMode="FilterMode.Drawer"
+                   DateFilterIndependentMonths="true">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
         <h2>Notes</h2>
         <ul class="sg-notes">
             <li><code>OperatorsFor(ColumnType)</code> drives which operators each header offers — numeric,
