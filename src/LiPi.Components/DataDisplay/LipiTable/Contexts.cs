@@ -55,6 +55,41 @@ public enum SelectionChangeReason
     DataChange
 }
 
+/// <summary>How the current selection was formed (Stage S4c). <see cref="ExplicitKeys"/> = the user
+/// ticked specific rows. <see cref="AllMatching"/> = the user engaged "select all matching", which
+/// snapshotted every key matching the active filter+search at that moment. Recorded in the audit
+/// trail so a bulk PHI operation is reconstructable (the host writes the audit entry; the component
+/// stays free of IAuditService).</summary>
+public enum SelectionBasisMode
+{
+    ExplicitKeys,
+    AllMatching
+}
+
+/// <summary>
+/// Audit-grade description of the basis behind a bulk selection (Stage S4c). Carries the mode, a
+/// human-readable summary of the filter+search the selection was taken against, the row count, and
+/// the capture timestamp. The host reads this off <see cref="SelectionContext"/> to write its own
+/// audit event when performing a bulk action — the component itself logs nothing.
+/// </summary>
+public sealed record SelectionBasis(
+    SelectionBasisMode Mode,
+    string FilterSummary,
+    int Count,
+    DateTimeOffset CapturedAt);
+
+/// <summary>
+/// Passed to a LipiTable <c>BulkActions</c> render fragment (Stage S4c) so the host can render and
+/// run its own bulk actions over the current selection. Action- and audit-agnostic by design: the
+/// component supplies the count, the <see cref="SelectionBasis"/>, and the resolved row keys; the
+/// host owns Export/Assign/Delete and the audit write. Keys are boxed (the table's KeySelector
+/// output) so the context stays non-generic and HIS-free.
+/// </summary>
+public sealed record SelectionContext(
+    int Count,
+    SelectionBasis Basis,
+    IReadOnlyCollection<object> Keys);
+
 // ════════════════════════════════════════════════════════════════════════
 //  Sort, filter, quick search — §23.4
 // ════════════════════════════════════════════════════════════════════════

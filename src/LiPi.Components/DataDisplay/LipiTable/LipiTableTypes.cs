@@ -39,6 +39,19 @@ public enum SelectionPlacement
     Right
 }
 
+/// <summary>
+/// Where the bulk-action bar renders when across-pages selection is active (Stage S4c).
+/// <see cref="Docked"/> (default) = an in-flow strip directly under the toolbar (calm; never
+/// occludes rows). <see cref="Floating"/> = a centred bar anchored near the bottom of the table
+/// area (more prominent; overlaps the last rows). The bar's vertical offset in Floating is the
+/// <c>--lipi-table-bulkbar-bottom</c> CSS var (default 1.25rem). Per §5.7 (4c).
+/// </summary>
+public enum BulkBarPlacement
+{
+    Docked,
+    Floating
+}
+
 /// <summary>Inline-edit model for LipiTable. None is the default (read-only). Per §12.1.1.</summary>
 public enum TableEditMode
 {
