@@ -1,0 +1,189 @@
+@*  LipiSlicerPanel<TItem> (PR5c) — a managed slicer pane (Model B, dev opt-in). The developer
+    curates candidates via <LipiSlicerOption> children (or, with none, the panel auto-derives them
+    from the bound LipiFilterState's filterable columns). The end-user toggles the pane (show/hide)
+    and picks which columns appear via a "Columns" popover. Each visible candidate renders the
+    PR5b <LipiSlicer> bound to the same shared state. Placement Top/Bottom = horizontal bar;
+    Left/Right = vertical stack (the dev docks the panel beside the table). User state is
+    session-only; Persist is reserved for the TablePreferenceService follow-up.  *@
+@typeparam TItem
+@implements IDisposable
+@namespace LiPi.Components.DataDisplay
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@inject IServiceProvider Services
+
+<CascadingValue Value="this" IsFixed="true">
+    <div style="display:none">@ChildContent</div>
+</CascadingValue>
+
+@if (_collapsed && Collapsible)
+{
+    <button type="button" class="lipi-slicerpanel-reopen" @onclick="ToggleCollapsed" title="Show filters">Show filters</button>
+}
+else
+{
+<div class="lipi-slicerpanel lipi-slicerpanel--@PlacementClass">
+    <div class="lipi-slicerpanel-head">
+        <span class="lipi-slicerpanel-title">@Title</span>
+        <div class="lipi-slicerpanel-actions">
+            <button type="button" class="lipi-slicerpanel-btn" @onclick="TogglePicker">Columns</button>
+            @if (Collapsible)
+            {
+                <button type="button" class="lipi-slicerpanel-btn" @onclick="ToggleCollapsed">Hide</button>
+            }
+        </div>
+    </div>
+
+    @if (_pickerOpen)
+    {
+        <div class="lipi-slicerpanel-backdrop" @onclick="ClosePicker"></div>
+        <div class="lipi-slicerpanel-picker">
+            @foreach (var spec in EffectiveSpecs())
+            {
+                var key = spec.Key;
+                var on = _visibleKeys.Contains(key);
+                <label class="lipi-slicerpanel-pickrow">
+                    <input type="checkbox" checked="@on" @onchange="@(() => ToggleColumn(key))" />
+                    <span>@spec.Header</span>
+                </label>
+            }
+            @if (EffectiveSpecs().Count == 0)
+            {
+                <div class="lipi-slicerpanel-pickempty">No columns</div>
+            }
+        </div>
+    }
+
+    <div class="lipi-slicerpanel-body">
+        @foreach (var spec in EffectiveSpecs().Where(s => _visibleKeys.Contains(s.Key)))
+        {
+            <LipiSlicer @key="spec.Key" TItem="TItem" TValue="object"
+                        ColumnKey="@spec.Key" Accessor="@spec.Accessor" Type="@spec.Type" Header="@spec.Header"
+                        FilterState="FilterState" Items="Items" RegisterInState="false"
+                        SearchThreshold="@SearchThreshold" ShowCounts="@ShowCounts"
+                        IndependentMonths="@IndependentMonths" />
+        }
+        @if (!EffectiveSpecs().Any(s => _visibleKeys.Contains(s.Key)))
+        {
+            <div class="lipi-slicerpanel-empty">No filters shown — use “Columns”.</div>
+        }
+    </div>
+</div>
+}
+
+@code {
+    [Parameter, EditorRequired] public LipiFilterState<TItem> FilterState { get; set; } = default!;
+    [Parameter] public IReadOnlyList<TItem>? Items { get; set; }
+    [Parameter] public string Title { get; set; } = "Filters";
+    [Parameter] public SlicerPlacement Placement { get; set; } = SlicerPlacement.Top;
+    [Parameter] public bool Collapsible { get; set; } = true;
+    /// <summary>Persist the user's show/hide + column choices across reloads (via the registered
+    /// ITablePreferenceService). Requires a non-empty PreferenceKey; otherwise it is a no-op.</summary>
+    [Parameter] public bool Persist { get; set; }
+    /// <summary>Stable identity this panel persists under (the store tableId). Keep it distinct from
+    /// any LipiTable TableId. Required when Persist is true.</summary>
+    [Parameter] public string? PreferenceKey { get; set; }
+    // Slicer pass-throughs.
+    [Parameter] public int SearchThreshold { get; set; } = 8;
+    [Parameter] public bool ShowCounts { get; set; } = true;
+    [Parameter] public bool IndependentMonths { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private readonly List<SlicerColumnSpec<TItem>> _options = new();
+    private readonly HashSet<string> _visibleKeys = new();
+    private readonly HashSet<string> _seededKeys = new();   // per-key default-visibility seeding
+    private bool _collapsed;
+    private bool _pickerOpen;
+    private ITablePreferenceService? _pref;
+    private SlicerPanelPreference? _persisted;
+    private bool _loaded;
+
+    internal void RegisterOption(SlicerColumnSpec<TItem> spec)
+    {
+        var i = _options.FindIndex(o => o.Key == spec.Key);
+        if (i >= 0) _options[i] = spec; else _options.Add(spec);
+        EnsureSeeded();
+        StateHasChanged();
+    }
+    internal void UnregisterOption(string key)
+    {
+        _options.RemoveAll(o => o.Key == key);
+        _visibleKeys.Remove(key);
+        _seededKeys.Remove(key);
+        StateHasChanged();
+    }
+
+    // Curated options win; otherwise auto-derive from the shared state's filterable columns.
+    private IReadOnlyList<SlicerColumnSpec<TItem>> EffectiveSpecs()
+        => _options.Count > 0 ? _options : FilterState.Candidates();
+
+    // Seed visibility once per newly-seen column (preserves user toggles for already-seen ones).
+    private void EnsureSeeded()
+    {
+        var usePersisted = _loaded && _persisted is not null;
+        foreach (var s in EffectiveSpecs())
+            if (_seededKeys.Add(s.Key))
+            {
+                var visible = usePersisted ? _persisted!.VisibleColumns.Contains(s.Key) : s.DefaultVisible;
+                if (visible) _visibleKeys.Add(s.Key);
+            }
+    }
+
+    private void PersistState()
+    {
+        if (!Persist || _pref is null || string.IsNullOrWhiteSpace(PreferenceKey)) return;
+        _ = _pref.SaveAsync(PreferenceKey!,
+            new TablePreferences { SlicerPanel = new SlicerPanelPreference(_collapsed, _visibleKeys.ToList()) });
+    }
+
+    protected override void OnInitialized()
+    {
+        _pref = Services.GetService<ITablePreferenceService>();
+        if (Persist && string.IsNullOrWhiteSpace(PreferenceKey))
+            Services.GetService<ILoggerFactory>()?.CreateLogger("LipiSlicerPanel")
+                .LogWarning("LipiSlicerPanel: Persist is true but PreferenceKey is empty — persistence disabled.");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Persist || _pref is null || string.IsNullOrWhiteSpace(PreferenceKey)) return;
+        var prefs = await _pref.GetAsync(PreferenceKey!);
+        _persisted = prefs?.SlicerPanel;
+        _loaded = true;
+        if (_persisted is not null)
+        {
+            _collapsed = _persisted.Collapsed;
+            _seededKeys.Clear();          // re-seed visibility from the stored set
+            _visibleKeys.Clear();
+            EnsureSeeded();
+        }
+    }
+
+    protected override void OnParametersSet() => EnsureSeeded();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+        var before = _visibleKeys.Count + _seededKeys.Count;
+        EnsureSeeded();                                  // catch auto-derive columns registered late
+        if (_visibleKeys.Count + _seededKeys.Count != before) StateHasChanged();
+    }
+
+    private void ToggleColumn(string key) { if (!_visibleKeys.Remove(key)) _visibleKeys.Add(key); PersistState(); }
+    private void ToggleCollapsed() { _collapsed = !_collapsed; PersistState(); }
+    private void TogglePicker() { EnsureSeeded(); _pickerOpen = !_pickerOpen; }
+    private void ClosePicker() => _pickerOpen = false;
+
+    private string PlacementClass => Placement switch
+    {
+        SlicerPlacement.Left => "left",
+        SlicerPlacement.Right => "right",
+        SlicerPlacement.Bottom => "bottom",
+        _ => "top"
+    };
+
+    public void Dispose() { }
+}
