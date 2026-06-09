@@ -127,7 +127,19 @@ public enum FilterMode
 {
     HeaderIcon,
     Drawer,
+    Sidebar,
+    FilterBar,
     None
+}
+
+/// <summary>
+/// Side the persistent filter sidebar docks on when <c>FilterMode=Sidebar</c> (Stage S3d / PR4).
+/// The sidebar pushes the table (it does not overlay). Default <see cref="Left"/>.
+/// </summary>
+public enum FilterSidebarSide
+{
+    Left,
+    Right
 }
 
 /// <summary>

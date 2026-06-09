@@ -63,7 +63,18 @@ public sealed class TablePreferences
 
     /// <summary>Active page size. Null = use table default.</summary>
     public int? PageSize { get; init; }
+
+    /// <summary>LipiSlicerPanel UI state (collapsed flag + visible column keys). Null = use panel
+    /// defaults. Additive (PR5c); absent in older stored JSON, which deserializes to null.</summary>
+    public SlicerPanelPreference? SlicerPanel { get; init; }
 }
+
+/// <summary>
+/// Persisted state for a LipiSlicerPanel: whether the pane is collapsed and which candidate
+/// columns the user has shown. Stored under the panel's own PreferenceKey (kept distinct from any
+/// table TableId). Null VisibleColumns is treated as empty.
+/// </summary>
+public sealed record SlicerPanelPreference(bool Collapsed, IReadOnlyList<string> VisibleColumns);
 
 /// <summary>
 /// Per-column override. All fields participate in persistence except Order which is
