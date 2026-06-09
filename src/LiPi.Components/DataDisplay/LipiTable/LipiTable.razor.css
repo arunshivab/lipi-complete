@@ -1168,3 +1168,133 @@
     min-width: 0;
     flex: 1 1 auto;
 }
+
+/* ============================================================
+   Stage 4c — Across-pages selection: bulk-action bar + banner
+   ============================================================ */
+
+/* Floating placement anchors against the pagination-wrap. */
+.lipi-table-has-floatbulk { position: relative; }
+
+/* ---- Bulk-action bar (shared) ---- */
+.lipi-table-bulkbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px;
+    font-size: var(--ts-body, 14px);
+}
+
+.lipi-table-bulkbar--docked {
+    background: var(--color-primary-pale, rgba(37, 99, 235, .10));
+    border: 1px solid var(--color-primary-pale, rgba(37, 99, 235, .18));
+    border-radius: var(--r-md, 8px);
+    margin-bottom: 8px;
+}
+
+.lipi-table-bulkbar--floating {
+    position: absolute;
+    left: 50%;
+    bottom: var(--lipi-table-bulkbar-bottom, 1.25rem);
+    transform: translateX(-50%);
+    z-index: 6;
+    background: var(--lipi-table-bg, var(--color-bg-surface, #fff));
+    border: 1px solid var(--lipi-table-border, var(--color-border-default, #e2e8f0));
+    border-radius: var(--r-lg, 12px);
+    box-shadow: var(--sh-lg, 0 8px 24px rgba(15, 23, 42, .14));
+    padding: 8px 12px;
+    max-width: calc(100% - 2rem);
+}
+
+.lipi-table-bulkbar-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.lipi-table-bulkbar-count {
+    font-weight: var(--fw-medium, 500);
+    color: var(--color-primary, #2563eb);
+    white-space: nowrap;
+}
+
+.lipi-table-bulkbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.lipi-table-bulkbar-clear {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: var(--r-sm, 6px);
+    font-size: var(--ts-label, 13px);
+    color: var(--color-text-secondary, #475569);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--tr-fast, .12s), color var(--tr-fast, .12s);
+}
+.lipi-table-bulkbar-clear:hover {
+    background: var(--color-bg-hover, var(--color-bg-subtle, #f1f5f9));
+    color: var(--color-text-primary, #0f172a);
+}
+
+/* ---- Across-pages banner ---- */
+.lipi-table-selbanner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 7px 14px;
+    margin-bottom: 8px;
+    border-radius: var(--r-md, 8px);
+    font-size: var(--ts-label, 13px);
+    background: var(--color-bg-subtle, #f1f5f9);
+    border: 1px solid var(--lipi-table-border, var(--color-border-default, #e2e8f0));
+    color: var(--color-text-secondary, #475569);
+}
+
+/* Cap state reads as a soft caution, not an error. */
+.lipi-table-selbanner--cap {
+    background: var(--color-warning-pale, #fef3c7);
+    border-color: var(--color-warning-pale, #fde68a);
+    color: var(--color-warning, #92400e);
+}
+
+.lipi-table-selbanner-text { text-align: center; }
+
+.lipi-table-selbanner-action {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-weight: var(--fw-medium, 500);
+    color: var(--color-primary, #2563eb);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.lipi-table-selbanner-action:hover { color: var(--color-primary-strong, var(--color-primary, #1d4ed8)); }
+
+.lipi-table-selbanner-cancel {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--color-text-tertiary, #94a3b8);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.lipi-table-selbanner-cancel:hover { color: var(--color-text-secondary, #475569); }

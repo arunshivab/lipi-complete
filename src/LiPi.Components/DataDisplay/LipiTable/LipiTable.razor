@@ -23,7 +23,7 @@
     @FilterSidebar()
 }
 
-<div class="@($"lipi-table-pagination-wrap{PaginationWrapModifier}{((ShowToolbar || ShowSeparateChips) ? " lipi-table-has-toolbar" : string.Empty)}")">
+<div class="@($"lipi-table-pagination-wrap{PaginationWrapModifier}{((ShowToolbar || ShowSeparateChips) ? " lipi-table-has-toolbar" : string.Empty)}{FloatBulkClass}")">
 
 @if (ShowSidePager && Placement == PaginationPlacement.Left)
 {
@@ -125,6 +125,39 @@
             </span>
         }
         <button type="button" class="lipi-table-filter-clearall" @onclick="ClearAllFiltersAsync">Clear all</button>
+    </div>
+}
+
+@* Region 5b — Bulk-action bar (docked) + across-pages banner (Stage 4c) *@
+@if (BulkBarVisible && BulkBarPlacement == BulkBarPlacement.Docked)
+{
+    <div class="lipi-table-bulkbar lipi-table-bulkbar--docked" role="region" aria-label="Selection actions">
+        @BulkBarBody
+    </div>
+}
+@{ var selBanner = SelectionBanner; }
+@if (selBanner != SelectionBannerKind.None)
+{
+    <div class="lipi-table-selbanner lipi-table-selbanner--@(selBanner.ToString().ToLowerInvariant())" role="status">
+        @switch (selBanner)
+        {
+            case SelectionBannerKind.Offer:
+                <span class="lipi-table-selbanner-text">@string.Format(PageSelectedLabel, PageSelectableCount)</span>
+                <button type="button" class="lipi-table-selbanner-action" @onclick="RequestSelectAllMatchingAsync">@string.Format(SelectAllMatchingLabel, PaginationTotalCount)</button>
+                break;
+            case SelectionBannerKind.Confirm:
+                <span class="lipi-table-selbanner-text">@string.Format(BulkConfirmLabel, PaginationTotalCount)</span>
+                <button type="button" class="lipi-table-selbanner-action" @onclick="SelectAllMatchingAsync">@SelectAllMatchingConfirmLabel</button>
+                <button type="button" class="lipi-table-selbanner-cancel" @onclick="CancelBulkConfirm">@BulkCancelLabel</button>
+                break;
+            case SelectionBannerKind.Cap:
+                <span class="lipi-table-selbanner-text">@string.Format(BulkCapLabel, PaginationTotalCount, BulkSelectAllMax)</span>
+                break;
+            case SelectionBannerKind.Engaged:
+                <span class="lipi-table-selbanner-text">@string.Format(AllMatchingSelectedLabel, _selectedKeys.Count)</span>
+                <button type="button" class="lipi-table-selbanner-action" @onclick="ClearSelectionClickAsync">@ClearSelectionLabel</button>
+                break;
+        }
     </div>
 }
 
@@ -429,6 +462,13 @@
     </div>
 </div>
 
+@* Bulk-action bar (floating) — absolute within the pagination-wrap (Stage 4c) *@
+@if (BulkBarVisible && BulkBarPlacement == BulkBarPlacement.Floating)
+{
+    <div class="lipi-table-bulkbar lipi-table-bulkbar--floating" role="region" aria-label="Selection actions">
+        @BulkBarBody
+    </div>
+}
 @if (ShowBottomPager)
 {
     <div class="lipi-table-pager lipi-table-pager-bottom">
@@ -486,6 +526,22 @@
 }
 
 @code {
+
+    // ── Stage 4c bulk-bar content (shared by docked + floating placements) ──
+    // Count + host-supplied actions (fed the SelectionContext) + clear. No domain actions here;
+    // the host renders Export/Assign/Delete inside BulkActions and writes its own audit.
+    private RenderFragment BulkBarBody => @<text>
+        <div class="lipi-table-bulkbar-info">
+            <span class="lipi-table-bulkbar-count">@string.Format(BulkSelectedLabel, _selectedKeys.Count)</span>
+            @if (BulkActions is not null)
+            {
+                <div class="lipi-table-bulkbar-actions">@BulkActions(CurrentSelectionContext)</div>
+            }
+        </div>
+        <button type="button" class="lipi-table-bulkbar-clear" @onclick="ClearSelectionClickAsync">
+            <LipiIcon Name="@LipiconName.Close" Size="14" /> @ClearSelectionLabel
+        </button>
+    </text>;
 
     // ── PR3 filter-drawer markup helpers ──────────────────────────────────
     // Shared operator + editor fields for ONE column's filter. Both the header

@@ -97,6 +97,42 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     // only DEFINES + fires it; it renders no banner. Payload in Contexts.cs (table taxonomy, LP-23).
     [Parameter] public EventCallback<AllOnPageSelectedContext> OnAllOnPageSelected { get; set; }
 
+    // ── Across-pages selection + bulk bar (Stage 4c) ─────────────────────
+    // Master opt-in. When true (and SelectionMode=Multi): a bulk-action bar appears while any rows
+    // are selected, and — when the whole page is selected and more rows match beyond it — an
+    // across-pages banner offers "select all matching". Default false = zero change for existing
+    // consumers. The selection model is unchanged (key set in _selectedKeys); this only adds UI.
+    [Parameter] public bool AcrossPagesSelection { get; set; }
+
+    /// <summary>Where the bulk-action bar renders (Docked default / Floating). §5.7 (4c).</summary>
+    [Parameter] public BulkBarPlacement BulkBarPlacement { get; set; } = BulkBarPlacement.Docked;
+
+    /// <summary>Host-supplied bulk actions (Export/Assign/Delete…). Receives a <see cref="SelectionContext"/>
+    /// (count, basis, resolved keys). The component owns no actions and writes no audit — the host
+    /// runs the action and writes its own audit from ctx.Basis. Keeps LiPi.Components HIS-free.</summary>
+    [Parameter] public RenderFragment<SelectionContext>? BulkActions { get; set; }
+
+    /// <summary>Above this matching count, "select all matching" asks for confirmation before
+    /// engaging (a PHI safety interlock). Default 1000.</summary>
+    [Parameter] public int BulkSelectAllConfirmAt { get; set; } = 1000;
+
+    /// <summary>Hard cap: above this matching count, "select all matching" is refused and the banner
+    /// prompts to narrow the filter (keeps the snapshot deterministic and bounds the action payload).
+    /// Default 10000.</summary>
+    [Parameter] public int BulkSelectAllMax { get; set; } = 10000;
+
+    // Banner / bar labels ({0}=count, {1}=cap). Defaults are generic ("rows"); the HIS app overrides
+    // to "patients" etc. — the component carries no domain wording.
+    [Parameter] public string BulkSelectedLabel { get; set; } = "{0} selected";
+    [Parameter] public string ClearSelectionLabel { get; set; } = "Clear selection";
+    [Parameter] public string PageSelectedLabel { get; set; } = "All {0} on this page are selected.";
+    [Parameter] public string SelectAllMatchingLabel { get; set; } = "Select all {0} matching rows";
+    [Parameter] public string AllMatchingSelectedLabel { get; set; } = "All {0} selected.";
+    [Parameter] public string BulkConfirmLabel { get; set; } = "Select all {0} rows?";
+    [Parameter] public string SelectAllMatchingConfirmLabel { get; set; } = "Select all";
+    [Parameter] public string BulkCancelLabel { get; set; } = "Cancel";
+    [Parameter] public string BulkCapLabel { get; set; } = "{0} rows match — narrow the filter to select all (max {1}).";
+
     // ── Sort (Stage S1) ──────────────────────────────────────────────────
     /// <summary>Fired after the sort chain changes (header click, shift-click, clear). </summary>
     [Parameter] public EventCallback<SortChangedContext> OnSortChanged { get; set; }
@@ -1682,6 +1718,111 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
                 TotalCount: PaginationTotalCount));
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  Across-pages selection + bulk bar (Stage 4c)
+    //  Adds UI only — the selection model (_selectedKeys) is unchanged. The
+    //  banner offers/engages "select all matching"; the bar surfaces the
+    //  selection to the host's BulkActions with an audit-grade basis.
+    // ════════════════════════════════════════════════════════════════════
+    private bool _allMatchingEngaged;   // set by SelectAllMatching; auto-invalid if count != total
+    private bool _bulkConfirmPending;   // banner showing the confirm sub-state
+    private SelectionBasis? _basis;     // basis captured at "select all matching" time
+
+    private enum SelectionBannerKind { None, Offer, Confirm, Cap, Engaged }
+
+    // Selectable (non-disabled) rows on the current page.
+    private int PageSelectableCount
+    {
+        get
+        {
+            var page = PagedItems;
+            if (page.Count == 0) return 0;
+            int n = 0;
+            foreach (var r in page) if (!IsRowDisabled(r)) n++;
+            return n;
+        }
+    }
+
+    // True once "select all matching" engaged AND the selection still equals the full matching set.
+    // Deselecting any row makes count != total, so the banner reverts to offer/none.
+    private bool AllMatchingEngaged
+        => _allMatchingEngaged && PaginationTotalCount > 0 && _selectedKeys.Count == PaginationTotalCount;
+
+    // Bulk bar shows while opted-in, multi-select, and at least one row is selected.
+    private bool BulkBarVisible
+        => AcrossPagesSelection && SelectionMode == SelectionMode.Multi && _selectedKeys.Count > 0;
+
+    private string FloatBulkClass
+        => BulkBarVisible && BulkBarPlacement == BulkBarPlacement.Floating
+            ? " lipi-table-has-floatbulk" : string.Empty;
+
+    private SelectionBannerKind SelectionBanner
+    {
+        get
+        {
+            if (!AcrossPagesSelection || SelectionMode != SelectionMode.Multi) return SelectionBannerKind.None;
+            if (AllMatchingEngaged) return SelectionBannerKind.Engaged;
+            if (_bulkConfirmPending) return SelectionBannerKind.Confirm;
+            var total = PaginationTotalCount;
+            if (HeaderState == HeaderSelectState.Checked && total > PageSelectableCount)
+                return total > BulkSelectAllMax ? SelectionBannerKind.Cap : SelectionBannerKind.Offer;
+            return SelectionBannerKind.None;
+        }
+    }
+
+    // Built fresh each render: explicit-keys basis unless "all matching" is engaged.
+    private SelectionContext CurrentSelectionContext
+    {
+        get
+        {
+            var keys = (IReadOnlyCollection<object>)_selectedKeys.ToArray();
+            var basis = AllMatchingEngaged && _basis is not null
+                ? _basis
+                : new SelectionBasis(SelectionBasisMode.ExplicitKeys, BuildFilterSummary(), keys.Count, DateTimeOffset.Now);
+            return new SelectionContext(keys.Count, basis, keys);
+        }
+    }
+
+    // Best-effort human summary of what the selection was taken against (for the audit basis).
+    private string BuildFilterSummary()
+    {
+        var parts = new List<string>();
+        var fcount = FS.Filters.Count;
+        if (fcount > 0) parts.Add(fcount == 1 ? "1 filter" : $"{fcount} filters");
+        if (!string.IsNullOrEmpty(_quickSearch)) parts.Add($"search \u201c{_quickSearch}\u201d");
+        return parts.Count == 0 ? "all rows (no filter)" : string.Join(", ", parts);
+    }
+
+    // Offer-button handler: confirm-gate above the threshold, refuse above the cap, else engage.
+    private async Task RequestSelectAllMatchingAsync()
+    {
+        var total = PaginationTotalCount;
+        if (total > BulkSelectAllMax) return;                 // UI hides the action; guard anyway
+        if (total > BulkSelectAllConfirmAt) { _bulkConfirmPending = true; StateHasChanged(); return; }
+        await SelectAllMatchingAsync();
+    }
+
+    private void CancelBulkConfirm() => _bulkConfirmPending = false;
+
+    // Snapshot every key matching the current filter+search and union into the selection. The basis
+    // is captured here so the host's audit reflects what the user engaged, not whatever matches later.
+    private async Task SelectAllMatchingAsync()
+    {
+        var matching = FilteredItems;          // membership = current filter+search (pre-pagination)
+        var total = matching.Count;
+        if (total > BulkSelectAllMax) { _bulkConfirmPending = false; return; }
+        var keys = matching.Select(RowKey).ToArray();
+        _basis = new SelectionBasis(SelectionBasisMode.AllMatching, BuildFilterSummary(), total, DateTimeOffset.Now);
+        _allMatchingEngaged = true;
+        _bulkConfirmPending = false;
+        await ApplySelectionChangeAsync(keys, Array.Empty<object>(), SelectionChangeReason.UserSelectAllAcrossPages);
+    }
+
+    // The canonical clear lives in the public ClearSelectionAsync (ValueTask) below; it now also
+    // resets the 4c basis/engaged/confirm state. EventCallback can't bind a ValueTask-returning
+    // method group to @onclick, so the banner/bar buttons go through this Task wrapper.
+    private Task ClearSelectionClickAsync() => ClearSelectionAsync().AsTask();
+
     // Density → checkbox size (compact=Small, comfortable/spacious=Medium). §14.3
     private LiPi.Components.InputSize CheckboxSize =>
         Density == TableDensity.Compact
@@ -2168,6 +2309,10 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     public async ValueTask ClearSelectionAsync()
     {
         _anchorKey = null;   // §5.4.2 — clearing selection resets the range anchor
+        // S4c — clearing ends any "all matching" engagement and dismisses the confirm sub-state.
+        _basis = null;
+        _allMatchingEngaged = false;
+        _bulkConfirmPending = false;
         if (_selectedKeys.Count == 0) return;
         var all = _selectedKeys.ToArray();
         await ApplySelectionChangeAsync(Array.Empty<object>(), all,
