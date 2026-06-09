@@ -48,6 +48,34 @@
     </div>
 
     <div class="sg-section">
+        <h2>FilterMode.FilterBar — floating filter row under the header</h2>
+        <p class="sg-note-p">
+            A compact filter control sits under each column header, aligned to the grid: text columns
+            get a contains box, Department / Status get an (all) select, Joined gets a from–to date pair,
+            Monthly CTC gets a min–max pair, Active gets an (all) / True / False select. Controls commit on
+            change (blur / Enter / select); non-filterable columns render a blank cell. The row sticks just
+            below the header on scroll.
+        </p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-bar"
+                   FilterMode="FilterMode.FilterBar">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
         <h2>Drawer mode — S3c (PR3)</h2>
         <p class="sg-note-p">
             The same columns and data with <code>FilterMode="FilterMode.Drawer"</code>. The per-column
@@ -202,6 +230,162 @@
     </div>
 
     <div class="sg-section">
+        <h2>Filter sidebar — S3d (PR4)</h2>
+        <p class="sg-note-p">Persistent docked panel (<code>FilterMode="FilterMode.Sidebar"</code>). Each column
+            offers <strong>Values</strong> (distinct-value checklist with counts, search and select-all = the
+            <code>In</code> operator) and <strong>Condition</strong> (operator + editor). Low-cardinality
+            string/status columns (Department, Status) open in Values by default; numeric/date open in Condition;
+            boolean shows its tri-state. This table pins <code>FilterApplyMode="FilterApplyMode.Apply"</code> (Clear&nbsp;all / Apply footer); the default is now <code>Live</code>. Set <code>FilterSidebarSide="FilterSidebarSide.Right"</code>,
+            <code>FilterSidebarWidthPx</code>, or <code>FilterApplyMode="FilterApplyMode.Live"</code> to vary.</p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-sidebar"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   FilterMode="FilterMode.Sidebar"
+                   FilterSidebarSide="FilterSidebarSide.Left"
+                   FilterApplyMode="FilterApplyMode.Apply">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Filter sidebar — right side, live</h2>
+        <p class="sg-note-p">Right-docked and live: <code>FilterSidebarSide="FilterSidebarSide.Right"</code> +
+            <code>FilterApplyMode="FilterApplyMode.Live"</code> (filters as you tick/type; no Apply button).</p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-sidebar-live"
+                   ShowQuickSearch="true" HighlightMatches="true"
+                   FilterMode="FilterMode.Sidebar"
+                   FilterSidebarSide="FilterSidebarSide.Right"
+                   FilterApplyMode="FilterApplyMode.Live">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Filter slicers — S3e (PR5b)</h2>
+        <p class="sg-note-p">Standalone <code>&lt;LipiSlicer&gt;</code> components bound by reference to one
+            <code>LipiFilterState</code> shared with the table (<code>FilterState="_slicerState"</code>). Counts
+            are <strong>faceted</strong> — each slicer reflects the others' selections, and selecting in any
+            slicer filters the table live. The table uses <code>FilterMode="FilterMode.None"</code> so the slicers
+            are the only filter UI. String/status → value tiles; boolean → True/False; currency →
+            range inputs; date → range picker.</p>
+
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;align-items:flex-start;">
+            <LipiSlicer TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Type="ColumnType.Status" Items="@_staff" FilterState="_slicerState" />
+            <LipiSlicer TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Type="ColumnType.Status" Items="@_staff" FilterState="_slicerState" />
+            <LipiSlicer TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Type="ColumnType.Boolean" Header="Active" Items="@_staff" FilterState="_slicerState" />
+            <LipiSlicer TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Type="ColumnType.Currency" Header="Monthly CTC" Items="@_staff" FilterState="_slicerState" />
+            <LipiSlicer TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Type="ColumnType.Date" Header="Joined" Items="@_staff" FilterState="_slicerState" />
+        </div>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-slicer"
+                   FilterState="_slicerState" FilterMode="FilterMode.None"
+                   ShowQuickSearch="true" HighlightMatches="true">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                        Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                        Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                        Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                        Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                        Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                        Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
+    <div class="sg-section">
+        <h2>Slicer panel — S3f (PR5c)</h2>
+        <p class="sg-note-p">A managed slicer pane: the developer curates candidates with
+            <code>&lt;LipiSlicerOption&gt;</code> children (Department + Status shown by default; Active, Monthly
+            CTC, Joined available but hidden), the user toggles the pane (<strong>Hide</strong>) and picks columns
+            via <strong>Columns</strong>. Left-docked here (<code>Placement="SlicerPlacement.Left"</code>); the
+            panel also supports Right / Top / Bottom. Session-only state (a <code>Persist</code> parameter is
+            now wired via <code>Persist="true" PreferenceKey="sg-slicer-panel"</code> — your Hide/Show + column choices survive reload). With no options it would auto-derive candidates from the
+            table's filterable columns.</p>
+
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+            @if (_filtersOpen)
+            {
+            <LipiSlicerPanel TItem="DemoStaff" FilterState="_panelState" Items="@_staff"
+                             Title="Filters" Placement="SlicerPlacement.Left" Collapsible="false"
+                             Persist="true" PreferenceKey="sg-slicer-panel">
+                <LipiSlicerOption TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                                  Type="ColumnType.Status" DefaultVisible="true" />
+                <LipiSlicerOption TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                                  Type="ColumnType.Status" DefaultVisible="true" />
+                <LipiSlicerOption TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                                  Type="ColumnType.Boolean" Header="Active" DefaultVisible="false" />
+                <LipiSlicerOption TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                                  Type="ColumnType.Currency" Header="Monthly CTC" DefaultVisible="false" />
+                <LipiSlicerOption TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                                  Type="ColumnType.Date" Header="Joined" DefaultVisible="false" />
+            </LipiSlicerPanel>
+            }
+
+            <div style="flex:1;min-width:0;">
+                <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filters-panel"
+                           FilterState="_panelState" FilterMode="FilterMode.None"
+                           ShowQuickSearch="true" HighlightMatches="true">
+                    <ToolbarStart>
+                        <button type="button" @onclick="ToggleFilters"
+                                style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--color-border-strong,#94a3b8);border-radius:6px;background:var(--color-bg-base,#fff);color:var(--color-text-secondary,#475569);font:inherit;font-size:.8125rem;cursor:pointer;">
+                            @(_filtersOpen ? "Hide filters" : "Show filters")
+                        </button>
+                    </ToolbarStart>
+                    <ChildContent>
+                    <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+                    <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)"
+                                Header="Code" Type="ColumnType.Mono" />
+                    <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)"
+                                Header="Department" Type="ColumnType.Status" />
+                    <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"
+                                Header="Joined" Type="ColumnType.Date" />
+                    <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)"
+                                Header="Monthly CTC" Type="ColumnType.Currency" />
+                    <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)"
+                                Header="Active" Type="ColumnType.Boolean" />
+                    <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)"
+                                Header="Status" Type="ColumnType.Status" />
+                    </ChildContent>
+                </LipiTable>
+            </div>
+        </div>
+    </div>
+
+    <div class="sg-section">
         <h2>Notes</h2>
         <ul class="sg-notes">
             <li><code>OperatorsFor(ColumnType)</code> drives which operators each header offers — numeric,
@@ -214,6 +398,37 @@
             <li>Between uses both <code>Value</code> and <code>ValueEnd</code> on the descriptor.</li>
         </ul>
     </div>
+    <div class="sg-section">
+        <h2>LipiFilterBar — standalone, editable filter toolbar (PR6b)</h2>
+        <p class="sg-note-p">
+            A standalone bar bound to a shared <code>LipiFilterState</code> — not a table FilterMode.
+            Curated <code>&lt;LipiFilterBarItem&gt;</code> children define the candidates; "Add filter"
+            adds one, clicking a pill edits it (the same shared <code>&lt;LipiFilterEditor&gt;</code>
+            the table surfaces use), and the &times; removes it. The bar and the table below share one
+            state, so the bar drives the table. Live apply — edits commit as you type (debounced).
+        </p>
+
+        <LipiFilterBar TItem="DemoStaff" FilterState="_barState" Items="@_staff">
+            <LipiFilterBarItem TItem="DemoStaff" TValue="string"   Field="@(s => s.Name)"       Header="Name"        Type="ColumnType.Text" />
+            <LipiFilterBarItem TItem="DemoStaff" TValue="string"   Field="@(s => s.Department)" Header="Department"  Type="ColumnType.Status" />
+            <LipiFilterBarItem TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)"   Header="Joined"      Type="ColumnType.Date" />
+            <LipiFilterBarItem TItem="DemoStaff" TValue="decimal"  Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiFilterBarItem TItem="DemoStaff" TValue="bool"     Field="@(s => s.IsActive)"   Header="Active"      Type="ColumnType.Boolean" />
+            <LipiFilterBarItem TItem="DemoStaff" TValue="string"   Field="@(s => s.Status)"     Header="Status"      Type="ColumnType.Status" />
+        </LipiFilterBar>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-filterbar-shared"
+                   FilterState="_barState" FilterMode="FilterMode.None">
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)" Header="Code" Type="ColumnType.Mono" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" Type="ColumnType.Status" />
+            <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+            <LipiColumn TItem="DemoStaff" TValue="decimal" Field="@(s => s.MonthlyCtc)" Header="Monthly CTC" Type="ColumnType.Currency" />
+            <LipiColumn TItem="DemoStaff" TValue="bool" Field="@(s => s.IsActive)" Header="Active" Type="ColumnType.Boolean" />
+            <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+        </LipiTable>
+    </div>
+
 </div>
 
 @code {
@@ -226,6 +441,19 @@
         decimal MonthlyCtc,
         bool IsActive,
         string Status);
+
+    // PR5b — one shared filter state drives the slicer-bar demo table.
+    private readonly LipiFilterState<DemoStaff> _slicerState = new();
+
+    // PR5c — shared state for the slicer-panel demo table.
+    private readonly LipiFilterState<DemoStaff> _panelState = new();
+
+    // PR6b — shared state: <LipiFilterBar> drives this demo table.
+    private readonly LipiFilterState<DemoStaff> _barState = new();
+
+    // PR6b: the slicer-panel demo's show/hide now lives in the table toolbar (ToolbarStart).
+    private bool _filtersOpen = true;
+    private void ToggleFilters() => _filtersOpen = !_filtersOpen;
 
     private readonly List<DemoStaff> _staff = new()
     {
