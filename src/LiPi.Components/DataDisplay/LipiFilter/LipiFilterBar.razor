@@ -1,0 +1,314 @@
+@*  LipiFilterBar<TItem> (PR6b) — standalone, editable filter toolbar bound to a shared
+    LipiFilterState<TItem>. Renders a pill per active filter (click to edit, x to remove), an
+    "Add filter" menu of unused filterable columns, and "Clear all". Candidates are either curated
+    <LipiFilterBarItem> children or auto-derived from FilterState.Candidates(). Each pill edits via
+    the shared <LipiFilterEditor>; commit goes through LipiFilterOperators.BuildDescriptor — same
+    engine as LipiTable, no drift. Not a FilterMode variant; renders inline where it is dropped.  *@
+@typeparam TItem
+@namespace LiPi.Components.DataDisplay
+@implements IDisposable
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using System.Threading
+@using System.Threading.Tasks
+
+@* CROSS-REF: CHANGE-LOG.md A65 (PR6b) ; SPEC: §S3g (filter bar) *@
+
+<CascadingValue Value="this" IsFixed="true">@ChildContent</CascadingValue>
+
+<div class="lipi-filterbar" role="group" aria-label="Filters">
+    @foreach (var spec in ActiveSpecs())
+    {
+        var key = spec.Key;
+        <div class="lipi-filterbar-pill-wrap">
+            <button type="button" class="lipi-filterbar-pill @(_openKey == key ? "lipi-filterbar-pill--open" : null)"
+                    @onclick="@(() => OpenEditor(key))">
+                <span class="lipi-filterbar-pill-field">@spec.Header</span>
+                <span class="lipi-filterbar-pill-sep">:</span>
+                <span class="lipi-filterbar-pill-val">@SummaryFor(spec)</span>
+            </button>
+            <button type="button" class="lipi-filterbar-pill-x" aria-label="@($"Remove {spec.Header} filter")"
+                    @onclick="@(() => RemoveFilter(key))">&times;</button>
+
+            @if (_openKey == key)
+            {
+                <div class="lipi-filterbar-backdrop" @onclick="CloseEditor"></div>
+                <div class="lipi-filterbar-pop" @onclick:stopPropagation="true">
+                    @EditorPanel(spec)
+                </div>
+            }
+        </div>
+    }
+
+    <div class="lipi-filterbar-add-wrap">
+        <button type="button" class="lipi-filterbar-add" @onclick="ToggleAddMenu"
+                disabled="@(AvailableSpecs().Count == 0)">
+            <span class="lipi-filterbar-add-plus">+</span> @AddLabel
+        </button>
+
+        @if (_addMenuOpen)
+        {
+            <div class="lipi-filterbar-backdrop" @onclick="CloseAddMenu"></div>
+            <div class="lipi-filterbar-menu" @onclick:stopPropagation="true">
+                @foreach (var spec in AvailableSpecs())
+                {
+                    var key = spec.Key;
+                    <button type="button" class="lipi-filterbar-menu-item" @onclick="@(() => AddFilter(key))">@spec.Header</button>
+                }
+            </div>
+        }
+
+        @* Editor for a freshly-added column that has no committed filter yet. *@
+        @if (_openKey is not null && !IsActive(_openKey) && SpecFor(_openKey) is { } pending)
+        {
+            <div class="lipi-filterbar-backdrop" @onclick="CloseEditor"></div>
+            <div class="lipi-filterbar-pop" @onclick:stopPropagation="true">
+                @EditorPanel(pending)
+            </div>
+        }
+    </div>
+
+    @if (FilterState is not null && FilterState.Active)
+    {
+        <button type="button" class="lipi-filterbar-clear" @onclick="ClearAll">@ClearAllLabel</button>
+    }
+</div>
+
+@code {
+    /// <summary>Shared filter state this bar reads from / commits to (also bound to a table/slicer).</summary>
+    [Parameter, EditorRequired] public LipiFilterState<TItem> FilterState { get; set; } = default!;
+
+    /// <summary>Source rows used to compute distinct values for In/Status editors.</summary>
+    [Parameter] public IEnumerable<TItem>? Items { get; set; }
+
+    /// <summary>Optional curated &lt;LipiFilterBarItem&gt; children. When absent, candidates come
+    /// from FilterState.Candidates().</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Live commits on each change; Apply commits only via the popover Apply button.</summary>
+    [Parameter] public FilterApplyMode ApplyMode { get; set; } = FilterApplyMode.Live;
+
+    [Parameter] public string AddLabel { get; set; } = "Add filter";
+    [Parameter] public string ClearAllLabel { get; set; } = "Clear all";
+
+    /// <summary>Date picker config (forwarded to the editor).</summary>
+    [Parameter] public TimeZoneInfo? TimeZone { get; set; }
+    [Parameter] public DayOfWeek WeekStart { get; set; } = DayOfWeek.Sunday;
+    [Parameter] public bool IndependentMonths { get; set; }
+
+    /// <summary>Bar-level default for relative-date operator buckets, inherited by any candidate that
+    /// doesn't set its own. Resolution per column: item's <c>RelativeDateSpans</c> ?? this ?? <see
+    /// cref="DateSpan.All"/>. Auto-derived candidates (no curated &lt;LipiFilterBarItem&gt;) inherit
+    /// this ?? All. Gates only the relative date operators; absolute operators and the range picker
+    /// are unaffected, and non-date columns ignore it.</summary>
+    [Parameter] public DateSpan? RelativeDateSpans { get; set; }
+
+    private readonly List<SlicerColumnSpec<TItem>> _curated = new();
+    private readonly Dictionary<string, LipiFilterDraft> _drafts = new();
+    private readonly Dictionary<string, DateSpan?> _itemSpans = new();
+    private string? _openKey;
+    private bool _addMenuOpen;
+    private CancellationTokenSource? _liveCts;
+
+    protected override void OnInitialized()
+    {
+        if (FilterState is not null) FilterState.Changed += OnStateChanged;
+    }
+
+    // ── curated child registration (LipiFilterBarItem) ──
+    internal void RegisterItem(SlicerColumnSpec<TItem> spec, DateSpan? relativeDateSpans = null)
+    {
+        var i = _curated.FindIndex(s => s.Key == spec.Key);
+        if (i >= 0) _curated[i] = spec; else _curated.Add(spec);
+        _itemSpans[spec.Key] = relativeDateSpans;
+        FilterState?.RegisterColumn(spec.Key, spec.Accessor, spec.Type, spec.Header, true);
+        StateHasChanged();
+    }
+    internal void UnregisterItem(string key)
+    {
+        _curated.RemoveAll(s => s.Key == key);
+        _itemSpans.Remove(key);
+        StateHasChanged();
+    }
+
+    // ── relative-date span resolution (Option B): per-item ?? bar default ?? All ──
+    // Curated <LipiFilterBarItem> children register their own span; auto-derived candidates
+    // aren't in the map and fall through to the bar default, then All. Threaded into both the
+    // operator list (SeedFresh) and the shared editor. Mirrors LipiColumn's column ?? table ?? All.
+    private DateSpan SpansFor(string key)
+        => (_itemSpans.TryGetValue(key, out var s) ? s : null) ?? RelativeDateSpans ?? DateSpan.All;
+
+    // ── candidate resolution ──
+    private IReadOnlyList<SlicerColumnSpec<TItem>> AllSpecs()
+        => _curated.Count > 0
+            ? _curated
+            : (FilterState?.Candidates() ?? (IReadOnlyList<SlicerColumnSpec<TItem>>)Array.Empty<SlicerColumnSpec<TItem>>());
+
+    private SlicerColumnSpec<TItem>? SpecFor(string key) => AllSpecs().FirstOrDefault(s => s.Key == key);
+    private bool IsActive(string key) => FilterState?.FilterFor(key) is not null;
+    private IReadOnlyList<SlicerColumnSpec<TItem>> ActiveSpecs() => AllSpecs().Where(s => IsActive(s.Key)).ToList();
+    private IReadOnlyList<SlicerColumnSpec<TItem>> AvailableSpecs()
+        => AllSpecs().Where(s => !IsActive(s.Key) && s.Key != _openKey).ToList();
+
+    // ── editor panel fragment (shared for active pills + pending add) ──
+    private RenderFragment EditorPanel(SlicerColumnSpec<TItem> spec) => @<text>
+        <div class="lipi-filterbar-pop-head">
+            <span>@spec.Header</span>
+            @if (ApplyMode == FilterApplyMode.Live)
+            {
+                <span class="lipi-filterbar-live">live</span>
+            }
+        </div>
+        <div class="lipi-filterbar-pop-body">
+            <LipiFilterEditor ColumnKey="@spec.Key"
+                              Type="spec.Type"
+                              RelativeDateSpans="SpansFor(spec.Key)"
+                              Draft="DraftFor(spec.Key)"
+                              DistinctValues="DistinctValuesFor(spec)"
+                              TimeZone="@TimeZone"
+                              WeekStart="@WeekStart"
+                              IndependentMonths="@IndependentMonths"
+                              OperatorChanged="@(e => OnOperatorChanged(spec, e))"
+                              ValueChanged="@(e => OnValueChanged(spec, e))"
+                              ValueEndChanged="@(e => OnValueEndChanged(spec, e))"
+                              ToggleMulti="@(t => OnToggleMulti(spec, t))"
+                              DateStartChanged="@(v => OnDateChanged(spec, true, v))"
+                              DateEndChanged="@(v => OnDateChanged(spec, false, v))" />
+            <div class="lipi-filterbar-pop-actions">
+                <button type="button" class="lipi-filterbar-pop-clear"
+                        @onclick="@(() => { RemoveFilter(spec.Key); CloseEditor(); })">Clear</button>
+                @if (ApplyMode == FilterApplyMode.Apply)
+                {
+                    <button type="button" class="lipi-filterbar-pop-apply"
+                            @onclick="@(() => { Commit(spec); CloseEditor(); })">Apply</button>
+                }
+            </div>
+        </div>
+    </text>;
+
+    // ── open/close ──
+    private void OpenEditor(string key)
+    {
+        if (_openKey == key) { _openKey = null; return; }
+        SeedFresh(key);
+        _openKey = key; _addMenuOpen = false;
+    }
+    private void CloseEditor() => _openKey = null;
+    private void ToggleAddMenu() { _addMenuOpen = !_addMenuOpen; _openKey = null; }
+    private void CloseAddMenu() => _addMenuOpen = false;
+    private void AddFilter(string key) { SeedFresh(key); _openKey = key; _addMenuOpen = false; }
+
+    private void SeedFresh(string key)
+    {
+        var type = SpecFor(key)?.Type ?? ColumnType.Text;
+        _drafts[key] = LipiFilterOperators.SeedDraft(
+            FilterState?.FilterFor(key), type, LipiFilterOperators.OperatorsFor(type, SpansFor(key)));
+    }
+    private LipiFilterDraft DraftFor(string key)
+    {
+        if (_drafts.TryGetValue(key, out var d)) return d;
+        SeedFresh(key);
+        return _drafts[key];
+    }
+
+    // ── draft mutation + commit (host owns policy; Live debounces value typing) ──
+    private void OnOperatorChanged(SlicerColumnSpec<TItem> spec, ChangeEventArgs e)
+    {
+        var d = DraftFor(spec.Key);
+        if (Enum.TryParse<FilterOperator>(e.Value?.ToString(), out var op))
+        {
+            d.Operator = op;
+            if (ApplyMode == FilterApplyMode.Live) Commit(spec);
+        }
+    }
+    private Task OnValueChanged(SlicerColumnSpec<TItem> spec, ChangeEventArgs e)
+    {
+        DraftFor(spec.Key).Value = e.Value?.ToString() ?? string.Empty;
+        return ApplyMode == FilterApplyMode.Live ? DebouncedCommit(spec) : Task.CompletedTask;
+    }
+    private Task OnValueEndChanged(SlicerColumnSpec<TItem> spec, ChangeEventArgs e)
+    {
+        DraftFor(spec.Key).ValueEnd = e.Value?.ToString() ?? string.Empty;
+        return ApplyMode == FilterApplyMode.Live ? DebouncedCommit(spec) : Task.CompletedTask;
+    }
+    private void OnToggleMulti(SlicerColumnSpec<TItem> spec, string token)
+    {
+        var d = DraftFor(spec.Key);
+        if (!d.Multi.Remove(token)) d.Multi.Add(token);
+        if (ApplyMode == FilterApplyMode.Live) Commit(spec);
+    }
+    private void OnDateChanged(SlicerColumnSpec<TItem> spec, bool start, DateOnly? v)
+    {
+        var d = DraftFor(spec.Key);
+        if (start) d.DateStart = v; else d.DateEnd = v;
+        if (ApplyMode == FilterApplyMode.Live) Commit(spec);
+    }
+
+    private void Commit(SlicerColumnSpec<TItem> spec)
+    {
+        if (FilterState is null) return;
+        var desc = LipiFilterOperators.BuildDescriptor(spec.Key, DraftFor(spec.Key), spec.Type);
+        if (desc is null) FilterState.SetColumn(spec.Key, FilterChangeReason.UserApplyPopover);
+        else FilterState.SetColumn(spec.Key, FilterChangeReason.UserApplyPopover, desc);
+    }
+    private async Task DebouncedCommit(SlicerColumnSpec<TItem> spec)
+    {
+        _liveCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _liveCts = cts;
+        try { await Task.Delay(300, cts.Token); }
+        catch (TaskCanceledException) { return; }
+        if (cts.IsCancellationRequested) return;
+        Commit(spec);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void RemoveFilter(string key)
+    {
+        _drafts.Remove(key);
+        FilterState?.RemoveColumn(key, FilterChangeReason.UserRemoveChip);
+    }
+    private void ClearAll()
+    {
+        _drafts.Clear();
+        _openKey = null;
+        FilterState?.Clear(FilterChangeReason.UserClearAll);
+    }
+
+    // ── helpers ──
+    private IReadOnlyList<string> DistinctValuesFor(SlicerColumnSpec<TItem> spec)
+    {
+        if (Items is null) return Array.Empty<string>();
+        var set = new SortedSet<string>(StringComparer.CurrentCulture);
+        foreach (var row in Items)
+        {
+            var v = spec.Accessor(row)?.ToString();
+            if (!string.IsNullOrEmpty(v)) set.Add(v);
+        }
+        return set.ToList();
+    }
+
+    private string SummaryFor(SlicerColumnSpec<TItem> spec)
+    {
+        var f = FilterState?.FilterFor(spec.Key);
+        if (f is null) return string.Empty;
+        var label = LipiFilterOperators.OperatorLabelFor(spec.Type, f.Operator);
+        string val = f.Operator switch
+        {
+            FilterOperator.In => f.Value is System.Collections.IEnumerable en
+                ? string.Join(", ", en.Cast<object?>().Select(x => x?.ToString())) : string.Empty,
+            FilterOperator.Between => $"{f.Value} \u2013 {f.ValueEnd}",
+            _ => f.Value?.ToString() ?? string.Empty
+        };
+        return string.IsNullOrEmpty(val) ? label : $"{label} {val}";
+    }
+
+    private void OnStateChanged(FilterChangedContext ctx) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (FilterState is not null) FilterState.Changed -= OnStateChanged;
+        _liveCts?.Cancel();
+    }
+}

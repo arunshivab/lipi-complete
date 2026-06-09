@@ -1,0 +1,158 @@
+/* LipiFilterBar — pills + add menu + editor popover. Self-sufficient: every var() has a fallback.
+   The bar renders inline (not inside an overflow:hidden grid), so popovers anchor with plain CSS
+   absolute positioning — no JS measurement needed. */
+
+.lipi-filterbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-xs, 6px);
+    padding: var(--sp-xs, 6px);
+}
+
+/* ── active filter pill ── */
+.lipi-filterbar-pill-wrap { position: relative; display: inline-flex; align-items: stretch; }
+
+.lipi-filterbar-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 280px;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--color-border-strong, #94a3b8);
+    border-right: none;
+    border-radius: var(--r-sm, 6px) 0 0 var(--r-sm, 6px);
+    background: var(--color-bg-subtle, #f8fafc);
+    color: var(--color-text-primary, #0f172a);
+    font: inherit;
+    font-size: var(--ts-sm, 0.8125rem);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.lipi-filterbar-pill:hover { background: var(--color-primary-pale, #eff6ff); }
+.lipi-filterbar-pill--open { border-color: var(--color-primary, #2563eb); }
+.lipi-filterbar-pill-field { font-weight: 600; }
+.lipi-filterbar-pill-sep { color: var(--color-text-tertiary, #94a3b8); }
+.lipi-filterbar-pill-val { color: var(--color-text-secondary, #475569); overflow: hidden; text-overflow: ellipsis; }
+
+.lipi-filterbar-pill-x {
+    width: 26px;
+    height: 30px;
+    border: 1px solid var(--color-border-strong, #94a3b8);
+    border-radius: 0 var(--r-sm, 6px) var(--r-sm, 6px) 0;
+    background: var(--color-bg-subtle, #f8fafc);
+    color: var(--color-text-tertiary, #64748b);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+.lipi-filterbar-pill-x:hover { background: var(--color-danger-pale, #fef2f2); color: var(--color-danger, #dc2626); }
+
+/* ── add filter ── */
+.lipi-filterbar-add-wrap { position: relative; display: inline-flex; }
+.lipi-filterbar-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px dashed var(--color-border-strong, #94a3b8);
+    border-radius: var(--r-sm, 6px);
+    background: transparent;
+    color: var(--color-text-secondary, #475569);
+    font: inherit;
+    font-size: var(--ts-sm, 0.8125rem);
+    cursor: pointer;
+}
+.lipi-filterbar-add:hover:not(:disabled) { border-color: var(--color-primary, #2563eb); color: var(--color-primary, #2563eb); }
+.lipi-filterbar-add:disabled { opacity: 0.5; cursor: default; }
+.lipi-filterbar-add-plus { font-size: 15px; line-height: 1; }
+
+.lipi-filterbar-clear {
+    height: 30px;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--r-sm, 6px);
+    background: transparent;
+    color: var(--color-text-tertiary, #64748b);
+    font: inherit;
+    font-size: var(--ts-sm, 0.8125rem);
+    cursor: pointer;
+}
+.lipi-filterbar-clear:hover { color: var(--color-danger, #dc2626); text-decoration: underline; }
+
+/* ── shared dropdown chrome (menu + editor popover) ── */
+.lipi-filterbar-backdrop { position: fixed; inset: 0; z-index: 40; }
+
+.lipi-filterbar-menu,
+.lipi-filterbar-pop {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 41;
+    min-width: 220px;
+    max-width: 320px;
+    background: var(--color-bg-base, #fff);
+    border: 1px solid var(--color-border-default, #e2e8f0);
+    border-radius: var(--r-md, 8px);
+    box-shadow: var(--shadow-lg, 0 10px 24px rgba(15, 23, 42, 0.14));
+    padding: var(--sp-sm, 10px);
+}
+
+.lipi-filterbar-menu { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-xs, 4px); }
+.lipi-filterbar-menu-item {
+    text-align: left;
+    padding: 6px 8px;
+    border: none;
+    border-radius: var(--r-sm, 6px);
+    background: transparent;
+    color: var(--color-text-primary, #0f172a);
+    font: inherit;
+    font-size: var(--ts-sm, 0.8125rem);
+    cursor: pointer;
+}
+.lipi-filterbar-menu-item:hover { background: var(--color-primary-pale, #eff6ff); }
+
+.lipi-filterbar-pop-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: var(--ts-sm, 0.8125rem);
+    color: var(--color-text-primary, #0f172a);
+    margin-bottom: var(--sp-xs, 6px);
+}
+.lipi-filterbar-live {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-primary, #2563eb);
+    background: var(--color-primary-pale, #eff6ff);
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+.lipi-filterbar-pop-actions { display: flex; gap: 8px; margin-top: 2px; }
+.lipi-filterbar-pop-clear,
+.lipi-filterbar-pop-apply {
+    flex: 1;
+    height: 32px;
+    border-radius: var(--r-sm, 6px);
+    font: inherit;
+    font-size: var(--ts-sm, 0.8125rem);
+    cursor: pointer;
+}
+.lipi-filterbar-pop-clear {
+    border: 1px solid var(--color-border-strong, #94a3b8);
+    background: var(--color-bg-base, #fff);
+    color: var(--color-text-secondary, #475569);
+}
+.lipi-filterbar-pop-clear:hover { color: var(--color-danger, #dc2626); border-color: var(--color-danger, #dc2626); }
+.lipi-filterbar-pop-apply {
+    border: 1px solid var(--color-primary, #2563eb);
+    background: var(--color-primary, #2563eb);
+    color: #fff;
+}
+.lipi-filterbar-pop-apply:hover { background: var(--color-primary-strong, #1d4ed8); }
