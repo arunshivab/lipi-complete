@@ -1,0 +1,142 @@
+@namespace LiPi.Components.DataDisplay
+@* SPEC: docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §S3 (filter editor) *@
+@* CROSS-REF: CHANGE-LOG.md A65 (PR6b) *@
+@*
+    Presentational, controlled filter editor for ONE column. Extracted from LipiTable.FilterFields
+    so the table's four surfaces (popover / drawer / sidebar / filter bar) AND the standalone
+    <LipiFilterBar> render one editor — single source of truth. It never commits: it mutates the
+    host-owned Draft and raises granular callbacks; the HOST applies its commit policy (Live vs
+    Apply). Non-generic — distinct values for the In/Multi list are supplied pre-computed.
+*@
+
+@if (Type is ColumnType.Date or ColumnType.DateTime)
+{
+    @* Themed range picker IS the date filter (presets replace relative operators). *@
+    <label class="lipi-table-filter-label">Date range</label>
+    <LipiDateRangePicker Name="@($"filt-{ColumnKey}")"
+                         StartValue="Draft.DateStart"
+                         StartValueChanged="@DateStartChanged"
+                         EndValue="Draft.DateEnd"
+                         EndValueChanged="@DateEndChanged"
+                         AllowOpenEnd="true"
+                         PresetDirection="PresetDirection.Both"
+                         PresetSpan="PresetSpan.Year"
+                         TimeZone="@TimeZone"
+                         WeekStart="@WeekStart"
+                         IndependentMonths="@IndependentMonths" />
+}
+else if (Type == ColumnType.Boolean)
+{
+    <label class="lipi-table-filter-label">Match</label>
+    <select class="lipi-table-filter-select" value="@Draft.Value" @onchange="OnValue">
+        <option value="">(Any)</option>
+        <option value="true">True</option>
+        <option value="false">False</option>
+    </select>
+}
+else
+{
+    <label class="lipi-table-filter-label">Operator</label>
+    <select class="lipi-table-filter-select" value="@Draft.Operator" @onchange="OnOperator">
+        @foreach (var op in LipiFilterOperators.OperatorsFor(Type, RelativeDateSpans))
+        {
+            <option value="@op">@LipiFilterOperators.OperatorLabelFor(Type, op)</option>
+        }
+    </select>
+    @switch (LipiFilterOperators.EditorFor(Type, Draft.Operator))
+    {
+        case LipiFilterOperators.FilterEditor.Number:
+            <label class="lipi-table-filter-label">Value</label>
+            <input type="number" class="lipi-table-filter-input" value="@Draft.Value" @oninput="OnValue" />
+            break;
+
+        case LipiFilterOperators.FilterEditor.NumberRange:
+            <label class="lipi-table-filter-label">From / To</label>
+            <div class="lipi-table-filter-range">
+                <input type="number" class="lipi-table-filter-input" value="@Draft.Value" @oninput="OnValue" />
+                <span class="lipi-table-filter-range-sep">–</span>
+                <input type="number" class="lipi-table-filter-input" value="@Draft.ValueEnd" @oninput="OnValueEnd" />
+            </div>
+            break;
+
+        case LipiFilterOperators.FilterEditor.Date:
+            <label class="lipi-table-filter-label">Date</label>
+            <input type="date" class="lipi-table-filter-input" value="@Draft.Value" @oninput="OnValue" />
+            break;
+
+        case LipiFilterOperators.FilterEditor.DateRange:
+            <label class="lipi-table-filter-label">From / To</label>
+            <div class="lipi-table-filter-range">
+                <input type="date" class="lipi-table-filter-input" value="@Draft.Value" @oninput="OnValue" />
+                <span class="lipi-table-filter-range-sep">–</span>
+                <input type="date" class="lipi-table-filter-input" value="@Draft.ValueEnd" @oninput="OnValueEnd" />
+            </div>
+            break;
+
+        case LipiFilterOperators.FilterEditor.RelativeN:
+            <label class="lipi-table-filter-label">Number of days</label>
+            <input type="number" min="0" class="lipi-table-filter-input" value="@Draft.Value" @oninput="OnValue" />
+            break;
+
+        case LipiFilterOperators.FilterEditor.Multi:
+            <label class="lipi-table-filter-label">Select one or more</label>
+            <div class="lipi-table-filter-multi">
+                @foreach (var opt in DistinctValues)
+                {
+                    <label class="lipi-table-filter-multi-item">
+                        <input type="checkbox" checked="@Draft.Multi.Contains(opt)"
+                               @onchange="@(() => ToggleMulti.InvokeAsync(opt))" />
+                        <span>@opt</span>
+                    </label>
+                }
+            </div>
+            break;
+
+        case LipiFilterOperators.FilterEditor.Text:
+            <label class="lipi-table-filter-label">Value</label>
+            <input type="text" class="lipi-table-filter-input" value="@Draft.Value" @oninput="OnValue" />
+            break;
+
+        case LipiFilterOperators.FilterEditor.None:
+        default:
+            break;
+    }
+}
+
+@code {
+    /// <summary>The column key this editor edits (used only for the date picker's Name).</summary>
+    [Parameter, EditorRequired] public string ColumnKey { get; set; } = string.Empty;
+
+    /// <summary>Column type — drives which controls render.</summary>
+    [Parameter] public ColumnType Type { get; set; }
+
+    /// <summary>Resolved relative-date gating (null = all buckets).</summary>
+    [Parameter] public DateSpan? RelativeDateSpans { get; set; }
+
+    /// <summary>Host-owned working draft. The editor mutates value(s) via callbacks, never commits.</summary>
+    [Parameter, EditorRequired] public LipiFilterDraft Draft { get; set; } = new();
+
+    /// <summary>Distinct string values for the In/Multi editor (host supplies, pre-computed).</summary>
+    [Parameter] public IReadOnlyList<string> DistinctValues { get; set; } = System.Array.Empty<string>();
+
+    /// <summary>Date picker config (forwarded).</summary>
+    [Parameter] public TimeZoneInfo? TimeZone { get; set; }
+    [Parameter] public DayOfWeek WeekStart { get; set; } = DayOfWeek.Sunday;
+    [Parameter] public bool IndependentMonths { get; set; }
+
+    /// <summary>Raised when the operator select changes (host updates Draft.Operator + commit policy).</summary>
+    [Parameter] public EventCallback<ChangeEventArgs> OperatorChanged { get; set; }
+    /// <summary>Raised when the primary value input changes.</summary>
+    [Parameter] public EventCallback<ChangeEventArgs> ValueChanged { get; set; }
+    /// <summary>Raised when the upper-bound value input changes.</summary>
+    [Parameter] public EventCallback<ChangeEventArgs> ValueEndChanged { get; set; }
+    /// <summary>Raised when an In/Multi checkbox toggles (token passed).</summary>
+    [Parameter] public EventCallback<string> ToggleMulti { get; set; }
+    /// <summary>Raised by the date picker (forwarded to the host).</summary>
+    [Parameter] public EventCallback<DateOnly?> DateStartChanged { get; set; }
+    [Parameter] public EventCallback<DateOnly?> DateEndChanged { get; set; }
+
+    private Task OnOperator(ChangeEventArgs e) => OperatorChanged.InvokeAsync(e);
+    private Task OnValue(ChangeEventArgs e) => ValueChanged.InvokeAsync(e);
+    private Task OnValueEnd(ChangeEventArgs e) => ValueEndChanged.InvokeAsync(e);
+}
