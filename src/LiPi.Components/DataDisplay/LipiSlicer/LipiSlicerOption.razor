@@ -1,0 +1,71 @@
+@*  LipiSlicerOption<TItem, TValue> (PR5c) — a declarative slicer candidate, child of LipiSlicerPanel.
+    Mirrors LipiColumn: captures Field/Type/Header/DefaultVisible, derives ColumnKey with the exact
+    ExpressionPath logic, and registers a type-erased SlicerColumnSpec<TItem> with the parent panel.
+    Renders no DOM.  *@
+@typeparam TItem
+@typeparam TValue
+@implements IDisposable
+@namespace LiPi.Components.DataDisplay
+@using System
+@using System.Linq.Expressions
+@using LiPi.Components.Shared.Internal
+
+@code {
+    [CascadingParameter] private LipiSlicerPanel<TItem>? Panel { get; set; }
+
+    [Parameter] public Expression<Func<TItem, TValue>>? Field { get; set; }
+    [Parameter] public string? ColumnKey { get; set; }
+    [Parameter] public ColumnType Type { get; set; } = ColumnType.Text;
+    [Parameter] public string? Header { get; set; }
+    /// <summary>Whether this column's slicer is shown by default (the user can toggle it). Default true.</summary>
+    [Parameter] public bool DefaultVisible { get; set; } = true;
+
+    private string _key = string.Empty;
+    private bool _registered;
+
+    protected override void OnInitialized()
+    {
+        if (Panel is null)
+            throw new InvalidOperationException("LipiSlicerOption must be a child of LipiSlicerPanel.");
+        _key = ResolveKey();
+        Panel.RegisterOption(new SlicerColumnSpec<TItem>(
+            _key, ResolveHeader(_key), Type, BuildAccessor(), DefaultVisible));
+        _registered = true;
+    }
+
+    private Func<TItem, object?> BuildAccessor()
+    {
+        if (Field is not null) { var c = Field.Compile(); return it => c(it); }
+        return _ => null;
+    }
+    private string ResolveKey()
+    {
+        if (!string.IsNullOrWhiteSpace(ColumnKey)) return ColumnKey!;
+        if (Field is not null) { var p = ExpressionPath(Field.Body); if (!string.IsNullOrEmpty(p)) return p; }
+        return Header ?? $"opt-{Guid.NewGuid():N}";
+    }
+    private string ResolveHeader(string key)
+    {
+        if (!string.IsNullOrWhiteSpace(Header)) return Header!;
+        if (Field is not null) { var leaf = LeafMember(Field.Body); if (!string.IsNullOrEmpty(leaf)) return IdentifierHumanizer.Humanize(leaf); }
+        return IdentifierHumanizer.Humanize(key);
+    }
+    private static string ExpressionPath(Expression expr)
+    {
+        if (expr is UnaryExpression u) return ExpressionPath(u.Operand);
+        if (expr is MemberExpression m)
+        {
+            var inner = m.Expression is MemberExpression ? ExpressionPath(m.Expression) + "." : string.Empty;
+            return inner + m.Member.Name;
+        }
+        return string.Empty;
+    }
+    private static string LeafMember(Expression expr)
+    {
+        if (expr is UnaryExpression u) return LeafMember(u.Operand);
+        if (expr is MemberExpression m) return m.Member.Name;
+        return string.Empty;
+    }
+
+    public void Dispose() { if (_registered) Panel?.UnregisterOption(_key); }
+}

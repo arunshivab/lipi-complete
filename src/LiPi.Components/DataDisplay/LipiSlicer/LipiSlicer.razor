@@ -1,0 +1,361 @@
+@*  SPEC: docs/00-COMPONENTS — Phase 2.8 Data Display / filtering (PR5b, standalone slicer).
+    LipiSlicer<TItem, TValue> — a standalone (Model B) value-selection surface that binds BY
+    REFERENCE to a shared LipiFilterState<TItem> and its own Items. It targets one column via a
+    Field expression (ColumnKey derived exactly like LipiColumn) and commits live to the state:
+      • string/status/text/mono/link → distinct-value tiles (the In operator), faceted + counts
+      • boolean                      → True / False tiles (IsTrue / IsFalse)
+      • number/currency              → min / max range inputs (Between / GTE / LTE)
+      • date/datetime                → LipiDateRangePicker (Between / GTE / LTE)
+    Counts are FACETED: the value list reflects every OTHER column's active filter (via
+    FilterState.Apply excluding this column), then groups this column. Always live — a slicer has
+    no Apply button. Reuses the same engine as the table; no new filtering logic.  *@
+@typeparam TItem
+@typeparam TValue
+@implements IDisposable
+@namespace LiPi.Components.DataDisplay
+@using System
+@using System.Collections
+@using System.Collections.Generic
+@using System.Linq
+@using System.Linq.Expressions
+@using System.Globalization
+@using LiPi.Components.Forms
+@using LiPi.Components.Shared.Internal
+
+<div class="lipi-slicer @Class">
+    <div class="lipi-slicer-head">
+        <span class="lipi-slicer-title">@_headerText</span>
+        @if (IsValueList)
+        {
+            <button type="button" class="lipi-slicer-selall" @onclick="@(() => SelectAll(AllTokens))">
+                @(AllSelected ? "Clear all" : "Select all")
+            </button>
+        }
+        else if (HasSelection)
+        {
+            <button type="button" class="lipi-slicer-clear" @onclick="ClearThis">Clear</button>
+        }
+    </div>
+    <div class="lipi-slicer-body">
+        @if (IsBoolean)
+        {
+            var b = BoolSelection();
+            <div class="lipi-slicer-tiles">
+                <button type="button" class="lipi-slicer-tile @(b == true ? "is-on" : string.Empty)"
+                        @onclick="@(() => SetBool(true))">True</button>
+                <button type="button" class="lipi-slicer-tile @(b == false ? "is-on" : string.Empty)"
+                        @onclick="@(() => SetBool(false))">False</button>
+            </div>
+        }
+        else if (IsNumeric)
+        {
+            var (min, max) = NumericSelection();
+            var (hmin, hmax) = NumericHints();
+            <div class="lipi-slicer-range">
+                <input type="number" class="lipi-slicer-num"
+                       placeholder="@(hmin is { } a ? a.ToString("0.##", CultureInfo.InvariantCulture) : "Min")"
+                       value="@(min is { } mv ? mv.ToString("0.##", CultureInfo.InvariantCulture) : string.Empty)"
+                       @onchange="OnMinInput" />
+                <span class="lipi-slicer-dash">–</span>
+                <input type="number" class="lipi-slicer-num"
+                       placeholder="@(hmax is { } z ? z.ToString("0.##", CultureInfo.InvariantCulture) : "Max")"
+                       value="@(max is { } xv ? xv.ToString("0.##", CultureInfo.InvariantCulture) : string.Empty)"
+                       @onchange="OnMaxInput" />
+            </div>
+        }
+        else if (IsDate)
+        {
+            var (s, e) = DateSelection();
+            <LipiDateRangePicker Name="@_key" StartValue="@s" EndValue="@e"
+                                 StartValueChanged="OnDateStart" EndValueChanged="OnDateEnd"
+                                 AllowOpenEnd="true" IndependentMonths="@IndependentMonths" />
+        }
+        else
+        {
+            var facets = Facets();
+            var sel = SelectedTokens();
+            var shown = string.IsNullOrWhiteSpace(_search)
+                ? facets
+                : facets.Where(f => f.Value.Contains(_search!, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            @if (facets.Count > SearchThreshold || !string.IsNullOrWhiteSpace(_search))
+            {
+                <input type="text" class="lipi-slicer-search" placeholder="Search" @oninput="OnSearch" />
+            }
+            <div class="lipi-slicer-tiles lipi-slicer-tiles--wrap">
+                @foreach (var (val, cnt) in shown)
+                {
+                    var token = val;
+                    var on = sel.Contains(token);
+                    <button type="button" class="lipi-slicer-chip @(on ? "is-on" : string.Empty)"
+                            @onclick="@(() => ToggleValue(token))">
+                        <span class="lipi-slicer-chip-label">@val</span>
+                        @if (ShowCounts)
+                        {
+                            <span class="lipi-slicer-chip-count">@cnt</span>
+                        }
+                    </button>
+                }
+                @if (shown.Count == 0)
+                {
+                    <span class="lipi-slicer-empty">No values</span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public LipiFilterState<TItem> FilterState { get; set; } = default!;
+    [Parameter] public IReadOnlyList<TItem>? Items { get; set; }
+    [Parameter] public Expression<Func<TItem, TValue>>? Field { get; set; }
+    /// <summary>Pre-resolved, type-erased accessor (set by LipiSlicerPanel so it can render a
+    /// slicer without knowing TValue). When supplied it wins over Field for the value accessor;
+    /// pair it with an explicit ColumnKey.</summary>
+    [Parameter] public Func<TItem, object?>? Accessor { get; set; }
+    [Parameter] public string? ColumnKey { get; set; }
+    [Parameter] public ColumnType Type { get; set; } = ColumnType.Text;
+    [Parameter] public string? Header { get; set; }
+    [Parameter] public string? Title { get; set; }
+    /// <summary>Show the search box once the faceted distinct count exceeds this. Default 8.</summary>
+    [Parameter] public int SearchThreshold { get; set; } = 8;
+    /// <summary>Show the per-value row count on each tile. Default true.</summary>
+    [Parameter] public bool ShowCounts { get; set; } = true;
+    /// <summary>Date slicer: independent left/right month navigation in the picker.</summary>
+    [Parameter] public bool IndependentMonths { get; set; }
+    [Parameter] public string? Class { get; set; }
+    /// <summary>When false, the slicer does NOT register/unregister its column in the shared state
+    /// (LipiSlicerPanel sets this — the bound table already published the column, and a hidden
+    /// slicer must not unregister it). Standalone slicers keep the default true.</summary>
+    [Parameter] public bool RegisterInState { get; set; } = true;
+
+    private string _key = string.Empty;
+    private Func<TItem, object?> _accessor = _ => null;
+    private string _headerText = string.Empty;
+    private string? _search;
+    private bool _bound;
+
+    // ── lifecycle: resolve identity, register our column for cross-slicer faceting, subscribe ──
+    protected override void OnInitialized()
+    {
+        _key = ResolveKey();
+        _accessor = BuildAccessor();
+        _headerText = ResolveHeaderText();
+        if (RegisterInState) FilterState.RegisterColumn(_key, _accessor, Type, _headerText, true);
+        FilterState.Changed += OnStateChanged;
+        _bound = true;
+    }
+
+    protected override void OnParametersSet()
+    {
+        var newKey = ResolveKey();
+        _accessor = BuildAccessor();
+        _headerText = ResolveHeaderText();
+        if (_bound && RegisterInState && newKey != _key)
+        {
+            FilterState.UnregisterColumn(_key);
+            _key = newKey;
+        }
+        else _key = newKey;
+        if (RegisterInState) FilterState.RegisterColumn(_key, _accessor, Type, _headerText, true);
+    }
+
+    private void OnStateChanged(FilterChangedContext ctx) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (_bound) { FilterState.Changed -= OnStateChanged; if (RegisterInState) FilterState.UnregisterColumn(_key); }
+    }
+
+    // ── identity (mirror of LipiColumn.ResolveColumnKey / ExpressionPath / header) ──
+    private string ResolveKey()
+    {
+        if (!string.IsNullOrWhiteSpace(ColumnKey)) return ColumnKey!;
+        if (Field is not null) { var p = ExpressionPath(Field.Body); if (!string.IsNullOrEmpty(p)) return p; }
+        return Header ?? Title ?? $"slicer-{Guid.NewGuid():N}";
+    }
+    private Func<TItem, object?> BuildAccessor()
+    {
+        if (Accessor is not null) return Accessor;
+        if (Field is not null) { var c = Field.Compile(); return it => c(it); }
+        return _ => null;
+    }
+    private string ResolveHeaderText()
+    {
+        if (!string.IsNullOrWhiteSpace(Title)) return Title!;
+        if (!string.IsNullOrWhiteSpace(Header)) return Header!;
+        if (Field is not null) { var leaf = LeafMember(Field.Body); if (!string.IsNullOrEmpty(leaf)) return IdentifierHumanizer.Humanize(leaf); }
+        return IdentifierHumanizer.Humanize(_key);
+    }
+    private static string ExpressionPath(Expression expr)
+    {
+        if (expr is UnaryExpression u) return ExpressionPath(u.Operand);
+        if (expr is MemberExpression m)
+        {
+            var inner = m.Expression is MemberExpression ? ExpressionPath(m.Expression) + "." : string.Empty;
+            return inner + m.Member.Name;
+        }
+        return string.Empty;
+    }
+    private static string LeafMember(Expression expr)
+    {
+        if (expr is UnaryExpression u) return LeafMember(u.Operand);
+        if (expr is MemberExpression m) return m.Member.Name;
+        return string.Empty;
+    }
+
+    // ── mode by type ──
+    private bool IsNumeric => Type is ColumnType.Number or ColumnType.Currency;
+    private bool IsDate    => Type is ColumnType.Date or ColumnType.DateTime;
+    private bool IsBoolean => Type is ColumnType.Boolean;
+    private bool IsValueList => !IsNumeric && !IsDate && !IsBoolean;
+
+    // ── faceting: items filtered by every OTHER column, then grouped by ours ──
+    private IReadOnlyList<TItem> FacetBase =>
+        Items is null ? Array.Empty<TItem>() : FilterState.Apply(Items, excludeColumnKey: _key).ToList();
+
+    // distinct values + counts (no search filter — markup applies search); selected tokens are
+    // unioned in at count 0 so a selection that fell out of the facet stays removable.
+    private IReadOnlyList<(string Value, int Count)> Facets()
+    {
+        var counts = new Dictionary<string, int>();
+        foreach (var row in FacetBase)
+        {
+            var v = _accessor(row)?.ToString();
+            if (string.IsNullOrEmpty(v)) continue;
+            counts[v] = counts.TryGetValue(v, out var n) ? n + 1 : 1;
+        }
+        foreach (var t in SelectedTokens()) counts.TryAdd(t, 0);
+        return counts.OrderBy(kv => kv.Key, StringComparer.CurrentCulture)
+                     .Select(kv => (kv.Key, kv.Value)).ToList();
+    }
+
+    private (double? Min, double? Max) NumericHints()
+    {
+        double? mn = null, mx = null;
+        foreach (var row in FacetBase)
+        {
+            var o = _accessor(row);
+            if (o is null) continue;
+            if (!double.TryParse(o.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) continue;
+            mn = mn is null ? v : Math.Min(mn.Value, v);
+            mx = mx is null ? v : Math.Max(mx.Value, v);
+        }
+        return (mn, mx);
+    }
+
+    // ── current selection, read back from the shared state ──
+    private bool HasSelection => FilterState.FilterFor(_key) is not null;
+
+    private HashSet<string> SelectedTokens()
+    {
+        var f = FilterState.FilterFor(_key);
+        if (f is { Operator: FilterOperator.In, Value: IEnumerable e })
+            return e.Cast<object?>().Select(o => o?.ToString() ?? string.Empty)
+                    .Where(s => s.Length > 0).ToHashSet();
+        return new HashSet<string>();
+    }
+    private bool? BoolSelection()
+    {
+        var f = FilterState.FilterFor(_key);
+        return f?.Operator switch
+        {
+            FilterOperator.IsTrue => true,
+            FilterOperator.IsFalse => false,
+            _ => (bool?)null
+        };
+    }
+    private (double? Min, double? Max) NumericSelection()
+    {
+        var f = FilterState.FilterFor(_key);
+        if (f is null) return (null, null);
+        return f.Operator switch
+        {
+            FilterOperator.Between            => (ToD(f.Value), ToD(f.ValueEnd)),
+            FilterOperator.GreaterThanOrEqual => (ToD(f.Value), null),
+            FilterOperator.LessThanOrEqual    => (null, ToD(f.Value)),
+            _ => (null, null)
+        };
+    }
+    private (DateOnly? Start, DateOnly? End) DateSelection()
+    {
+        var f = FilterState.FilterFor(_key);
+        if (f is null) return (null, null);
+        return f.Operator switch
+        {
+            FilterOperator.Between            => (ToDate(f.Value), ToDate(f.ValueEnd)),
+            FilterOperator.GreaterThanOrEqual => (ToDate(f.Value), null),
+            FilterOperator.LessThanOrEqual    => (null, ToDate(f.Value)),
+            _ => (null, null)
+        };
+    }
+    private static double? ToD(object? o)
+        => o is null ? null
+         : double.TryParse(o.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : (double?)null;
+    private static DateOnly? ToDate(object? o)
+        => o is DateOnly d ? d : o is DateTime dt ? DateOnly.FromDateTime(dt) : (DateOnly?)null;
+
+    // ── commit handlers (always live) ──
+    private const FilterChangeReason ApplyReason = FilterChangeReason.UserApplyPopover;
+    private const FilterChangeReason ClearReason = FilterChangeReason.UserRemoveChip;
+    private void Commit(FilterDescriptor d) => FilterState.SetColumn(_key, ApplyReason, d);
+
+    private void ToggleValue(string token)
+    {
+        var sel = SelectedTokens();
+        if (!sel.Remove(token)) sel.Add(token);
+        if (sel.Count == 0) FilterState.SetColumn(_key, ClearReason);
+        else Commit(new FilterDescriptor(_key, FilterOperator.In, (IReadOnlyList<object>)sel.Cast<object>().ToList(), null));
+    }
+    private void SelectAll(IReadOnlyList<string> shown)
+    {
+        var sel = SelectedTokens();
+        bool allOn = shown.Count > 0 && shown.All(sel.Contains);
+        if (allOn) FilterState.SetColumn(_key, ClearReason);
+        else Commit(new FilterDescriptor(_key, FilterOperator.In, (IReadOnlyList<object>)shown.Cast<object>().ToList(), null));
+    }
+    private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString();
+
+    private void SetBool(bool want)
+    {
+        if (BoolSelection() == want) FilterState.SetColumn(_key, ClearReason);
+        else Commit(new FilterDescriptor(_key, want ? FilterOperator.IsTrue : FilterOperator.IsFalse, null, null));
+    }
+
+    private void CommitNumeric(double? min, double? max)
+    {
+        if (min is { } lo && max is { } hi) { Commit(new FilterDescriptor(_key, FilterOperator.Between, lo, hi)); return; }
+        if (min is { } lo2) { Commit(new FilterDescriptor(_key, FilterOperator.GreaterThanOrEqual, lo2, null)); return; }
+        if (max is { } hi2) { Commit(new FilterDescriptor(_key, FilterOperator.LessThanOrEqual, hi2, null)); return; }
+        FilterState.SetColumn(_key, ClearReason);
+    }
+    private void OnMinInput(ChangeEventArgs e) { var (_, max) = NumericSelection(); CommitNumeric(ParseD(e), max); }
+    private void OnMaxInput(ChangeEventArgs e) { var (min, _) = NumericSelection(); CommitNumeric(min, ParseD(e)); }
+    private static double? ParseD(ChangeEventArgs e)
+    {
+        var s = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        return double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)
+            || double.TryParse(s, NumberStyles.Any, CultureInfo.CurrentCulture, out d) ? d : (double?)null;
+    }
+
+    private void CommitDate(DateOnly? start, DateOnly? end)
+    {
+        if (start is { } s && end is { } en) { Commit(new FilterDescriptor(_key, FilterOperator.Between, s, en)); return; }
+        if (start is { } s2) { Commit(new FilterDescriptor(_key, FilterOperator.GreaterThanOrEqual, s2, null)); return; }
+        if (end is { } en2) { Commit(new FilterDescriptor(_key, FilterOperator.LessThanOrEqual, en2, null)); return; }
+        FilterState.SetColumn(_key, ClearReason);
+    }
+    private void OnDateStart(DateOnly? s) { var (_, end) = DateSelection(); CommitDate(s, end); }
+    private void OnDateEnd(DateOnly? en) { var (start, _) = DateSelection(); CommitDate(start, en); }
+
+    private void ClearThis() => FilterState.RemoveColumn(_key, ClearReason);
+
+    // Header select-all operates over the full distinct set (not the search-filtered view).
+    private IReadOnlyList<string> AllTokens => Facets().Select(f => f.Value).ToList();
+    private bool AllSelected
+    {
+        get { var sel = SelectedTokens(); var a = AllTokens; return a.Count > 0 && a.All(sel.Contains); }
+    }
+
+}
