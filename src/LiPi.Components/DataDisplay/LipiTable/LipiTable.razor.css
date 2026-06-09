@@ -509,6 +509,7 @@
     border-top-right-radius: 0;
 }
 .lipi-table-toolbar-spacer { flex: 1 1 auto; }   /* pushes the search box to the right */
+.lipi-table-toolbar-start { display: flex; align-items: center; gap: var(--sp-xs, 6px); flex: 0 0 auto; }   /* custom left-aligned toolbar content (PR6b) */
 
 .lipi-table-quicksearch {
     position: relative;
@@ -889,4 +890,281 @@
     font-size: 13px;
     color: var(--color-text-tertiary, #94a3b8);
     text-align: center;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PR4 — Filter sidebar (FilterMode.Sidebar). A persistent panel that docks and
+   pushes the table. Condition mode reuses the .lipi-table-filter-* controls
+   (same scope id). Tokens + fallbacks only; lipi-* prefix.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Shell wraps [sidebar | table]; inert (plain block) unless in sidebar mode. */
+.lipi-table-shell--sidebar {
+    display: flex;
+    gap: var(--sp-lg, 16px);
+    align-items: stretch;
+}
+.lipi-table-shell--sidebar > .lipi-table-pagination-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.lipi-table-fsidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 70vh;
+    border: 0.5px solid var(--color-border-default, #e2e8f0);
+    border-radius: var(--r-lg, 12px);
+    background: var(--color-bg-subtle, var(--color-bg-base, #f8fafc));
+    padding: 10px;
+}
+
+.lipi-table-fsidebar-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 2px 10px;
+    color: var(--color-text-primary, #0f172a);
+}
+.lipi-table-fsidebar-title { font-size: 13px; font-weight: 600; flex: 1; }
+.lipi-table-fsidebar-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--color-primary, #2563eb);
+    color: var(--color-on-primary, #fff);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.lipi-table-fsidebar-sections { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+.lipi-table-fsidebar-section {
+    border: 0.5px solid var(--color-border-subtle, var(--color-border-default, #e2e8f0));
+    border-radius: var(--r-md, 8px);
+    background: var(--color-bg-base, #fff);
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+.lipi-table-fsidebar-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+}
+.lipi-table-fsidebar-name { font-size: 13px; font-weight: 500; flex: 1; color: var(--color-text-primary, #0f172a); }
+
+.lipi-table-fsidebar-seg {
+    display: inline-flex;
+    border: 0.5px solid var(--color-border-strong, #94a3b8);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.lipi-table-fsidebar-seg button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 11px;
+    padding: 2px 8px;
+    color: var(--color-text-secondary, #475569);
+    cursor: pointer;
+}
+.lipi-table-fsidebar-seg button.is-on {
+    background: var(--color-primary-pale, rgba(37, 99, 235, .12));
+    color: var(--color-primary, #2563eb);
+    font-weight: 500;
+}
+
+.lipi-table-fsidebar-body { padding: 0 10px 10px; }
+
+.lipi-table-fsidebar-search {
+    width: 100%;
+    height: 30px;
+    box-sizing: border-box;
+    border: 0.5px solid var(--color-border-strong, #94a3b8);
+    border-radius: 6px;
+    background: var(--color-bg-base, #fff);
+    color: var(--color-text-primary, #0f172a);
+    font: inherit;
+    font-size: 12px;
+    padding: 0 8px;
+    margin-bottom: 6px;
+}
+.lipi-table-fsidebar-search:focus-visible {
+    outline: none;
+    border-color: var(--color-border-focus, var(--color-primary, #2563eb));
+    box-shadow: 0 0 0 3px var(--color-primary-pale, rgba(37, 99, 235, .15));
+}
+
+.lipi-table-fsidebar-selall {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 11.5px;
+    color: var(--color-primary, #2563eb);
+    cursor: pointer;
+    padding: 2px 0 6px;
+}
+
+.lipi-table-fsidebar-values { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; }
+
+.lipi-table-fsidebar-valrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    font-size: 12.5px;
+    color: var(--color-text-primary, #0f172a);
+    cursor: pointer;
+    border-radius: var(--r-sm, 6px);
+}
+.lipi-table-fsidebar-valrow:hover { background: var(--color-bg-hover, #f1f5f9); }
+.lipi-table-fsidebar-valrow:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary-pale, rgba(37, 99, 235, .15));
+}
+
+.lipi-table-fsidebar-box {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border: 0.5px solid var(--color-border-strong, #94a3b8);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-on-primary, #fff);
+}
+.lipi-table-fsidebar-box.is-ck {
+    background: var(--color-primary, #2563eb);
+    border-color: var(--color-primary, #2563eb);
+}
+
+.lipi-table-fsidebar-vallabel { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lipi-table-fsidebar-count { margin-left: auto; font-size: 11px; color: var(--color-text-tertiary, #94a3b8); }
+
+.lipi-table-fsidebar-novalues,
+.lipi-table-fsidebar-empty {
+    padding: 8px 2px;
+    font-size: 12px;
+    color: var(--color-text-tertiary, #94a3b8);
+}
+
+.lipi-table-fsidebar-footer {
+    display: flex;
+    gap: 8px;
+    padding: 10px 2px 2px;
+}
+.lipi-table-fsidebar-btn {
+    flex: 1;
+    appearance: none;
+    height: 32px;
+    border: 0.5px solid var(--color-border-strong, #94a3b8);
+    border-radius: var(--r-sm, 6px);
+    background: var(--color-bg-base, #fff);
+    color: var(--color-text-secondary, #475569);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.lipi-table-fsidebar-btn:hover { background: var(--color-bg-hover, #f1f5f9); color: var(--color-text-primary, #0f172a); }
+.lipi-table-fsidebar-btn--primary {
+    background: var(--color-primary, #2563eb);
+    border-color: var(--color-primary, #2563eb);
+    color: var(--color-on-primary, #fff);
+}
+
+/* Stack the sidebar above the table on narrow viewports. */
+@media (max-width: 720px) {
+    .lipi-table-shell--sidebar { flex-direction: column; }
+    .lipi-table-fsidebar { max-height: none; }
+}
+
+/* ── Filter bar row (PR6a): floating per-column controls under the header ───── */
+/* Sticks just below the sticky header. If header height differs from the default,
+   tune --lipi-table-filterbar-top (e.g. per density). */
+.lipi-table-filterbar-row {
+    display: grid;
+    align-items: center;
+    background: var(--lipi-table-header-bg, #f8fafc);
+    border-bottom: 1px solid var(--lipi-table-border, #e2e8f0);
+    position: sticky;
+    top: var(--lipi-table-filterbar-top, 2.5rem);
+    z-index: calc(var(--lipi-table-z-header, 5) - 1);
+}
+.lipi-table-filterbar-cell {
+    display: flex;
+    align-items: center;
+    padding: 6px var(--lipi-table-cell-pad-x, 12px);
+    min-width: 0;                /* allow controls to shrink inside the grid track */
+    overflow: hidden;            /* never bleed a control into the neighbouring column */
+}
+.lipi-table-fbar-input,
+.lipi-table-fbar-select {
+    width: 100%;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--color-text-primary, #0f172a);
+    background: var(--color-bg-base, #fff);
+    border: 0.5px solid var(--color-border-strong, #94a3b8);
+    border-radius: var(--r-sm, 6px);
+    min-width: 0;                /* shrink below the control's intrinsic width */
+}
+.lipi-table-fbar-select { padding: 0 4px; }
+.lipi-table-fbar-input:focus,
+.lipi-table-fbar-select:focus {
+    outline: none;
+    border-color: var(--color-primary, #2563eb);
+    box-shadow: 0 0 0 2px var(--color-primary-soft, rgba(37, 99, 235, 0.15));
+}
+.lipi-table-fbar-range { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; }
+.lipi-table-fbar-range > .lipi-table-fbar-input { flex: 1 1 0; min-width: 0; }
+.lipi-table-fbar-num { text-align: right; }
+.lipi-table-fbar-dash { color: var(--color-text-tertiary, #94a3b8); flex: 0 0 auto; }
+
+/* FilterBar date trigger — opens the shared column popover (full date editor). */
+.lipi-table-fbar-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    min-width: 0;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    color: var(--color-text-primary, #0f172a);
+    background: var(--color-bg-base, #fff);
+    border: 0.5px solid var(--color-border-strong, #94a3b8);
+    border-radius: var(--r-sm, 6px);
+    cursor: pointer;
+}
+.lipi-table-fbar-trigger:hover { background: var(--color-bg-hover, #f1f5f9); }
+.lipi-table-fbar-trigger--active {
+    border-color: var(--color-primary, #2563eb);
+    color: var(--color-primary, #2563eb);
+}
+.lipi-table-fbar-trigger:not(.lipi-table-fbar-trigger--active) .lipi-table-fbar-trigger-text {
+    color: var(--color-text-tertiary, #94a3b8);
+}
+.lipi-table-fbar-trigger-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1 1 auto;
 }

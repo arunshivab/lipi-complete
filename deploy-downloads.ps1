@@ -483,6 +483,45 @@ $files = @{
     # Shared CSS (LiPi.Web wwwroot) — new token files:
     "lipi-table-tokens.css"          = "src\LiPi.Web\wwwroot\css\lipi-table-tokens.css"
     "lipi-status-tokens.css"         = "src\LiPi.Web\wwwroot\css\lipi-status-tokens.css"
+    # -- Phase 2.8 — Data Display filter surfaces (PR3-PR5) --------------------
+    # SPEC:  docs/00-COMPONENTS/2.8 (LipiTable filtering)
+    # AMEND: CHANGE-LOG.md A59-A65
+    #
+    # PR3 Drawer + PR4 Sidebar fold into the existing LipiTable.razor / .razor.cs /
+    # .razor.css + LipiTableTypes.cs entries (full files, mapped above). PR5a lifted
+    # the committed filter set out of LipiTable into a shared, by-reference
+    # LipiFilterState<TItem> + a pure LipiFilterEvaluator (so a standalone slicer can
+    # evaluate descriptors for faceted counts); PR5b added the standalone <LipiSlicer>
+    # (Model B). The two PR5a files sit at the DataDisplay root next to LipiPagination;
+    # LipiSlicer gets its own folder (component + scoped CSS).
+    #
+    # MODIFIED files routed by EXISTING entries above (no new keys, full files):
+    #   - LipiTableTypes.cs   : +FilterMode.Sidebar, +FilterSidebarSide
+    #   - LipiTable.razor / .razor.cs / .razor.css : drawer + sidebar surfaces,
+    #     FilterApplyMode default -> Live, and the _filters -> FilterState refactor
+    #   - StyleGuideTableFilters.razor : drawer / sidebar / slicer demo tables
+    #   - CHANGE-LOG.md
+    "LipiFilterEvaluator.cs"         = "src\LiPi.Components\DataDisplay\LipiFilterEvaluator.cs"
+    "LipiFilterState.cs"             = "src\LiPi.Components\DataDisplay\LipiFilterState.cs"
+    "LipiSlicer.razor"               = "src\LiPi.Components\DataDisplay\LipiSlicer\LipiSlicer.razor"
+    "LipiSlicer.razor.css"           = "src\LiPi.Components\DataDisplay\LipiSlicer\LipiSlicer.razor.css"
+    # PR5c — managed slicer pane (LipiSlicerPanel + declarative LipiSlicerOption).
+    "LipiSlicerOption.razor"         = "src\LiPi.Components\DataDisplay\LipiSlicer\LipiSlicerOption.razor"
+    "LipiSlicerPanel.razor"          = "src\LiPi.Components\DataDisplay\LipiSlicer\LipiSlicerPanel.razor"
+    "LipiSlicerPanel.razor.css"      = "src\LiPi.Components\DataDisplay\LipiSlicer\LipiSlicerPanel.razor.css"
+    # PR6a (A64) FilterBar mode folds into LipiTable.razor/.cs/.css + LipiTableTypes.cs +
+    # StyleGuideTableFilters.razor (full files, mapped above). PR6b (A65) extracts the operator/
+    # editor engine into a single-source, pure LipiFilterOperators + a public LipiFilterDraft model
+    # (both at the DataDisplay root next to LipiFilterState), a presentational <LipiFilterEditor>
+    # consumed by ALL four table surfaces (popover/drawer/sidebar/filter-bar), and a standalone
+    # <LipiFilterBar> + <LipiFilterBarItem> (Option B) — the three UI files in a new LipiFilter\ folder.
+    "LipiFilterDraft.cs"             = "src\LiPi.Components\DataDisplay\LipiFilterDraft.cs"
+    "LipiFilterOperators.cs"         = "src\LiPi.Components\DataDisplay\LipiFilterOperators.cs"
+    "LipiFilterEditor.razor"         = "src\LiPi.Components\DataDisplay\LipiFilter\LipiFilterEditor.razor"
+    "LipiFilterEditor.razor.css"     = "src\LiPi.Components\DataDisplay\LipiFilter\LipiFilterEditor.razor.css"
+    "LipiFilterBar.razor"            = "src\LiPi.Components\DataDisplay\LipiFilter\LipiFilterBar.razor"
+    "LipiFilterBar.razor.css"        = "src\LiPi.Components\DataDisplay\LipiFilter\LipiFilterBar.razor.css"
+    "LipiFilterBarItem.razor"        = "src\LiPi.Components\DataDisplay\LipiFilter\LipiFilterBarItem.razor"
     # -- Phase 2.8 — Data Display Stage 7 (LipiPagination) --------------------
     # SPEC:  docs/00-COMPONENTS/2.8/03-LipiPagination-Spec.md
     # AMEND: CHANGE-LOG.md A50 (2026-06-01)

@@ -1,0 +1,113 @@
+/*  LipiSlicerPanel (PR5c). Tokens + self-sufficient fallbacks, lipi-* prefix.
+    Top/Bottom => horizontal slicer bar; Left/Right => vertical stack. The dev positions the
+    panel beside the table; Placement controls the panel's internal orientation.  */
+
+.lipi-slicerpanel {
+    position: relative;
+    border: 0.5px solid var(--color-border-default, #e2e8f0);
+    border-radius: var(--r-lg, 12px);
+    background: var(--color-bg-subtle, var(--color-bg-base, #f8fafc));
+    padding: 10px 12px 12px;
+}
+.lipi-slicerpanel--left,
+.lipi-slicerpanel--right { width: 240px; flex: 0 0 240px; }
+
+.lipi-slicerpanel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.lipi-slicerpanel-title {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary, #0f172a);
+}
+.lipi-slicerpanel-actions { display: flex; gap: 6px; }
+.lipi-slicerpanel-btn {
+    appearance: none;
+    border: 0.5px solid var(--color-border-strong, #94a3b8);
+    border-radius: var(--r-sm, 6px);
+    background: var(--color-bg-base, #fff);
+    color: var(--color-text-secondary, #475569);
+    font: inherit;
+    font-size: 11.5px;
+    padding: 3px 9px;
+    cursor: pointer;
+}
+.lipi-slicerpanel-btn:hover { background: var(--color-bg-hover, #f1f5f9); color: var(--color-text-primary, #0f172a); }
+
+/* ── body orientation ── */
+.lipi-slicerpanel-body { display: flex; gap: 12px; margin-top: 10px; }
+.lipi-slicerpanel--top .lipi-slicerpanel-body,
+.lipi-slicerpanel--bottom .lipi-slicerpanel-body { flex-wrap: wrap; align-items: flex-start; }
+.lipi-slicerpanel--left .lipi-slicerpanel-body,
+.lipi-slicerpanel--right .lipi-slicerpanel-body { flex-direction: column; }
+
+.lipi-slicerpanel-empty {
+    font-size: 12px;
+    color: var(--color-text-tertiary, #94a3b8);
+    padding: 6px 2px;
+}
+
+/* ── Columns picker popover ── */
+.lipi-slicerpanel-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: transparent;
+}
+.lipi-slicerpanel-picker {
+    position: absolute;
+    top: 42px;
+    right: 12px;
+    z-index: 50;
+    min-width: 180px;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 0.5px solid var(--color-border-default, #e2e8f0);
+    border-radius: var(--r-md, 8px);
+    background: var(--color-bg-base, #fff);
+    box-shadow: var(--shadow-md, 0 8px 24px rgba(15, 23, 42, .12));
+    padding: 6px;
+}
+.lipi-slicerpanel-pickrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    font-size: 12.5px;
+    color: var(--color-text-primary, #0f172a);
+    border-radius: var(--r-sm, 6px);
+    cursor: pointer;
+}
+.lipi-slicerpanel-pickrow:hover { background: var(--color-bg-hover, #f1f5f9); }
+.lipi-slicerpanel-pickrow input { cursor: pointer; }
+.lipi-slicerpanel-pickempty {
+    font-size: 12px;
+    color: var(--color-text-tertiary, #94a3b8);
+    padding: 6px;
+}
+
+/* PR6b: collapsed state renders ONLY this compact button (no panel box) so the table sibling
+   takes full width. Clicking it restores the panel. */
+.lipi-slicerpanel-reopen {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-xs, 6px);
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border-strong, #94a3b8);
+    border-radius: var(--r-sm, 6px);
+    background: var(--color-bg-base, #fff);
+    color: var(--color-text-secondary, #475569);
+    font: inherit;
+    font-size: var(--ts-sm, 0.8125rem);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.lipi-slicerpanel-reopen:hover {
+    border-color: var(--color-primary, #2563eb);
+    color: var(--color-primary, #2563eb);
+}

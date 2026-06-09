@@ -4930,6 +4930,129 @@ S3b-ii table date filter (will reuse migrated pickers + carry a zone param for i
 
 ---
 
+### A61 — Phase 2.8 S3d (PR4): LipiTable filter Sidebar mode (`FilterMode.Sidebar`)
+
+**Phase**: 2 Sub-step 2.8 — Data Display (LipiTable filtering). Builds on A55/S3b, A56/PR1, A59/PR3.
+**Date**: 2026-06-07
+**Status**: ✅ Build clean; deployed; runtime-verified — left (Apply) + right (Live) sidebars, Values checklist (counts/search/select-all), Condition mode, per-column toggle, boolean tri-state, header alignment, push-not-overlay layout.
+
+**Scope.** A persistent docked filter panel that pushes the table, as a third surface beside `HeaderIcon` and `Drawer` (opt-in; default stays `HeaderIcon`). Implements the approved **A + B** design (supersedes the earlier "distinct-value checklist only" sidebar note): each column offers **both** a distinct-value checklist **and** the operator+editor, switchable per column at runtime.
+
+**Mechanism.**
+- **Two modes per column.** **Values** = distinct-value checklist (row counts, search-within-values, select-all) that is the existing `In` operator underneath. **Condition** = the shared `FilterFields(col, d)` operator+editor. Mode is derived from the draft operator (`In` ⇒ Values, else ⇒ Condition) — no parallel state, engine reused verbatim. Only new engine helper is `DistinctValueCountsFor` (client-side; server-side faceting deferred).
+- **Auto rule.** Number/Currency/Date/DateTime → Condition; Boolean → tri-state (no toggle); String/Status/Mono/Link → Values when distinct count is in `1..FilterSidebarValuesThreshold` (default 20), else Condition. Applied once per column via render-safe lazy `EnsureSidebarDraft`.
+- **Boolean = tri-state, no toggle** (the engine special-cases boolean off `d.Value`, so an `In`-based boolean checklist would not commit).
+- **Layout.** `SidebarShellClass` wraps `[sidebar | table]` in a flex shell (inert block unless sidebar mode); sidebar rendered before the table for `Left`, after for `Right`.
+- **Params.** `FilterSidebarSide {Left,Right}`, `FilterSidebarWidthPx` (emitted via a computed `FilterSidebarStyle` property — never an inline interpolated Razor attribute), `FilterSidebarTitle`, `FilterSidebarValuesThreshold`. Honors `FilterApplyMode` (Live commit-on-change / Apply footer).
+
+**Files.** `LipiTableTypes.cs` (`FilterMode += Sidebar`; `FilterSidebarSide`), `LipiTable.razor.cs` (params, `SidebarShellClass`/`FilterSidebarStyle`, `EnsureSidebarDraft`, `SidebarDefaultIsValues`, `FirstConditionOperator`, `SidebarIsValuesMode`, `DistinctValueCountsFor`, `SidebarVisibleValues`, search/mode/value/select-all handlers, `ApplyAllFiltersAsync`/`ClearAllSidebarAsync`), `LipiTable.razor` (shell wrap + `FilterSidebar()` fragment), `LipiTable.razor.css` (`.lipi-table-fsidebar-*`), `StyleGuideTableFilters.razor` (left/Apply + right/Live demos).
+
+**Lessons.** (1) Columns register on a later pass — seed drafts lazily per-column inside the render `@foreach`, never once up-front. (2) Declarative markup inside a `=> __builder => {…}` fragment must start with markup, not a leading C# statement. (3) Build px/style strings in a computed C# property, never inline in a Razor attribute (nested quotes break parsing). (4) Boolean's engine special-case precludes an `In`-based checklist.
+
+---
+
+### A62 — LipiTable `FilterApplyMode` default `Apply` → `Live`
+
+**Phase**: 2 Sub-step 2.8 (LipiTable filtering). Paired with A61.
+**Date**: 2026-06-07
+**Status**: ✅ Build clean; deployed.
+
+**Scope.** The shared `[Parameter] FilterApplyMode` default flips from `Apply` to `Live`, so a table filters as the user edits unless the caller opts into the Apply footer. Aligns with modern data-grid norms (AG Grid / MUI filter immediately). Applies to the **header popover** and the **sidebar**; the **drawer** ignores `Live` and stays manual-apply (A59), so its behavior is unchanged.
+
+**Files.** `LipiTable.razor.cs` (one-line default). `StyleGuideTableFilters.razor` — left sidebar table pins `FilterApplyMode="Apply"` explicitly so both modes stay demonstrated; right sidebar is explicit `Live`.
+
+---
+
+### A63 — Phase 2.8 S3e/S3f (PR5a–c): shared filter state, standalone `<LipiSlicer>`, managed `<LipiSlicerPanel>` (+ persist)
+
+**Phase**: 2 Sub-step 2.8 — Data Display (LipiTable filtering). Builds on A55–A62.
+**Date**: 2026-06-07
+**Status**: ✅ Build clean (0 warnings); deployed; runtime-verified — existing filter surfaces unchanged after the refactor; slicer-bar + slicer-panel demos (value/boolean/numeric/date forms, faceting, Columns picker, Hide/Show, reload persistence).
+
+**Scope.** A standalone slicer surface (Model B) plus a managed slicer pane, on a shared filter model decoupled from the table. Three stages:
+
+**PR5a — shared filter model.** The committed `FilterDescriptor` set moved out of `LipiTable`'s private `_filters` into a by-reference **`LipiFilterState<TItem>`** (new), so a standalone slicer (and future surfaces) read/write the same model. A pure **`LipiFilterEvaluator`** (new, static) was extracted from `LipiTable.MatchesFilter` (+ its numeric/date/relative-date helpers, parameterized by case-sensitivity + time zone + week start) so any holder can evaluate descriptors. `LipiTable` now resolves `FilterState` (a `[Parameter]`) or an internal instance when none is supplied — **existing single-table usages behave identically** — routes all reads/writes through it, subscribes to a single `Changed(current, previous, reason)` event (one notification path: page reset + `OnFilterChanged` + re-render), registers its columns into the state's registry, and unsubscribes on dispose. `LipiFilterState.Apply(items, excludeColumnKey)` applies all (or all-but-one) filters for faceting.
+
+**PR5b — `<LipiSlicer<TItem, TValue>>`** (new). Binds by reference to a `LipiFilterState` + its own `Items`; targets a column via `Field` (ColumnKey derived with the exact `ExpressionPath` logic `LipiColumn` uses) or an explicit `ColumnKey`. Four control forms by `Type`: string/status/text/mono/link → faceted value tiles (`In`, counts, search, header select-all); boolean → True/False tiles (`IsTrue`/`IsFalse`); number/currency → min/max range inputs (`Between`/`GTE`/`LTE`, data-driven placeholders); date/datetime → `LipiDateRangePicker` (`Between`/`GTE`/`LTE`). **Faceted counts** via `Apply(excludeColumnKey)`, with selected-but-zero-count values kept visible so they stay removable. Always live (no Apply button). Params include `Accessor` (type-erased accessor for the panel) and `RegisterInState` (default true; panel sets false). "Select all / Clear all" lives in the header so every slicer's body aligns.
+
+**PR5c — `<LipiSlicerPanel<TItem>>` + `<LipiSlicerOption<TItem, TValue>>`** (new). A managed pane (dev opt-in): the developer curates candidates with declarative `<LipiSlicerOption Field Type Header DefaultVisible>` children (registers a type-erased `SlicerColumnSpec<TItem>`, renders nothing — mirrors `LipiColumn`) **or**, with no children, the panel auto-derives candidates from the shared state's filterable columns. The end-user toggles the pane (Hide/Show) and picks columns via a "Columns" popover (transparent-backdrop close); each visible candidate renders a `<LipiSlicer RegisterInState="false">`. `SlicerPlacement {Top,Bottom,Left,Right}` (Top/Bottom = horizontal bar; Left/Right = vertical stack). **Persistence**: session-only by default; `Persist="true"` + a required `PreferenceKey` saves the collapsed flag + visible-column set via the registered `ITablePreferenceService` (resolved optionally through `IServiceProvider` so unconfigured consumers no-op rather than DI-throw; `Persist` without a key → no-op + dev warning). Loads on init (stored set overrides `DefaultVisible`), saves fire-and-forget on each toggle (service debounces 300ms).
+
+**Contract changes.** `LipiFilterState<TItem>.RegisterColumn` gains `header` + `filterable` (additive, optional) and exposes `Candidates()` + `SlicerColumnSpec<TItem>`; new `SlicerPlacement` enum. `TablePreferences` gains an additive nullable `SlicerPanel` field + `SlicerPanelPreference(bool Collapsed, IReadOnlyList<string> VisibleColumns)` record — older stored JSON deserializes to null, table prefs unaffected.
+
+**Files.** New: `LipiFilterState.cs`, `LipiFilterEvaluator.cs`, `LipiSlicer.razor` (+ `.razor.css`), `LipiSlicerPanel.razor` (+ `.razor.css`), `LipiSlicerOption.razor` (all `src\LiPi.Components\DataDisplay\…`). Modified: `LipiTable.razor.cs` + `LipiTable.razor` (`_filters` → `FS`, evaluator, subscription, registry sync), `TablePreferences.cs` (`SlicerPanel`), `StyleGuideTableFilters.razor` (slicer-bar + slicer-panel demos), `deploy-downloads.ps1` (+5 new-file entries).
+
+**Lessons.** (1) The `.razor` and `.razor.cs` share the partial class — sweep both for `_filters`-style refactors (the markup chip loops referenced `_filters` too). (2) A shared registry key needs ref-safety: a panel-managed slicer must use `RegisterInState=false` so hiding it can't unregister a column the table still needs. (3) A standalone TItem-only container renders a generic child type-erased by passing a pre-resolved `Accessor` + `ColumnKey` (`TValue=object`), avoiding open-generic reflection — same pattern as `ColumnDefinition`'s erased `GetValue`. (4) Persist-capable library components should resolve optional services via `IServiceProvider.GetService` (nullable), not hard `@inject`, so unconfigured consumers degrade gracefully.
+
+---
+
+### A64 — Phase 2.8 S3g (PR6a): LipiTable filter bar mode (`FilterMode.FilterBar`) + shared popover extraction
+
+**Phase**: 2 Sub-step 2.8 — Data Display (LipiTable filtering). Builds on A55–A63.
+**Date**: 2026-06-07
+**Status**: ✅ Build clean (0 warnings); verified — controls align under headers, per-type filtering round-trips, non-filterable cells blank, date trigger opens the anchored popover, header-funnel popover unaffected by the extraction.
+
+**Scope.** A floating filter row docked directly under the column header, as a fourth surface beside `HeaderIcon` / `Drawer` / `Sidebar` (opt-in; default stays `HeaderIcon`). One compact control per filterable column, aligned to the grid.
+
+**Mechanism.**
+- **Real grid row, not an overlay.** The filter row is a `<div>` sharing the header's `grid-template-columns` (`EffectiveGridTemplate`) with a leading select-spacer cell when selection is on, so it tracks column width/order automatically. Sticky just below the header via `--lipi-table-filterbar-top` (default `2.5rem`; tune per density).
+- **Per-type controls.** text/mono/link → contains box (`Contains`); status → `(all)` + distinct-value select (`Equals`); boolean → `(all)/True/False` select (`IsTrue`/`IsFalse`); number/currency → contained min–max pair (`Between`/`GreaterThanOrEqual`/`LessThanOrEqual`); date/datetime → a single trigger (see below). `Filterable=false` → blank cell. Each control reads its value back from the shared `LipiFilterState` and commits directly via `SetColumn`, so chips / quick-search / other surfaces stay in sync.
+- **Commit on change gesture.** Controls commit on change/blur/Enter, not per keystroke — an always-visible inline row has no Apply footer, and keystroke-streaming a bound `value` causes Blazor-Server cursor reset. Same behavior under `Live` and `Apply`.
+- **Date cell = single trigger → shared popover.** Two native date inputs are too wide for a narrow grid cell, so the date cell is a compact trigger showing a summary (`Date…` / `dd-MM-yyyy – dd-MM-yyyy` / `≥ …` / `≤ …` / `Filtered`) that opens the **full column popover** (all date operators + `LipiDateRangePicker`). To serve it from two places, the inline popover block was extracted into a shared `FilterPopover(col)` fragment now used by both the HeaderIcon funnel and the FilterBar date trigger; both anchor via the existing `_filterBtnRefs` + `_pendingPopoverAnchor` JS and are `position:fixed`, so they escape the cell's `overflow:hidden`.
+- **Overflow containment.** Filter-bar cells get `overflow:hidden` and controls get `min-width:0` (range children `flex:1 1 0`) so a wide control can never bleed into the neighbouring column.
+
+**Files.** `LipiTableTypes.cs` (`FilterMode += FilterBar`), `LipiTable.razor.cs` (`Bar*` read-back/commit helpers; `BarDateSummary`; popover block removed from inline use), `LipiTable.razor` (Region 6b filter-bar row; `FilterPopover(col)` fragment; header funnel + date trigger both call it), `LipiTable.razor.css` (`.lipi-table-filterbar-*`, `.lipi-table-fbar-*`, `.lipi-table-fbar-trigger`), `StyleGuideTableFilters.razor` (FilterBar demo table). No new files; deploy script unchanged.
+
+**Lessons.** (1) Native `<input type="date">` has a large intrinsic min-width — two won't fit a narrow grid cell; reuse the popover for the range instead. (2) Extract-then-share beats duplicate: one `FilterPopover(col)` fragment keeps the funnel and the date trigger identical and avoids drift. (3) `@(cond ? "x" : string.Empty)` and `@($"…")` inside double-quoted Razor attributes are fine (matches the shipped funnel), but a bare interior string literal in `selected="@(b == "true")"` is the nested-quote trap — precompute to a bool var. (4) `position:fixed` popovers escape an ancestor's `overflow:hidden` (no transform/contain on the cell), so a clipped filter cell can still host an un-clipped popover.
+
+---
+
+### A65 — Phase 2.8 S3h (PR6b): shared `<LipiFilterEditor>` extraction + standalone `<LipiFilterBar>`; Live multi-select commit fix; slicer-panel hide fix; LipiTable `ToolbarStart` slot
+
+**Phase**: 2 Sub-step 2.8 — Data Display (LipiTable filtering). Builds on A55–A64.
+**Date**: 2026-06-09
+**Status**: ✅ Build clean; verified — funnel / drawer / sidebar / filter-bar round-trip unchanged, `In` filters now apply live, the standalone pill bar edits and commits through the shared engine, and the slicer panel collapses to full table width.
+
+**Scope.** Extract the per-column filter editor that lived inside LipiTable into a standalone, presentational, controlled `<LipiFilterEditor>`, and the operator / value logic into a single static engine, so every filter surface shares one implementation (no drift). Add a sixth surface — a standalone editable pill toolbar `<LipiFilterBar>` — bound to the shared `LipiFilterState` and droppable anywhere. Plus two filtering bug fixes and a generic table toolbar slot uncovered while building the demo.
+
+**Mechanism.**
+- **Shared engine (`LipiFilterOperators.cs`, new).** Pure static single source: operator sets (`OperatorsFor(ColumnType, DateSpan?)`), value-editor selection (`EditorFor`), relative-date helpers (`RelativeOperatorsInOrder`, `SpanOf`, `IsRelativeDateOperator`), labels, value coercion (`Coerce`), draft seeding (`SeedDraft`), descriptor building (`BuildDescriptor`). LipiTable's private `EditorFor` / `CoerceDraft` / `FilterEditor` enum / `ColumnDraft` / `SpanOf` / `RelativeOperatorsInOrder` / `IsRelativeDateOperator` were deleted and now delegate here; `CommitDraftAsync` routes through `BuildDescriptor`.
+- **`LipiFilterDraft.cs` (new).** The per-column working draft (`Operator` / `Value` / `ValueEnd` / `Multi` / `DateStart` / `DateEnd`), promoted from LipiTable's private `ColumnDraft` to a public type shared by editor and bar. `_drafts` is now `Dictionary<string, LipiFilterDraft>`.
+- **`<LipiFilterEditor>` (new; non-generic, presentational, controlled).** Renders the operator select + the right value editor for the column type / operator; the **host** owns the draft and the commit policy, the editor only mutates the passed draft and raises callbacks (`OperatorChanged` / `ValueChanged` / `ValueEndChanged` / `ToggleMulti` / `DateStartChanged` / `DateEndChanged`). Date branch delegates to `LipiDateRangePicker`. Its field styles live in its own scoped CSS (isolation boundary). Now used by LipiTable's popover / drawer / sidebar / filter-bar call sites **and** the new bar — one editor everywhere.
+- **`<LipiFilterBar>` + `<LipiFilterBarItem>` (new).** A standalone pill toolbar on a shared `LipiFilterState<TItem>`: one editable pill per active filter (click → edit via the shared editor in a CSS-anchored dropdown, × removes), a `+ Add filter` menu of unused columns, `Clear all`. Candidates are curated `<LipiFilterBarItem>` (mirrors `LipiSlicerOption` / `LipiColumn`: derives key via `ExpressionPath`) or auto-derived from `FilterState.Candidates()`. Honours `Live` (debounced) / `Apply`. Not a `FilterMode` variant — renders inline wherever dropped and can drive a table elsewhere on the page through the shared state.
+- **Bug fix — `In` filters never applied in Live mode.** Pre-existing since A62 flipped the default to `Live`: `ToggleDraftMulti` mutated the draft's `Multi` set but never committed, so multi-select (`In`) filters in the header funnel / drawer / sidebar-Condition did nothing until an unrelated commit (sidebar **Values** mode worked only because it had its own committing handler). Fix: `ToggleDraftMultiAsync` commits via `CommitDraftAsync` when `FilterApplyMode == Live`; the editor's `ToggleMulti` wires to it. No double-commit (sidebar Values keeps its dedicated handler).
+- **Bug fix — slicer panel "Hide" only minimised.** `LipiSlicerPanel` left its box in place and the table never reclaimed width. Fix: when `_collapsed && Collapsible`, render only a compact "Show filters" reopen button; `CascadingValue` / `ChildContent` always renders so registered options persist.
+- **LipiTable `ToolbarStart` slot.** Generic reusable `RenderFragment? ToolbarStart` rendered as the first toolbar child (`.lipi-table-toolbar-start`); `ShowToolbar` is also true when it is set. Isolation-safe (not slicer-coupled) — the demo uses it to host a single "Hide / Show filters" toggle for a `Collapsible="false"` slicer panel.
+
+**Files.** New: `LipiFilterOperators.cs`, `LipiFilterDraft.cs`, `LipiFilterEditor.razor` (+ `.razor.css`), `LipiFilterBar.razor` (+ `.razor.css`), `LipiFilterBarItem.razor` (all `LiPi.Components/DataDisplay/…`). Modified: `LipiTable.razor` (editor wrapper → `<LipiFilterEditor>`; `ToolbarStart`), `LipiTable.razor.cs` (delegate to engine; `_drafts` type; `ToggleDraftMultiAsync`), `LipiTable.razor.css` (`.lipi-table-toolbar-start`), `LipiSlicerPanel.razor` (+ `.razor.css`) (collapsed reopen button), `StyleGuideTableFilters.razor` (pill-bar demo + toolbar toggle). Deploy script: 7 new keys.
+
+**Lessons.** (1) Controlled / presentational split — host owns the draft + commit policy, editor stays pure — lets one editor serve five mount points with no per-surface logic. (2) A default flip (A62 `Apply` → `Live`) can silently strand a handler that only committed implicitly; multi-select needed its own Live commit. (3) Scoped CSS does not cross the new component boundary — `<LipiFilterEditor>`'s field styles must live in its own `.razor.css`, not LipiTable's. (4) Collapsing a docked panel must yield the space (render a thin reopener), not merely hide contents, or the host never reflows.
+
+---
+
+### A66 — Phase 2.8 S3h+ (PR6b follow-up): per-item / bar-default `RelativeDateSpans` on `<LipiFilterBar>`
+
+**Phase**: 2 Sub-step 2.8 — Data Display. Builds on A58 (relative-date gating) + A65 (filter bar).
+**Date**: 2026-06-09
+**Status**: Built (2 files; additive — editor + engine unchanged); awaiting local `dotnet run` verification.
+
+**Scope.** Close the one surface A58's relative-date gating missed. The standalone `<LipiFilterBar>` hardcoded the full relative-operator set and ignored any per-column `RelativeDateSpans` a clinic had configured. Extend the existing `column ?? table ?? All` cascade to the bar as `item ?? bar ?? All`. Additive; the default (all-on) preserves current behaviour.
+
+**Why it was missing.** The table path resolves spans at column-build time into `ColumnDefinition.RelativeDateSpans` and feeds them through `OperatorsFor` (A58). The bar sources candidates from `LipiFilterState` / `SlicerColumnSpec`, which carry only key / accessor / type — no `DateSpan` — so `SeedFresh` called `OperatorsFor(type, null)` (all relatives) and never passed spans to the shared editor.
+
+**Mechanism (Option B — shared model stays pure).**
+- `<LipiFilterBarItem>` gains `[Parameter] DateSpan? RelativeDateSpans` (null = inherit), passed to the bar at registration.
+- `<LipiFilterBar>` gains a bar-level `[Parameter] DateSpan? RelativeDateSpans` default plus a private `Dictionary<string, DateSpan?> _itemSpans`; `RegisterItem` captures the per-item span, `UnregisterItem` clears it.
+- `SpansFor(key) => item ?? bar ?? DateSpan.All`, threaded into both the operator list (`SeedFresh` → `OperatorsFor(type, SpansFor(key))`) and the shared editor (`<LipiFilterEditor RelativeDateSpans="SpansFor(spec.Key)">`). The editor already gated on its `RelativeDateSpans` param (A65) — it was simply never fed.
+- Auto-derived candidates (no curated item) aren't in the map → inherit bar ?? All.
+
+**Design rationale (distributable package).** `SlicerColumnSpec` / `LipiFilterState` are public types that model *what* to filter; relative-date spans are a *UI-affordance* concern (which operator buttons a surface offers) and don't belong on the shared spec — slicers never use relative operators, so the field would be dead for half its consumers. Widening a public positional record is also binary-breaking for adopters mid-integration (Armoki). Keeping the span bar-local (Option B) leaves the public contract untouched while exposing the identical consumer-facing API (`<LipiFilterBarItem RelativeDateSpans="DateSpan.Month" />` + a bar default). The table already models it this way — spans on `ColumnDefinition` (its own UI descriptor), not on `FilterState`.
+
+**Files.** Modified: `LipiFilterBar.razor`, `LipiFilterBarItem.razor`. No new files; `LipiFilterEditor` / `LipiFilterOperators` / engine unchanged; deploy script unchanged (both files already mapped at A65).
+
+**Lessons.** (1) When a feature is "resolved at build time into a descriptor" (A58 → `ColumnDefinition`), a *new* surface that sources from a different model (here `LipiFilterState`) won't inherit it for free — gating must be re-threaded per surface. (2) In a redistributable package, "where does this field live" is a public-contract decision, not an internal-tidiness one: keep cross-cutting UI concerns off shared data records to avoid dead fields and breaking widenings.
+
+---
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)
