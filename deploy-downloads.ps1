@@ -441,6 +441,8 @@ $files = @{
     "StyleGuideDataDisplay.razor"     = "src\LiPi.Web\Pages\StyleGuideDataDisplay.razor"
     "StyleGuideTableFilters.razor"   = "src\LiPi.Web\Pages\StyleGuideTableFilters.razor"
     "StyleGuideTableFilters.razor.css" = "src\LiPi.Web\Pages\StyleGuideTableFilters.razor.css"
+    "StyleGuideTableSelection.razor"   = "src\LiPi.Web\Pages\StyleGuideTableSelection.razor"
+    "StyleGuideTableSelection.razor.css" = "src\LiPi.Web\Pages\StyleGuideTableSelection.razor.css"
     "StyleGuideDataDisplay.razor.css" = "src\LiPi.Web\Pages\StyleGuideDataDisplay.razor.css"
     # -- Phase 2.8 — Data Display Stage 2 core shell (LipiTable bare chassis) ---
     # SPEC:  docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §2/§3/§3.6.1/§18/§19
