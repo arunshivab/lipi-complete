@@ -5053,6 +5053,37 @@ S3b-ii table date filter (will reuse migrated pickers + carry a zone param for i
 
 ---
 
+### A67 — Phase 2.8 S4c: LipiTable across-pages selection (bulk-action bar + across-pages banner + basis audit)
+
+**Phase**: 2 Sub-step 2.8 — Data Display. Consumes the LP-17 seam (Stage 7 `OnAllOnPageSelected`) and the Stage 4a key-set selection model.
+**Date**: 2026-06-09
+**Status**: Verified — built green via `dotnet run` 2026-06-09. (8 files; additive — selection model unchanged, opt-in behind one flag.) One fix between first cut and green: a redeclared `ClearSelectionAsync` hit CS0111; resolved by extending the existing public method instead (see Mechanism).
+
+**Scope.** Turn the long-reserved across-pages seam into UI. When a multi-select table is paginated and the whole page is selected, a banner offers to select every row matching the active filter+search; a bulk-action bar surfaces the selection to the host. The table's selection state was already a key set (`_selectedKeys`, survives paging/sort/filter), so this is purely additive UI plus the action/audit plumbing — no change to the selection core.
+
+**Model — snapshot-leaning hybrid (locked).** "Select all matching" snapshots the current `FilteredItems` key set at the moment of engagement (deterministic — exactly what the user saw), unioning those keys into the selection. A `SelectionBasis` is captured at the same instant — `{Mode, FilterSummary, Count, CapturedAt}` — so a later bulk PHI operation is reconstructable even if the underlying data shifts. Deselecting any row drops the "all matching" engagement (count no longer equals total), reverting the banner.
+
+**Guards (both `[Parameter]`, defaults locked).** `BulkSelectAllConfirmAt = 1000` — above this the offer routes through an inline confirm sub-state ("Select all N?") before engaging, a PHI safety interlock. `BulkSelectAllMax = 10000` — above this "select all matching" is refused and the banner prompts to narrow the filter (bounds the action payload, keeps the snapshot deterministic). Both surface in the banner state machine `{None, Offer, Confirm, Cap, Engaged}`.
+
+**Action- and audit-agnostic (component isolation §25.3).** The component owns no actions and writes no audit. The host supplies `RenderFragment<SelectionContext> BulkActions`; the context carries `{Count, Basis, Keys}`. Export/Assign/Delete and the `IAuditService` write live entirely host-side — the host reads `ctx.Basis` to record the entry. LiPi.Components injects no HIS services and references no domain types; `SelectionContext`/`SelectionBasis` keys are boxed (`object`) so the context stays non-generic and HIS-free.
+
+**Placement.** `BulkBarPlacement {Docked (default), Floating}` — Docked is an in-flow strip under the toolbar (calm; never occludes rows); Floating is a centred, elevated *light* surface anchored near the table bottom via `--lipi-table-bulkbar-bottom` (default 1.25rem). Floating uses a light surface (not a dark pill) so arbitrary host action buttons stay legible in both placements. The across-pages banner renders in-flow above the grid in both modes; only the bar floats. Floating is positioned against the pagination-wrap, which gains `position:relative` via `lipi-table-has-floatbulk` only when a floating bar is active.
+
+**Mechanism.**
+- New types: `BulkBarPlacement` enum (`LipiTableTypes.cs`); `SelectionBasisMode` enum + `SelectionBasis` / `SelectionContext` records (`Contexts.cs`, beside the existing selection records).
+- `LipiTable` params: `AcrossPagesSelection` (master opt-in, default false), `BulkBarPlacement`, `BulkActions`, `BulkSelectAllConfirmAt`, `BulkSelectAllMax`, plus generic-default label params ({0}=count, {1}=cap) the HIS app overrides to "patients".
+- `LipiTable.razor.cs`: computed `PageSelectableCount`, `AllMatchingEngaged`, `BulkBarVisible`, `FloatBulkClass`, `SelectionBanner` (the state machine), `CurrentSelectionContext`, `BuildFilterSummary`; methods `RequestSelectAllMatchingAsync` (confirm/cap gate), `SelectAllMatchingAsync` (snapshot + union + basis), `CancelBulkConfirm`. The existing public `ClearSelectionAsync` is extended to also reset the 4c basis/engaged/confirm state (not duplicated — a first cut redeclared it and hit CS0111); a `ClearSelectionClickAsync` `Task` wrapper exists because EventCallback can't bind that method's `ValueTask` return to `@onclick`. All route through `ApplySelectionChangeAsync` with reasons `UserSelectAllAcrossPages` / `UserClearSelection` (both already in the enum — no enum change).
+- `LipiTable.razor`: docked bar + banner switch inserted before the grid root; floating bar inserted inside the wrap before the bottom pager; shared `BulkBarBody` `@<text>` fragment (count + host actions + clear) reused by both placements; `FloatBulkClass` appended to the pagination-wrap class string.
+- `LipiTable.razor.css`: `lipi-table-bulkbar` (+`--docked`/`--floating`), `-info`/`-count`/`-actions`/`-clear`, `lipi-table-selbanner` (+`--cap` caution tint), `-text`/`-action`/`-cancel`, `lipi-table-has-floatbulk`. All `lipi-*` prefixed with self-sufficient `var(--lipi-table-*, var(--color-*, #hex))` fallbacks (A22/A26).
+
+**Demo.** New `StyleGuideTableSelection.razor` (+ scoped `.razor.css`) at `/admin/style-guide/data-display/table-selection`, linked from the Phase 2.8 nav group (`data-enhance-nav="false"`). 48 patients / 10 per page. Section 1: docked/floating placement toggle, `BulkSelectAllConfirmAt="5"` to reach the confirm gate on small data, "patients" label overrides, host `BulkActions` (Export/Assign/Delete) writing to a host-side "audit" panel that displays the basis (Mode + FilterSummary + Count). Section 2: `BulkSelectAllMax="20"` to demonstrate the cap banner + narrow-to-recover. Demo host buttons are text-only — `LipiconName.Download`/`UserPlus`/`Trash` are unconfirmed in LiPicons v1.0.4 and an undefined enum member is a *compile* error (not a graceful no-op), so they're avoided.
+
+**Files.** Modified: `LipiTableTypes.cs`, `Contexts.cs`, `LipiTable.razor`, `LipiTable.razor.cs`, `LipiTable.razor.css`, `StyleGuide.razor`, `deploy-downloads.ps1`. New: `StyleGuideTableSelection.razor`, `StyleGuideTableSelection.razor.css` (2 deploy keys added → `src\LiPi.Web\Pages\`).
+
+**Lessons.** (1) A seam designed two stages early (LP-17, "Stage 4c subscribes") paid off — the consumer code dropped in against an unchanged payload, vindicating the key-set-from-day-one selection model. (2) Enum members referenced from Razor (`LipiconName.X`) fail at *compile* time when absent, unlike string/runtime lookups — in a library with a deliberately incomplete icon set, demo/host code must restrict itself to confirmed members or omit icons. (3) A "select all matching" snapshot must capture its audit basis at engagement time, not at action time: the matching set can drift between the two, and HIPAA reconstruction needs what the user actually saw. (4) Before adding a selection action, grep the existing public surface — `ClearSelectionAsync` already shipped, so the right move was to *extend* it (and reset 4c state there, so programmatic clears stay correct) rather than add a second one; a `ValueTask`-returning API also needs a `Task` wrapper to bind to `@onclick`.
+
+---
+
 ## v1.1 — PLANNED (Future)
 
 ### Pending Items (Move from PARKED → v1.1)
