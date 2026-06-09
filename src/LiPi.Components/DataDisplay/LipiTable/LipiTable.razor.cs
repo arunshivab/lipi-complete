@@ -53,6 +53,9 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     [Parameter] public RenderFragment? EmptyTemplate { get; set; }
     [Parameter] public RenderFragment? LoadingTemplate { get; set; }
     [Parameter] public RenderFragment? ErrorTemplate { get; set; }
+    /// <summary>Optional custom content rendered at the start (left) of the table toolbar — e.g. a
+    /// view/filter toggle. Generic slot; presence also forces the toolbar to render.</summary>
+    [Parameter] public RenderFragment? ToolbarStart { get; set; }
 
     // ── Visual (subset active this stage) ────────────────────────────────
     [Parameter] public bool StripedRows { get; set; } = true;
@@ -127,7 +130,7 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     [Parameter] public FilterMode FilterMode { get; set; } = FilterMode.HeaderIcon;
 
     /// <summary>When a column filter commits. Apply (explicit button) default; Live (debounced).</summary>
-    [Parameter] public FilterApplyMode FilterApplyMode { get; set; } = FilterApplyMode.Apply;
+    [Parameter] public FilterApplyMode FilterApplyMode { get; set; } = FilterApplyMode.Live;
 
     /// <summary>Case-sensitive column filtering (Stage S3). Default false (OrdinalIgnoreCase).</summary>
     [Parameter] public bool FilterCaseSensitive { get; set; }
@@ -172,6 +175,21 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
 
     /// <summary>Filter drawer header title. Default "Filters".</summary>
     [Parameter] public string FilterDrawerTitle { get; set; } = "Filters";
+
+    // ── Filter sidebar (Stage S3d / PR4) — active only when FilterMode=Sidebar ──
+    /// <summary>Side the persistent filter sidebar docks on (it pushes the table). Default Left.</summary>
+    [Parameter] public FilterSidebarSide FilterSidebarSide { get; set; } = FilterSidebarSide.Left;
+
+    /// <summary>Filter sidebar width in px. Default 260.</summary>
+    [Parameter] public int? FilterSidebarWidthPx { get; set; } = 260;
+
+    /// <summary>Filter sidebar header title. Default "Filters".</summary>
+    [Parameter] public string FilterSidebarTitle { get; set; } = "Filters";
+
+    /// <summary>Distinct-value count at/below which a string/status column opens in Values
+    /// (checklist) mode by default in the sidebar; above it, the column opens in Condition mode.
+    /// Default 20. (Numeric/date columns always default to Condition; boolean to its tri-state.)</summary>
+    [Parameter] public int FilterSidebarValuesThreshold { get; set; } = 20;
     // Single-mode: allow clicking the selected row to clear it (default true). §5.1.4
     [Parameter] public bool AllowDeselectInSingleMode { get; set; } = true;
     // Checkbox column placement (Left default; Right deferred visual in 4a). §5.6.1
@@ -223,7 +241,13 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     //  Pipeline: Items → quicksearch → FILTERS → sort → page. One descriptor per filtered
     //  column. MatchesFilter is the extension point — S3b adds numeric/date/boolean/In cases.
     // ══════════════════════════════════════════════════════════════════════
-    private readonly List<FilterDescriptor> _filters = new();
+    // PR5a — the committed filters now live in a shared LipiFilterState bound by reference, so a
+    // standalone LipiSlicer (and future surfaces) can read/write the same model. If the caller
+    // supplies no FilterState, the table owns an internal instance → existing usages unchanged.
+    [Parameter] public LipiFilterState<TItem>? FilterState { get; set; }
+    private readonly LipiFilterState<TItem> _ownFilterState = new();
+    private LipiFilterState<TItem>? _boundFilterState;
+    private LipiFilterState<TItem> FS => _boundFilterState ?? _ownFilterState;
     private string? _openFilterKey;        // column key whose popover is open (null = none)
     private readonly Dictionary<string, ElementReference> _filterBtnRefs = new();
     // Fixed-position coordinates for the open popover (escapes the table's overflow:hidden).
@@ -233,9 +257,9 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     private System.Threading.CancellationTokenSource? _filterLiveCts;
 
     /// <summary>Active filters (read-only view for consumers / persistence).</summary>
-    public IReadOnlyList<FilterDescriptor> CurrentFilters => _filters.ToArray();
+    public IReadOnlyList<FilterDescriptor> CurrentFilters => FS.Filters.ToArray();
 
-    private bool FiltersActive => _filters.Count > 0;
+    private bool FiltersActive => FS.Active;
 
     // Toolbar shows when quick search is on, OR when inline chips need a home and filters are active.
     private bool ChipsInline => FilterChipsPlacement == FilterChipsPlacement.Inline;
@@ -244,9 +268,8 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     private bool ShowInlineChips   => FiltersActive && ChipsInline && ShowQuickSearch;
     private bool ShowSeparateChips => FiltersActive && !ShowInlineChips;
     // Toolbar also renders in Drawer mode so the filter trigger button has a home (PR3).
-    private bool ShowToolbar       => ShowQuickSearch || FilterMode == FilterMode.Drawer;
-    private FilterDescriptor? FilterFor(string columnKey) =>
-        _filters.FirstOrDefault(f => f.ColumnKey == columnKey);
+    private bool ShowToolbar       => ShowQuickSearch || FilterMode == FilterMode.Drawer || ToolbarStart is not null;
+    private FilterDescriptor? FilterFor(string columnKey) => FS.FilterFor(columnKey);
 
     // The filtered view (applied AFTER quick search, BEFORE sort). No filters → unchanged.
     private IReadOnlyList<TItem> FilteredItems
@@ -254,321 +277,30 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
         get
         {
             var searched = SearchedItems;
-            if (searched.Count == 0 || _filters.Count == 0) return searched;
+            if (searched.Count == 0 || !FS.Active) return searched;
             return searched.Where(row =>
-                _filters.All(f =>
+                FS.Filters.All(f =>
                 {
                     var def = _columns.FirstOrDefault(c => c.ColumnKey == f.ColumnKey);
                     if (def is null || !def.Filterable) return true;   // unknown col → ignore filter
-                    return MatchesFilter(def.GetValue(row), f);
+                    return LipiFilterEvaluator.Matches(def.GetValue(row), f,
+                        FilterCaseSensitive, FilterTimeZone, FilterWeekStart);
                 })).ToList();
         }
     }
 
-    // Operator dispatch. S3a: text + universal. S3b extends (numeric/date/boolean/In).
-    private bool MatchesFilter(object? value, FilterDescriptor f)
-    {
-        var sc = FilterCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-
-        // ── Universal (value-independent) ──
-        switch (f.Operator)
-        {
-            case FilterOperator.Empty:
-                return value is null || string.IsNullOrEmpty(value.ToString());
-            case FilterOperator.NotEmpty:
-                return value is not null && !string.IsNullOrEmpty(value.ToString());
-            case FilterOperator.IsTrue:
-                return value is bool bt && bt;
-            case FilterOperator.IsFalse:
-                return value is bool bf && !bf;
-        }
-
-        // ── Set membership (In): Value is IReadOnlyList<object> of selected tokens ──
-        if (f.Operator == FilterOperator.In)
-        {
-            if (f.Value is not System.Collections.IEnumerable items) return true;
-            var sv = value?.ToString();
-            foreach (var it in items)
-                if (string.Equals(it?.ToString(), sv, sc)) return true;
-            return false;
-        }
-
-        // ── Numeric operators ──
-        if (IsNumericOperator(f.Operator) && TryToDouble(value, out var nv))
-        {
-            if (f.Operator == FilterOperator.Between)
-            {
-                if (!TryToDouble(f.Value, out var lo) || !TryToDouble(f.ValueEnd, out var hi)) return true;
-                if (lo > hi) (lo, hi) = (hi, lo);
-                return nv >= lo && nv <= hi;
-            }
-            if (!TryToDouble(f.Value, out var cmp)) return true;
-            return f.Operator switch
-            {
-                FilterOperator.Equals             => nv == cmp,
-                FilterOperator.NotEquals          => nv != cmp,
-                FilterOperator.GreaterThan        => nv > cmp,
-                FilterOperator.GreaterThanOrEqual => nv >= cmp,
-                FilterOperator.LessThan           => nv < cmp,
-                FilterOperator.LessThanOrEqual    => nv <= cmp,
-                _ => true
-            };
-        }
-
-        // ── Date operators (explicit On/Before/After/Between + relative set) ──
-        if (TryToDate(value, out var dv))
-        {
-            // Relative operators resolve a window from "filter today".
-            if (IsRelativeDateOperator(f.Operator))
-            {
-                var (rs, re) = RelativeWindow(f.Operator, f.Value);
-                return dv >= rs && dv <= re;
-            }
-            if (IsExplicitDateOperator(f.Operator))
-            {
-                if (f.Operator == FilterOperator.Between)
-                {
-                    if (!TryToDate(f.Value, out var ds) || !TryToDate(f.ValueEnd, out var de)) return true;
-                    if (ds > de) (ds, de) = (de, ds);
-                    return dv >= ds && dv <= de;
-                }
-                if (!TryToDate(f.Value, out var d1)) return true;
-                return f.Operator switch
-                {
-                    FilterOperator.Equals       => dv == d1,
-                    FilterOperator.NotEquals    => dv != d1,
-                    FilterOperator.GreaterThan  => dv > d1,   // After
-                    FilterOperator.LessThan     => dv < d1,   // Before
-                    FilterOperator.GreaterThanOrEqual => dv >= d1,
-                    FilterOperator.LessThanOrEqual    => dv <= d1,
-                    _ => true
-                };
-            }
-        }
-
-        // ── Text operators (S3a behavior) ──
-        var s = value?.ToString();
-        var term = f.Value?.ToString();
-        if (string.IsNullOrEmpty(term)) return true;   // no constraint
-        if (s is null) return false;
-        return f.Operator switch
-        {
-            FilterOperator.Contains    => s.IndexOf(term, sc) >= 0,
-            FilterOperator.NotContains => s.IndexOf(term, sc) < 0,
-            FilterOperator.Equals      => string.Equals(s, term, sc),
-            FilterOperator.NotEquals   => !string.Equals(s, term, sc),
-            FilterOperator.StartsWith  => s.StartsWith(term, sc),
-            FilterOperator.EndsWith    => s.EndsWith(term, sc),
-            _ => true
-        };
-    }
-
-    // ── S3b typed-coercion + relative-date helpers ────────────────────────
-    private static bool TryToDouble(object? v, out double d)
-    {
-        switch (v)
-        {
-            case null: d = 0; return false;
-            case double dd: d = dd; return true;
-            case float f:   d = f;  return true;
-            case decimal m: d = (double)m; return true;
-            case int i:     d = i;  return true;
-            case long l:    d = l;  return true;
-            case short s:   d = s;  return true;
-            case byte b:    d = b;  return true;
-        }
-        return double.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out d)
-            || double.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.CurrentCulture, out d);
-    }
-
-    private static bool TryToDate(object? v, out DateOnly d)
-    {
-        switch (v)
-        {
-            case DateOnly db:        d = db; return true;
-            case DateTime dt:        d = DateOnly.FromDateTime(dt); return true;
-            case DateTimeOffset dto: d = DateOnly.FromDateTime(dto.DateTime); return true;
-            case null:               d = default; return false;
-        }
-        // string fallback: try ISO then invariant
-        if (DateOnly.TryParse(v.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out d)) return true;
-        if (DateTime.TryParse(v.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt2))
-        { d = DateOnly.FromDateTime(dt2); return true; }
-        return false;
-    }
-
-    private static bool IsNumericOperator(FilterOperator op) => op is
-        FilterOperator.Equals or FilterOperator.NotEquals or
-        FilterOperator.GreaterThan or FilterOperator.GreaterThanOrEqual or
-        FilterOperator.LessThan or FilterOperator.LessThanOrEqual or FilterOperator.Between;
-
-    private static bool IsExplicitDateOperator(FilterOperator op) => op is
-        FilterOperator.Equals or FilterOperator.NotEquals or
-        FilterOperator.GreaterThan or FilterOperator.LessThan or
-        FilterOperator.GreaterThanOrEqual or FilterOperator.LessThanOrEqual or
-        FilterOperator.Between;
-
-    private static bool IsRelativeDateOperator(FilterOperator op) => op is
-        FilterOperator.Today or FilterOperator.Yesterday or FilterOperator.Tomorrow or
-        FilterOperator.ThisWeek or FilterOperator.LastWeek or FilterOperator.NextWeek or
-        FilterOperator.ThisMonth or FilterOperator.LastMonth or FilterOperator.NextMonth or
-        FilterOperator.ThisQuarter or FilterOperator.LastQuarter or
-        FilterOperator.ThisYear or FilterOperator.LastYear or
-        FilterOperator.LastNDays or FilterOperator.NextNDays;
-
-    // Relative date operators in display order — gated per-column by RelativeDateSpans (S3b+).
-    private static readonly FilterOperator[] RelativeOperatorsInOrder =
-    {
-        FilterOperator.Today, FilterOperator.Yesterday, FilterOperator.Tomorrow,
-        FilterOperator.ThisWeek, FilterOperator.LastWeek, FilterOperator.NextWeek,
-        FilterOperator.ThisMonth, FilterOperator.LastMonth, FilterOperator.NextMonth,
-        FilterOperator.ThisQuarter, FilterOperator.LastQuarter,
-        FilterOperator.ThisYear, FilterOperator.LastYear,
-        FilterOperator.LastNDays, FilterOperator.NextNDays,
-    };
-
-    // Which DateSpan bucket a relative operator belongs to (Day groups the day-grain + Last-N/Next-N).
-    private static DateSpan SpanOf(FilterOperator op) => op switch
-    {
-        FilterOperator.Today or FilterOperator.Yesterday or FilterOperator.Tomorrow
-            or FilterOperator.LastNDays or FilterOperator.NextNDays => DateSpan.Day,
-        FilterOperator.ThisWeek or FilterOperator.LastWeek or FilterOperator.NextWeek => DateSpan.Week,
-        FilterOperator.ThisMonth or FilterOperator.LastMonth or FilterOperator.NextMonth => DateSpan.Month,
-        FilterOperator.ThisQuarter or FilterOperator.LastQuarter => DateSpan.Quarter,
-        FilterOperator.ThisYear or FilterOperator.LastYear => DateSpan.Year,
-        _ => DateSpan.None
-    };
-
-    // Resolve a [start,end] DateOnly window for a relative operator, anchored at FilterToday.
-    // Week boundaries use FilterWeekStart; quarters are calendar quarters here (filter context).
-    private (DateOnly start, DateOnly end) RelativeWindow(FilterOperator op, object? nValue)
-    {
-        var today = FilterToday;
-        DateOnly Eom(int y, int m) => new(y, m, DateTime.DaysInMonth(y, m));
-        DateOnly WkStart(DateOnly d) { int delta = ((int)d.DayOfWeek - (int)FilterWeekStart + 7) % 7; return d.AddDays(-delta); }
-        int n() { if (nValue is int i) return i; int.TryParse(nValue?.ToString(), out var k); return k; }
-
-        switch (op)
-        {
-            case FilterOperator.Today:     return (today, today);
-            case FilterOperator.Yesterday: return (today.AddDays(-1), today.AddDays(-1));
-            case FilterOperator.Tomorrow:  return (today.AddDays(1), today.AddDays(1));
-            case FilterOperator.ThisWeek:  { var s = WkStart(today); return (s, s.AddDays(6)); }
-            case FilterOperator.LastWeek:  { var s = WkStart(today).AddDays(-7); return (s, s.AddDays(6)); }
-            case FilterOperator.NextWeek:  { var s = WkStart(today).AddDays(7); return (s, s.AddDays(6)); }
-            case FilterOperator.ThisMonth: { var s = new DateOnly(today.Year, today.Month, 1); return (s, Eom(s.Year, s.Month)); }
-            case FilterOperator.LastMonth: { var s = new DateOnly(today.Year, today.Month, 1).AddMonths(-1); return (s, Eom(s.Year, s.Month)); }
-            case FilterOperator.NextMonth: { var s = new DateOnly(today.Year, today.Month, 1).AddMonths(1); return (s, Eom(s.Year, s.Month)); }
-            case FilterOperator.ThisQuarter: { int q = (today.Month - 1) / 3; var s = new DateOnly(today.Year, q * 3 + 1, 1); var e = s.AddMonths(3).AddDays(-1); return (s, e); }
-            case FilterOperator.LastQuarter: { int q = (today.Month - 1) / 3; var ts = new DateOnly(today.Year, q * 3 + 1, 1); var s = ts.AddMonths(-3); return (s, ts.AddDays(-1)); }
-            case FilterOperator.ThisYear:  return (new DateOnly(today.Year, 1, 1), new DateOnly(today.Year, 12, 31));
-            case FilterOperator.LastYear:  return (new DateOnly(today.Year - 1, 1, 1), new DateOnly(today.Year - 1, 12, 31));
-            case FilterOperator.LastNDays: { int k = Math.Max(0, n()); return (today.AddDays(-k), today); }
-            case FilterOperator.NextNDays: { int k = Math.Max(0, n()); return (today, today.AddDays(k)); }
-            default: return (today, today);
-        }
-    }
-
-    // "Today" for relative date filters. Resolved from the table's FilterTimeZone if set
-    // (the zone that anchors DateTimeOffset date-window boundaries — the BP-search resolution:
-    // the FILTER carries the zone, not the picker), else server-local today.
-    private DateOnly FilterToday =>
-        FilterTimeZone is { } tz
-            ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz))
-            : DateOnly.FromDateTime(DateTime.Now);
+    // Relative-date helpers (IsRelativeDateOperator / RelativeOperatorsInOrder / SpanOf) moved to
+    // LipiFilterOperators (PR6b).
 
     // Operators offered for a column type (S3a: text columns get the text+universal set).
     // S3b returns numeric/date/boolean/status sets. Centralized so the popover + chips agree.
+    // Delegates to the shared engine (PR6b). A58 relative-date gating flows via RelativeDateSpans.
     private IReadOnlyList<FilterOperator> OperatorsFor(ColumnDefinition<TItem> def)
-    {
-        switch (def.Type)
-        {
-            case ColumnType.Number:
-            case ColumnType.Currency:
-                return new[]
-                {
-                    FilterOperator.Equals, FilterOperator.NotEquals,
-                    FilterOperator.GreaterThan, FilterOperator.GreaterThanOrEqual,
-                    FilterOperator.LessThan, FilterOperator.LessThanOrEqual,
-                    FilterOperator.Between, FilterOperator.Empty, FilterOperator.NotEmpty
-                };
+        => LipiFilterOperators.OperatorsFor(def.Type, def.RelativeDateSpans);
 
-            case ColumnType.Date:
-            case ColumnType.DateTime:
-            {
-                // Absolute operators first (always offered), then the relative operators
-                // gated by the column's resolved RelativeDateSpans (cascade), then Empty/NotEmpty.
-                var ops = new List<FilterOperator>
-                {
-                    FilterOperator.Equals,            // On
-                    FilterOperator.LessThan,          // Before
-                    FilterOperator.GreaterThan,       // After
-                    FilterOperator.Between,
-                };
-                var spans = def.RelativeDateSpans;
-                foreach (var op in RelativeOperatorsInOrder)
-                    if ((spans & SpanOf(op)) != 0)
-                        ops.Add(op);
-                ops.Add(FilterOperator.Empty);
-                ops.Add(FilterOperator.NotEmpty);
-                return ops;
-            }
+    // FilterEditor enum + EditorFor moved to LipiFilterOperators (PR6b).
 
-            case ColumnType.Boolean:
-                return new[] { FilterOperator.IsTrue, FilterOperator.IsFalse };
-
-            case ColumnType.Status:
-                // Status is a constrained string set → membership + equality.
-                return new[]
-                {
-                    FilterOperator.In, FilterOperator.Equals, FilterOperator.NotEquals,
-                    FilterOperator.Empty, FilterOperator.NotEmpty
-                };
-
-            default: // Text, Mono, Link, etc.
-                return new[]
-                {
-                    FilterOperator.Contains, FilterOperator.NotContains,
-                    FilterOperator.Equals, FilterOperator.NotEquals,
-                    FilterOperator.StartsWith, FilterOperator.EndsWith,
-                    FilterOperator.In,
-                    FilterOperator.Empty, FilterOperator.NotEmpty
-                };
-        }
-    }
-
-    // Which editor a given draft operator needs (drives the popover body).
-    private enum FilterEditor { None, Text, Number, NumberRange, Date, DateRange, RelativeN, Multi }
-
-    private FilterEditor EditorFor(ColumnDefinition<TItem> def, FilterOperator op)
-    {
-        if (op is FilterOperator.Empty or FilterOperator.NotEmpty
-               or FilterOperator.IsTrue or FilterOperator.IsFalse) return FilterEditor.None;
-        if (IsRelativeDateOperator(op))
-            return op is FilterOperator.LastNDays or FilterOperator.NextNDays
-                ? FilterEditor.RelativeN : FilterEditor.None;
-        if (op == FilterOperator.In) return FilterEditor.Multi;
-        if (op == FilterOperator.Between)
-            return def.Type is ColumnType.Date or ColumnType.DateTime
-                ? FilterEditor.DateRange : FilterEditor.NumberRange;
-        if (def.Type is ColumnType.Date or ColumnType.DateTime) return FilterEditor.Date;
-        if (def.Type is ColumnType.Number or ColumnType.Currency) return FilterEditor.Number;
-        return FilterEditor.Text;
-    }
-
-    // Does an operator need a value input? Empty/NotEmpty don't.
-    private static bool OperatorNeedsValue(FilterOperator op)
-    {
-        if (op is FilterOperator.Empty or FilterOperator.NotEmpty
-               or FilterOperator.IsTrue or FilterOperator.IsFalse) return false;
-        // Relative date operators carry their own window — only LastNDays/NextNDays need an N.
-        if (op is FilterOperator.Today or FilterOperator.Yesterday or FilterOperator.Tomorrow
-               or FilterOperator.ThisWeek or FilterOperator.LastWeek or FilterOperator.NextWeek
-               or FilterOperator.ThisMonth or FilterOperator.LastMonth or FilterOperator.NextMonth
-               or FilterOperator.ThisQuarter or FilterOperator.LastQuarter
-               or FilterOperator.ThisYear or FilterOperator.LastYear) return false;
-        return true;
-    }
+    private static bool OperatorNeedsValue(FilterOperator op) => LipiFilterOperators.OperatorNeedsValue(op);
 
     // ── Popover open/close (one at a time; backdrop dismisses) ────────────
     private void ToggleFilterPopover(string columnKey)
@@ -598,57 +330,24 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     // The popover binds to the entry for _openFilterKey; the drawer (PR3) will
     // bind each section to its own column entry. The filter ENGINE (MatchesFilter,
     // OperatorsFor, EditorFor, CoerceDraft, chips) is unchanged.
-    private sealed class ColumnDraft
-    {
-        public FilterOperator Operator = FilterOperator.Contains;
-        public string Value = string.Empty;
-        public string ValueEnd = string.Empty;            // Between upper bound (S3b)
-        public readonly HashSet<string> Multi = new();    // In multi-select selections (S3b)
-        public DateOnly? DateStart;                        // date-range editor (option c, S3b)
-        public DateOnly? DateEnd;
-    }
+    // LipiFilterDraft promoted to public LipiFilterDraft (PR6b).
 
     // Keyed by ColumnKey. Entries are ephemeral working copies — (re)seeded from
     // the applied filter when a popover/section (re)opens, so a stale entry is
     // harmless. Seeded lazily via EnsureDraft / forcibly via SeedDraft.
-    private readonly Dictionary<string, ColumnDraft> _drafts = new();
+    private readonly Dictionary<string, LipiFilterDraft> _drafts = new();
 
     // Return the existing draft for a column, or seed one if absent. Safe to call
     // from the render path (markup) without wiping in-progress edits.
-    private ColumnDraft EnsureDraft(ColumnDefinition<TItem> def)
+    private LipiFilterDraft EnsureDraft(ColumnDefinition<TItem> def)
         => _drafts.TryGetValue(def.ColumnKey, out var d) ? d : SeedDraft(def);
 
     // (Re)seed a column's draft from its applied filter (or the operator default
     // when unfiltered), overwriting any prior draft. Called when a popover opens
     // so the editor reflects the live filter. PR1.
-    private ColumnDraft SeedDraft(ColumnDefinition<TItem> def)
+    private LipiFilterDraft SeedDraft(ColumnDefinition<TItem> def)
     {
-        var d = new ColumnDraft();
-        var existing = FilterFor(def.ColumnKey);
-        var ops = OperatorsFor(def);
-        d.Operator = existing?.Operator ?? ops[0];
-        d.ValueEnd = existing?.ValueEnd?.ToString() ?? string.Empty;
-        if (existing?.Operator == FilterOperator.In && existing.Value is System.Collections.IEnumerable en)
-            foreach (var it in en) { var t = it?.ToString(); if (t is not null) d.Multi.Add(t); }
-        d.Value = existing?.Operator == FilterOperator.In
-            ? string.Empty
-            : existing?.Value?.ToString() ?? string.Empty;
-        // Boolean tri-state: map an existing IsTrue/IsFalse back to the editor value; no filter → (Any).
-        if (def.Type == ColumnType.Boolean)
-        {
-            d.Value = existing?.Operator switch
-            {
-                FilterOperator.IsTrue  => "true",
-                FilterOperator.IsFalse => "false",
-                _                      => string.Empty
-            };
-        }
-        // Date-range editor (option c): seed start/end from an existing Between filter.
-        if (def.Type is ColumnType.Date or ColumnType.DateTime)
-        {
-            if (existing?.Value is DateOnly ds) d.DateStart = ds;
-            if (existing?.ValueEnd is DateOnly de) d.DateEnd = de;
-        }
+        var d = LipiFilterOperators.SeedDraft(FilterFor(def.ColumnKey), def.Type, OperatorsFor(def));
         _drafts[def.ColumnKey] = d;
         return d;
     }
@@ -730,71 +429,18 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
         if (FilterApplyMode == FilterApplyMode.Apply) CloseFilterPopover();
     }
 
-    private async Task CommitDraftAsync(string key)
+    private Task CommitDraftAsync(string key)
     {
-        if (!_drafts.TryGetValue(key, out var d)) return;
-        var previous = _filters.ToArray();
-        _filters.RemoveAll(f => f.ColumnKey == key);
-
-        bool needsValue = OperatorNeedsValue(d.Operator);
+        if (!_drafts.TryGetValue(key, out var d)) return Task.CompletedTask;
         var def = _columns.FirstOrDefault(c => c.ColumnKey == key);
-        var editor = def is not null ? EditorFor(def, d.Operator) : FilterEditor.Text;
+        var type = def?.Type ?? ColumnType.Text;
 
-        // Option (c): date columns filter via the LipiDateRangePicker → a Between window.
-        // Either bound may be open (AllowOpenEnd) → fall back to After/Before when one side is null.
-        if (def is not null && def.Type is ColumnType.Date or ColumnType.DateTime)
-        {
-            if (d.DateStart is { } s && d.DateEnd is { } e)
-                _filters.Add(new FilterDescriptor(key, FilterOperator.Between, s, e));
-            else if (d.DateStart is { } s2)
-                _filters.Add(new FilterDescriptor(key, FilterOperator.GreaterThanOrEqual, s2, null));
-            else if (d.DateEnd is { } e2)
-                _filters.Add(new FilterDescriptor(key, FilterOperator.LessThanOrEqual, e2, null));
-            // else: no dates picked → no filter (removed above)
-            _currentPage = 1;
-            await FireFilterChanged(previous, FilterChangeReason.UserApplyPopover);
-            StateHasChanged();
-            return;
-        }
-
-        // Boolean tri-state: "true"/"false" → IsTrue/IsFalse; "" → (Any) → no filter (left removed).
-        if (def is not null && def.Type == ColumnType.Boolean)
-        {
-            if (d.Value == "true")
-                _filters.Add(new FilterDescriptor(key, FilterOperator.IsTrue, null, null));
-            else if (d.Value == "false")
-                _filters.Add(new FilterDescriptor(key, FilterOperator.IsFalse, null, null));
-            _currentPage = 1;
-            await FireFilterChanged(previous, FilterChangeReason.UserApplyPopover);
-            StateHasChanged();
-            return;
-        }
-
-        if (!needsValue)
-        {
-            // Value-independent (Empty/NotEmpty/IsTrue/IsFalse) or self-contained relative window.
-            _filters.Add(new FilterDescriptor(key, d.Operator, null, null));
-        }
-        else if (editor == FilterEditor.Multi)
-        {
-            if (d.Multi.Count > 0)
-                _filters.Add(new FilterDescriptor(key, d.Operator,
-                    (IReadOnlyList<object>)d.Multi.Cast<object>().ToList(), null));
-        }
-        else if (editor is FilterEditor.NumberRange or FilterEditor.DateRange)
-        {
-            if (!string.IsNullOrEmpty(d.Value) && !string.IsNullOrEmpty(d.ValueEnd))
-                _filters.Add(new FilterDescriptor(key, d.Operator,
-                    CoerceDraft(editor, d.Value), CoerceDraft(editor, d.ValueEnd)));
-        }
-        else if (!string.IsNullOrEmpty(d.Value))
-        {
-            _filters.Add(new FilterDescriptor(key, d.Operator,
-                CoerceDraft(editor, d.Value), null));
-        }
-        _currentPage = 1;   // filter change resets to page 1
-        await FireFilterChanged(previous, FilterChangeReason.UserApplyPopover);
-        StateHasChanged();
+        // Build the 0-or-1 descriptor via the shared engine, then commit to the shared state. The
+        // state's Changed handler resets the page, fires OnFilterChanged, and re-renders.
+        var desc = LipiFilterOperators.BuildDescriptor(key, d, type);
+        if (desc is null) FS.SetColumn(key, FilterChangeReason.UserApplyPopover);
+        else FS.SetColumn(key, FilterChangeReason.UserApplyPopover, desc);
+        return Task.CompletedTask;
     }
 
     // Distinct non-null string values for a column (drives the In multi-select editor).
@@ -815,6 +461,16 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     {
         if (!_drafts.TryGetValue(key, out var d)) return;
         if (!d.Multi.Remove(token)) d.Multi.Add(token);
+    }
+
+    // PR6b fix: the editor's In/Multi checkboxes route here. Mutate the draft, then live-commit
+    // (mirrors OnSidebarValueToggleAsync) so In filters apply in Live mode; Apply mode batches via
+    // the footer. Previously the funnel/drawer/sidebar-Condition wired bare ToggleDraftMulti, which
+    // never committed — so In selections silently did nothing once FilterApplyMode defaulted to Live.
+    private async Task ToggleDraftMultiAsync(string key, string token)
+    {
+        ToggleDraftMulti(key, token);
+        if (FilterApplyMode == FilterApplyMode.Live) await CommitDraftAsync(key);
     }
 
     // Draft-end change handler (Between upper bound).
@@ -839,59 +495,37 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
         if (FilterApplyMode == FilterApplyMode.Live) await DebouncedLiveCommitAsync(key);
     }
 
-    // Coerce a draft string into the typed value the engine compares against.
-    private object CoerceDraft(FilterEditor editor, string raw)
-    {
-        switch (editor)
-        {
-            case FilterEditor.Number:
-            case FilterEditor.NumberRange:
-                if (double.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) return d;
-                return raw;
-            case FilterEditor.Date:
-            case FilterEditor.DateRange:
-                if (DateOnly.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)) return dt;
-                return raw;
-            case FilterEditor.RelativeN:
-                if (int.TryParse(raw, out var n)) return n;
-                return 0;
-            default:
-                return raw;
-        }
-    }
+    // CoerceDraft moved to LipiFilterOperators.Coerce (PR6b).
 
     // Remove one column's filter (chip ✕ or popover Clear).
-    private async Task ClearColumnFilterAsync(string columnKey)
+    private Task ClearColumnFilterAsync(string columnKey)
     {
-        if (_filters.All(f => f.ColumnKey != columnKey)) { CloseFilterPopover(); return; }
-        var previous = _filters.ToArray();
-        _filters.RemoveAll(f => f.ColumnKey == columnKey);
+        if (FS.FilterFor(columnKey) is null) { CloseFilterPopover(); return Task.CompletedTask; }
         _drafts.Remove(columnKey);   // drop the working draft for this column (PR1)
-        _currentPage = 1;
-        await FireFilterChanged(previous, FilterChangeReason.UserRemoveChip);
-        StateHasChanged();
+        FS.RemoveColumn(columnKey, FilterChangeReason.UserRemoveChip);
+        return Task.CompletedTask;
     }
 
     /// <summary>Clear every active filter.</summary>
-    public async Task ClearAllFiltersAsync()
+    public Task ClearAllFiltersAsync()
     {
-        if (_filters.Count == 0) return;
-        var previous = _filters.ToArray();
-        _filters.Clear();
-        _currentPage = 1;
-        await FireFilterChanged(previous, FilterChangeReason.UserClearAll);
-        StateHasChanged();
+        FS.Clear(FilterChangeReason.UserClearAll);
+        return Task.CompletedTask;
     }
 
-    private async Task FireFilterChanged(IReadOnlyList<FilterDescriptor> previous, FilterChangeReason reason)
+    // Single notification path (PR5a): any mutation of the shared state (this table's popover/
+    // drawer/sidebar OR a bound LipiSlicer) lands here — reset to page 1, surface the public
+    // OnFilterChanged callback, and re-render. InvokeAsync guards cross-component dispatch.
+    private void OnFilterStateChanged(FilterChangedContext ctx)
     {
-        if (OnFilterChanged.HasDelegate)
-            await OnFilterChanged.InvokeAsync(new FilterChangedContext(_filters.ToArray(), previous, reason));
+        _currentPage = 1;
+        if (OnFilterChanged.HasDelegate) _ = OnFilterChanged.InvokeAsync(ctx);
+        _ = InvokeAsync(StateHasChanged);
     }
 
     // ══════════════════════════════════════════════════════════════════════
     //  Filter drawer — Stage S3c / PR3. Declarative <LipiDrawer> over the SAME
-    //  per-column ColumnDraft model (PR1). The drawer never calls a drawer
+    //  per-column LipiFilterDraft model (PR1). The drawer never calls a drawer
     //  service: the parent (this table) owns _filterDrawerOpen and mounts the
     //  drawer; LipiDrawer invokes OnClose, which un-mounts it. The filter ENGINE
     //  (OperatorsFor / EditorFor / SeedDraft / CommitDraftAsync / ClearAll) is
@@ -900,7 +534,106 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     private bool _filterDrawerOpen;
 
     // Distinct columns currently carrying a filter (drives the trigger badge).
-    private int ActiveFilterColumnCount => _filters.Select(f => f.ColumnKey).Distinct().Count();
+    private int ActiveFilterColumnCount => FS.ActiveColumnCount;
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Filter bar — Stage S3g / PR6a. A floating filter row docked under the
+    //  header (FilterMode.FilterBar), one compact control per filterable column,
+    //  aligned to the grid tracks. Each control reads its current value back from
+    //  the shared state and commits directly (Contains / Equals / IsTrue|IsFalse /
+    //  Between|GTE|LTE) on change. Commits on the change gesture (blur/Enter/select),
+    //  not per keystroke — avoids Blazor-Server cursor reset on bound inputs.
+    // ══════════════════════════════════════════════════════════════════════
+    private const FilterChangeReason BarReason = FilterChangeReason.UserApplyPopover;
+
+    // ── read-back from the shared state ──
+    private string BarText(string key)
+    {
+        var f = FS.FilterFor(key);
+        return f?.Operator == FilterOperator.Contains ? f.Value?.ToString() ?? string.Empty : string.Empty;
+    }
+    private string BarStatus(string key)
+    {
+        var f = FS.FilterFor(key);
+        return f?.Operator == FilterOperator.Equals ? f.Value?.ToString() ?? string.Empty : string.Empty;
+    }
+    private string BarBool(string key)
+        => FS.FilterFor(key)?.Operator switch
+        {
+            FilterOperator.IsTrue => "true",
+            FilterOperator.IsFalse => "false",
+            _ => string.Empty
+        };
+    private (string Min, string Max) BarNum(string key)
+    {
+        var f = FS.FilterFor(key);
+        if (f is null) return (string.Empty, string.Empty);
+        return f.Operator switch
+        {
+            FilterOperator.Between            => (f.Value?.ToString() ?? string.Empty, f.ValueEnd?.ToString() ?? string.Empty),
+            FilterOperator.GreaterThanOrEqual => (f.Value?.ToString() ?? string.Empty, string.Empty),
+            FilterOperator.LessThanOrEqual    => (string.Empty, f.Value?.ToString() ?? string.Empty),
+            _ => (string.Empty, string.Empty)
+        };
+    }
+    private (DateOnly? Start, DateOnly? End) BarDateRaw(string key)
+    {
+        var f = FS.FilterFor(key);
+        if (f is null) return (null, null);
+        static DateOnly? D(object? o) => o is DateOnly d ? d : o is DateTime dt ? DateOnly.FromDateTime(dt) : (DateOnly?)null;
+        return f.Operator switch
+        {
+            FilterOperator.Between            => (D(f.Value), D(f.ValueEnd)),
+            FilterOperator.GreaterThanOrEqual => (D(f.Value), null),
+            FilterOperator.LessThanOrEqual    => (null, D(f.Value)),
+            _ => (null, null)
+        };
+    }
+    // Compact label for the FilterBar date trigger (the full editor lives in the popover).
+    private string BarDateSummary(string key)
+    {
+        var f = FS.FilterFor(key);
+        if (f is null) return "Date…";
+        var (s, e) = BarDateRaw(key);
+        static string F(DateOnly? d) => d?.ToString("dd-MM-yyyy") ?? "?";
+        return f.Operator switch
+        {
+            FilterOperator.Between            => $"{F(s)} – {F(e)}",
+            FilterOperator.GreaterThanOrEqual => $"≥ {F(s)}",
+            FilterOperator.LessThanOrEqual    => $"≤ {F(e)}",
+            _ => "Filtered"
+        };
+    }
+
+    // ── commit (direct to shared state) ──
+    private void BarSetText(string key, string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) FS.SetColumn(key, BarReason);
+        else FS.SetColumn(key, BarReason, new FilterDescriptor(key, FilterOperator.Contains, v, null));
+    }
+    private void BarSetStatus(string key, string? v)
+    {
+        if (string.IsNullOrEmpty(v)) FS.SetColumn(key, BarReason);
+        else FS.SetColumn(key, BarReason, new FilterDescriptor(key, FilterOperator.Equals, v, null));
+    }
+    private void BarSetBool(string key, string? v)
+    {
+        if (v == "true") FS.SetColumn(key, BarReason, new FilterDescriptor(key, FilterOperator.IsTrue, null, null));
+        else if (v == "false") FS.SetColumn(key, BarReason, new FilterDescriptor(key, FilterOperator.IsFalse, null, null));
+        else FS.SetColumn(key, BarReason);
+    }
+    private void BarSetNum(string key, string? min, string? max)
+    {
+        var hasMin = !string.IsNullOrWhiteSpace(min);
+        var hasMax = !string.IsNullOrWhiteSpace(max);
+        if (hasMin && hasMax) FS.SetColumn(key, BarReason, new FilterDescriptor(key, FilterOperator.Between, min, max));
+        else if (hasMin) FS.SetColumn(key, BarReason, new FilterDescriptor(key, FilterOperator.GreaterThanOrEqual, min, null));
+        else if (hasMax) FS.SetColumn(key, BarReason, new FilterDescriptor(key, FilterOperator.LessThanOrEqual, max, null));
+        else FS.SetColumn(key, BarReason);
+    }
+    private void BarSetNumMin(string key, ChangeEventArgs e) { var (_, mx) = BarNum(key); BarSetNum(key, e.Value?.ToString(), mx); }
+    private void BarSetNumMax(string key, ChangeEventArgs e) { var (mn, _) = BarNum(key); BarSetNum(key, mn, e.Value?.ToString()); }
+
 
     // DataDisplay FilterDrawerSide → Overlays DrawerPlacement.
     private DrawerPlacement MapDrawerSide(FilterDrawerSide side) => side switch
@@ -942,6 +675,130 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
         StateHasChanged();
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  Filter sidebar — Stage S3d / PR4. A persistent docked panel that pushes
+    //  the table. Each non-boolean column offers two modes:
+    //    • Values    — distinct-value checklist (= the In operator), with row
+    //                  counts, search-within-values and select-all.
+    //    • Condition — the shared FilterFields operator + editor (A).
+    //  Mode is derived from the draft operator: In ⇒ Values, else ⇒ Condition.
+    //  Boolean columns always render the tri-state (no toggle). Honors
+    //  FilterApplyMode (Live commits on change; Apply uses the footer). Reuses
+    //  the same LipiFilterDraft engine as the popover/drawer; distinct values are
+    //  client-side over Items (server-side faceting is a later addition).
+    // ══════════════════════════════════════════════════════════════════════
+    private readonly HashSet<string> _sidebarSeededCols = new();
+    private readonly Dictionary<string, string> _sidebarSearch = new();
+
+    private string SidebarShellClass => FilterMode == FilterMode.Sidebar
+        ? $"lipi-table-shell lipi-table-shell--sidebar lipi-table-shell--{(FilterSidebarSide == FilterSidebarSide.Right ? "right" : "left")}"
+        : "lipi-table-shell";
+
+    private string FilterSidebarStyle
+        => $"flex:0 0 {(FilterSidebarWidthPx is { } w ? w + "px" : "260px")};";
+
+    // Lazily seed a column's draft for the sidebar the first time it is rendered, applying the Auto
+    // rule (Values vs Condition) when the column is unfiltered. Render-safe (same pattern as
+    // EnsureDraft); avoids a leading statement inside the FilterSidebar render fragment.
+    private LipiFilterDraft EnsureSidebarDraft(ColumnDefinition<TItem> def)
+    {
+        if (_sidebarSeededCols.Add(def.ColumnKey))
+        {
+            var d = SeedDraft(def);
+            if (FilterFor(def.ColumnKey) is null)
+                d.Operator = SidebarDefaultIsValues(def) ? FilterOperator.In : FirstConditionOperator(def);
+            return d;
+        }
+        return EnsureDraft(def);
+    }
+
+    // Auto rule: which columns open in Values (checklist) mode.
+    private bool SidebarDefaultIsValues(ColumnDefinition<TItem> def)
+    {
+        if (def.Type is ColumnType.Boolean
+                      or ColumnType.Number or ColumnType.Currency
+                      or ColumnType.Date or ColumnType.DateTime)
+            return false;
+        var n = DistinctValuesFor(def).Count;
+        return n > 0 && n <= FilterSidebarValuesThreshold;
+    }
+
+    private FilterOperator FirstConditionOperator(ColumnDefinition<TItem> def)
+    {
+        var ops = OperatorsFor(def);
+        foreach (var op in ops) if (op != FilterOperator.In) return op;
+        return ops[0];
+    }
+
+    private bool SidebarIsValuesMode(ColumnDefinition<TItem> def, LipiFilterDraft d)
+        => def.Type != ColumnType.Boolean && d.Operator == FilterOperator.In;
+
+    // Distinct values + row counts for a column (Values-mode checklist). Tokens use the same
+    // value .ToString() that MatchesFilter's In comparison uses.
+    private IReadOnlyList<(string Value, int Count)> DistinctValueCountsFor(ColumnDefinition<TItem> def)
+    {
+        if (Items is null) return Array.Empty<(string, int)>();
+        var counts = new Dictionary<string, int>();
+        foreach (var row in Items)
+        {
+            var v = def.GetValue(row)?.ToString();
+            if (string.IsNullOrEmpty(v)) continue;
+            counts[v] = counts.TryGetValue(v, out var n) ? n + 1 : 1;
+        }
+        return counts.OrderBy(kv => kv.Key, StringComparer.CurrentCulture)
+                     .Select(kv => (kv.Key, kv.Value)).ToList();
+    }
+
+    // Values filtered by the section's search box (case-insensitive contains).
+    private IReadOnlyList<(string Value, int Count)> SidebarVisibleValues(ColumnDefinition<TItem> def)
+    {
+        var all = DistinctValueCountsFor(def);
+        var q = _sidebarSearch.TryGetValue(def.ColumnKey, out var s) ? s : null;
+        if (string.IsNullOrWhiteSpace(q)) return all;
+        return all.Where(x => x.Value.Contains(q!, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private void OnSidebarSearch(string key, ChangeEventArgs e)
+        => _sidebarSearch[key] = e.Value?.ToString() ?? string.Empty;
+
+    private async Task OnSidebarSetModeAsync(ColumnDefinition<TItem> def, bool toValues)
+    {
+        var d = EnsureDraft(def);
+        d.Operator = toValues ? FilterOperator.In : FirstConditionOperator(def);
+        if (FilterApplyMode == FilterApplyMode.Live) await CommitDraftAsync(def.ColumnKey);
+    }
+
+    private async Task OnSidebarValueToggleAsync(string key, string token)
+    {
+        ToggleDraftMulti(key, token);
+        if (FilterApplyMode == FilterApplyMode.Live) await CommitDraftAsync(key);
+    }
+
+    private async Task OnSidebarSelectAllAsync(string key, IReadOnlyList<string> visible)
+    {
+        if (!_drafts.TryGetValue(key, out var d)) return;
+        bool allOn = visible.Count > 0 && visible.All(d.Multi.Contains);
+        foreach (var t in visible) { if (allOn) d.Multi.Remove(t); else d.Multi.Add(t); }
+        if (FilterApplyMode == FilterApplyMode.Live) await CommitDraftAsync(key);
+    }
+
+    // Apply mode footer: commit every filterable column's draft at once (sidebar stays open).
+    private async Task ApplyAllFiltersAsync()
+    {
+        foreach (var def in _columns.Where(c => c.Filterable))
+            await CommitDraftAsync(def.ColumnKey);
+    }
+
+    // Sidebar Clear all: drop every filter, then re-seed drafts to their auto mode.
+    private async Task ClearAllSidebarAsync()
+    {
+        await ClearAllFiltersAsync();
+        _sidebarSeededCols.Clear();
+        foreach (var def in _columns.Where(c => c.Filterable))
+            EnsureSidebarDraft(def);
+        StateHasChanged();
+    }
+
     // ── Chip rendering helpers ────────────────────────────────────────────
     private string FilterChipText(FilterDescriptor f)
     {
@@ -975,54 +832,9 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
 
     // Date columns show On/Before/After instead of equals/less-than/greater-than.
     private string OperatorLabelFor(ColumnDefinition<TItem> def, FilterOperator op)
-    {
-        if (def.Type is ColumnType.Date or ColumnType.DateTime)
-        {
-            switch (op)
-            {
-                case FilterOperator.Equals:      return "on";
-                case FilterOperator.LessThan:    return "before";
-                case FilterOperator.GreaterThan: return "after";
-            }
-        }
-        return OperatorLabel(op);
-    }
+        => LipiFilterOperators.OperatorLabelFor(def.Type, op);
 
-    private static string OperatorLabel(FilterOperator op) => op switch
-    {
-        FilterOperator.Contains    => "contains",
-        FilterOperator.NotContains => "does not contain",
-        FilterOperator.Equals      => "equals",
-        FilterOperator.NotEquals   => "not equals",
-        FilterOperator.StartsWith  => "starts with",
-        FilterOperator.EndsWith    => "ends with",
-        FilterOperator.Empty       => "is empty",
-        FilterOperator.NotEmpty    => "is not empty",
-        FilterOperator.GreaterThan => "greater than",
-        FilterOperator.GreaterThanOrEqual => "≥",
-        FilterOperator.LessThan    => "less than",
-        FilterOperator.LessThanOrEqual    => "≤",
-        FilterOperator.Between     => "between",
-        FilterOperator.In          => "in",
-        FilterOperator.IsTrue      => "is true",
-        FilterOperator.IsFalse     => "is false",
-        FilterOperator.Today       => "is today",
-        FilterOperator.Yesterday   => "is yesterday",
-        FilterOperator.Tomorrow    => "is tomorrow",
-        FilterOperator.ThisWeek    => "this week",
-        FilterOperator.LastWeek    => "last week",
-        FilterOperator.NextWeek    => "next week",
-        FilterOperator.ThisMonth   => "this month",
-        FilterOperator.LastMonth   => "last month",
-        FilterOperator.NextMonth   => "next month",
-        FilterOperator.ThisQuarter => "this quarter",
-        FilterOperator.LastQuarter => "last quarter",
-        FilterOperator.ThisYear    => "this year",
-        FilterOperator.LastYear    => "last year",
-        FilterOperator.LastNDays   => "in the last N days",
-        FilterOperator.NextNDays   => "in the next N days",
-        _ => op.ToString().ToLowerInvariant()
-    };
+    private static string OperatorLabel(FilterOperator op) => LipiFilterOperators.OperatorLabel(op);
 
     // ══════════════════════════════════════════════════════════════════════
     //  Quick search — Stage S2. First pipeline stage:
@@ -1482,6 +1294,7 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
         var existing = _columns.FindIndex(c => c.ColumnKey == def.ColumnKey);
         if (existing >= 0) _columns[existing] = def;
         else _columns.Add(def);
+        FS.RegisterColumn(def.ColumnKey, def.GetValue, def.Type, def.Header, def.Filterable);
         StateHasChanged();
     }
 
@@ -1491,6 +1304,7 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
         if (idx >= 0)
         {
             _columns.RemoveAt(idx);
+            FS.UnregisterColumn(columnKey);
             StateHasChanged();
         }
     }
@@ -1502,6 +1316,18 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
     // ── Validation (§3.1.3) ──────────────────────────────────────────────
     protected override void OnParametersSet()
     {
+        // PR5a — resolve & subscribe the shared filter state (own internal instance if none given).
+        var targetFs = FilterState ?? _ownFilterState;
+        if (!ReferenceEquals(targetFs, _boundFilterState))
+        {
+            if (_boundFilterState is not null) _boundFilterState.Changed -= OnFilterStateChanged;
+            _boundFilterState = targetFs;
+            _boundFilterState.Changed += OnFilterStateChanged;
+            foreach (var col in _columns)                       // re-seed registry on (re)bind
+                _boundFilterState.RegisterColumn(col.ColumnKey, col.GetValue, col.Type, col.Header, col.Filterable);
+        }
+        _boundFilterState.Configure(FilterCaseSensitive, FilterTimeZone, FilterWeekStart);
+
         // Exactly one of Items / DataSource.
         if (Items is not null && DataSource is not null)
         {
@@ -2358,6 +2184,7 @@ public partial class LipiTable<TItem> : ComponentBase, IDisposable
 
     void IDisposable.Dispose()
     {
+        if (_boundFilterState is not null) _boundFilterState.Changed -= OnFilterStateChanged;
         if (JS is not null) { try { _ = JS.InvokeVoidAsync("lipiTable.offScrollClose"); } catch { } }
         _selfRef?.Dispose();
     }
