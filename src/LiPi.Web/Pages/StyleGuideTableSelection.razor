@@ -1,0 +1,165 @@
+@* SPEC: docs/00-COMPONENTS/2.8/01-LipiTable-Spec.md §5.7 (across-pages selection) — S4c *@
+@* PHASE: 2.8 Data Display — Stage S4c (across-pages selection, bulk bar, basis audit) *@
+@* DEMO: bulk-action bar (docked/floating) + across-pages banner + audit basis; not redistributable (LiPi.Web). *@
+@page "/admin/style-guide/data-display/table-selection"
+@layout LiPi.Web.Components.Layouts.TopNavLayout
+@rendermode InteractiveServer
+@using LiPi.Components.DataDisplay
+@using LiPicons.Blazor
+@using System.Linq
+
+<div class="sg-page">
+    <div class="sg-header">
+        <h1>Table Selection — S4c (across pages)</h1>
+        <p>
+            Tick the header checkbox to select the current page; because more rows match beyond it, the
+            across-pages banner offers to select them all. The selection is a stable key set, so it
+            survives paging, sorting and filtering. A bulk-action bar surfaces the selection to the host,
+            which supplies the actions and writes the audit entry from the selection <em>basis</em> — the
+            component owns no actions and logs nothing itself.
+        </p>
+    </div>
+
+    <div class="sg-section">
+        <h2>Bulk bar + across-pages banner</h2>
+        <p class="sg-note-p">
+            48 patients, 10 per page. Select the page, then "select all matching". This table sets
+            <code>BulkSelectAllConfirmAt="5"</code> (the production default is 1,000) so the confirm gate
+            is reachable on a small dataset. Labels are overridden to "patients" to show that wording is
+            the host's, not the component's. Toggle the bar placement:
+        </p>
+
+        <div class="sg-toolbar">
+            <div class="sg-seg" role="group" aria-label="Bulk bar placement">
+                <button type="button" class="sg-seg-btn @(_placement == BulkBarPlacement.Docked ? "active" : null)" @onclick="SetDocked">Docked</button>
+                <button type="button" class="sg-seg-btn @(_placement == BulkBarPlacement.Floating ? "active" : null)" @onclick="SetFloating">Floating</button>
+            </div>
+        </div>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-sel-main"
+                   SelectionMode="SelectionMode.Multi"
+                   AcrossPagesSelection="true"
+                   BulkBarPlacement="_placement"
+                   BulkSelectAllConfirmAt="5"
+                   ShowQuickSearch="true"
+                   BulkSelectedLabel="{0} patients selected"
+                   PageSelectedLabel="All {0} on this page are selected."
+                   SelectAllMatchingLabel="Select all {0} matching patients"
+                   AllMatchingSelectedLabel="All {0} patients selected."
+                   BulkConfirmLabel="Select all {0} patients?"
+                   ClearSelectionLabel="Clear selection">
+            <ChildContent>
+                <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+                <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.EmployeeCode)" Header="MRN" Type="ColumnType.Mono" />
+                <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" Type="ColumnType.Status" />
+                <LipiColumn TItem="DemoStaff" TValue="DateOnly" Field="@(s => s.JoinedOn)" Header="Joined" Type="ColumnType.Date" />
+                <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+            </ChildContent>
+            <BulkActions Context="ctx">
+                <button type="button" class="sg-bulk-act" @onclick="@(() => RunBulk("Export", ctx))">Export</button>
+                <button type="button" class="sg-bulk-act" @onclick="@(() => RunBulk("Assign", ctx))">Assign</button>
+                <button type="button" class="sg-bulk-act sg-bulk-act--danger" @onclick="@(() => RunBulk("Delete", ctx))">Delete</button>
+            </BulkActions>
+        </LipiTable>
+
+        <h3 class="sg-h3">Audit basis (host-written)</h3>
+        <p class="sg-note-p">
+            Each bulk action records what the host would send to <code>IAuditService</code>: the action, the
+            count, and the basis — explicit keys vs. "all matching", with the filter summary and count
+            captured at selection time. The component raised none of this; it only handed over the context.
+        </p>
+        <div class="sg-audit">
+            @if (_audit.Count == 0)
+            {
+                <div class="sg-audit-empty">No bulk actions yet — select rows and run one.</div>
+            }
+            else
+            {
+                @foreach (var line in _audit)
+                {
+                    <div class="sg-audit-item">@line</div>
+                }
+            }
+        </div>
+    </div>
+
+    <div class="sg-section">
+        <h2>Hard-cap guard</h2>
+        <p class="sg-note-p">
+            Same data, but <code>BulkSelectAllMax="20"</code> (production default 10,000). 48 &gt; 20, so
+            "select all matching" is refused and the banner asks you to narrow the filter — a deterministic
+            guard against acting on an unreviewed set. Type in quick search to drop the match count below 20
+            and the offer returns.
+        </p>
+
+        <LipiTable TItem="DemoStaff" Items="@_staff" KeySelector="@(s => s.Id)" TableId="sg-sel-cap"
+                   SelectionMode="SelectionMode.Multi"
+                   AcrossPagesSelection="true"
+                   BulkSelectAllConfirmAt="5"
+                   BulkSelectAllMax="20"
+                   ShowQuickSearch="true"
+                   BulkSelectedLabel="{0} patients selected"
+                   SelectAllMatchingLabel="Select all {0} matching patients"
+                   BulkCapLabel="{0} patients match — narrow the filter to select all (max {1})."
+                   ClearSelectionLabel="Clear selection">
+            <ChildContent>
+                <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Name)" Header="Name" />
+                <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Department)" Header="Department" Type="ColumnType.Status" />
+                <LipiColumn TItem="DemoStaff" TValue="string" Field="@(s => s.Status)" Header="Status" Type="ColumnType.Status" />
+            </ChildContent>
+            <BulkActions Context="ctx">
+                <button type="button" class="sg-bulk-act" @onclick="@(() => RunBulk("Export (cap demo)", ctx))">Export</button>
+            </BulkActions>
+        </LipiTable>
+    </div>
+</div>
+
+@code {
+    private sealed record DemoStaff(
+        Guid Id,
+        string Name,
+        string EmployeeCode,
+        string Department,
+        DateOnly JoinedOn,
+        decimal MonthlyCtc,
+        bool IsActive,
+        string Status);
+
+    private BulkBarPlacement _placement = BulkBarPlacement.Docked;
+    private void SetDocked() => _placement = BulkBarPlacement.Docked;
+    private void SetFloating() => _placement = BulkBarPlacement.Floating;
+
+    // Host-side "audit": what the app would persist via IAuditService for each bulk action.
+    private readonly List<string> _audit = new();
+    private void RunBulk(string action, SelectionContext ctx)
+    {
+        _audit.Insert(0,
+            $"{DateTimeOffset.Now:HH:mm:ss}  ·  {action}  ·  {ctx.Count} patients  ·  basis: {ctx.Basis.Mode} ({ctx.Basis.FilterSummary})");
+        if (_audit.Count > 8) _audit.RemoveRange(8, _audit.Count - 8);
+    }
+
+    private readonly List<DemoStaff> _staff = BuildStaff();
+
+    private static List<DemoStaff> BuildStaff()
+    {
+        var depts = new[] { "Radiation Oncology", "Medical Physics", "Pharmacy", "Nursing", "Administration", "Surgical Oncology" };
+        var statuses = new[] { "active", "pending", "locked", "suspended" };
+        var first = new[] { "Aarav", "Priya", "Sneha", "Rohan", "Fatima", "Vikram", "Anjali", "Karthik", "Deepa", "Imran", "Meera", "Arjun" };
+        var last = new[] { "Sharma", "Nair", "Iyer", "Mehta", "Khan", "Reddy", "Gupta", "Menon", "Rao", "Sheikh", "Bose", "Pillai" };
+        var list = new List<DemoStaff>(48);
+        for (int i = 0; i < 48; i++)
+        {
+            var name = $"{first[i % first.Length]} {last[(i * 7) % last.Length]}";
+            list.Add(new DemoStaff(
+                Guid.NewGuid(),
+                name,
+                $"MRN-{80000 + i}",
+                depts[i % depts.Length],
+                new DateOnly(2018 + (i % 7), 1 + (i % 12), 1 + (i % 27)),
+                40000m + (i % 20) * 5000m,
+                i % 3 != 0,
+                statuses[i % statuses.Length]));
+        }
+        return list;
+    }
+}

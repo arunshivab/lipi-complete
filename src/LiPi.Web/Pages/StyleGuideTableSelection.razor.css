@@ -1,0 +1,184 @@
+/* ============================================================
+   StyleGuideTableSelection.razor.css — Blazor CSS Isolation
+   ============================================================
+   PHASE:   2.8 Data Display — Stage S4c (across-pages selection)
+   PATTERN: Per-page scoped sg-* base block. CSS isolation does NOT
+            cross component boundaries, so this page carries its own
+            sg-page / sg-header / sg-section / sg-h3 / sg-note-p block
+            (same look as StyleGuide.razor.css) plus the demo-only
+            controls (placement toggle, host bulk buttons, audit panel).
+   ============================================================ */
+
+/* ---------- Page scaffold ---------- */
+.sg-page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--sp-xl) var(--sp-lg);
+}
+
+.sg-header {
+    margin-bottom: var(--sp-xl);
+    padding-bottom: var(--sp-lg);
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sg-header h1 {
+    font-family: var(--font-ui);
+    font-size: 24px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: 0 0 var(--sp-sm) 0;
+    letter-spacing: -0.01em;
+}
+
+.sg-header p {
+    font-size: var(--ts-body);
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 70ch;
+}
+
+.sg-section {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--r-lg);
+    padding: var(--sp-xl);
+    box-shadow: var(--sh-sm);
+    margin-bottom: var(--sp-2xl);
+}
+
+.sg-section h2 {
+    font-family: var(--font-ui);
+    font-size: 20px;
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: 0 0 var(--sp-sm) 0;
+    letter-spacing: -0.01em;
+}
+
+.sg-h3 {
+    font-family: var(--font-ui);
+    font-size: var(--ts-section);
+    font-weight: var(--fw-semi);
+    color: var(--color-text-primary);
+    margin: var(--sp-xl) 0 var(--sp-sm) 0;
+}
+
+.sg-note-p {
+    font-size: var(--ts-body);
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin: 0 0 var(--sp-md) 0;
+    max-width: 80ch;
+}
+
+.sg-note-p code {
+    font-family: var(--font-mono);
+    font-size: var(--ts-mono-data);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--color-border-subtle);
+}
+
+/* ---------- Placement toggle (segmented) ---------- */
+.sg-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md);
+    margin-bottom: var(--sp-md);
+}
+
+.sg-seg {
+    display: inline-flex;
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-md);
+    padding: 3px;
+    gap: 2px;
+}
+
+.sg-seg-btn {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 6px 14px;
+    font-family: var(--font-ui);
+    font-size: var(--ts-label);
+    font-weight: var(--fw-medium);
+    color: var(--color-text-secondary);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: background var(--tr-fast), color var(--tr-fast);
+}
+
+.sg-seg-btn:hover { color: var(--color-text-primary); }
+
+.sg-seg-btn.active {
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    box-shadow: var(--sh-sm);
+}
+
+/* ---------- Host-supplied bulk action buttons ---------- */
+.sg-bulk-act {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    font-family: var(--font-ui);
+    font-size: var(--ts-label);
+    font-weight: var(--fw-medium);
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: background var(--tr-fast), border-color var(--tr-fast), color var(--tr-fast);
+}
+
+.sg-bulk-act:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-strong);
+}
+
+.sg-bulk-act--danger {
+    color: var(--color-danger, #dc2626);
+    border-color: var(--color-danger-pale, #fecaca);
+}
+
+.sg-bulk-act--danger:hover {
+    background: var(--color-danger-pale, #fee2e2);
+    border-color: var(--color-danger, #dc2626);
+}
+
+/* ---------- Host "audit" panel ---------- */
+.sg-audit {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--r-md);
+    background: var(--color-bg-subtle);
+    padding: var(--sp-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sg-audit-item {
+    font-family: var(--font-mono);
+    font-size: var(--ts-small);
+    color: var(--color-text-secondary);
+    padding: 4px 8px;
+    background: var(--color-bg-surface);
+    border-radius: var(--r-sm);
+    border: 1px solid var(--color-border-subtle);
+}
+
+.sg-audit-empty {
+    font-size: var(--ts-small);
+    color: var(--color-text-tertiary);
+    font-style: italic;
+    padding: 4px 8px;
+}
